@@ -1,0 +1,482 @@
+{
+  "description": "INK v0.1 handshake test vectors — challenge (Stage 2a), rejection (Stage 2b), resolution (Stage 3). All signatures use key material from keys.json.",
+  "vectors": [
+    {
+      "id": "challenge-valid",
+      "description": "Alice sends a valid challenge to Bob (Stage 2a)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:bob456test/challenge",
+        "recipientDid": "did:plc:bob456test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "msg-intent-001",
+          "challengeType": "availability",
+          "nonce": "Y2hhbG5vbmNlMQ",
+          "timestamp": "2026-03-25T12:00:00Z"
+        },
+        "timestamp": "2026-03-25T12:00:00Z",
+        "signerPrivateKeyHex": "02362f546f26d9c252c9209d1218e3174654b04b5f08f2ee2b3fa7874111d086"
+      },
+      "expected": {
+        "canonicalBody": "{\"challengeType\":\"availability\",\"intentRef\":\"msg-intent-001\",\"nonce\":\"Y2hhbG5vbmNlMQ\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:00:00Z\",\"type\":\"network.tulpa.challenge\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/did:plc:bob456test/challenge\ndid:plc:bob456test\n{\"challengeType\":\"availability\",\"intentRef\":\"msg-intent-001\",\"nonce\":\"Y2hhbG5vbmNlMQ\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:00:00Z\",\"type\":\"network.tulpa.challenge\"}\n2026-03-25T12:00:00Z",
+        "signatureBase64url": "RpVtDeOoEegibsJdKJtaM6Iku6aaew7ckJ6PmtG__z4AnerYp85tcRSSSYbT2BPGKxqLXqVT6Kx9Kj2KkkC6Cw",
+        "accepted": true
+      }
+    },
+    {
+      "id": "challenge-invalid-path",
+      "description": "Challenge signature fails when verified against /rejection path",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:bob456test/rejection",
+        "recipientDid": "did:plc:bob456test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "msg-intent-001",
+          "challengeType": "availability",
+          "nonce": "Y2hhbG5vbmNlMQ",
+          "timestamp": "2026-03-25T12:00:00Z"
+        },
+        "timestamp": "2026-03-25T12:00:00Z",
+        "originalSignatureBase64url": "RpVtDeOoEegibsJdKJtaM6Iku6aaew7ckJ6PmtG__z4AnerYp85tcRSSSYbT2BPGKxqLXqVT6Kx9Kj2KkkC6Cw"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Signature was computed over /challenge but verified against /rejection"
+      }
+    },
+    {
+      "id": "challenge-invalid-recipient",
+      "description": "Challenge signature fails when verified with wrong recipient DID",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:bob456test/challenge",
+        "recipientDid": "did:plc:mallory999",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "msg-intent-001",
+          "challengeType": "availability",
+          "nonce": "Y2hhbG5vbmNlMQ",
+          "timestamp": "2026-03-25T12:00:00Z"
+        },
+        "timestamp": "2026-03-25T12:00:00Z",
+        "originalSignatureBase64url": "RpVtDeOoEegibsJdKJtaM6Iku6aaew7ckJ6PmtG__z4AnerYp85tcRSSSYbT2BPGKxqLXqVT6Kx9Kj2KkkC6Cw"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "recipientDid in signature base does not match verifier"
+      }
+    },
+    {
+      "id": "challenge-tampered-intentRef",
+      "description": "Challenge signature fails when intentRef is tampered",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:bob456test/challenge",
+        "recipientDid": "did:plc:bob456test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "msg-intent-TAMPERED",
+          "challengeType": "availability",
+          "nonce": "Y2hhbG5vbmNlMQ",
+          "timestamp": "2026-03-25T12:00:00Z"
+        },
+        "timestamp": "2026-03-25T12:00:00Z",
+        "originalSignatureBase64url": "RpVtDeOoEegibsJdKJtaM6Iku6aaew7ckJ6PmtG__z4AnerYp85tcRSSSYbT2BPGKxqLXqVT6Kx9Kj2KkkC6Cw"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Body was modified after signing"
+      }
+    },
+    {
+      "id": "challenge-timestamp-expired",
+      "description": "Challenge rejected — timestamp more than 5 minutes in the past",
+      "input": {
+        "messageTimestamp": "2026-03-25T11:50:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "Y2hhbG5vbmNlMQ"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "challenge-timestamp-future",
+      "description": "Challenge rejected — timestamp more than 30 seconds in the future",
+      "input": {
+        "messageTimestamp": "2026-03-25T12:01:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "Y2hhbGZ1dHVyZQ"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "challenge-duplicate-nonce",
+      "description": "Challenge rejected — nonce already seen",
+      "input": {
+        "messageTimestamp": "2026-03-25T12:00:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "Y2hhbG5vbmNlMQ",
+        "previouslySeenNonces": [
+          "Y2hhbG5vbmNlMQ"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "duplicate_nonce"
+      }
+    },
+    {
+      "id": "rejection-valid",
+      "description": "Bob sends a valid rejection to Alice (Stage 2b)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/rejection",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "msg-intent-001",
+          "reason": "capacity",
+          "detail": "Too many pending coordination requests",
+          "nonce": "cmVqbm9uY2Ux",
+          "timestamp": "2026-03-25T12:01:00Z"
+        },
+        "timestamp": "2026-03-25T12:01:00Z",
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "canonicalBody": "{\"detail\":\"Too many pending coordination requests\",\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVqbm9uY2Ux\",\"protocol\":\"ink/0.1\",\"reason\":\"capacity\",\"timestamp\":\"2026-03-25T12:01:00Z\",\"type\":\"network.tulpa.rejection\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/did:plc:alice123test/rejection\ndid:plc:alice123test\n{\"detail\":\"Too many pending coordination requests\",\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVqbm9uY2Ux\",\"protocol\":\"ink/0.1\",\"reason\":\"capacity\",\"timestamp\":\"2026-03-25T12:01:00Z\",\"type\":\"network.tulpa.rejection\"}\n2026-03-25T12:01:00Z",
+        "signatureBase64url": "Dxye5S0lV3uUGck8ozOxF8kavH_ZTcxbdQm7i50hrVLewU1_wDvF3hMYrFHJsSmwnGThvCaM1SDLsaiEiksKBA",
+        "accepted": true
+      }
+    },
+    {
+      "id": "rejection-invalid-path",
+      "description": "Rejection signature fails when verified against /challenge path",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/challenge",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "msg-intent-001",
+          "reason": "capacity",
+          "detail": "Too many pending coordination requests",
+          "nonce": "cmVqbm9uY2Ux",
+          "timestamp": "2026-03-25T12:01:00Z"
+        },
+        "timestamp": "2026-03-25T12:01:00Z",
+        "originalSignatureBase64url": "Dxye5S0lV3uUGck8ozOxF8kavH_ZTcxbdQm7i50hrVLewU1_wDvF3hMYrFHJsSmwnGThvCaM1SDLsaiEiksKBA"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Signature was computed over /rejection but verified against /challenge"
+      }
+    },
+    {
+      "id": "rejection-invalid-recipient",
+      "description": "Rejection signature fails when verified with wrong recipient DID",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/rejection",
+        "recipientDid": "did:plc:mallory999",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "msg-intent-001",
+          "reason": "capacity",
+          "detail": "Too many pending coordination requests",
+          "nonce": "cmVqbm9uY2Ux",
+          "timestamp": "2026-03-25T12:01:00Z"
+        },
+        "timestamp": "2026-03-25T12:01:00Z",
+        "originalSignatureBase64url": "Dxye5S0lV3uUGck8ozOxF8kavH_ZTcxbdQm7i50hrVLewU1_wDvF3hMYrFHJsSmwnGThvCaM1SDLsaiEiksKBA"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "recipientDid in signature base does not match verifier"
+      }
+    },
+    {
+      "id": "rejection-tampered-reason",
+      "description": "Rejection signature fails when reason field is tampered",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/rejection",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "msg-intent-001",
+          "reason": "expired",
+          "detail": "Too many pending coordination requests",
+          "nonce": "cmVqbm9uY2Ux",
+          "timestamp": "2026-03-25T12:01:00Z"
+        },
+        "timestamp": "2026-03-25T12:01:00Z",
+        "originalSignatureBase64url": "Dxye5S0lV3uUGck8ozOxF8kavH_ZTcxbdQm7i50hrVLewU1_wDvF3hMYrFHJsSmwnGThvCaM1SDLsaiEiksKBA"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Body was modified after signing"
+      }
+    },
+    {
+      "id": "rejection-timestamp-expired",
+      "description": "Rejection rejected — timestamp expired",
+      "input": {
+        "messageTimestamp": "2026-03-25T11:50:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "cmVqbm9uY2Ux"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "rejection-duplicate-nonce",
+      "description": "Rejection rejected — duplicate nonce",
+      "input": {
+        "messageTimestamp": "2026-03-25T12:01:00Z",
+        "receiverClock": "2026-03-25T12:01:00Z",
+        "nonce": "cmVqbm9uY2Ux",
+        "previouslySeenNonces": [
+          "cmVqbm9uY2Ux"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "duplicate_nonce"
+      }
+    },
+    {
+      "id": "resolution-accepted",
+      "description": "Bob sends a 'accepted' resolution to Alice (Stage 3)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/resolution",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "accepted",
+          "nonce": "cmVzb2x1dGlvbi0YWNjZXB0ZWQ",
+          "timestamp": "2026-03-25T12:05:00Z",
+          "details": {
+            "scheduledAt": "2026-04-01T15:00:00Z",
+            "duration": "30m"
+          }
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "canonicalBody": "{\"details\":{\"duration\":\"30m\",\"scheduledAt\":\"2026-04-01T15:00:00Z\"},\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0YWNjZXB0ZWQ\",\"outcome\":\"accepted\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/did:plc:alice123test/resolution\ndid:plc:alice123test\n{\"details\":{\"duration\":\"30m\",\"scheduledAt\":\"2026-04-01T15:00:00Z\"},\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0YWNjZXB0ZWQ\",\"outcome\":\"accepted\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}\n2026-03-25T12:05:00Z",
+        "signatureBase64url": "Gz7YiTPogpiTpTq0FttCq1tFtNA6bkeut7h-55nsu2xpZTd0vraF6hmmmyfTojtRzVfeMu7XOXIK4qIQJt7gDg",
+        "accepted": true
+      }
+    },
+    {
+      "id": "resolution-declined",
+      "description": "Bob sends a 'declined' resolution to Alice (Stage 3)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/resolution",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "declined",
+          "nonce": "cmVzb2x1dGlvbi0ZGVjbGluZWQ",
+          "timestamp": "2026-03-25T12:05:00Z"
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "canonicalBody": "{\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0ZGVjbGluZWQ\",\"outcome\":\"declined\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/did:plc:alice123test/resolution\ndid:plc:alice123test\n{\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0ZGVjbGluZWQ\",\"outcome\":\"declined\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}\n2026-03-25T12:05:00Z",
+        "signatureBase64url": "rlhcLWtcp2wXqxBVAbfyU9er-EBs2fUqZDfIrqOkwH9yuNgplawXP73IVQHFUmYa6fS1amlU2MXzgRPmYD73Dw",
+        "accepted": true
+      }
+    },
+    {
+      "id": "resolution-escalated_to_human",
+      "description": "Bob sends a 'escalated_to_human' resolution to Alice (Stage 3)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/resolution",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "escalated_to_human",
+          "nonce": "cmVzb2x1dGlvbi0ZXNjYWxhdGVkX3RvX2h1bWFu",
+          "timestamp": "2026-03-25T12:05:00Z"
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "canonicalBody": "{\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0ZXNjYWxhdGVkX3RvX2h1bWFu\",\"outcome\":\"escalated_to_human\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/did:plc:alice123test/resolution\ndid:plc:alice123test\n{\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0ZXNjYWxhdGVkX3RvX2h1bWFu\",\"outcome\":\"escalated_to_human\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}\n2026-03-25T12:05:00Z",
+        "signatureBase64url": "n0N6c0GCsDq3boAvM2jnN1Fyx4xTNy5HUrL8w5nLJ5NK_U-VXHVjIgLcNeb-eDvsXPHloizs7jIhiZfX6LzmBg",
+        "accepted": true
+      }
+    },
+    {
+      "id": "resolution-expired",
+      "description": "Bob sends a 'expired' resolution to Alice (Stage 3)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/resolution",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "expired",
+          "nonce": "cmVzb2x1dGlvbi0ZXhwaXJlZA",
+          "timestamp": "2026-03-25T12:05:00Z"
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "canonicalBody": "{\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0ZXhwaXJlZA\",\"outcome\":\"expired\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/did:plc:alice123test/resolution\ndid:plc:alice123test\n{\"intentRef\":\"msg-intent-001\",\"nonce\":\"cmVzb2x1dGlvbi0ZXhwaXJlZA\",\"outcome\":\"expired\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:05:00Z\",\"type\":\"network.tulpa.resolution\"}\n2026-03-25T12:05:00Z",
+        "signatureBase64url": "eu9c-cNHGxsjRp1m4SW5NS0J5fHnYfaRt1akSWLwMIXIqrkTX0hrshEIFmQMUg5iiEad6h_p6rQuFT98ixavDg",
+        "accepted": true
+      }
+    },
+    {
+      "id": "resolution-invalid-path",
+      "description": "Resolution signature fails when verified against /challenge path",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/challenge",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "accepted",
+          "details": {
+            "scheduledAt": "2026-04-01T15:00:00Z",
+            "duration": "30m"
+          },
+          "nonce": "cmVzb2x1dGlvbi0YWNjZXB0ZWQ",
+          "timestamp": "2026-03-25T12:05:00Z"
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "originalSignatureBase64url": "Gz7YiTPogpiTpTq0FttCq1tFtNA6bkeut7h-55nsu2xpZTd0vraF6hmmmyfTojtRzVfeMu7XOXIK4qIQJt7gDg"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Signature was computed over /resolution but verified against /challenge"
+      }
+    },
+    {
+      "id": "resolution-invalid-recipient",
+      "description": "Resolution signature fails when verified with wrong recipient DID",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/resolution",
+        "recipientDid": "did:plc:mallory999",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "accepted",
+          "details": {
+            "scheduledAt": "2026-04-01T15:00:00Z",
+            "duration": "30m"
+          },
+          "nonce": "cmVzb2x1dGlvbi0YWNjZXB0ZWQ",
+          "timestamp": "2026-03-25T12:05:00Z"
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "originalSignatureBase64url": "Gz7YiTPogpiTpTq0FttCq1tFtNA6bkeut7h-55nsu2xpZTd0vraF6hmmmyfTojtRzVfeMu7XOXIK4qIQJt7gDg"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "recipientDid mismatch"
+      }
+    },
+    {
+      "id": "resolution-tampered-outcome",
+      "description": "Resolution signature fails when outcome is tampered",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/did:plc:alice123test/resolution",
+        "recipientDid": "did:plc:alice123test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "msg-intent-001",
+          "outcome": "declined",
+          "details": {
+            "scheduledAt": "2026-04-01T15:00:00Z",
+            "duration": "30m"
+          },
+          "nonce": "cmVzb2x1dGlvbi0YWNjZXB0ZWQ",
+          "timestamp": "2026-03-25T12:05:00Z"
+        },
+        "timestamp": "2026-03-25T12:05:00Z",
+        "originalSignatureBase64url": "Gz7YiTPogpiTpTq0FttCq1tFtNA6bkeut7h-55nsu2xpZTd0vraF6hmmmyfTojtRzVfeMu7XOXIK4qIQJt7gDg"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Body was modified after signing"
+      }
+    },
+    {
+      "id": "resolution-timestamp-expired",
+      "description": "Resolution rejected — timestamp expired",
+      "input": {
+        "messageTimestamp": "2026-03-25T11:50:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "cmVzZXhwaXJlZA"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "resolution-duplicate-nonce",
+      "description": "Resolution rejected — duplicate nonce",
+      "input": {
+        "messageTimestamp": "2026-03-25T12:05:00Z",
+        "receiverClock": "2026-03-25T12:05:00Z",
+        "nonce": "cmVzZHVwbm9uY2U",
+        "previouslySeenNonces": [
+          "cmVzZHVwbm9uY2U"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "duplicate_nonce"
+      }
+    }
+  ]
+}

@@ -1,0 +1,142 @@
+{
+  "description": "INK v0.1 receipt, audit query, and audit chain test vectors (INK Auditability §1–§3). All signatures and hashes use key material from keys.json.",
+  "vectors": [
+    {
+      "id": "receipt-1",
+      "description": "Bob sends a 'delivered' receipt to Alice for the intent from signing.json vector 1",
+      "input": {
+        "note": "messageHash is SHA-256 of the JCS-canonicalized intent body from signing.json vector 1",
+        "originalMessageBody": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.intent",
+          "from": "did:plc:alice123test",
+          "to": "did:plc:bob456test",
+          "intentType": "scheduling",
+          "purpose": "Discuss partnership opportunity",
+          "urgency": "normal",
+          "expiresAt": "2026-03-25T00:00:00Z",
+          "nonce": "dGVzdG5vbmNlMTIzNDU2Nzg",
+          "timestamp": "2026-03-18T12:00:00Z"
+        },
+        "canonicalOriginalMessage": "{\"expiresAt\":\"2026-03-25T00:00:00Z\",\"from\":\"did:plc:alice123test\",\"intentType\":\"scheduling\",\"nonce\":\"dGVzdG5vbmNlMTIzNDU2Nzg\",\"protocol\":\"ink/0.1\",\"purpose\":\"Discuss partnership opportunity\",\"timestamp\":\"2026-03-18T12:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.intent\",\"urgency\":\"normal\"}",
+        "messageHashHex": "39605712514a6b5e3a6691ef240a8e2b61376e372d4315329e96637e4a7c34ea",
+        "receipt": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.receipt",
+          "from": "did:plc:bob456test",
+          "to": "did:plc:alice123test",
+          "messageId": "msg-test-vector-001",
+          "disposition": "delivered",
+          "dispositionAt": "2026-03-18T12:05:00Z",
+          "messageHash": "39605712514a6b5e3a6691ef240a8e2b61376e372d4315329e96637e4a7c34ea",
+          "nonce": "cmVjZWlwdG5vbmNlMTIzNA",
+          "timestamp": "2026-03-18T12:05:01Z"
+        },
+        "method": "POST",
+        "path": "/ink/v1/receipt",
+        "recipientDid": "did:plc:alice123test",
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "canonicalReceipt": "{\"disposition\":\"delivered\",\"dispositionAt\":\"2026-03-18T12:05:00Z\",\"from\":\"did:plc:bob456test\",\"messageHash\":\"39605712514a6b5e3a6691ef240a8e2b61376e372d4315329e96637e4a7c34ea\",\"messageId\":\"msg-test-vector-001\",\"nonce\":\"cmVjZWlwdG5vbmNlMTIzNA\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-18T12:05:01Z\",\"to\":\"did:plc:alice123test\",\"type\":\"network.tulpa.receipt\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/receipt\ndid:plc:alice123test\n{\"disposition\":\"delivered\",\"dispositionAt\":\"2026-03-18T12:05:00Z\",\"from\":\"did:plc:bob456test\",\"messageHash\":\"39605712514a6b5e3a6691ef240a8e2b61376e372d4315329e96637e4a7c34ea\",\"messageId\":\"msg-test-vector-001\",\"nonce\":\"cmVjZWlwdG5vbmNlMTIzNA\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-18T12:05:01Z\",\"to\":\"did:plc:alice123test\",\"type\":\"network.tulpa.receipt\"}\n2026-03-18T12:05:01Z",
+        "signatureBase64url": "1YX_UO-steo6lVd77YWI2TXwrE7wXAp4NfMEZsWY539iwsLRbZ5O3jOwDQ3Dhyq6odX-FQHQjoxsfoKG103LAw",
+        "signatureVerifies": true,
+        "signatureHex": "d585ff50efacb5ea3a95577bed8588d935f0ac4ef05c0a7835f30466c598e77f62c2c2d16d9e4ede33b00d0dc3872abaa1d5fe1501d08e8c6c7e8286d74dcb03"
+      }
+    },
+    {
+      "id": "audit-query-1",
+      "description": "Alice queries Bob for audit trail of msg-test-vector-001",
+      "input": {
+        "query": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query",
+          "from": "did:plc:alice123test",
+          "to": "did:plc:bob456test",
+          "messageId": "msg-test-vector-001",
+          "nonce": "YXVkaXRub25jZTEyMzQ1Ng",
+          "timestamp": "2026-03-18T13:00:00Z"
+        },
+        "method": "POST",
+        "path": "/ink/v1/audit",
+        "recipientDid": "did:plc:bob456test",
+        "signerPrivateKeyHex": "02362f546f26d9c252c9209d1218e3174654b04b5f08f2ee2b3fa7874111d086"
+      },
+      "expected": {
+        "canonicalQuery": "{\"from\":\"did:plc:alice123test\",\"messageId\":\"msg-test-vector-001\",\"nonce\":\"YXVkaXRub25jZTEyMzQ1Ng\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-18T13:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.audit_query\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/audit\ndid:plc:bob456test\n{\"from\":\"did:plc:alice123test\",\"messageId\":\"msg-test-vector-001\",\"nonce\":\"YXVkaXRub25jZTEyMzQ1Ng\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-18T13:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.audit_query\"}\n2026-03-18T13:00:00Z",
+        "signatureBase64url": "sC7lbTRpyeEVRBJf3wo0KHEIaKQbHAIbFGTooVqBy2fYJm1raU1hCwq-PQQs4BKykMdFPxWeZRTsxRijjaQdCQ",
+        "signatureVerifies": true
+      }
+    },
+    {
+      "id": "audit-chain-1",
+      "description": "Bob's audit chain — two events for msg-test-vector-001 (message.received → message.delivered)",
+      "input": {
+        "note": "Events are signed by Bob. agentSignature is computed over JCS-canonicalized event excluding the agentSignature field. previousEventHash is SHA-256 of the JCS-canonicalized previous event excluding agentSignature.",
+        "events": [
+          {
+            "id": "01JBTEST0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-bob-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.received",
+            "timestamp": "2026-03-18T12:04:58Z",
+            "messageId": "msg-test-vector-001",
+            "counterpartyId": "did:plc:alice123test"
+          },
+          {
+            "id": "01JBTEST0002",
+            "version": "ink-audit/1",
+            "agentId": "agent-bob-01",
+            "sequence": 2,
+            "eventType": "message.delivered",
+            "timestamp": "2026-03-18T12:05:00Z",
+            "messageId": "msg-test-vector-001",
+            "counterpartyId": "did:plc:alice123test"
+          }
+        ],
+        "signerPrivateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+      },
+      "expected": {
+        "event1": {
+          "canonicalWithoutSignature": "{\"agentId\":\"agent-bob-01\",\"counterpartyId\":\"did:plc:alice123test\",\"eventType\":\"message.received\",\"id\":\"01JBTEST0001\",\"messageId\":\"msg-test-vector-001\",\"previousEventHash\":null,\"sequence\":1,\"timestamp\":\"2026-03-18T12:04:58Z\",\"version\":\"ink-audit/1\"}",
+          "hashHex": "6b45d9d76d61b87b1cf804d0b403b7be8cf3af78a9c4eea9e543b211bf70827c",
+          "agentSignatureBase64url": "hHRnbjpet_BXu1bQwRtBzfmbBq_tC8jJFACisYaSP0HF0sgaSszsm733pEEhfJ4uGxhcQYGeemuzO_2sz-DZAw",
+          "signatureVerifies": true
+        },
+        "event2": {
+          "note": "previousEventHash links to event1's hash, forming the chain",
+          "previousEventHash": "6b45d9d76d61b87b1cf804d0b403b7be8cf3af78a9c4eea9e543b211bf70827c",
+          "canonicalWithoutSignature": "{\"agentId\":\"agent-bob-01\",\"counterpartyId\":\"did:plc:alice123test\",\"eventType\":\"message.delivered\",\"id\":\"01JBTEST0002\",\"messageId\":\"msg-test-vector-001\",\"previousEventHash\":\"6b45d9d76d61b87b1cf804d0b403b7be8cf3af78a9c4eea9e543b211bf70827c\",\"sequence\":2,\"timestamp\":\"2026-03-18T12:05:00Z\",\"version\":\"ink-audit/1\"}",
+          "hashHex": "645c53dc5e42581e99b1aabff30c12089ccebe6e131536573e94f313064f1f97",
+          "signatureVerifies": true
+        }
+      }
+    },
+    {
+      "id": "audit-chain-fork",
+      "description": "Fork detection — two events with the same sequence number but different content indicate a forked chain",
+      "input": {
+        "note": "If an agent produces two events with sequence=2, the chain is forked. Verifiers MUST reject chains where any sequence number appears more than once.",
+        "forkEvent": {
+          "id": "01JBTEST0003",
+          "version": "ink-audit/1",
+          "agentId": "agent-bob-01",
+          "sequence": 2,
+          "previousEventHash": "6b45d9d76d61b87b1cf804d0b403b7be8cf3af78a9c4eea9e543b211bf70827c",
+          "eventType": "message.rejected",
+          "timestamp": "2026-03-18T12:05:00Z",
+          "messageId": "msg-test-vector-001",
+          "counterpartyId": "did:plc:alice123test"
+        }
+      },
+      "expected": {
+        "chainValid": false,
+        "reason": "Duplicate sequence number 2 — agent-bob-01 produced two different events at the same position. This is evidence of tampering or a buggy implementation."
+      }
+    }
+  ]
+}

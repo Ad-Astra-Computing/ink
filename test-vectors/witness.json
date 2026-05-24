@@ -1,0 +1,394 @@
+{
+  "description": "INK v0.1 witness test vectors — audit submit and query with INK transport auth, plus interop cases. All signatures use key material from keys.json.",
+  "vectors": [
+    {
+      "id": "audit-submit-valid",
+      "description": "Alice submits a signed audit event to the witness",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/submit",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_submit",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "event": {
+            "id": "01JWIT0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-alice-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.sent",
+            "timestamp": "2026-03-25T12:00:00Z",
+            "messageId": "msg-witness-001",
+            "counterpartyId": "did:plc:bob456test",
+            "agentSignature": "9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg"
+          },
+          "nonce": "d2l0c3VibWl0MQ",
+          "timestamp": "2026-03-25T12:00:01Z"
+        },
+        "timestamp": "2026-03-25T12:00:01Z",
+        "signerPrivateKeyHex": "02362f546f26d9c252c9209d1218e3174654b04b5f08f2ee2b3fa7874111d086",
+        "eventSignatureBase64url": "9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg"
+      },
+      "expected": {
+        "canonicalBody": "{\"event\":{\"agentId\":\"agent-alice-01\",\"agentSignature\":\"9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg\",\"counterpartyId\":\"did:plc:bob456test\",\"eventType\":\"message.sent\",\"id\":\"01JWIT0001\",\"messageId\":\"msg-witness-001\",\"previousEventHash\":null,\"sequence\":1,\"timestamp\":\"2026-03-25T12:00:00Z\",\"version\":\"ink-audit/1\"},\"from\":\"did:plc:alice123test\",\"nonce\":\"d2l0c3VibWl0MQ\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:00:01Z\",\"to\":\"did:web:witness.tulpa.network\",\"type\":\"network.tulpa.audit_submit\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/audit/submit\ndid:web:witness.tulpa.network\n{\"event\":{\"agentId\":\"agent-alice-01\",\"agentSignature\":\"9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg\",\"counterpartyId\":\"did:plc:bob456test\",\"eventType\":\"message.sent\",\"id\":\"01JWIT0001\",\"messageId\":\"msg-witness-001\",\"previousEventHash\":null,\"sequence\":1,\"timestamp\":\"2026-03-25T12:00:00Z\",\"version\":\"ink-audit/1\"},\"from\":\"did:plc:alice123test\",\"nonce\":\"d2l0c3VibWl0MQ\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T12:00:01Z\",\"to\":\"did:web:witness.tulpa.network\",\"type\":\"network.tulpa.audit_submit\"}\n2026-03-25T12:00:01Z",
+        "signatureBase64url": "7VN7IJvoezRDTC_oJGu5fc8Xz2l0cgOYkmgRf3TcASp_6F62SjILXcSeSfljVWznLEReyTvNBOk4c-JTw6fZDQ",
+        "accepted": true
+      }
+    },
+    {
+      "id": "audit-submit-invalid-path",
+      "description": "Submit signature fails when verified against /audit/query path",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/query",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_submit",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "event": {
+            "id": "01JWIT0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-alice-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.sent",
+            "timestamp": "2026-03-25T12:00:00Z",
+            "messageId": "msg-witness-001",
+            "counterpartyId": "did:plc:bob456test",
+            "agentSignature": "9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg"
+          },
+          "nonce": "d2l0c3VibWl0MQ",
+          "timestamp": "2026-03-25T12:00:01Z"
+        },
+        "timestamp": "2026-03-25T12:00:01Z",
+        "originalSignatureBase64url": "7VN7IJvoezRDTC_oJGu5fc8Xz2l0cgOYkmgRf3TcASp_6F62SjILXcSeSfljVWznLEReyTvNBOk4c-JTw6fZDQ"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Signature was computed over /audit/submit but verified against /audit/query"
+      }
+    },
+    {
+      "id": "audit-submit-invalid-recipient",
+      "description": "Submit signature fails when verified with wrong recipient DID",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/submit",
+        "recipientDid": "did:web:evil-witness.example.com",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_submit",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "event": {
+            "id": "01JWIT0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-alice-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.sent",
+            "timestamp": "2026-03-25T12:00:00Z",
+            "messageId": "msg-witness-001",
+            "counterpartyId": "did:plc:bob456test",
+            "agentSignature": "9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg"
+          },
+          "nonce": "d2l0c3VibWl0MQ",
+          "timestamp": "2026-03-25T12:00:01Z"
+        },
+        "timestamp": "2026-03-25T12:00:01Z",
+        "originalSignatureBase64url": "7VN7IJvoezRDTC_oJGu5fc8Xz2l0cgOYkmgRf3TcASp_6F62SjILXcSeSfljVWznLEReyTvNBOk4c-JTw6fZDQ"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "recipientDid mismatch — prevents routing a submit to a different witness"
+      }
+    },
+    {
+      "id": "audit-submit-timestamp-expired",
+      "description": "Submit rejected — timestamp more than 5 minutes in the past",
+      "input": {
+        "messageTimestamp": "2026-03-25T11:50:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "d2l0c3VibWl0MQ"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "audit-submit-timestamp-future",
+      "description": "Submit rejected — timestamp more than 30 seconds in the future",
+      "input": {
+        "messageTimestamp": "2026-03-25T12:01:00Z",
+        "receiverClock": "2026-03-25T12:00:00Z",
+        "nonce": "d2l0ZnV0dXJlMQ"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "audit-submit-body-tamper",
+      "description": "Submit signature fails when event content is tampered after signing",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/submit",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_submit",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "event": {
+            "id": "01JWIT0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-alice-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.rejected",
+            "timestamp": "2026-03-25T12:00:00Z",
+            "messageId": "msg-witness-001",
+            "counterpartyId": "did:plc:bob456test",
+            "agentSignature": "9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg"
+          },
+          "nonce": "d2l0c3VibWl0MQ",
+          "timestamp": "2026-03-25T12:00:01Z"
+        },
+        "timestamp": "2026-03-25T12:00:01Z",
+        "originalSignatureBase64url": "7VN7IJvoezRDTC_oJGu5fc8Xz2l0cgOYkmgRf3TcASp_6F62SjILXcSeSfljVWznLEReyTvNBOk4c-JTw6fZDQ"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Transport signature fails because body was modified"
+      }
+    },
+    {
+      "id": "audit-submit-event-signature-invalid",
+      "description": "Transport auth valid but embedded event signature is invalid — witness should reject",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/submit",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_submit",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "event": {
+            "id": "01JWIT0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-alice-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.sent",
+            "timestamp": "2026-03-25T12:00:00Z",
+            "messageId": "msg-witness-001",
+            "counterpartyId": "did:plc:bob456test",
+            "agentSignature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+          },
+          "nonce": "d2l0c3VibWl0MQ",
+          "timestamp": "2026-03-25T12:00:01Z"
+        },
+        "timestamp": "2026-03-25T12:00:01Z",
+        "transportSignatureBase64url": "kF25C_Fk8U9S_gW8ZCcRQ-D7Q2HFwwsNfzexBH9fvePZhEOR1u4YHOIBbu_dZ9h3dj3x9NypKYcULd0NoibgBQ",
+        "note": "Transport signature is valid over the body (which contains a forged event signature). The witness must verify the inner event signature separately."
+      },
+      "expected": {
+        "transportAuthValid": true,
+        "eventSignatureValid": false,
+        "accepted": false,
+        "reason": "Inner event agentSignature does not verify against the agent's public key"
+      }
+    },
+    {
+      "id": "audit-query-valid",
+      "description": "Alice sends a signed audit query to the witness (POST, not GET)",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/query",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "messageId": "msg-witness-001",
+          "nonce": "d2l0cXVlcnkx",
+          "timestamp": "2026-03-25T13:00:00Z"
+        },
+        "timestamp": "2026-03-25T13:00:00Z",
+        "signerPrivateKeyHex": "02362f546f26d9c252c9209d1218e3174654b04b5f08f2ee2b3fa7874111d086",
+        "note": "Query is now POST with a signed body. Sender identity is derived from verified auth, not caller-supplied input."
+      },
+      "expected": {
+        "canonicalBody": "{\"from\":\"did:plc:alice123test\",\"messageId\":\"msg-witness-001\",\"nonce\":\"d2l0cXVlcnkx\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T13:00:00Z\",\"to\":\"did:web:witness.tulpa.network\",\"type\":\"network.tulpa.audit_query\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/audit/query\ndid:web:witness.tulpa.network\n{\"from\":\"did:plc:alice123test\",\"messageId\":\"msg-witness-001\",\"nonce\":\"d2l0cXVlcnkx\",\"protocol\":\"ink/0.1\",\"timestamp\":\"2026-03-25T13:00:00Z\",\"to\":\"did:web:witness.tulpa.network\",\"type\":\"network.tulpa.audit_query\"}\n2026-03-25T13:00:00Z",
+        "signatureBase64url": "HxwK-MCsd1myi3bgLZ6qP1oAe3U_kErq7ztNmieSw789MYFJJkZ8qm4oxtZNShSxHFjivJbBA4lyrJjlHHT-BA",
+        "accepted": true
+      }
+    },
+    {
+      "id": "audit-query-invalid-path",
+      "description": "Query signature fails when verified against /audit/submit path",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/submit",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "messageId": "msg-witness-001",
+          "nonce": "d2l0cXVlcnkx",
+          "timestamp": "2026-03-25T13:00:00Z"
+        },
+        "timestamp": "2026-03-25T13:00:00Z",
+        "originalSignatureBase64url": "HxwK-MCsd1myi3bgLZ6qP1oAe3U_kErq7ztNmieSw789MYFJJkZ8qm4oxtZNShSxHFjivJbBA4lyrJjlHHT-BA"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Signature was computed over /audit/query but verified against /audit/submit"
+      }
+    },
+    {
+      "id": "audit-query-body-tamper",
+      "description": "Query signature fails when messageId is tampered",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/audit/query",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "messageId": "msg-TAMPERED-001",
+          "nonce": "d2l0cXVlcnkx",
+          "timestamp": "2026-03-25T13:00:00Z"
+        },
+        "timestamp": "2026-03-25T13:00:00Z",
+        "originalSignatureBase64url": "HxwK-MCsd1myi3bgLZ6qP1oAe3U_kErq7ztNmieSw789MYFJJkZ8qm4oxtZNShSxHFjivJbBA4lyrJjlHHT-BA"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Body was modified after signing"
+      }
+    },
+    {
+      "id": "audit-query-timestamp-expired",
+      "description": "Query rejected — timestamp expired",
+      "input": {
+        "messageTimestamp": "2026-03-25T12:50:00Z",
+        "receiverClock": "2026-03-25T13:00:00Z",
+        "nonce": "d2l0cXVlcnkx"
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "id": "audit-query-duplicate-nonce",
+      "description": "Query rejected — duplicate nonce",
+      "input": {
+        "messageTimestamp": "2026-03-25T13:00:00Z",
+        "receiverClock": "2026-03-25T13:00:00Z",
+        "nonce": "d2l0cXVlcnkx",
+        "previouslySeenNonces": [
+          "d2l0cXVlcnkx"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "duplicate_nonce"
+      }
+    },
+    {
+      "id": "interop-submit-path-cross-endpoint",
+      "description": "Interop: submit signature verified against query path fails — prevents cross-endpoint replay between main worker and witness",
+      "input": {
+        "note": "Agent builds a signed audit_submit. If replayed against /audit/query, verification must fail.",
+        "method": "POST",
+        "originalPath": "/ink/v1/audit/submit",
+        "replayPath": "/ink/v1/audit/query",
+        "recipientDid": "did:web:witness.tulpa.network",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_submit",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "event": {
+            "id": "01JWIT0001",
+            "version": "ink-audit/1",
+            "agentId": "agent-alice-01",
+            "sequence": 1,
+            "previousEventHash": null,
+            "eventType": "message.sent",
+            "timestamp": "2026-03-25T12:00:00Z",
+            "messageId": "msg-witness-001",
+            "counterpartyId": "did:plc:bob456test",
+            "agentSignature": "9Z3iO9pQoTdn3JBu__nEqH7MC7XrqPlWS4xnyANaMoe0tVz6tp5yPMSxFWbpBN1rF2QfRELGhh37dzCXXC8vCg"
+          },
+          "nonce": "d2l0c3VibWl0MQ",
+          "timestamp": "2026-03-25T12:00:01Z"
+        },
+        "timestamp": "2026-03-25T12:00:01Z",
+        "originalSignatureBase64url": "7VN7IJvoezRDTC_oJGu5fc8Xz2l0cgOYkmgRf3TcASp_6F62SjILXcSeSfljVWznLEReyTvNBOk4c-JTw6fZDQ"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Path binding prevents cross-endpoint replay"
+      }
+    },
+    {
+      "id": "interop-query-recipient-cross-witness",
+      "description": "Interop: query signed for one witness fails on another — prevents cross-witness replay",
+      "input": {
+        "note": "Agent signs query to did:web:witness.tulpa.network. If replayed against a different witness DID, verification must fail.",
+        "method": "POST",
+        "path": "/ink/v1/audit/query",
+        "originalRecipient": "did:web:witness.tulpa.network",
+        "replayRecipient": "did:web:evil-witness.example.com",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query",
+          "from": "did:plc:alice123test",
+          "to": "did:web:witness.tulpa.network",
+          "messageId": "msg-witness-001",
+          "nonce": "d2l0cXVlcnkx",
+          "timestamp": "2026-03-25T13:00:00Z"
+        },
+        "timestamp": "2026-03-25T13:00:00Z",
+        "originalSignatureBase64url": "HxwK-MCsd1myi3bgLZ6qP1oAe3U_kErq7ztNmieSw789MYFJJkZ8qm4oxtZNShSxHFjivJbBA4lyrJjlHHT-BA"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Recipient binding prevents cross-witness replay"
+      }
+    },
+    {
+      "id": "interop-main-worker-intent-to-witness",
+      "description": "Interop: intent signature from main worker cannot be replayed as witness submit",
+      "input": {
+        "note": "An intent signed for /ink/v1/intent with recipient did:plc:bob456test cannot be replayed against /ink/v1/audit/submit with recipient did:web:witness.tulpa.network. Both path and recipient differ.",
+        "intentPath": "/ink/v1/intent",
+        "intentRecipient": "did:plc:bob456test",
+        "submitPath": "/ink/v1/audit/submit",
+        "submitRecipient": "did:web:witness.tulpa.network"
+      },
+      "expected": {
+        "accepted": false,
+        "reason": "Both path and recipient binding prevent cross-service replay"
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "description": "Fixed key material for INK v0.1 test vectors. NOT for production use.",
+  "alice": {
+    "did": "did:plc:alice123test",
+    "agentId": "agent-alice-01",
+    "signing": {
+      "publicKeyHex": "16d8c7758b7816f4540730fa5b01921bfa0c52459e435b8f970cd8ef3e548fba",
+      "privateKeyHex": "02362f546f26d9c252c9209d1218e3174654b04b5f08f2ee2b3fa7874111d086"
+    },
+    "encryption": {
+      "publicKeyHex": "3e24f178fa03cff75136b485611e53c37d628205b13bc53d7bd5415e3d1d7472",
+      "privateKeyHex": "b0691398c0e6254015c3d17c18268faf42bc4ae831ae249b7773437977e62f6c"
+    }
+  },
+  "bob": {
+    "did": "did:plc:bob456test",
+    "agentId": "agent-bob-01",
+    "signing": {
+      "publicKeyHex": "11dce4522822fffcb059f547b9e0b16bb8f47084fec275b46f813701273c014b",
+      "privateKeyHex": "4ea0adf03599751231c1c3b7fc5a6c9d2e2f2f97bcd7c885c0add2f47b9af181"
+    },
+    "encryption": {
+      "publicKeyHex": "613ca2aa2ff1102e440dd05ead7f05c11ea440d1109f3d058f9e5302cbf26f0b",
+      "privateKeyHex": "986e5e08b69232b6c888c838ada1669139c2993db417b482a780b86f067d8658"
+    }
+  },
+  "ephemeral": {
+    "note": "Ephemeral X25519 key pair for encryption test vector (INK §3.4.0 step 1)",
+    "publicKeyHex": "50bf0e81d5e4475282ed7739da2772594fb0d24816258dbceec766e580c5454b",
+    "privateKeyHex": "40fa01588b6f88871ad04a49fef0215fa00d79f2f5bb33cb3ee9742853601077"
+  }
+}

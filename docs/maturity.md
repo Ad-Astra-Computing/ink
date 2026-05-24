@@ -1,0 +1,72 @@
+# Maturity Notice
+
+> INK v0.1 is **experimental**. Wire formats, trust semantics and APIs
+> may change without backward-compatible migration before v1.0. Do not
+> use for load-bearing production traffic without your own review.
+
+## What "experimental" means here
+
+- The repository has **not** undergone an independent security audit.
+- Interop vectors (`../test-vectors/`) are authoritative for v0.1 but may
+  be added to or revised between v0.1 patch releases. Mismatched
+  implementations should report discrepancies as issues.
+- The protocol is in use by one production integrator (Tulpa). That is
+  one data point, not a guarantee of robustness at scale.
+- The reference implementation in `src/` targets Cloudflare Workers
+  runtime. Porting to Node, Deno, Bun, browsers is expected to be
+  mechanical but has not been exercised by the maintainers.
+
+## What is stable in v0.1
+
+- Envelope structure (fields, canonicalization with JCS / RFC 8785)
+- Ed25519 signing base (`method\npath\nrecipientDid\nbodyHash\ntimestamp`)
+- Agent Card schema for `keys.signing` and `keys.encryption`
+- Key rotation authority rule (see `key-rotation-rule.md`)
+- Timestamp / nonce window semantics (5 min / 30 s / 10 min TTL)
+- Receipt envelope structure
+
+## What may still change
+
+- Authorization chain attenuation semantics — currently spec'd as
+  scope-subset-only delegation; may gain time-bounded or usage-bounded
+  variants.
+- Containment vocabulary (capability-gated visibility, sender budgets,
+  backoff hints) — the current shape is deliberately minimal; a v0.2
+  may formalize policy expression.
+- Third-party witness submission API — currently a reference client
+  only. The submission envelope may move to a signed-bundle format in
+  the future.
+- Encryption envelope AAD composition — the current AAD is
+  `ink/0.1:{senderDid}`. Future versions may include recipient DID or a
+  protocol-version salt.
+
+## Versioning
+
+Pre-1.0 releases follow `0.Y.Z` semantics:
+
+- `0.Y.0` — Minor version bump indicates a wire-format change. Receivers
+  must support at least one prior minor during a transition window.
+- `0.Y.Z` (Z > 0) — Patch bumps fix bugs in the reference implementation
+  and update test vectors where needed. They do not change wire format.
+
+Breaking changes before v1.0 will be announced in the repository
+changelog with at least 30 days of overlap support in the reference
+implementation.
+
+## How to evaluate for your use
+
+Before adopting INK for any use where signature forgery or replay would
+be a real incident:
+
+1. Read [`threat-model.md`](./threat-model.md). Make sure your use case
+   falls inside the in-scope protections and you accept the out-of-scope
+   limits.
+2. Run `../test-vectors/*` against your implementation.
+3. Fuzz your envelope parser. The reference implementation's tests are
+   not a substitute.
+4. Pen-test the rotation and revocation flows specifically. The
+   authority rule is the single most security-sensitive piece and the
+   most common place to introduce a shadowing bug.
+5. If your integration accepts delegation tokens or other capability
+   handoffs, design their trust model explicitly — INK v0.1 does not
+   specify one.

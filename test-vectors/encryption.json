@@ -1,0 +1,90 @@
+{
+  "description": "INK ECIES encryption and decryption test cases (INK §3.4)",
+  "vectors": [
+    {
+      "description": "Alice encrypts a scheduling intent to Bob using ephemeral X25519",
+      "input": {
+        "plaintextEnvelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.intent",
+          "from": "did:plc:alice123test",
+          "to": "did:plc:bob456test",
+          "intentType": "scheduling",
+          "purpose": "Discuss partnership opportunity",
+          "urgency": "normal",
+          "expiresAt": "2026-03-25T00:00:00Z",
+          "nonce": "dGVzdG5vbmNlMTIzNDU2Nzg",
+          "timestamp": "2026-03-18T12:00:00Z"
+        },
+        "senderDid": "did:plc:alice123test",
+        "recipientDid": "did:plc:bob456test",
+        "recipientEncryptionKeyHex": "613ca2aa2ff1102e440dd05ead7f05c11ea440d1109f3d058f9e5302cbf26f0b",
+        "ephemeralPublicKeyHex": "50bf0e81d5e4475282ed7739da2772594fb0d24816258dbceec766e580c5454b",
+        "ephemeralPrivateKeyHex": "40fa01588b6f88871ad04a49fef0215fa00d79f2f5bb33cb3ee9742853601077",
+        "aesGcmNonceHex": "000102030405060708090a0b",
+        "hkdfSalt": "ink/0.1",
+        "hkdfInfo": "ink/0.1/encrypt",
+        "hkdfOutputLength": 32
+      },
+      "intermediate": {
+        "sharedSecretHex": "422b9ee6108ce1bc74a4ca0720afb6e14056a1c7e5e46dcd1e2275b1e953500a",
+        "symmetricKeyHex": "dd86250b0b92b1aa6c293e06d21dbe6da02f28e52d1ba5b030d940306c954f0f",
+        "plaintextJson": "{\"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.intent\",\"from\":\"did:plc:alice123test\",\"to\":\"did:plc:bob456test\",\"intentType\":\"scheduling\",\"purpose\":\"Discuss partnership opportunity\",\"urgency\":\"normal\",\"expiresAt\":\"2026-03-25T00:00:00Z\",\"nonce\":\"dGVzdG5vbmNlMTIzNDU2Nzg\",\"timestamp\":\"2026-03-18T12:00:00Z\"}"
+      },
+      "expected": {
+        "outerEnvelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:plc:alice123test",
+          "ephemeralKey": "UL8OgdXkR1KC7Xc52idyWU-w0kgWJY287sdm5YDFRUs",
+          "nonce": "AAECAwQFBgcICQoL",
+          "ciphertext": "yDmawjopzzEzCSY23AfHbJ-cnQvee2tqL8u2zyP6blpcu7twsHFY25uxtfEqdwcpU8BGF1cVZ1E0lIxutqu21r05fSDtAxSOLpPgHdBXwqnJpQfMtX8R4gHe34BVYdLgPjP8iTj-QHDxsK6UMHmMfgutmQ_vFHDCPfwCf2u4B871-E8LQnSB0lcpSgoacM-KgQR3ZjkKU6N6ueTpgVjL788Uhe5m-ZRtlAmOVqgA3d166Jmt8Z-SYwVJXmGJz2AK_skMbIvH25pPyR2SpiCztWJxiPLJVSRE05WqiEvLR6i0ZRhD7UYz1S5r1VRgjV3CxjXJMF3LE90PLYj6DdK5kKCWf6_orM3xCeQugx5-gL17wnHpCD_zcdHtoDef9nqYLpoLmUJe54EmYjzuuGfaL6Tp3mINOWpNfZRrZlI",
+          "timestamp": "2026-03-18T12:00:00Z",
+          "messageNonce": "cmVwbGF5LXByb3RlY3Rpb24tdGVzdA"
+        },
+        "ciphertextWithTagBase64url": "yDmawjopzzEzCSY23AfHbJ-cnQvee2tqL8u2zyP6blpcu7twsHFY25uxtfEqdwcpU8BGF1cVZ1E0lIxutqu21r05fSDtAxSOLpPgHdBXwqnJpQfMtX8R4gHe34BVYdLgPjP8iTj-QHDxsK6UMHmMfgutmQ_vFHDCPfwCf2u4B871-E8LQnSB0lcpSgoacM-KgQR3ZjkKU6N6ueTpgVjL788Uhe5m-ZRtlAmOVqgA3d166Jmt8Z-SYwVJXmGJz2AK_skMbIvH25pPyR2SpiCztWJxiPLJVSRE05WqiEvLR6i0ZRhD7UYz1S5r1VRgjV3CxjXJMF3LE90PLYj6DdK5kKCWf6_orM3xCeQugx5-gL17wnHpCD_zcdHtoDef9nqYLpoLmUJe54EmYjzuuGfaL6Tp3mINOWpNfZRrZlI"
+      }
+    },
+    {
+      "description": "Bob decrypts the outer envelope and verifies inner/outer consistency",
+      "input": {
+        "outerEnvelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:plc:alice123test",
+          "ephemeralKey": "UL8OgdXkR1KC7Xc52idyWU-w0kgWJY287sdm5YDFRUs",
+          "nonce": "AAECAwQFBgcICQoL",
+          "ciphertext": "yDmawjopzzEzCSY23AfHbJ-cnQvee2tqL8u2zyP6blpcu7twsHFY25uxtfEqdwcpU8BGF1cVZ1E0lIxutqu21r05fSDtAxSOLpPgHdBXwqnJpQfMtX8R4gHe34BVYdLgPjP8iTj-QHDxsK6UMHmMfgutmQ_vFHDCPfwCf2u4B871-E8LQnSB0lcpSgoacM-KgQR3ZjkKU6N6ueTpgVjL788Uhe5m-ZRtlAmOVqgA3d166Jmt8Z-SYwVJXmGJz2AK_skMbIvH25pPyR2SpiCztWJxiPLJVSRE05WqiEvLR6i0ZRhD7UYz1S5r1VRgjV3CxjXJMF3LE90PLYj6DdK5kKCWf6_orM3xCeQugx5-gL17wnHpCD_zcdHtoDef9nqYLpoLmUJe54EmYjzuuGfaL6Tp3mINOWpNfZRrZlI",
+          "timestamp": "2026-03-18T12:00:00Z",
+          "messageNonce": "cmVwbGF5LXByb3RlY3Rpb24tdGVzdA"
+        },
+        "recipientDid": "did:plc:bob456test",
+        "recipientEncryptionPrivateKeyHex": "986e5e08b69232b6c888c838ada1669139c2993db417b482a780b86f067d8658"
+      },
+      "intermediate": {
+        "bobSharedSecretHex": "422b9ee6108ce1bc74a4ca0720afb6e14056a1c7e5e46dcd1e2275b1e953500a",
+        "bobSymmetricKeyHex": "dd86250b0b92b1aa6c293e06d21dbe6da02f28e52d1ba5b030d940306c954f0f",
+        "sharedSecretsMatch": true,
+        "symmetricKeysMatch": true,
+        "symmetricKeyHex": "dd86250b0b92b1aa6c293e06d21dbe6da02f28e52d1ba5b030d940306c954f0f"
+      },
+      "expected": {
+        "decryptedEnvelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.intent",
+          "from": "did:plc:alice123test",
+          "to": "did:plc:bob456test",
+          "intentType": "scheduling",
+          "purpose": "Discuss partnership opportunity",
+          "urgency": "normal",
+          "expiresAt": "2026-03-25T00:00:00Z",
+          "nonce": "dGVzdG5vbmNlMTIzNDU2Nzg",
+          "timestamp": "2026-03-18T12:00:00Z"
+        },
+        "fromMatchesOuter": true,
+        "toMatchesRecipient": true,
+        "decryptionSucceeds": true
+      }
+    }
+  ]
+}

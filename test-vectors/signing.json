@@ -1,0 +1,61 @@
+{
+  "description": "INK Ed25519 signature generation and verification (INK §3.3, §9)",
+  "vectors": [
+    {
+      "description": "Alice signs an intent to Bob — valid signature",
+      "input": {
+        "method": "POST",
+        "path": "/ink/v1/intent",
+        "recipientDid": "did:plc:bob456test",
+        "body": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.intent",
+          "from": "did:plc:alice123test",
+          "to": "did:plc:bob456test",
+          "intentType": "scheduling",
+          "purpose": "Discuss partnership opportunity",
+          "urgency": "normal",
+          "expiresAt": "2026-03-25T00:00:00Z",
+          "nonce": "dGVzdG5vbmNlMTIzNDU2Nzg",
+          "timestamp": "2026-03-18T12:00:00Z"
+        },
+        "timestamp": "2026-03-18T12:00:00Z",
+        "signerPublicKeyHex": "16d8c7758b7816f4540730fa5b01921bfa0c52459e435b8f970cd8ef3e548fba",
+        "signerPrivateKeyHex": "02362f546f26d9c252c9209d1218e3174654b04b5f08f2ee2b3fa7874111d086"
+      },
+      "expected": {
+        "canonicalBody": "{\"expiresAt\":\"2026-03-25T00:00:00Z\",\"from\":\"did:plc:alice123test\",\"intentType\":\"scheduling\",\"nonce\":\"dGVzdG5vbmNlMTIzNDU2Nzg\",\"protocol\":\"ink/0.1\",\"purpose\":\"Discuss partnership opportunity\",\"timestamp\":\"2026-03-18T12:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.intent\",\"urgency\":\"normal\"}",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/intent\ndid:plc:bob456test\n{\"expiresAt\":\"2026-03-25T00:00:00Z\",\"from\":\"did:plc:alice123test\",\"intentType\":\"scheduling\",\"nonce\":\"dGVzdG5vbmNlMTIzNDU2Nzg\",\"protocol\":\"ink/0.1\",\"purpose\":\"Discuss partnership opportunity\",\"timestamp\":\"2026-03-18T12:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.intent\",\"urgency\":\"normal\"}\n2026-03-18T12:00:00Z",
+        "signatureHex": "0b8ac7ef61ad309dc8b2ee6575acbbfca6e62a4379a8726966bc25a619dc98b30e5337a4bb2e22cca58acb2fd83e8206fd1ef69bd9e50ec2d7d3add9b3964204",
+        "signatureBase64url": "C4rH72GtMJ3Isu5lday7_KbmKkN5qHJpZrwlphncmLMOUzekuy4izKWKyy_YPoIG_R72m9nlDsLX063Zs5ZCBA",
+        "authorizationHeader": "INK-Ed25519 C4rH72GtMJ3Isu5lday7_KbmKkN5qHJpZrwlphncmLMOUzekuy4izKWKyy_YPoIG_R72m9nlDsLX063Zs5ZCBA",
+        "signatureVerifies": true
+      }
+    },
+    {
+      "description": "Verification fails with wrong public key (Bob's key instead of Alice's)",
+      "input": {
+        "signatureHex": "0b8ac7ef61ad309dc8b2ee6575acbbfca6e62a4379a8726966bc25a619dc98b30e5337a4bb2e22cca58acb2fd83e8206fd1ef69bd9e50ec2d7d3add9b3964204",
+        "signatureBase": "ink/0.1\nPOST\n/ink/v1/intent\ndid:plc:bob456test\n{\"expiresAt\":\"2026-03-25T00:00:00Z\",\"from\":\"did:plc:alice123test\",\"intentType\":\"scheduling\",\"nonce\":\"dGVzdG5vbmNlMTIzNDU2Nzg\",\"protocol\":\"ink/0.1\",\"purpose\":\"Discuss partnership opportunity\",\"timestamp\":\"2026-03-18T12:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.intent\",\"urgency\":\"normal\"}\n2026-03-18T12:00:00Z",
+        "verifierPublicKeyHex": "11dce4522822fffcb059f547b9e0b16bb8f47084fec275b46f813701273c014b"
+      },
+      "expected": {
+        "signatureVerifies": false
+      }
+    },
+    {
+      "description": "Verification fails with tampered path — cross-endpoint replay protection",
+      "input": {
+        "note": "Same signature verified against path /ink/v1/challenge instead of /ink/v1/intent",
+        "originalPath": "/ink/v1/intent",
+        "tamperedPath": "/ink/v1/challenge",
+        "signatureHex": "0b8ac7ef61ad309dc8b2ee6575acbbfca6e62a4379a8726966bc25a619dc98b30e5337a4bb2e22cca58acb2fd83e8206fd1ef69bd9e50ec2d7d3add9b3964204",
+        "verifierPublicKeyHex": "16d8c7758b7816f4540730fa5b01921bfa0c52459e435b8f970cd8ef3e548fba"
+      },
+      "expected": {
+        "signatureVerifies": false,
+        "note": "Signature was computed over /ink/v1/intent but verified against /ink/v1/challenge"
+      }
+    }
+  ]
+}

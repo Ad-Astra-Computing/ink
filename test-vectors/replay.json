@@ -1,0 +1,88 @@
+{
+  "description": "INK replay protection acceptance/rejection rules (INK §3.5)",
+  "rules": {
+    "maxTimestampAge": "5 minutes",
+    "maxFutureTimestamp": "30 seconds",
+    "nonceDeduplicationWindow": "10 minutes"
+  },
+  "vectors": [
+    {
+      "description": "Valid — timestamp within 5-minute window, fresh nonce",
+      "input": {
+        "messageTimestamp": "2026-03-18T12:00:00Z",
+        "receiverClock": "2026-03-18T12:02:30Z",
+        "nonce": "dW5pcXVlLW5vbmNlLTEyMzQ1Njc4OTA",
+        "previouslySeenNonces": []
+      },
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "description": "Rejected — timestamp 6 minutes old, exceeds 5-minute window",
+      "input": {
+        "messageTimestamp": "2026-03-18T11:54:00Z",
+        "receiverClock": "2026-03-18T12:00:00Z",
+        "nonce": "dW5pcXVlLW5vbmNlLWFiY2RlZmdoaWo",
+        "previouslySeenNonces": []
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "description": "Rejected — timestamp 60 seconds in the future, exceeds 30-second tolerance",
+      "input": {
+        "messageTimestamp": "2026-03-18T12:01:00Z",
+        "receiverClock": "2026-03-18T12:00:00Z",
+        "nonce": "dW5pcXVlLW5vbmNlLWZ1dHVyZS10ZXN0",
+        "previouslySeenNonces": []
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "expired_message"
+      }
+    },
+    {
+      "description": "Accepted — timestamp 25 seconds in the future (within 30-second tolerance)",
+      "input": {
+        "messageTimestamp": "2026-03-18T12:00:25Z",
+        "receiverClock": "2026-03-18T12:00:00Z",
+        "nonce": "dW5pcXVlLW5vbmNlLTI1cy1haGVhZA",
+        "previouslySeenNonces": []
+      },
+      "expected": {
+        "accepted": true
+      }
+    },
+    {
+      "description": "Rejected — duplicate nonce within 10-minute deduplication window",
+      "input": {
+        "messageTimestamp": "2026-03-18T12:00:00Z",
+        "receiverClock": "2026-03-18T12:00:01Z",
+        "nonce": "cmVwZWF0ZWQtbm9uY2UtdmFsdWU",
+        "previouslySeenNonces": [
+          "cmVwZWF0ZWQtbm9uY2UtdmFsdWU"
+        ]
+      },
+      "expected": {
+        "accepted": false,
+        "errorCode": "duplicate_nonce"
+      }
+    },
+    {
+      "description": "Accepted — previously seen nonce but outside 10-minute window (entry purged)",
+      "input": {
+        "messageTimestamp": "2026-03-18T12:15:00Z",
+        "receiverClock": "2026-03-18T12:15:01Z",
+        "nonce": "cmVwZWF0ZWQtbm9uY2UtdmFsdWU",
+        "previouslySeenNonces": [],
+        "note": "Nonce was seen at 12:00:00 but the 10-minute window elapsed so the entry was purged"
+      },
+      "expected": {
+        "accepted": true
+      }
+    }
+  ]
+}

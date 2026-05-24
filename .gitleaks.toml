@@ -1,0 +1,16 @@
+title = "INK Protocol gitleaks config"
+
+# INK ships interop test vectors that contain deterministic Ed25519 private
+# keys. They are not secrets — they are the whole point of the fixtures —
+# and are documented as such in test-vectors/README.md. Allowlist them.
+[allowlist]
+description = "Deterministic test vector keys"
+paths = [
+  '''test-vectors/.*\.json$''',
+]
+
+[[rules]]
+id = "cloudflare-api-token"
+description = "Cloudflare API token"
+regex = '''\bcfat_[A-Za-z0-9]{40,}'''
+keywords = ["cfat_"]

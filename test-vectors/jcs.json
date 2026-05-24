@@ -1,0 +1,30 @@
+{
+  "description": "JCS (RFC 8785) canonicalization test cases for INK message signing",
+  "vectors": [
+    {
+      "description": "Intent message — keys sorted lexicographically, no whitespace",
+      "input": {
+        "protocol": "ink/0.1",
+        "type": "network.tulpa.intent",
+        "from": "did:plc:alice123test",
+        "to": "did:plc:bob456test",
+        "intentType": "scheduling",
+        "purpose": "Discuss partnership opportunity",
+        "urgency": "normal",
+        "expiresAt": "2026-03-25T00:00:00Z",
+        "nonce": "dGVzdG5vbmNlMTIzNDU2Nzg",
+        "timestamp": "2026-03-18T12:00:00Z"
+      },
+      "expectedCanonical": "{\"expiresAt\":\"2026-03-25T00:00:00Z\",\"from\":\"did:plc:alice123test\",\"intentType\":\"scheduling\",\"nonce\":\"dGVzdG5vbmNlMTIzNDU2Nzg\",\"protocol\":\"ink/0.1\",\"purpose\":\"Discuss partnership opportunity\",\"timestamp\":\"2026-03-18T12:00:00Z\",\"to\":\"did:plc:bob456test\",\"type\":\"network.tulpa.intent\",\"urgency\":\"normal\"}"
+    },
+    {
+      "description": "Empty details object",
+      "input": {
+        "protocol": "ink/0.1",
+        "details": {},
+        "type": "network.tulpa.resolution"
+      },
+      "expectedCanonical": "{\"details\":{},\"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.resolution\"}"
+    }
+  ]
+}

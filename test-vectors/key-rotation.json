@@ -1,0 +1,101 @@
+{
+  "description": "INK v0.1 key rotation test vectors — auth header keyId extension, rotated-key verification, revoked-key rejection and refresh-on-miss. All scenarios use runtime-generated keys (not static fixtures) and are exercised by test/ink-key-rotation-phase3.test.ts.",
+  "vectors": [
+    {
+      "id": "auth-header-with-keyid",
+      "description": "Authorization header includes optional keyId parameter after signature",
+      "format": "INK-Ed25519 <base64url(sig)> keyId=<keyId>",
+      "regex": "^INK-Ed25519\\s+(\\S+)(?:\\s+keyId=(\\S+))?$",
+      "examples": [
+        {
+          "header": "INK-Ed25519 abc123 keyId=sig-2026-03",
+          "signature": "abc123",
+          "keyId": "sig-2026-03"
+        },
+        {
+          "header": "INK-Ed25519 abc123",
+          "signature": "abc123",
+          "keyId": null,
+          "note": "Legacy format — no keyId"
+        }
+      ]
+    },
+    {
+      "id": "rotated-key-verification",
+      "description": "After rotation, new key signs messages. Verifier with [old=retired, new=active] keyset accepts.",
+      "scenario": {
+        "step1": "Agent generates keyV1, signs messages",
+        "step2": "Agent rotates: keyV1 retired, keyV2 active, keyV1 private wiped",
+        "step3": "Agent signs with keyV2, includes keyId=sig-v2 in auth header",
+        "step4": "Counterparty resolves keyset from Agent Card: [sig-v1=retired, sig-v2=active]",
+        "step5": "verifyInkSignatureWithKeys with hintKeyId=sig-v2 → verified=true, keyId=sig-v2"
+      }
+    },
+    {
+      "id": "historical-message-verification",
+      "description": "Messages signed before rotation still verify against retired key in keyset",
+      "scenario": {
+        "step1": "Message signed with keyV1 at T=2026-03-20",
+        "step2": "Key rotated at T=2026-03-25: keyV1 retired, keyV2 active",
+        "step3": "Counterparty verifies old message with keyset [sig-v1=retired, sig-v2=active]",
+        "step4": "verifyInkSignatureWithKeys with hintKeyId=sig-v1 → verified=true, keyStatus=retired"
+      }
+    },
+    {
+      "id": "revoked-key-rejection",
+      "description": "Messages signed with a revoked key are rejected even if cryptographically valid",
+      "scenario": {
+        "step1": "Agent has [sig-compromised=revoked, sig-current=active]",
+        "step2": "Attacker signs message with compromised key, sets keyId=sig-compromised",
+        "step3": "verifyInkSignatureWithKeys skips revoked keys",
+        "step4": "Result: verified=false"
+      }
+    },
+    {
+      "id": "refresh-on-miss",
+      "description": "When all cached keys fail to verify, receiver refetches Agent Card and retries",
+      "scenario": {
+        "step1": "Receiver has stale cache with only keyV1",
+        "step2": "Sender rotated to keyV2 and signs message with it",
+        "step3": "Verification against stale keyset [sig-v1=active] → fails",
+        "step4": "Receiver fetches fresh Agent Card: [sig-v1=retired, sig-v2=active]",
+        "step5": "Retry verification → verified=true, keyId=sig-v2"
+      },
+      "constraints": {
+        "maxRetries": 1,
+        "note": "Only one refresh attempt per verification to prevent infinite loops"
+      }
+    },
+    {
+      "id": "keyid-precedence",
+      "description": "When keyId appears in both auth header and message body (signingKeyId), the auth header takes precedence for verification hint",
+      "scenario": {
+        "headerKeyId": "sig-header",
+        "bodySigningKeyId": "sig-body",
+        "verificationHint": "sig-header",
+        "note": "Header is transport-layer; body is application-layer. Transport takes precedence for the verifier."
+      }
+    },
+    {
+      "id": "unknown-keyid-fallthrough",
+      "description": "When header keyId references a key not in the keyset, verifier falls through to normal iteration",
+      "scenario": {
+        "headerKeyId": "sig-unknown",
+        "keyset": [
+          {"keyId": "sig-actual", "status": "active"}
+        ],
+        "result": "Hinted key not found → skip hint → iterate active keys → verified with sig-actual"
+      }
+    },
+    {
+      "id": "audit-event-signing-key-tracking",
+      "description": "INK audit events record signingKeyId in data field so historical events can be verified against the correct key",
+      "schema": {
+        "data": {
+          "signingKeyId": "sig-v2",
+          "note": "Verifiers use this to select the correct key from the agent's historical keyset"
+        }
+      }
+    }
+  ]
+}

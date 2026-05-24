@@ -1,0 +1,843 @@
+import * as ed from "@noble/ed25519";
+import { x25519 } from "@noble/curves/ed25519.js";
+import canonicalize from "canonicalize";
+
+// ── Encoding helpers ──
+
+const MAX_ENCODE_INPUT_BYTES = 2_000_000;
+
+function base64urlEncode(bytes: Uint8Array): string {
+  if (!(bytes instanceof Uint8Array)) {
+    throw new Error("base64urlEncode: input must be a Uint8Array");
+  }
+  if (bytes.length > MAX_ENCODE_INPUT_BYTES) {
+    throw new Error(`base64urlEncode: input exceeds maximum of ${MAX_ENCODE_INPUT_BYTES} bytes`);
+  }
+  const binString = Array.from(bytes, (b) => String.fromCharCode(b)).join("");
+  const base64 = btoa(binString);
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+const MAX_BASE64URL_INPUT_LEN = 2_000_000;
+
+function base64urlDecode(str: string): Uint8Array {
+  if (typeof str !== "string") {
+    throw new Error("base64urlDecode: input must be a string");
+  }
+  if (str.length > MAX_BASE64URL_INPUT_LEN) {
+    throw new Error(`base64urlDecode: input exceeds maximum length of ${MAX_BASE64URL_INPUT_LEN}`);
+  }
+  if (!/^[A-Za-z0-9_-]*$/.test(str)) {
+    throw new Error("base64urlDecode: invalid base64url character");
+  }
+  const base64 = str.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+  const binString = atob(padded);
+  return Uint8Array.from(binString, (c) => c.charCodeAt(0));
+}
+
+/** Defense-in-depth cap on hex input length. The longest legitimate input
+ *  the package decodes is a 64-byte hex string (Ed25519 keypair concat); the
+ *  cap is set generously above that so an attacker-supplied multi-megabyte
+ *  hex string can't drive an O(n) regex scan and a multi-megabyte
+ *  Uint8Array allocation before the downstream length check fires. */
+const MAX_HEX_INPUT_LEN = 4096;
+
+function hexToBytes(hex: string): Uint8Array {
+  if (typeof hex !== "string") {
+    throw new Error("hexToBytes: input must be a string");
+  }
+  if (hex.length > MAX_HEX_INPUT_LEN) {
+    throw new Error(`hex input exceeds maximum length of ${MAX_HEX_INPUT_LEN}`);
+  }
+  if (hex.length % 2 !== 0) throw new Error(`Invalid hex string length: ${hex.length}`);
+  if (!/^[0-9a-fA-F]*$/.test(hex)) throw new Error("Invalid hex character in string");
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  if (!(bytes instanceof Uint8Array)) {
+    throw new Error("bytesToHex: input must be a Uint8Array");
+  }
+  if (bytes.length > MAX_ENCODE_INPUT_BYTES) {
+    throw new Error(`bytesToHex: input exceeds maximum of ${MAX_ENCODE_INPUT_BYTES} bytes`);
+  }
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ── JCS Canonicalization (RFC 8785) ──
+
+function jcsCanonicalize(obj: unknown): string {
+  if (!isWithinCanonicalizeBounds(obj)) {
+    throw new Error("Input exceeds maximum allowed complexity");
+  }
+  const result = canonicalize(obj);
+  if (result === undefined) throw new Error("Failed to canonicalize");
+  if (result.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Canonical output exceeds maximum allowed size");
+  }
+  return result;
+}
+
+// ── INK v0.1 Signing (§3.3) ──
+
+export interface InkSignInput {
+  method: string;
+  path: string;
+  recipientDid: string;
+  body: Record<string, unknown>;
+  timestamp: string;
+}
+
+/**
+ * Construct the INK v0.1 signature base string per §3.3:
+ * ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp
+ *
+ * The protocol version prefix prevents cross-version signature replay.
+ *
+ * Newlines (CR or LF) are forbidden in all scalar fields. Because the base
+ * string is newline-delimited, a field containing \n could shift field
+ * boundaries and allow two distinct logical inputs to produce the same
+ * signed bytes (a signature-base collision).
+ */
+/** Defense-in-depth cap on the canonicalized body size used to build the
+ * INK signature base. Callers are expected to validate input size at the
+ * transport boundary (the hosting HTTP layer typically caps total request
+ * body size; INK-aware endpoints should additionally cap submit/query
+ * bodies). This is an internal upper limit in case any caller forgets —
+ * protects against canonicalize-then-encode burning CPU/memory on unbounded
+ * `input.body`. 1 MB is well above any realistic signed payload. */
+const MAX_SIGBASE_BODY_BYTES = 1_048_576;
+
+/** Hard caps for the cheap pre-canonicalize bound walk. These are well above
+ * any realistic INK body (signing payloads are typically <50 keys and ≤6
+ * levels deep) but small enough that the walk itself remains O(n) on tiny
+ * structures and bails fast on adversarial ones. The shape of the limits
+ * mirrors what jcsCanonicalize would have to traverse anyway, so an attacker
+ * cannot get past the pre-check and then explode inside canonicalize.
+ *
+ * MAX_PRECHECK_CHARS bounds aggregate string content (keys + string values)
+ * so a single huge string can't slip past the node-count cap. Set slightly
+ * above MAX_SIGBASE_BODY_BYTES so the post-canonicalize byte cap stays the
+ * authoritative reject, but the pre-check stops `JSON.stringify` / the
+ * recursive `canonicalize` from ever allocating that much in the first
+ * place. The aggregate counter is approximate (counts JS string length not
+ * UTF-8 bytes) but is intentionally a cheap upper-bound — the precise byte
+ * count happens after canonicalize. */
+const MAX_PRECHECK_NODES = 10_000;
+const MAX_PRECHECK_DEPTH = 32;
+const MAX_PRECHECK_CHARS = 1_200_000;
+
+/**
+ * Cheap depth/node-count/byte walk over a value before it is handed to
+ * jcsCanonicalize. Returns true if the value is within bounds. The goal is
+ * NOT to validate the value; it is to bail BEFORE canonicalize() does its
+ * recursive sort+serialize on something that should be rejected anyway.
+ * Non-throwing — the caller decides what to do with `false`.
+ *
+ * The byte counter accumulates every string value and every object key.
+ * Without it, an attacker can pass the node check with a single value
+ * like `{data: "x".repeat(100_000_000)}` (1 node, gigabytes of memory).
+ */
+function isWithinCanonicalizeBounds(value: unknown): boolean {
+  let nodes = 0;
+  let chars = 0;
+  function walk(v: unknown, depth: number): boolean {
+    if (depth > MAX_PRECHECK_DEPTH) return false;
+    if (++nodes > MAX_PRECHECK_NODES) return false;
+    if (v === null || typeof v !== "object") {
+      if (typeof v === "string") {
+        chars += v.length;
+        if (chars > MAX_PRECHECK_CHARS) return false;
+      }
+      return true;
+    }
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (!walk(item, depth + 1)) return false;
+      }
+      return true;
+    }
+    for (const key of Object.keys(v as Record<string, unknown>)) {
+      if (++nodes > MAX_PRECHECK_NODES) return false;
+      chars += key.length;
+      if (chars > MAX_PRECHECK_CHARS) return false;
+      if (!walk((v as Record<string, unknown>)[key], depth + 1)) return false;
+    }
+    return true;
+  }
+  return walk(value, 0);
+}
+
+
+export function buildSignatureBase(input: InkSignInput): string {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    throw new Error("Invalid signature-base input");
+  }
+  // Validate scalar shape FIRST: each field is a non-empty string within
+  // a reasonable cap. An attacker who reaches this with a 100 MB path or
+  // recipientDid would otherwise force large TextEncoder allocations and
+  // a worst-case regex scan before signature failure.
+  // Caps:
+  //   method:        16 chars  (HTTP verb)
+  //   path:        2048 chars  (URI Section 3.3 practical bound)
+  //   recipientDid:  256 chars (same as middleware senderDid cap)
+  //   timestamp:      64 chars (ISO 8601 with subsecond + timezone)
+  const isScalar = (x: unknown, max: number): x is string =>
+    typeof x === "string" && x.length > 0 && x.length <= max;
+  if (!isScalar(input.method, 16)) throw new Error("Invalid signature-base method");
+  if (!isScalar(input.path, 2048)) throw new Error("Invalid signature-base path");
+  if (!isScalar(input.recipientDid, 256)) throw new Error("Invalid signature-base recipientDid");
+  if (!isScalar(input.timestamp, 64)) throw new Error("Invalid signature-base timestamp");
+
+  // Guard against newline injection in each scalar field.
+  // CR (\r) is included because \r\n is a common line-ending and would
+  // produce the same boundary-shift as \n alone.
+  const crlf = /[\r\n]/;
+  if (crlf.test(input.method)) throw new Error("Invalid character in method: newline or CR not allowed");
+  if (crlf.test(input.path)) throw new Error("Invalid character in path: newline or CR not allowed");
+  if (crlf.test(input.recipientDid)) throw new Error("Invalid character in recipientDid: newline or CR not allowed");
+  if (crlf.test(input.timestamp)) throw new Error("Invalid character in timestamp: newline or CR not allowed");
+
+  // Bound the cost of the canonicalize step BEFORE invoking it. Without
+  // this, an attacker can submit a syntactically valid body that bloats
+  // the recursive sort+serialize work inside jcsCanonicalize and then
+  // gets rejected by the size cap below — burning CPU/memory pre-reject.
+  if (!isWithinCanonicalizeBounds(input.body)) {
+    throw new Error("Signature base body exceeds maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(input.body);
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Signature base body exceeds maximum allowed size");
+  }
+  return `ink/0.1\n${input.method}\n${input.path}\n${input.recipientDid}\n${canonical}\n${input.timestamp}`;
+}
+
+/**
+ * Sign an INK message. Returns the base64url-encoded Ed25519 signature.
+ */
+export async function signInkMessage(
+  input: InkSignInput,
+  privateKey: Uint8Array,
+): Promise<string> {
+  const sigBase = buildSignatureBase(input);
+  const bytes = new TextEncoder().encode(sigBase);
+  const sig = await ed.signAsync(bytes, privateKey);
+  return base64urlEncode(sig);
+}
+
+/**
+ * Verify an INK message signature.
+ * Returns false (never throws) for malformed or wrong-length signatures.
+ */
+export async function verifyInkSignature(
+  input: InkSignInput,
+  signatureBase64url: string,
+  publicKey: Uint8Array,
+): Promise<boolean> {
+  // Reject obviously-malformed signatures BEFORE canonicalizing the body.
+  // canonicalize() walks the entire body to sort keys; doing that work
+  // for a request with a junk signature lets attackers burn CPU/memory
+  // on the verifier without ever supplying a valid signature.
+  if (!/^[A-Za-z0-9_-]{86}$/.test(signatureBase64url)) return false;
+  let sigBase: string;
+  try {
+    sigBase = buildSignatureBase(input);
+  } catch {
+    return false;
+  }
+  const bytes = new TextEncoder().encode(sigBase);
+  try {
+    const sig = base64urlDecode(signatureBase64url);
+    return await ed.verifyAsync(sig, bytes, publicKey);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build the Authorization header value for an INK request.
+ * Optionally includes keyId for key-rotation-aware verification.
+ *
+ * Both values are validated against the same grammar the receiver uses so that
+ * invalid characters (including CR/LF that could cause header injection) are
+ * rejected before they reach the HTTP layer.
+ */
+export function buildAuthHeader(signatureBase64url: string, keyId?: string): string {
+  // Ed25519 signatures are exactly 64 bytes which encode to exactly 86 unpadded base64url chars.
+  // Reject any other length at the builder so callers get an early error rather than sending
+  // a syntactically-valid but semantically-wrong Authorization header.
+  if (!/^[A-Za-z0-9_-]{86}$/.test(signatureBase64url)) {
+    throw new Error("Invalid signature for Authorization header: must be exactly 86 base64url characters (Ed25519)");
+  }
+  if (keyId !== undefined) {
+    // keyId must match the verifier's grammar — alphanumeric plus safe punctuation, no CR/LF or spaces.
+    if (!/^[A-Za-z0-9_:.-]{1,128}$/.test(keyId)) {
+      throw new Error("Invalid keyId for Authorization header: must be 1-128 chars [A-Za-z0-9_:.-]");
+    }
+    return `INK-Ed25519 ${signatureBase64url} keyId=${keyId}`;
+  }
+  return `INK-Ed25519 ${signatureBase64url}`;
+}
+
+// ── INK v0.1 Encryption (§3.4 — ECIES) ──
+
+export interface InkEncryptedEnvelope {
+  protocol: "ink/0.1";
+  type: "network.tulpa.encrypted";
+  from: string;
+  ephemeralKey: string;
+  nonce: string;
+  ciphertext: string;
+  timestamp: string;
+  messageNonce: string;
+}
+
+export interface InkEncryptResult {
+  envelope: InkEncryptedEnvelope;
+  ephemeralPublicKey: Uint8Array;
+}
+
+/**
+ * Encrypt an INK message payload using ECIES:
+ *   1. Generate ephemeral X25519 keypair (or accept one for deterministic tests)
+ *   2. ECDH with recipient's X25519 public key
+ *   3. HKDF-SHA256(sharedSecret, salt="ink/0.1", info="ink/0.1/encrypt") → 32-byte AES key
+ *   4. AES-256-GCM encrypt the JSON-serialized plaintext
+ *   5. Pack into outer envelope
+ */
+export async function encryptInkPayload(
+  plaintext: Record<string, unknown>,
+  senderDid: string,
+  recipientEncryptionKeyHex: string,
+  timestamp: string,
+  messageNonce: string,
+  options?: {
+    ephemeralPrivateKey?: Uint8Array;
+    aesNonce?: Uint8Array;
+  },
+): Promise<InkEncryptResult> {
+  // Pre-AAD scalar caps. AAD is canonicalized and TextEncoder-allocated;
+  // unbounded sender DID / timestamp / messageNonce values would force
+  // the encrypt path to spend CPU/memory before any GCM work. These
+  // caps mirror the decrypt-side guards so encrypt cannot mint AAD that
+  // a conformant decrypter would refuse.
+  if (typeof senderDid !== "string" || senderDid.length === 0 || senderDid.length > 512) {
+    throw new Error("Invalid senderDid");
+  }
+  if (typeof timestamp !== "string" || timestamp.length === 0 || timestamp.length > 64) {
+    throw new Error("Invalid timestamp");
+  }
+  if (typeof messageNonce !== "string" || messageNonce.length === 0 || messageNonce.length > 256) {
+    throw new Error("Invalid messageNonce");
+  }
+  // 1. Ephemeral X25519 keypair.
+  // Test-supplied overrides must be the right length to produce a clean
+  // error instead of an opaque crypto exception.
+  if (options?.ephemeralPrivateKey && options.ephemeralPrivateKey.length !== 32) {
+    throw new Error("ephemeralPrivateKey must be exactly 32 bytes");
+  }
+  const ephPriv = options?.ephemeralPrivateKey ?? crypto.getRandomValues(new Uint8Array(32));
+  const ephPub = x25519.getPublicKey(ephPriv);
+
+  // 2. ECDH shared secret. Explicit 32-byte length check on the decoded
+  //    recipient public key so we surface a clean error rather than an
+  //    opaque noble-curves exception (matches the ephemeralPrivateKey path
+  //    guard above).
+  const recipientPub = hexToBytes(recipientEncryptionKeyHex);
+  if (recipientPub.length !== 32) {
+    throw new Error("recipientEncryptionKeyHex must decode to exactly 32 bytes");
+  }
+  const sharedSecret = x25519.getSharedSecret(ephPriv, recipientPub);
+
+  // Refuse all-zero shared secrets. A low-order recipient public key (a
+  // 32-byte value in the small subgroup) forces every X25519 ECDH to
+  // produce an all-zero shared secret. Without this check, the encrypt
+  // path would derive a deterministic, publicly-known AES key from HKDF,
+  // making the ciphertext decryptable by anyone. The decrypt path has the
+  // mirrored guard at the all-zeros check below.
+  if (sharedSecret.every((b) => b === 0)) {
+    throw new Error("Invalid recipient public key: ECDH shared secret is all zeros");
+  }
+
+  // 3. HKDF-SHA256 → AES key
+  const hkdfKey = await crypto.subtle.importKey(
+    "raw", sharedSecret, "HKDF", false, ["deriveBits"],
+  );
+  const symmetricBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new TextEncoder().encode("ink/0.1"), info: new TextEncoder().encode("ink/0.1/encrypt") },
+    hkdfKey, 256,
+  );
+  const symmetricKey = new Uint8Array(symmetricBits);
+
+  // 4. AES-256-GCM
+  if (options?.aesNonce && options.aesNonce.length !== 12) {
+    throw new Error("aesNonce must be exactly 12 bytes");
+  }
+  const aesNonce = options?.aesNonce ?? crypto.getRandomValues(new Uint8Array(12));
+
+  // Bound the plaintext BEFORE JSON.stringify and TextEncoder.encode so
+  // a caller asked to encrypt attacker-supplied data can't be forced
+  // into large allocations. Decrypt already caps the resulting
+  // ciphertext; we mirror that here so encrypt cannot mint envelopes a
+  // conformant decryptor would refuse. Cheap node walk first, then
+  // string-length cap on the encoded bytes.
+  if (!isWithinCanonicalizeBounds(plaintext)) {
+    throw new Error("Plaintext exceeds maximum allowed complexity");
+  }
+  const plaintextJson = JSON.stringify(plaintext);
+  if (plaintextJson.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Plaintext exceeds maximum allowed size");
+  }
+  const plaintextBytes = new TextEncoder().encode(plaintextJson);
+
+  const aesKey = await crypto.subtle.importKey("raw", symmetricKey, "AES-GCM", false, ["encrypt"]);
+  // AAD binds the ciphertext to all security-relevant outer envelope fields using
+  // an unambiguous JSON-canonical representation. This prevents an attacker from
+  // replaying the same ciphertext with modified outer metadata (timestamp, nonce, etc.)
+  // or reattributing the ciphertext to a different sender.
+  // Fields bound: protocol, type, from (sender), ephemeralKey, AES nonce (base64url),
+  // timestamp, messageNonce. Including protocol and type prevents type-confusion attacks
+  // where an attacker reinterprets a valid encrypted envelope as a different message type.
+  const aadObject = {
+    protocol: "ink/0.1",
+    type: "network.tulpa.encrypted",
+    from: senderDid,
+    ephemeralKey: base64urlEncode(ephPub),
+    nonce: base64urlEncode(aesNonce),
+    timestamp,
+    messageNonce,
+  };
+  const aadString = `ink/0.1:envelope\n${jcsCanonicalize(aadObject)}`;
+  const aad = new TextEncoder().encode(aadString);
+  const ciphertextWithTag = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: aesNonce, additionalData: aad }, aesKey, plaintextBytes),
+  );
+
+  // 5. Outer envelope
+  const envelope: InkEncryptedEnvelope = {
+    protocol: "ink/0.1",
+    type: "network.tulpa.encrypted",
+    from: senderDid,
+    ephemeralKey: base64urlEncode(ephPub),
+    nonce: base64urlEncode(aesNonce),
+    ciphertext: base64urlEncode(ciphertextWithTag),
+    timestamp,
+    messageNonce,
+  };
+
+  return { envelope, ephemeralPublicKey: ephPub };
+}
+
+/**
+ * Decrypt an INK encrypted envelope using the recipient's X25519 private key.
+ * Returns the decrypted inner envelope and verifies inner/outer consistency.
+ */
+export async function decryptInkPayload(
+  envelope: InkEncryptedEnvelope,
+  recipientEncryptionPrivateKeyHex: string,
+  recipientDid?: string,
+): Promise<Record<string, unknown>> {
+  if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) {
+    throw new Error("envelope must be a non-null object");
+  }
+  if (envelope.protocol !== "ink/0.1") {
+    throw new Error("Unsupported protocol version");
+  }
+  if (envelope.type !== "network.tulpa.encrypted") {
+    throw new Error("Invalid encrypted envelope type");
+  }
+
+  // Pre-auth length caps on AAD fields. These all flow into JCS canonicalize
+  // + TextEncoder allocation before the AES-GCM tag check, so unbounded
+  // attacker-supplied strings would burn CPU/memory pre-verification.
+  // Non-empty check mirrors encryptInkPayload's input validation so
+  // encrypt and decrypt accept exactly the same scalar set — without
+  // the matching `length === 0` reject, decrypt would accept an
+  // envelope that encrypt could never have produced.
+  if (
+    typeof envelope.from !== "string" ||
+    envelope.from.length === 0 ||
+    envelope.from.length > 512
+  ) {
+    throw new Error("Invalid envelope from");
+  }
+  if (
+    typeof envelope.timestamp !== "string" ||
+    envelope.timestamp.length === 0 ||
+    envelope.timestamp.length > 64
+  ) {
+    throw new Error("Invalid envelope timestamp");
+  }
+  if (
+    typeof envelope.messageNonce !== "string" ||
+    envelope.messageNonce.length === 0 ||
+    envelope.messageNonce.length > 256
+  ) {
+    throw new Error("Invalid envelope messageNonce");
+  }
+
+  // 1. Decode and validate ephemeral public key from envelope.
+  // X25519 public keys are exactly 32 bytes = 43 unpadded base64url chars.
+  // Pre-check the encoded length BEFORE decoding so a 100 MB ephemeralKey
+  // field doesn't get fully decoded into a ~75 MB Uint8Array before the
+  // length === 32 check fires — same memory-exhaustion class the
+  // ciphertext cap below defends against.
+  if (typeof envelope.ephemeralKey !== "string" || envelope.ephemeralKey.length > 64) {
+    throw new Error("Invalid ephemeral key");
+  }
+  const ephPub = base64urlDecode(envelope.ephemeralKey);
+  if (ephPub.length !== 32) {
+    throw new Error("Invalid ephemeral key length");
+  }
+
+  // 2. ECDH shared secret. Explicit 32-byte length check on the decoded
+  //    recipient private key (matches the encrypt path).
+  const recipientPriv = hexToBytes(recipientEncryptionPrivateKeyHex);
+  if (recipientPriv.length !== 32) {
+    throw new Error("recipientEncryptionPrivateKeyHex must decode to exactly 32 bytes");
+  }
+  const sharedSecret = x25519.getSharedSecret(recipientPriv, ephPub);
+
+  // Reject low-order / malicious ephemeral keys that produce an all-zero shared secret.
+  // An all-zero ECDH output is cryptographically invalid and would allow an attacker
+  // to construct ciphertexts decryptable by any recipient.
+  if (sharedSecret.every((b) => b === 0)) {
+    throw new Error("Invalid ephemeral key: ECDH shared secret is all zeros");
+  }
+
+  // 3. HKDF-SHA256 → AES key
+  const hkdfKey = await crypto.subtle.importKey(
+    "raw", sharedSecret, "HKDF", false, ["deriveBits"],
+  );
+  const symmetricBits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: new TextEncoder().encode("ink/0.1"), info: new TextEncoder().encode("ink/0.1/encrypt") },
+    hkdfKey, 256,
+  );
+  const symmetricKey = new Uint8Array(symmetricBits);
+
+  // 4. AES-256-GCM decrypt.
+  // AES-GCM nonce is exactly 12 bytes = 16 unpadded base64url chars.
+  // Pre-check the encoded length BEFORE decoding to avoid allocating a
+  // large Uint8Array for an attacker-supplied oversized nonce field.
+  if (typeof envelope.nonce !== "string" || envelope.nonce.length > 32) {
+    throw new Error("Invalid AES-GCM nonce");
+  }
+  const aesNonce = base64urlDecode(envelope.nonce);
+  // AES-GCM requires a 12-byte IV. Reject any other length explicitly so callers
+  // get a clean error rather than an opaque WebCrypto exception.
+  if (aesNonce.length !== 12) {
+    throw new Error(`Invalid AES-GCM nonce length: expected 12 bytes, got ${aesNonce.length}`);
+  }
+  // Cap ciphertext size before base64url decode + AES-GCM allocation. Without
+  // this, a ~100 MB ciphertext would be decoded into ~75 MB Uint8Array and
+  // sent through GCM before the auth tag rejects it. 1 MB easily fits any
+  // realistic INK message payload while bounding memory under adversarial load.
+  const MAX_CIPHERTEXT_B64URL = 1_400_000;
+  if (typeof envelope.ciphertext !== "string" || envelope.ciphertext.length > MAX_CIPHERTEXT_B64URL) {
+    throw new Error("Ciphertext exceeds maximum allowed size");
+  }
+  const ciphertextWithTag = base64urlDecode(envelope.ciphertext);
+
+  const aesKey = await crypto.subtle.importKey("raw", symmetricKey, "AES-GCM", false, ["decrypt"]);
+  // AAD must match what was used during encryption — same unambiguous JSON-canonical format.
+  // protocol and type are now included to bind the ciphertext to this specific envelope type.
+  const aadObject = {
+    protocol: "ink/0.1",
+    type: "network.tulpa.encrypted",
+    from: envelope.from,
+    ephemeralKey: envelope.ephemeralKey,
+    nonce: envelope.nonce,
+    timestamp: envelope.timestamp,
+    messageNonce: envelope.messageNonce,
+  };
+  const aadString = `ink/0.1:envelope\n${jcsCanonicalize(aadObject)}`;
+  const aad = new TextEncoder().encode(aadString);
+  const plaintextBytes = new Uint8Array(
+    await crypto.subtle.decrypt({ name: "AES-GCM", iv: aesNonce, additionalData: aad }, aesKey, ciphertextWithTag),
+  );
+
+  // Plaintext is now AES-GCM-authenticated, so any well-formed JSON object
+  // here came from the sender. Still type-check before property access so
+  // a sender posting `null`/array/scalar payloads gets a clean validation
+  // error instead of a TypeError on `.from`.
+  const decryptedRaw = JSON.parse(new TextDecoder().decode(plaintextBytes));
+  if (decryptedRaw === null || typeof decryptedRaw !== "object" || Array.isArray(decryptedRaw)) {
+    throw new Error("Inner envelope must be a JSON object");
+  }
+  const decrypted = decryptedRaw as Record<string, unknown>;
+
+  // 5. Verify inner/outer consistency
+  if (decrypted.from !== envelope.from) {
+    throw new Error("Inner envelope 'from' does not match outer envelope");
+  }
+  // recipientDid is optional, but if the caller supplies it we MUST
+  // bind. Using `recipientDid &&` would silently skip the check on an
+  // empty string — an integrator passing `process.env.AGENT_DID ?? ""`
+  // would think they were binding and not be. Be explicit:
+  if (recipientDid !== undefined) {
+    if (typeof recipientDid !== "string" || recipientDid.length === 0) {
+      throw new Error("recipientDid must be a non-empty string when provided");
+    }
+    if (decrypted.to !== recipientDid) {
+      throw new Error("Inner envelope 'to' does not match recipient DID");
+    }
+  }
+
+  return decrypted;
+}
+
+// ── INK v0.1 Replay Protection (§3.5) ──
+
+export interface ReplayCheckInput {
+  messageTimestamp: string;
+  receiverClock: string;
+  nonce: string;
+  previouslySeenNonces: string[];
+}
+
+export interface ReplayCheckResult {
+  accepted: boolean;
+  errorCode?: "expired_message" | "duplicate_nonce";
+}
+
+export const MAX_TIMESTAMP_AGE_MS = 5 * 60 * 1000; // 5 minutes
+export const MAX_FUTURE_TIMESTAMP_MS = 30 * 1000;   // 30 seconds
+
+/**
+ * Check whether an INK message should be accepted or rejected
+ * based on timestamp freshness and nonce deduplication (§3.5).
+ */
+export function checkReplay(input: ReplayCheckInput): ReplayCheckResult {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+  if (
+    typeof input.nonce !== "string" ||
+    input.nonce.length < 16 ||
+    input.nonce.length > 256 ||
+    !/^[A-Za-z0-9_-]+$/.test(input.nonce)
+  ) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+  if (!Array.isArray(input.previouslySeenNonces) || input.previouslySeenNonces.length > 10_000) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+
+  // Length-cap both timestamp strings before handing them to Date()
+  // so a multi-megabyte value can't burn CPU in the engine's date
+  // parser before the finite-time check rejects. 64 chars matches the
+  // cap used elsewhere in INK (ISO 8601 fits in ~30 chars).
+  if (
+    typeof input.messageTimestamp !== "string" ||
+    input.messageTimestamp.length === 0 ||
+    input.messageTimestamp.length > 64 ||
+    typeof input.receiverClock !== "string" ||
+    input.receiverClock.length === 0 ||
+    input.receiverClock.length > 64
+  ) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+  // Parse timestamps — NaN values would cause all drift comparisons to return
+  // false (NaN > x and NaN < x are both false), allowing any timestamp to pass.
+  // Explicitly reject non-finite results.
+  const msgTime = new Date(input.messageTimestamp).getTime();
+  const recvTime = new Date(input.receiverClock).getTime();
+  if (!Number.isFinite(msgTime) || !Number.isFinite(recvTime)) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+
+  const drift = msgTime - recvTime;
+
+  // Reject if timestamp is too far in the future
+  if (drift > MAX_FUTURE_TIMESTAMP_MS) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+
+  // Reject if timestamp is too old
+  if (-drift > MAX_TIMESTAMP_AGE_MS) {
+    return { accepted: false, errorCode: "expired_message" };
+  }
+
+  // Reject if nonce was already seen
+  if (input.previouslySeenNonces.includes(input.nonce)) {
+    return { accepted: false, errorCode: "duplicate_nonce" };
+  }
+
+  return { accepted: true };
+}
+
+// ── INK Audit Crypto (Auditability §2) ──
+
+/**
+ * Compute SHA-256 hash of JCS-canonicalized body. Returns hex string.
+ * Used for messageHash in receipts and previousEventHash in audit chains.
+ */
+export async function computeMessageHash(body: Record<string, unknown>): Promise<string> {
+  // Mirrors the sign/verify-side guards. messageHash is bound into
+  // receipts; a poisoned receipt body would otherwise burn CPU inside
+  // canonicalize before the receipt verifier ever rejects it.
+  if (!isWithinCanonicalizeBounds(body)) {
+    throw new Error("Message body exceeds maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(body);
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Message body exceeds maximum allowed size");
+  }
+  const bytes = new TextEncoder().encode(canonical);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+/**
+ * Sign an INK audit event. Returns base64url-encoded Ed25519 signature.
+ * Signs the JCS-canonicalized event with the agentSignature field excluded.
+ */
+export async function signAuditEvent(
+  event: Record<string, unknown>,
+  privateKey: Uint8Array,
+): Promise<string> {
+  if (event === null || typeof event !== "object" || Array.isArray(event)) {
+    throw new Error("event must be a non-null object");
+  }
+  // Remove agentSignature before canonicalizing
+  const { agentSignature: _, ...eventWithoutSig } = event;
+  // Mirror the verify-side guards: refuse pathological events at sign
+  // time so a service can't be coerced into burning CPU/memory minting
+  // a signature over an event no verifier would accept.
+  if (!isWithinCanonicalizeBounds(eventWithoutSig)) {
+    throw new Error("Audit event exceeds maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(eventWithoutSig);
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit event exceeds maximum allowed size");
+  }
+  // Domain separation: prefix prevents cross-protocol signature replay
+  const prefixed = `ink/audit-event\n${canonical}`;
+  const bytes = new TextEncoder().encode(prefixed);
+  const sig = await ed.signAsync(bytes, privateKey);
+  return base64urlEncode(sig);
+}
+
+/**
+ * Verify an INK audit event signature.
+ * Returns false (never throws) for malformed or wrong-length signatures.
+ */
+export async function verifyAuditEventSignature(
+  event: Record<string, unknown>,
+  publicKey: Uint8Array,
+): Promise<boolean> {
+  if (event === null || typeof event !== "object" || Array.isArray(event)) return false;
+  const signature = event.agentSignature as string;
+  if (typeof signature !== "string") return false;
+  // Ed25519 signatures are exactly 64 bytes = 86 unpadded base64url chars.
+  if (!/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
+  const { agentSignature: _, ...eventWithoutSig } = event;
+  // Pre-canonicalize complexity cap: bail before jcsCanonicalize walks an
+  // attacker-supplied object that would only get rejected by the size cap
+  // below. Cheap enough that it adds no cost for real events.
+  if (!isWithinCanonicalizeBounds(eventWithoutSig)) return false;
+  const canonical = jcsCanonicalize(eventWithoutSig);
+  // Defense-in-depth: cap canonicalized body size to bound pre-verify work.
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) return false;
+  // Domain separation: must match signAuditEvent prefix
+  const prefixed = `ink/audit-event\n${canonical}`;
+  const bytes = new TextEncoder().encode(prefixed);
+  try {
+    const sig = base64urlDecode(signature);
+    return await ed.verifyAsync(sig, bytes, publicKey);
+  } catch {
+    // Malformed signature (wrong length, invalid chars, bad key) — treat as invalid
+    return false;
+  }
+}
+
+/**
+ * Compute SHA-256 hash of JCS-canonicalized audit event (excluding agentSignature).
+ * Used for previousEventHash chain linkage.
+ */
+export async function computeEventHash(event: Record<string, unknown>): Promise<string> {
+  if (event === null || typeof event !== "object" || Array.isArray(event)) {
+    throw new Error("event must be a non-null object");
+  }
+  const { agentSignature: _, ...eventWithoutSig } = event;
+  // Mirrors the sign/verify-side guards: previousEventHash flows from
+  // this function into hash-chained audit logs, so a poisoned event
+  // could otherwise burn CPU/memory inside canonicalize before the
+  // chain insertion path notices the size.
+  if (!isWithinCanonicalizeBounds(eventWithoutSig)) {
+    throw new Error("Audit event exceeds maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(eventWithoutSig);
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit event exceeds maximum allowed size");
+  }
+  const bytes = new TextEncoder().encode(canonical);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+/**
+ * Sign an INK audit response. Returns base64url-encoded Ed25519 signature.
+ * Domain-separated: signs "ink/audit-response\n" + JCS(events) to prevent
+ * cross-protocol signature replay.
+ */
+export async function signAuditResponse(
+  events: unknown[],
+  privateKey: Uint8Array,
+): Promise<string> {
+  // Pre-canonicalize complexity cap — mirrors verifyAuditResponseSignature
+  // so a peer requesting an audit response cannot make the responder
+  // burn CPU/memory inside jcsCanonicalize before the length cap below.
+  if (!isWithinCanonicalizeBounds(events)) {
+    throw new Error("Audit response events exceed maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(events);
+  // Cap canonicalized body size — mirrors the verify path's guard so the
+  // sign side can't be used to mint signatures over payloads larger than
+  // any conformant verifier would accept.
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit response events exceed maximum allowed size");
+  }
+  const prefixed = `ink/audit-response\n${canonical}`;
+  const bytes = new TextEncoder().encode(prefixed);
+  const sig = await ed.signAsync(bytes, privateKey);
+  return base64urlEncode(sig);
+}
+
+/**
+ * Verify an INK audit response signature.
+ * Expects the domain-separated format: "ink/audit-response\n" + JCS(events).
+ * Returns false (never throws) for malformed or wrong-length signatures.
+ */
+export async function verifyAuditResponseSignature(
+  events: unknown[],
+  signature: string,
+  publicKey: Uint8Array,
+): Promise<boolean> {
+  if (!Array.isArray(events)) return false;
+  if (typeof signature !== "string") return false;
+  // Ed25519 signatures are exactly 64 bytes = 86 unpadded base64url chars.
+  if (!/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
+  // Pre-canonicalize complexity cap (see verifyAuditEventSignature).
+  if (!isWithinCanonicalizeBounds(events)) return false;
+  const canonical = jcsCanonicalize(events);
+  // Defense-in-depth: cap canonicalized body size to bound pre-verify work.
+  if (canonical.length > MAX_SIGBASE_BODY_BYTES) return false;
+  const prefixed = `ink/audit-response\n${canonical}`;
+  const bytes = new TextEncoder().encode(prefixed);
+  try {
+    const sig = base64urlDecode(signature);
+    return await ed.verifyAsync(sig, bytes, publicKey);
+  } catch {
+    // Malformed signature (wrong length, invalid chars, bad key) — treat as invalid
+    return false;
+  }
+}
+
+// Re-export encoding helpers for test use
+export { base64urlEncode, base64urlDecode, hexToBytes, bytesToHex, jcsCanonicalize };
