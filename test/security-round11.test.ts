@@ -136,12 +136,12 @@ describe("buildRedactedCard: preserves visibility without unsafe cast", () => {
   };
 
   it("treats network_only visibility as network_only", () => {
-    const out = buildRedactedCard({ ...baseCard, visibility: "network_only" } as Parameters<typeof buildRedactedCard>[0]);
+    const out = buildRedactedCard({ ...baseCard, visibility: "network_only" } as unknown as Parameters<typeof buildRedactedCard>[0]);
     expect(out.visibility).toBe("network_only");
   });
 
   it("treats capability_gated visibility as capability_gated", () => {
-    const out = buildRedactedCard({ ...baseCard, visibility: "capability_gated" } as Parameters<typeof buildRedactedCard>[0]);
+    const out = buildRedactedCard({ ...baseCard, visibility: "capability_gated" } as unknown as Parameters<typeof buildRedactedCard>[0]);
     expect(out.visibility).toBe("capability_gated");
   });
 

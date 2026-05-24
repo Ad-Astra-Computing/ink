@@ -1,23 +1,23 @@
-# INK v0.3 — Protocol-Level Auditability
+# INK Protocol-Level Auditability (draft extension)
 
 **Status:** Draft
-**Authors:** tulpa core
+**Authors:** Ad Astra Computing
 **Date:** 2026-03-19
 
 ## Problem
 
-INK v0.2 has strong internal audit capabilities (`AgentAuditStore` with 130+ event types, extension `AuditEntry` schema) but these are **application-layer** — they live inside each Tulpa's Durable Object and are not part of the wire protocol. This creates gaps:
+The current INK v0.1 model has strong internal audit capabilities (`AgentAuditStore` with 130+ event types, extension `AuditEntry` schema) but these are **application-layer**, they live inside each agent's host process and are not part of the wire protocol. This creates gaps:
 
-1. **No delivery receipts** — the sender doesn't know if the recipient's agent received, queued, rejected or acted on the message. The HTTP 200 from the inbox endpoint only means "I got it."
-2. **No cryptographic audit trail** — audit events are stored internally and could be modified. There's no tamper-evident log that both parties can reference.
-3. **No cross-agent audit reconciliation** — if Alice says she sent a message and Bob says he never got it, there's no shared record to resolve the dispute.
-4. **No standardized audit format** — each INK implementation would have to reverse-engineer tulpa's `AgentAuditStore` schema. The audit data isn't portable.
+1. **No delivery receipts**, the sender doesn't know if the recipient's agent received, queued, rejected or acted on the message. The HTTP 200 from the inbox endpoint only means "I got it."
+2. **No cryptographic audit trail**, audit events are stored internally and could be modified. There's no tamper-evident log that both parties can reference.
+3. **No cross-agent audit reconciliation**, if Alice says she sent a message and Bob says he never got it, there's no shared record to resolve the dispute.
+4. **No standardized audit format**, each INK implementation would have to reverse-engineer tulpa's `AgentAuditStore` schema. The audit data isn't portable.
 
 ## Design
 
 ### 1. Message Receipts (Wire Protocol)
 
-Receipts are a **new INK message type** (`network.tulpa.receipt`), not an intent type. INK v0.2 distinguishes message types (`network.tulpa.intent`, `network.tulpa.challenge`, `network.tulpa.resolution`, `network.tulpa.rejection`, `network.tulpa.encrypted`) from intent types (`scheduling`, `intro_request`, etc.) within `network.tulpa.intent` messages. Receipts are a distinct protocol-level concern and MUST NOT be shoehorned into the intent envelope.
+Receipts are a **new INK message type** (`network.tulpa.receipt`), not an intent type. INK v0.1 distinguishes message types (`network.tulpa.intent`, `network.tulpa.challenge`, `network.tulpa.resolution`, `network.tulpa.rejection`, `network.tulpa.encrypted`) from intent types (`scheduling`, `intro_request`, etc.) within `network.tulpa.intent` messages. Receipts are a distinct protocol-level concern and MUST NOT be shoehorned into the intent envelope.
 
 ```json
 {
@@ -34,7 +34,7 @@ Receipts are a **new INK message type** (`network.tulpa.receipt`), not an intent
 
   "note": "optional detail (rejection reason, action taken)",
 
-  "messageHash": "<SHA-256 hash — see §1.1 for hash scope>",
+  "messageHash": "<SHA-256 hash, see §1.1 for hash scope>",
 
   "nonce": "<base64url-encoded 128-bit nonce>",
   "timestamp": "2026-03-19T12:00:01Z"
@@ -56,7 +56,7 @@ Receipts are a **new INK message type** (`network.tulpa.receipt`), not an intent
 `messageHash` is always the SHA-256 of the **JCS-canonicalized plaintext message body**, regardless of transport encryption.
 
 For **plaintext messages** (type `network.tulpa.intent`, `network.tulpa.challenge`, etc.):
-- `messageHash` = SHA-256 of the JCS-canonicalized INK message body, excluding transport headers (the `Authorization` header carries the signature — it is not part of the JSON body).
+- `messageHash` = SHA-256 of the JCS-canonicalized INK message body, excluding transport headers (the `Authorization` header carries the signature, it is not part of the JSON body).
 
 For **encrypted messages** (type `network.tulpa.encrypted`):
 - `messageHash` = SHA-256 of the **decrypted plaintext intent body**, not the outer `InkEncryptedPayload` envelope.
@@ -78,8 +78,8 @@ Sender                              Recipient
 **Properties:**
 - Receipts are full INK messages: signed per §3.3 (METHOD + PATH + recipientDid + JCS(body) + timestamp), with nonce and timestamp for replay protection per §3.5
 - Receipts are delivered via `POST /ink/v1/receipt` (a new endpoint, separate from `/ink/v1/intent`)
-- Receipts are **opt-in** per agent — advertised in the Agent Card capabilities
-- Receipts for receipts are NOT sent (receiving a `network.tulpa.receipt` MUST NOT trigger a receipt response — loop prevention)
+- Receipts are **opt-in** per agent, advertised in the Agent Card capabilities
+- Receipts for receipts are NOT sent (receiving a `network.tulpa.receipt` MUST NOT trigger a receipt response, loop prevention)
 - The `from`/`to` fields are reversed relative to the original message (the recipient becomes the sender of the receipt)
 
 **Agent Card capability:**
@@ -141,15 +141,39 @@ InkAuditEventSchema = z.object({
     "connection.declined",
     // Verification
     "signature.verified",
+    "signature.verified_retired",
     "signature.failed",
+    "signature.revoked_rejected",
     "replay.detected",
-    // Containment (INK Containment §5–§7)
-    "containment.transport_scope_violation",
-    "containment.handshake_rate_limited",
-    "containment.handshake_budget_exhausted",
-    "containment.discovery_query_received",
-    "containment.discovery_query_granted",
-    "containment.discovery_query_denied",
+    // Key lifecycle
+    "key.rotated",
+    "key.revoked",
+    // Introduction lifecycle
+    "introduction.requested",
+    "introduction.approved",
+    "introduction.declined",
+    "introduction.forwarded",
+    "introduction.completed",
+    "introduction.expired",
+    "introduction.receipt_sent",
+    "introduction.receipt_received",
+    // Enclave lifecycle
+    "enclave.requested",
+    "enclave.authorized",
+    "enclave.opened",
+    "enclave.operation_submitted",
+    "enclave.resolved",
+    "enclave.expired",
+    "enclave.aborted",
+    "enclave.receipt_sent",
+    "enclave.receipt_received",
+    // Containment
+    "transport_scope_violation",
+    "handshake_rate_limited",
+    "handshake_budget_exhausted",
+    "discovery_query_received",
+    "discovery_query_granted",
+    "discovery_query_denied",
   ]),
 
   // Event timestamp
@@ -159,6 +183,7 @@ InkAuditEventSchema = z.object({
   messageId: z.string().optional(),
   correlationId: z.string().optional(),
   counterpartyId: z.string().optional(),  // the other agent involved
+  signingKeyId: z.string().optional(),    // key used to sign this event, for historical verification
 
   // Event-specific data (schema varies by eventType)
   data: z.record(z.unknown()).optional(),
@@ -170,14 +195,14 @@ InkAuditEventSchema = z.object({
 The audit chain uses **both** a hash chain and a monotonic sequence number, following SSB's feed model:
 
 - **`sequence`:** monotonically increasing integer starting at 1. Provides a human-readable position and makes gaps immediately detectable (if you see sequence 5 followed by 7, sequence 6 was deleted or suppressed).
-- **`previousEventHash`:** SHA-256 of the JCS-canonicalized prior event (excluding `agentSignature`). Null for the first event (sequence=1). Provides cryptographic chain linkage — if any event is modified, all subsequent hashes break.
+- **`previousEventHash`:** SHA-256 of the JCS-canonicalized prior event (excluding `agentSignature`). Null for the first event (sequence=1). Provides cryptographic chain linkage, if any event is modified, all subsequent hashes break.
 - **`agentSignature`:** Ed25519 signature over the JCS-canonicalized event (excluding the `agentSignature` field itself). Proves the agent attested to this event at this chain position.
 
 **Fork detection (per SSB):**
 - If an agent presents two different events with the same `sequence` number, the chain is forked. A forked chain SHOULD be treated as untrusted during reconciliation.
 - During audit exchange (§3), both parties can compare sequence numbers and hashes. If Alice has sequence 1-10 for a message and Bob has sequence 1-8, the gap is immediately visible. If their hashes diverge at sequence 5, that's the point of tampering.
 
-The chain is per-agent (not global) — each agent maintains its own append-only log.
+The chain is per-agent (not global), each agent maintains its own append-only log.
 
 ### 3. Audit Exchange Protocol
 
@@ -185,7 +210,7 @@ Agents can request audit records from each other for reconciliation.
 
 **New endpoint:** `POST /ink/v1/audit`
 
-Audit queries use **POST** (not GET) to fit INK's existing authentication model. INK v0.2 auth (§3.3) signs `METHOD + PATH + recipientDid + JCS(body) + timestamp`, which requires a request body for canonicalization. GET requests have no body, so they cannot be authenticated or replay-protected under the current INK auth scheme.
+Audit queries use **POST** (not GET) to fit INK's existing authentication model. INK v0.1 auth (§3.3) signs `METHOD + PATH + recipientDid + JCS(body) + timestamp`, which requires a request body for canonicalization. GET requests have no body, so they cannot be authenticated or replay-protected under the current INK auth scheme.
 
 **Agent Card advertisement:**
 
@@ -217,7 +242,7 @@ Authorization: INK-Ed25519 <signature>
 
 The signature base follows §3.3 exactly:
 ```
-signatureBase = "POST\n/ink/v1/audit\ndid:plc:bob\n{...JCS(body)...}\n2026-03-19T12:00:00Z"
+signatureBase = "ink/0.1\nPOST\n/ink/v1/audit\ndid:plc:bob\n{...JCS(body)...}\n2026-03-19T12:00:00Z"
 ```
 
 **Response:**
@@ -232,11 +257,11 @@ signatureBase = "POST\n/ink/v1/audit\ndid:plc:bob\n{...JCS(body)...}\n2026-03-19
 }
 ```
 
-The `responseSignature` is the responder's Ed25519 signature over the JCS-canonicalized `events` array, allowing the requester to prove the responder attested to this specific audit history.
+The `responseSignature` is the responder's Ed25519 signature over the JCS-canonicalized `events` array, allowing the requester to prove the responder attested to this specific audit slice. The signature alone does NOT prove the slice is internally consistent. Consumers MUST run two checks before treating the events as authoritative: `verifyAuditResponseSignature(events, signature, key)` (proves the responder produced this exact slice) AND `verifyAuditEventChain(events)` (proves the slice has no internal `sequence_gap`, `sequence_fork`, or `previous_hash_mismatch`). A slice that passes one and fails the other MUST be rejected.
 
 **Access control:**
 - The responder MUST verify (via its message store) that the requester's DID (`from`) is either the sender or recipient of the referenced `messageId`. If not, return error code `access_denied`.
-- The request is authenticated and replay-protected using the standard INK auth flow — no special-case logic needed.
+- The request is authenticated and replay-protected using the standard INK auth flow, no special-case logic needed.
 - Events are filtered to only include the specific message's lifecycle.
 
 ### 4. Dispute Resolution
@@ -262,11 +287,12 @@ Alice                                          Bob
 **Reconciliation algorithm:**
 1. Both agents exchange audit events for the disputed message via `POST /ink/v1/audit`
 2. Each response is signed by the responder (`responseSignature`), creating non-repudiable evidence of what each party claims happened
-3. Compare `sequence` numbers — gaps indicate suppressed events; forks (same sequence, different content) indicate tampering
-4. Compare `previousEventHash` chains — find the earliest point of divergence
-5. If the recipient has `message.received` but not `message.delivered`, the message was lost internally
-6. If the sender has `message.sent` but the recipient has no events, the message was lost in transit
-7. Both parties' signed responses can be presented to a human mediator if automated reconciliation fails
+3. Verify each response with `verifyAuditResponseSignature`. Reject slices that fail.
+4. Run `verifyAuditEventChain(events)` on each verified slice. Reject slices that return `sequence_gap`, `sequence_fork`, or `previous_hash_mismatch`, a slice that fails this gate is internally inconsistent regardless of who signed it.
+5. Compare `sequence` numbers and `previousEventHash` chains across the two slices to find the earliest point of divergence
+6. If the recipient has `message.received` but not `message.delivered`, the message was lost internally
+7. If the sender has `message.sent` but the recipient has no events, the message was lost in transit
+8. Both parties' signed responses can be presented to a human mediator if automated reconciliation fails
 
 ### 5. Audit Retention and Export
 
@@ -302,7 +328,7 @@ The internal `AgentAuditStore` (130+ event types, rich metadata) remains the pri
 3. Add receipt generation to `receiveMessage` pipeline (opt-in via agent config)
 4. Add `InkAuditEvent` generation alongside existing `AgentAuditStore` logging, with sequence numbers and hash chain
 5. Advertise receipt and audit capabilities in Agent Card
-6. All new endpoints use the existing INK auth model (§3.3) and replay protection (§3.5) — no special-case authentication
+6. All new endpoints use the existing INK auth model (§3.3) and replay protection (§3.5), no special-case authentication
 7. _(Future)_ Deploy a INK-native audit service (§7) for third-party witnessing of high-value interactions
 
 ## Prior Art and Research
@@ -314,57 +340,57 @@ Email's receipt protocol. INK's disposition types are directly influenced by MDN
 - MDN separates **action mode** (`manual-action` vs `automatic-action`) from **disposition type** (`displayed`, `deleted`, `processed`, `denied`, `failed`). INK simplifies this into a single `disposition` enum since INK agents always process programmatically.
 - **Critical lesson: MDN is advisory and unreliable.** Receipts can be silently suppressed by intermediaries, spam filters or the recipient's MUA. You cannot distinguish "not read" from "MDN suppressed." INK addresses this by making receipts protocol-level intent messages (signed and delivered via the same inbox mechanism), not a separate transport.
 - MDN's `denied` disposition lets a recipient refuse to send a receipt without revealing read status. INK adopts this via selective disposition reporting in the Agent Card.
-- **MDN has no delivery receipt** — that's DSN (RFC 3461). INK's `received` disposition covers delivery; `delivered`/`acted` cover read/action. This is a deliberate consolidation.
+- **MDN has no delivery receipt**, that's DSN (RFC 3461). INK's `received` disposition covers delivery; `delivered`/`acted` cover read/action. This is a deliberate consolidation.
 
 ### XMPP Receipts (XEP-0184) and Chat Markers (XEP-0333)
 XMPP provides two relevant patterns:
-- **Cumulative acknowledgment:** marking message N as `displayed` implicitly marks messages 1..N. This reduces bandwidth in catch-up scenarios. INK does NOT adopt this — INK messages are not linearly ordered (they span multiple conversations/correlationIds), so cumulative receipts would be ambiguous.
+- **Cumulative acknowledgment:** marking message N as `displayed` implicitly marks messages 1..N. This reduces bandwidth in catch-up scenarios. INK does NOT adopt this, INK messages are not linearly ordered (they span multiple conversations/correlationIds), so cumulative receipts would be ambiguous.
 - **Disposition escalation:** XEP-0333 defines `received` → `displayed` → `acknowledged` as increasing levels of confirmation. INK's `received` → `delivered` → `acted` follows the same escalation pattern.
 - **No tamper evidence.** XMPP receipts are plaintext XML within TLS. A malicious server can forge or suppress them. INK's receipts are Ed25519-signed by the recipient's key.
 
 ### Matrix Protocol Receipts
 Matrix puts receipts outside the persistent DAG (as ephemeral EDUs). Key lessons:
-- **Receipts as ephemeral vs. persistent is a core design choice.** Matrix chose ephemeral to avoid bloating the room DAG. INK puts receipts IN the audit hash chain (persistent) because they serve as evidence, not just UX signals. This is a deliberate tradeoff — more storage for stronger guarantees.
+- **Receipts as ephemeral vs. persistent is a core design choice.** Matrix chose ephemeral to avoid bloating the room DAG. INK puts receipts IN the audit hash chain (persistent) because they serve as evidence, not just UX signals. This is a deliberate tradeoff, more storage for stronger guarantees.
 - **Federation receipt loss.** Matrix receipts can be lost during federation disruptions with no replay mechanism. INK mitigates this by treating receipts as regular intent messages with the same delivery guarantees.
-- **Private read receipts.** Matrix added `m.read.private` because public receipts leaked too much. INK's selective disposition reporting (Agent Card `capabilities.receipts.dispositions`) achieves the same — an agent can report only `received` and `rejected` but not `delivered` or `acted`.
+- **Private read receipts.** Matrix added `m.read.private` because public receipts leaked too much. INK's selective disposition reporting (Agent Card `capabilities.receipts.dispositions`) achieves the same, an agent can report only `received` and `rejected` but not `delivered` or `acted`.
 
 ### Certificate Transparency (RFC 6962)
 CT's Merkle tree approach is the gold standard for tamper-evident append-only logs:
-- **Signed Certificate Timestamp (SCT) as receipt.** CT's SCT is a signed promise: "I will include this in my log within the Maximum Merge Delay." This is stronger than INK's receipts — CT receipts come from an independent third party (the log), not the recipient. INK's receipts are bilateral (between sender and recipient), which is simpler but has weaker trust properties.
-- **Inclusion proofs and consistency proofs.** CT can prove a specific entry exists in the log (inclusion) and that the log is append-only (consistency). INK's hash chain provides append-only evidence but not efficient inclusion proofs. For INK's scale (50 messages/day per agent), the hash chain is sufficient — Merkle trees add complexity without proportional benefit.
-- **The split-view attack.** A malicious CT log can show different views to different clients. INK has the same risk — a malicious agent can maintain two different hash chains. Mutual audit exchange (Section 4) is INK's mitigation, analogous to CT's gossip protocol.
+- **Signed Certificate Timestamp (SCT) as receipt.** CT's SCT is a signed promise: "I will include this in my log within the Maximum Merge Delay." This is stronger than INK's receipts, CT receipts come from an independent third party (the log), not the recipient. INK's receipts are bilateral (between sender and recipient), which is simpler but has weaker trust properties.
+- **Inclusion proofs and consistency proofs.** CT can prove a specific entry exists in the log (inclusion) and that the log is append-only (consistency). INK's hash chain provides append-only evidence but not efficient inclusion proofs. For INK's scale (50 messages/day per agent), the hash chain is sufficient, Merkle trees add complexity without proportional benefit.
+- **The split-view attack.** A malicious CT log can show different views to different clients. INK has the same risk, a malicious agent can maintain two different hash chains. Mutual audit exchange (Section 4) is INK's mitigation, analogous to CT's gossip protocol.
 
 ### Secure Scuttlebutt (SSB)
 SSB's single-writer append-only feed is the closest analog to INK's per-agent hash chain:
 - **Hash chain structure.** Each SSB message contains `previous` (hash of prior message), `sequence` (monotonic counter), `author` (public key) and `signature`. INK's `InkAuditEvent` adopts the same pattern with `previousEventHash`.
 - **Fork detection.** SSB detects when a feed owner publishes two messages with the same sequence number. The feed is permanently "poisoned." INK should adopt fork detection: if an agent presents two different events with the same sequence position, the chain is untrusted.
-- **No editing or deletion.** SSB's immutability is a feature for audit but a problem for GDPR. INK addresses this with the `redact` capability in `AgentAuditStore` — the event remains in the chain but its content is replaced with `[redacted]`.
+- **No editing or deletion.** SSB's immutability is a feature for audit but a problem for GDPR. INK addresses this with the `redact` capability in `AgentAuditStore`, the event remains in the chain but its content is replaced with `[redacted]`.
 - **JSON canonicalization.** SSB's signature is over `JSON.stringify` with specific key ordering, which has caused interop bugs. INK uses JCS (RFC 8785) canonicalization, which is a proper standard.
 
 ### DIDComm Messaging v2
 DIDComm's problem reports and trust ping provide patterns for cross-agent status signaling:
-- **Problem reports** use structured error codes (`e.p.msg.not-understood`, `e.m.req.not-accepted`). INK's receipt `note` field is simpler — a free-text rejection reason. Consider adopting structured codes in a future version.
-- **Deniability vs. non-repudiation.** DIDComm explicitly offers both modes (signed JWS for non-repudiation, authcrypt for deniability). INK receipts are always signed (non-repudiation). This is the right choice for audit trails — deniability and auditability are fundamentally at odds.
+- **Problem reports** use structured error codes (`e.p.msg.not-understood`, `e.m.req.not-accepted`). INK's receipt `note` field is simpler, a free-text rejection reason. Consider adopting structured codes in a future version.
+- **Deniability vs. non-repudiation.** DIDComm explicitly offers both modes (signed JWS for non-repudiation, authcrypt for deniability). INK receipts are always signed (non-repudiation). This is the right choice for audit trails, deniability and auditability are fundamentally at odds.
 - **No built-in receipt protocol.** DIDComm v2 deliberately omits a core receipt protocol because its multi-transport model (HTTP, WebSocket, Bluetooth, QR) makes reliable delivery confirmation impossible. INK avoids this by standardizing on HTTP.
 
 ### COSE Receipts / SCITT (Supply Chain Integrity, Transparency and Trust)
 SCITT applies CT concepts to arbitrary claims, not just certificates:
 - **Access-controlled transparency.** Unlike CT (fully public), SCITT supports Merkle proofs over access-controlled logs. This is critical for agent protocols where message contents should not be publicly visible. INK's `/audit` endpoint with sender/recipient access control follows this model.
-- **Multiple transparency services.** SCITT allows a single statement to accumulate receipts from multiple independent services. INK could adopt this for high-stakes messages — both agents publish audit events to an independent transparency service for stronger guarantees.
+- **Multiple transparency services.** SCITT allows a single statement to accumulate receipts from multiple independent services. INK could adopt this for high-stakes messages, both agents publish audit events to an independent transparency service for stronger guarantees.
 - **Separation of issuer and transparency service.** In SCITT, the entity making claims is separate from the entity recording them. INK currently has agents self-recording their own audit events. For stronger guarantees, INK could support optional third-party audit services.
 
 ### C2SP Witness Cosigning Protocol
-The Community Cryptography Specification Project defines a witness protocol for transparency logs. Witnesses verify consistency proofs between checkpoints (signed tree heads) and return cosignatures — they never see log contents, only tree sizes and root hashes. Key properties:
+The Community Cryptography Specification Project defines a witness protocol for transparency logs. Witnesses verify consistency proofs between checkpoints (signed tree heads) and return cosignatures, they never see log contents, only tree sizes and root hashes. Key properties:
 - **Privacy by design.** A witness attests "this log is append-only" without knowing what's in it. Perfect for INK where message content is private.
 - **Single honest witness sufficiency.** One non-colluding witness is enough to detect a split-view attack (a log presenting different histories to different clients).
 - **Ed25519 native.** Checkpoints and cosignatures use Ed25519 note signatures, matching INK's key model exactly.
-- **Lightweight.** One HTTP request per checkpoint, not per event. At INK's scale (~50 events/day), an agent might publish one checkpoint per hour — 24 witness requests/day.
+- **Lightweight.** One HTTP request per checkpoint, not per event. At INK's scale (~50 events/day), an agent might publish one checkpoint per hour, 24 witness requests/day.
 
-The checkpoint format (`tlog-checkpoint`) is a simple text format: origin line, tree size, base64 root hash, followed by note signatures. INK's per-agent hash chain maps naturally to this — the agent is the "log" and publishes periodic checkpoints.
+The checkpoint format (`tlog-checkpoint`) is a simple text format: origin line, tree size, base64 root hash, followed by note signatures. INK's per-agent hash chain maps naturally to this, the agent is the "log" and publishes periodic checkpoints.
 
 ### Sigstore (Rekor, Fulcio, Cosign)
 Sigstore provides a transparency log (Rekor) for software supply chain signatures. Rekor v2 (GA 2025) uses Trillian Tessera with integrated witness cosigning. Relevant patterns:
-- **Hash notarization.** Rekor accepts `(artifact_hash, signature, public_key)` tuples. INK could submit `(audit_chain_hash, agent_signature, agent_public_key)` to get a free, independent timestamp proof. Content stays private — only the hash is public.
+- **Hash notarization.** Rekor accepts `(artifact_hash, signature, public_key)` tuples. INK could submit `(audit_chain_hash, agent_signature, agent_public_key)` to get a free, independent timestamp proof. Content stays private, only the hash is public.
 - **Rekor v2 tile-based architecture.** Static file serving for Merkle tree tiles, reducing infrastructure cost dramatically. If INK builds its own transparency service, this architecture is the model.
 - **Public key visibility tradeoff.** Rekor entries expose the signer's public key. For INK, this means agent DIDs would be visible even though message content is not. Acceptable for agents that want public transparency; use witnesses instead for full privacy.
 
@@ -388,7 +414,7 @@ A Bitcoin-anchored timestamping protocol. Aggregates hashes into a Merkle tree a
 
 ### 7. Third-Party Audit Services (Optional)
 
-Bilateral audit exchange (§3–§4) has a fundamental limitation: a malicious agent can maintain two different hash chains and show each counterparty a different history. This is the **split-view attack**, well-known from Certificate Transparency research. Mutual exchange detects inconsistencies only when both parties compare — it can't prevent a malicious agent from presenting a consistent-looking but fabricated chain to each party independently.
+Bilateral audit exchange (§3–§4) has a fundamental limitation: a malicious agent can maintain two different hash chains and show each counterparty a different history. This is the **split-view attack**, well-known from Certificate Transparency research. Mutual exchange detects inconsistencies only when both parties compare, it can't prevent a malicious agent from presenting a consistent-looking but fabricated chain to each party independently.
 
 Third-party audit services solve this by introducing an independent witness that neither party controls.
 
@@ -398,17 +424,17 @@ A third-party audit service is a **INK service role**, not a standard INK agent.
 
 | Concern | INK Agent | Audit Service |
 |---------|-----------|--------------|
-| Identity | DID bound to a human via `agentLink` | `did:web` or `did:key` — self-sovereign, no human owner |
+| Identity | DID bound to a human via `agentLink` | `did:web` or `did:key`, self-sovereign, no human owner |
 | Discovery | `TulpaAgentEndpoint` in DID document | Advertised in subscribing agents' Agent Card `capabilities.thirdPartyAudit.services` |
-| Auth (inbound) | INK auth §3.3 — verifies sender's `agentLink` delegation | INK auth §3.3 — verifies sender's `agentLink` delegation (same as any INK endpoint) |
+| Auth (inbound) | INK auth §3.3, verifies sender's `agentLink` delegation | INK auth §3.3, verifies sender's `agentLink` delegation (same as any INK endpoint) |
 | Auth (outbound) | Signs with `agentLink.signingKeyMultibase` | Signs with its own Ed25519 key (published in subscribing agents' Agent Card) |
-| Delegation proof | Required — must trace authority back to a human DID | Not applicable — the service is independently trusted by each subscribing agent |
+| Delegation proof | Required, must trace authority back to a human DID | Not applicable, the service is independently trusted by each subscribing agent |
 
 **Key distinctions:**
 
-1. **No `agentLink` verification.** When an agent receives a response from an audit service, it does NOT verify an `agentLink` delegation chain. Instead, it verifies the response signature against the service's public key as configured in the agent's own `capabilities.thirdPartyAudit.services[].publicKey`. Trust in the service is **configured, not discovered** — the agent operator chose to use this service.
+1. **No `agentLink` verification.** When an agent receives a response from an audit service, it does NOT verify an `agentLink` delegation chain. Instead, it verifies the response signature against the service's public key as configured in the agent's own `capabilities.thirdPartyAudit.services[].publicKey`. Trust in the service is **configured, not discovered**, the agent operator chose to use this service.
 
-2. **Inbound auth is standard INK.** When agents submit events TO the service, the service verifies the submitter's identity via standard INK auth (§3.3) — resolve the sender's DID, find their `agentLink`, verify the signature. The service is a normal INK recipient in this direction.
+2. **Inbound auth is standard INK.** When agents submit events TO the service, the service verifies the submitter's identity via standard INK auth (§3.3), resolve the sender's DID, find their `agentLink`, verify the signature. The service is a normal INK recipient in this direction.
 
 3. **Service DID resolution.** The service's `did:web` (or `did:key`) is resolved normally for TLS binding and key discovery, but the service does NOT need a `TulpaAgentEndpoint` service entry in its DID document. Its endpoint is provided directly in the subscribing agent's Agent Card configuration.
 
@@ -433,7 +459,7 @@ Agent A                    Audit Service                    Agent B
 
 The audit service:
 1. Accepts signed `InkAuditEvent` submissions from agents
-2. Appends them to a **Merkle tree** (not just a hash chain — enables efficient inclusion proofs)
+2. Appends them to a **Merkle tree** (not just a hash chain, enables efficient inclusion proofs)
 3. Returns a **signed inclusion receipt** proving the event was recorded at a specific tree position and timestamp
 4. Serves **inclusion proofs** and **consistency proofs** on demand
 
@@ -444,7 +470,7 @@ The service CANNOT forge events (they carry the submitting agent's Ed25519 signa
 
 #### 7.2 Submission Protocol
 
-Agents submit audit events to the service alongside their normal hash chain maintenance. Submission is **asynchronous** and **non-blocking** — the agent does not wait for the service receipt before proceeding.
+Agents submit audit events to the service alongside their normal hash chain maintenance. Submission is **asynchronous** and **non-blocking**, the agent does not wait for the service receipt before proceeding.
 
 ```json
 POST /ink/v1/audit/submit
@@ -488,7 +514,7 @@ Authorization: INK-Ed25519 <signature>
 
 {
   "protocol": "ink/0.1",
-  "type": "network.tulpa.audit_service_query",
+  "type": "network.tulpa.audit_query",
   "from": "did:plc:requester",
   "to": "did:web:audit.example.com",
   "messageId": "msg-123",
@@ -502,7 +528,7 @@ Authorization: INK-Ed25519 <signature>
 ```json
 {
   "protocol": "ink/0.1",
-  "type": "network.tulpa.audit_service_response",
+  "type": "network.tulpa.audit_response",
   "messageId": "msg-123",
   "events": [ /* InkAuditEvent[] from all agents */ ],
   "proofs": [
@@ -566,14 +592,14 @@ capabilities: {
 
 INK does not mandate a specific transparency log implementation. The options fall into three tiers based on effort and guarantees:
 
-**Tier 1 — Lowest effort, highest immediate value:**
+**Tier 1, Lowest effort, highest immediate value:**
 
 | Approach | How it works | Privacy | Cost |
 |----------|-------------|---------|------|
-| **Witness cosigning** (C2SP `tlog-witness`) | Agents publish periodic checkpoints of their hash chain. Independent witnesses verify consistency proofs and return cosignatures. Split-view attacks become detectable when clients compare cosigned roots or use multiple witnesses. | Inherent — witnesses see only tree size + root hash, never event content | Free (public witnesses exist) |
-| **Rekor hash notary** (Sigstore) | Submit SHA-256 hashes of audit chain checkpoints to Rekor's public Merkle log. Provides an independent timestamp proof that a chain state existed at time T. | Hash-only — public key and timing are visible, content is not | Free (rekor.sigstore.dev) |
+| **Witness cosigning** (C2SP `tlog-witness`) | Agents publish periodic checkpoints of their hash chain. Independent witnesses verify consistency proofs and return cosignatures. Split-view attacks become detectable when clients compare cosigned roots or use multiple witnesses. | Inherent, witnesses see only tree size + root hash, never event content | Free (public witnesses exist) |
+| **Rekor hash notary** (Sigstore) | Submit SHA-256 hashes of audit chain checkpoints to Rekor's public Merkle log. Provides an independent timestamp proof that a chain state existed at time T. | Hash-only, public key and timing are visible, content is not | Free (rekor.sigstore.dev) |
 
-Witness cosigning is the **recommended starting point**. The C2SP witness protocol (`tlog-witness`, `tlog-cosignature`, `tlog-checkpoint`) uses Ed25519 natively and maps directly to INK's existing hash chain. Agents already compute sequential hashes — publishing a checkpoint is just exposing the latest `(sequence, rootHash)` pair. The checkpoint format:
+Witness cosigning is the **recommended starting point**. The C2SP witness protocol (`tlog-witness`, `tlog-cosignature`, `tlog-checkpoint`) uses Ed25519 natively and maps directly to INK's existing hash chain. Agents already compute sequential hashes, publishing a checkpoint is just exposing the latest `(sequence, rootHash)` pair. The checkpoint format:
 
 ```
 ink-audit/<agentDid>
@@ -583,25 +609,25 @@ ink-audit/<agentDid>
 <Ed25519 note signature>
 ```
 
-**Tier 2 — Medium effort, stronger guarantees:**
+**Tier 2, Medium effort, stronger guarantees:**
 
 | Approach | How it works | Privacy | Cost |
 |----------|-------------|---------|------|
-| **SCITT transparency service** | A hosted service accepts COSE_Sign1-wrapped audit events, applies registration policy (INK auth for access control) and returns Merkle inclusion receipts. Follows IETF draft-ietf-scitt-architecture. | Access-controlled — events stored with sender/recipient ACL | DataTrails (commercial) or self-hosted |
+| **SCITT transparency service** | A hosted service accepts COSE_Sign1-wrapped audit events, applies registration policy (INK auth for access control) and returns Merkle inclusion receipts. Follows IETF draft-ietf-scitt-architecture. | Access-controlled, events stored with sender/recipient ACL | DataTrails (commercial) or self-hosted |
 | **INK-native Merkle service** | A Tulpa-operated transparency service using the submission protocol from §7.2. Reuses INK auth (§3.3) and message format. | Full INK access control | Self-hosted |
 
-SCITT is the best architectural fit for a full third-party audit service. The VeritasChain Protocol (draft-kamimura-scitt-vcp) demonstrates SCITT profiles for financial audit trails — a INK profile would follow the same pattern. However, SCITT is still a draft standard and the ecosystem is immature.
+SCITT is the best architectural fit for a full third-party audit service. The VeritasChain Protocol (draft-kamimura-scitt-vcp) demonstrates SCITT profiles for financial audit trails, a INK profile would follow the same pattern. However, SCITT is still a draft standard and the ecosystem is immature.
 
-**Tier 3 — Infrastructure investment:**
+**Tier 3, Infrastructure investment:**
 
 | Approach | How it works | Privacy | Cost |
 |----------|-------------|---------|------|
-| **Tessera-based log** (Google/transparency-dev) | Build a INK "personality" on top of Trillian Tessera. The Merkle tree is served as static tiles (S3/GCS/R2). Combined with external witnesses for independent attestation. | Full control — you build the personality | Self-hosted, significant engineering |
-| **OpenTimestamps Bitcoin anchor** | Once per day, anchor the latest audit chain hash to Bitcoin. Provides the strongest "this data existed at time T" proof. 1–2 hour confirmation latency. | Hash-only — Bitcoin sees only the Merkle root | Free |
+| **Tessera-based log** (Google/transparency-dev) | Build a INK "personality" on top of Trillian Tessera. The Merkle tree is served as static tiles (any S3-compatible object store). Combined with external witnesses for independent attestation. | Full control, you build the personality | Self-hosted, significant engineering |
+| **OpenTimestamps Bitcoin anchor** | Once per day, anchor the latest audit chain hash to Bitcoin. Provides the strongest "this data existed at time T" proof. 1–2 hour confirmation latency. | Hash-only, Bitcoin sees only the Merkle root | Free |
 
 **Recommended deployment path:**
 
-1. **Now:** Implement witness cosigning for per-agent hash chains (Tier 1). Minimal code — agents expose a checkpoint endpoint, collect cosignatures from public witnesses.
+1. **Now:** Implement witness cosigning for per-agent hash chains (Tier 1). Minimal code, agents expose a checkpoint endpoint, collect cosignatures from public witnesses.
 2. **When needed:** Add Rekor hash notarization for agents that want a public timestamp record (Tier 1).
 3. **For high-value interactions:** Deploy a INK-native Merkle service or adopt a SCITT transparency service (Tier 2). Agents advertise this in their Agent Card `capabilities.thirdPartyAudit`.
 4. **For compliance:** Add periodic OpenTimestamps Bitcoin anchoring (Tier 3) for legally defensible timestamps.
@@ -620,7 +646,7 @@ SCITT is the best architectural fit for a full third-party audit service. The Ve
 
 - **Receipt spam:** receipts are rate-limited like regular messages. An agent can disable receipt sending. Receipts for receipts are never sent (loop prevention).
 - **Audit data privacy:** audit events for a message are only available to the sender and recipient. Events are filtered before serving via the `/audit` endpoint access control.
-- **Hash chain integrity:** the chain is only as trustworthy as the agent maintaining it. A malicious agent can rebuild the chain. The value is in **mutual** verification — both parties' chains must agree. Fork detection (per SSB) flags agents that present inconsistent chains.
-- **Storage cost:** audit events are compact (~200 bytes each). At 50 messages/day, 12 months of audit = ~3.5 MB per agent. This is well within Durable Object storage limits.
+- **Hash chain integrity:** the chain is only as trustworthy as the agent maintaining it. A malicious agent can rebuild the chain. The value is in **mutual** verification, both parties' chains must agree. Fork detection (per SSB) flags agents that present inconsistent chains.
+- **Storage cost:** audit events are compact (~200 bytes each). At 50 messages/day, 12 months of audit = ~3.5 MB per agent. This is well within typical per-agent storage budgets.
 - **Selective disclosure:** agents can choose which disposition types to report. A privacy-conscious agent might only send `received` and `rejected` but not `delivered` or `acted`. This follows Matrix's precedent with private read receipts.
-- **Split-view attacks:** a malicious agent could show different audit histories to different parties. Mutual audit exchange (§4) detects inconsistencies after the fact. Third-party audit services (§7) make split-view attacks detectable under consistency checking — a single honest witness that compares roots will catch divergence, but a single access-controlled witness can still equivocate unless clients independently verify consistency proofs or multiple witnesses are used. For high-stakes interactions, agents SHOULD submit to at least two independent audit services.
+- **Split-view attacks:** a malicious agent could show different audit histories to different parties. Mutual audit exchange (§4) detects inconsistencies after the fact. Third-party audit services (§7) make split-view attacks detectable under consistency checking, a single honest witness that compares roots will catch divergence, but a single access-controlled witness can still equivocate unless clients independently verify consistency proofs or multiple witnesses are used. For high-stakes interactions, agents SHOULD submit to at least two independent audit services.

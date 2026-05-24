@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  nix-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@v13
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      - name: Tests
+        run: nix develop --command npm test
+
+      - name: Typecheck
+        run: nix develop --command npm run typecheck
+
+      - name: Lint
+        run: nix develop --command npm run lint
+
+      - name: Public-surface drift check
+        run: nix develop --command npm run check:surface
+
+      - name: Verify npm package would publish cleanly
+        run: nix develop --command npm pack --dry-run
+
+  node-24-compat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck

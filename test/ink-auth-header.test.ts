@@ -54,7 +54,7 @@ describe("INK Auth Header — keyId extension", () => {
     const header = buildAuthHeader(sig, "sig-new");
 
     const result = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -105,7 +105,7 @@ describe("INK Auth Header — keyId extension", () => {
     const header = `INK-Ed25519 ${sig}`;
 
     const result = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",

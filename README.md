@@ -1,107 +1,133 @@
-# INK Protocol
+<img src="docs/logo.svg" alt="INK" width="200">
 
-> **Inter-agent Networking Kernel** — an open protocol for autonomous
-> agent-to-agent coordination.
->
-> **Status: experimental (v0.1). Wire formats, trust semantics and APIs may
-> change without backward-compatible migration. Do not use for load-bearing
-> production traffic without your own review.**
->
-> This repository is a **reference implementation and specification**.
-> It has not been independently audited.
+# INK: Inter-agent Networking Kernel
 
----
+An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-## What is INK?
+**Status: v0.1, experimental.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0.
 
-INK is the message layer that lets autonomous agents send each other typed,
-signed, structured intents over the open web. It is what one agent speaks to
-another when scheduling a meeting, requesting an introduction, delivering a
-signed receipt, or negotiating a connection.
+| | |
+|---|---|
+| Spec | [`specs/`](specs/) |
+| Docs | [ink.tulpa.network](https://ink.tulpa.network) |
+| Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
+| Security | [`SECURITY.md`](SECURITY.md) |
+| Code of Conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
+| Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
 
-INK is designed to sit on top of [AT Protocol](https://atproto.com) for
-identity and DID resolution, but is not coupled to it — any system that can
-publish an Ed25519 signing key under a stable identifier can participate.
+## What's in the envelope
 
-### Core properties
+Every INK message is an Ed25519-signed envelope over a [JCS](https://datatracker.ietf.org/doc/html/rfc8785) (RFC 8785) canonical serialization. The signature base binds the protocol version, HTTP method, request path, recipient DID, body, and timestamp. Replay protection uses a per-sender nonce plus a timestamp freshness window of 5 minutes past and 30 seconds future.
 
-- **Ed25519-signed envelopes** — every message carries a detached signature
-  over a canonical serialization of its fields.
-- **Typed intents** — messages declare a purpose (`schedule_meeting`,
-  `request_introduction`, `agent_exchange`, …) with an intent-specific
-  payload.
-- **Correlatable** — request/response pairs share a `correlationId`.
-- **Expirable** — messages may set `expiresAt`; the receiver rejects past that.
-- **Key rotation with a proper authority rule** — an agent publishes a
-  signing key set in its Agent Card; that set is authoritative.
-- **Replay-protected** — nonce + timestamp freshness at the transport layer.
+Message types cover intents, challenges, resolutions, receipts, audit events, encrypted payloads, and authenticated agent-card queries. Handshake messages carry a correlation ID; audit and receipt messages do not. Key rotation is governed by an authority rule documented in [`docs/key-rotation-rule.md`](docs/key-rotation-rule.md): the Agent Card's published key set is canonical, revoked keys never verify, and a stale bootstrap key cannot bypass rotation.
 
-## What's in this repo
+INK assumes [AT Protocol](https://atproto.com) for identity by default but isn't coupled to it. Any system that can publish an Ed25519 signing key under a stable identifier can participate.
+
+## Install
+
+```bash
+npm install @adastracomputing/ink
+```
+
+The package ships TypeScript sources directly. Consumers need a TS-aware toolchain (tsx, ts-node, esbuild, Vite, etc.).
+
+```ts
+import {
+  generateKeypair,
+  deriveAgentId,
+  signInkMessage,
+  verifyInkSignature,
+  verifyInkAuth,
+} from "@adastracomputing/ink";
+
+const keypair = await generateKeypair();
+const agentId = deriveAgentId(keypair.publicKey);
+
+const input = {
+  method: "POST",
+  path: "/ink/v1/tulpa:zRecipient/intent",
+  recipientDid: "tulpa:zRecipient",
+  body: {
+    protocol: "ink/0.1",
+    type: "network.tulpa.intent",
+    from: agentId,
+    to: "tulpa:zRecipient",
+    intent: "meeting_request",
+    timestamp: new Date().toISOString(),
+    nonce: crypto.randomUUID(),
+  },
+  timestamp: new Date().toISOString(),
+};
+
+const signature = await signInkMessage(input, keypair.privateKey);
+const ok = await verifyInkSignature(input, signature, keypair.publicKey);
+```
+
+For inbound request verification, `verifyInkAuth` parses the `Authorization: INK-Ed25519 <sig>` header, checks freshness, and applies the key-rotation authority rule. It requires a `nonceStore` option so the 5-minute freshness window does not silently accept replays; pass a `NonceStore` to have the middleware enforce single-use, or `"deferred"` to acknowledge that the caller will run `checkReplay` (or equivalent) elsewhere in the request pipeline.
+
+For consumers of audit-exchange responses, call both `verifyAuditResponseSignature` (signed response wrapper) and `verifyAuditEventChain` (sequence-by-one and `previousEventHash` continuity, fork detection). The signature gate alone does not prevent a witness from returning a gapped or forked slice.
+
+## Tests
+
+```bash
+npm test            # vitest
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint
+npm run check:surface   # public-surface drift check
+```
+
+For Nix users: `nix develop` gives a pinned Node 22 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`.
+
+## Layout
 
 ```
-src/           reference TypeScript implementation
+src/           reference implementation
   crypto/      signing, multi-key verification, key encoding
-  models/      zod schemas for Agent Card, handshake, key entries
+  models/      Zod schemas for Agent Card, handshake, key entries
   middleware/  transport-level INK auth (verifyInkAuth)
   discovery/   Agent Card fetching and candidate-key extraction
-  ink/         discovery gating, handshake budget, transport scope,
-               receipts, checkpointing, audit bridge
-  auth/        delegation tokens, per-request signatures
-specs/         INK spec documents (authoritative definitions)
-docs/          protocol maturity notes, threat model, key rotation rules
-test-vectors/  JSON interop vectors (signing base, key rotation, replay, …)
+  ink/         discovery gating, handshake budget, receipts, checkpointing
+specs/         protocol spec documents
+docs/          maturity notes, threat model, key rotation rules
+test-vectors/  JSON interop vectors
 test/          vitest unit + integration tests
 ```
 
-The reference implementation targets Cloudflare Workers runtime (uses
-`crypto.subtle`, `@noble/ed25519`, Durable Objects for nonce storage in
-prod), but the core signing/verification code is portable.
+The reference implementation runs on any runtime providing standard Web Crypto and `fetch`: Node 22+, Deno, Bun, Cloudflare Workers, browsers. The timestamp freshness window is enforced inside `verifyInkAuth`; nonce single-use is enforced when a `NonceStore` is passed (otherwise `checkReplay` must be called separately). Nonce backing storage and its TTL policy are the integrator's choice.
 
-## Maturity
+## What's stable in v0.1
 
-INK v0.1 is **experimental**. The semantics we're fairly confident in:
+Reliable to depend on:
 
-- Envelope structure and signing base (stable)
-- Authorization: signed intent + Agent Card key set
-- Key rotation authority rule (Card signing set is authoritative, revoked
-  never verifies, retired may verify only where historical verification is
-  intentionally permitted, bootstrap/connection-store keys only for first
-  contact when no key set exists — see `docs/key-rotation-rule.md`)
-- Replay protection (nonce + ±5 min timestamp window)
+- Envelope structure and signing base
+- Authorization: signed intent plus Agent Card key set
+- Key rotation authority rule (see [`docs/key-rotation-rule.md`](docs/key-rotation-rule.md))
+- Replay protection (nonce plus timestamp window)
 
-Areas that may still change:
+Subject to change before v1.0:
 
-- Authorization chain framing (delegation + attenuation semantics)
+- Authorization chain framing (delegation and attenuation semantics)
 - Containment vocabulary (capability-gated visibility, sender budgets)
 - Interop conventions with non-AT-Protocol identity systems
-- Receipt/audit envelope shape for third-party witnesses
+- Receipt and audit envelope shape for third-party witnesses
 
-## Security
+## Naming
 
-See [`SECURITY.md`](SECURITY.md) for how to report vulnerabilities. The
-threat model — what INK protects and what it doesn't — is in
-[`docs/threat-model.md`](docs/threat-model.md).
-
-If you find a security issue, **please do not open a public issue**.
+You will see `network.tulpa.*` on the wire (e.g. `network.tulpa.intent`) and `ink.tulpa.network` for the docs site. Both are historical artifacts of the protocol's origin and do not imply a runtime dependency on Tulpa. A vendor-neutral namespace may be introduced in a future revision.
 
 ## Relationship to Tulpa
 
-INK is developed by [Ad Astra Computing](https://adastracomputing.com) as
-the underlying protocol for [Tulpa](https://tulpa.network), an agent-native
-identity and coordination network. The protocol spec and the reference
-implementation in this repo are deliberately free of Tulpa product-specific
-code, so other agent platforms can adopt INK without inheriting Tulpa's
-surface area.
+INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the underlying protocol for [Tulpa](https://tulpa.network). The spec and the reference implementation in this repo are deliberately free of Tulpa product code so other agent platforms can adopt INK without inheriting Tulpa's surface area. Tulpa's product integration (message orchestration, marketplace, user-facing APIs) lives in a separate, closed-source codebase.
 
-Tulpa product integration — the Durable-Objects orchestration, marketplace,
-user-facing APIs — lives in a separate, closed-source codebase.
+## Security
+
+See [`SECURITY.md`](SECURITY.md) for the disclosure path. The threat model is in [`docs/threat-model.md`](docs/threat-model.md). **Do not open a public issue for security problems.**
 
 ## License
 
-See [`LICENSE`](LICENSE).
+Dual-licensed under either of:
 
-## Contributing
+- MIT ([`LICENSE-MIT`](LICENSE-MIT))
+- Apache 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE))
 
-Before opening a PR or issue, please read `SECURITY.md` and the threat
-model. Protocol-breaking proposals should reference a spec file in
-`specs/` or propose a new one.
+at your option. The Apache 2.0 license includes an explicit patent grant; MIT is the simpler text. Pick whichever fits your downstream policy. This covers the code, specs, docs, and test vectors. Contributions are accepted under both licenses.

@@ -91,7 +91,7 @@ Recommended shape:
 ```json
 {
   "agentId": "did:plc:alice#agent/tulpa-main",
-  "protocol": "ink/1",
+  "protocol": "ink/0.1",
   "keys": {
     "signing": [
       {
@@ -170,10 +170,9 @@ For receipts, audit events, witness submissions, and previously stored messages,
 
 ## 6.3 Revoked Keys
 
-Receivers MUST reject signatures from revoked keys when:
-- the signed artifact timestamp is later than `revokedAt`
+Receivers MUST NOT verify signatures with a revoked key, even for artifacts whose timestamp predates `revokedAt`. Revocation is a trust statement: the key is compromised or must not be trusted, and pre-revocation artifacts cannot be distinguished from forgeries made after compromise.
 
-Receivers MAY still accept historical artifacts signed before `revokedAt`, depending on local policy.
+This is the normative rule, see [`docs/key-rotation-rule.md`](../docs/key-rotation-rule.md). Retired is the correct status for keys that should remain verifiable for historical traffic.
 
 ## 6.4 Verification Order
 
@@ -451,9 +450,9 @@ Retired-key acceptance MUST be scoped to historical artifact verification, not n
 ## 17.4 Drift
 
 All key-role logic MUST remain consistent across:
-- main worker
-- witness worker
-- vectors
+- the primary INK runtime
+- the witness/auditability runtime
+- test vectors
 - lexicons
 - docs
 
@@ -485,7 +484,7 @@ Minimum required cases:
 - ✓ `agent_keys` SQLite table with lifecycle status, `identity` table gains key-set tracking columns
 - ✓ `KeyStore` equivalent for agent_keys CRUD (implementer-specific path)
 - ✓ `verifyInkSignatureWithKeys()` multi-key verification helper (`src/crypto/multi-key-verify.ts`)
-- ✓ `verifyInkAuth` gains `resolveKeySet` parameter for multi-key transport auth
+- ✓ `verifyInkAuth` gains `resolveKeySet` parameter for multi-key transport auth, and `nonceStore: NonceStore | "deferred"` (required, fail-closed) for single-use nonce enforcement
 - ✓ `PipelineContext.resolveKeySet` for multi-key message signature verification
 - ✓ Receipt verification uses candidate key lists with active → retired ordering
 - ✓ `extractCandidateKeys()` for Agent Card key extraction (`src/discovery/agent-card.ts`)
@@ -493,7 +492,7 @@ Minimum required cases:
 - ✓ Auto-migration: `seedFromIdentity()` on first wake-up
 - ✓ `initialize()` inserts key entries alongside identity row
 - ✓ Witness `verifyInkTransportAuth` signature accepts `resolveKeySet` (not yet wired)
-- ✓ 40 tests: key-set schema, KeyStore CRUD, multi-key verification, end-to-end rotation vectors
+- ✓ Test coverage: key-set schema, KeyStore CRUD, multi-key verification, end-to-end rotation vectors (see `test/ink-key-rotation.test.ts`)
 
 ## Phase 2 ✓ (implemented 2026-03-25)
 - ✓ Key rotation APIs: `POST /tulpa/keys/rotate`, `GET /tulpa/keys`, `POST /tulpa/keys/:keyId/revoke`
@@ -504,13 +503,13 @@ Minimum required cases:
 
 ## Phase 3 ✓ (implemented 2026-03-25)
 - ✓ Witness integration: `signingKeyId` passed to transport auth on witness submit
-- ✓ `signingKeyId` recorded in audit event `data` field for historical verification
+- ✓ `signingKeyId` recorded as a top-level field on `InkAuditEventSchema` for historical verification
 - ✓ keyId semantics: auth header takes precedence, unknown keyId falls through, revoked keyId rejected
 - ✓ Rotation observability: `signature.verified_retired`, `signature.revoked_rejected`, `key.rotated`, `key.revoked` audit event types
 - ✓ `keyStatus` in `MultiKeyVerifyResult` for retired-key observability
 - ✓ Audit bridge mappings: `key_rotated` → `key.rotated`, `key_revoked` → `key.revoked`
-- ✓ Interop test vectors: 8 scenarios in `specs/ink-test-vectors/key-rotation.json`
-- ✓ 21 Phase 3 test cases in `test/ink-key-rotation-phase3.test.ts`
+- ✓ Interop test vectors: 8 scenarios in `test-vectors/key-rotation.json`
+- ✓ Phase 3 test cases in `test/ink-key-rotation.test.ts` (covers historical verification, revoked rejection, audit-event types)
 
 ---
 

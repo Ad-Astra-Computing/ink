@@ -165,7 +165,7 @@ describe("Authorization header length caps", () => {
     // Create a huge fake signature string
     const bigSig = "A".repeat(2000);
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${bigSig}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${bigSig}`,
       method: "POST",
       path: "/ink/v1/test",
       recipientAgentId: "tulpa:zRecipient",
@@ -184,7 +184,7 @@ describe("Authorization header length caps", () => {
     );
     const bigKeyId = "A".repeat(2000);
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${sig} keyId=${bigKeyId}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${sig} keyId=${bigKeyId}`,
       method: "POST",
       path: "/ink/v1/test",
       recipientAgentId: "tulpa:zRecipient",

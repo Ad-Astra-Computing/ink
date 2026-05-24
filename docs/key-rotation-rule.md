@@ -17,7 +17,7 @@ receiver MUST:
    any other key source.
 
 Only when the receiver has **never observed** an Agent Card for the sender
-may it use a bootstrap path — either the public key embedded in an
+may it use a bootstrap path, either the public key embedded in an
 agent ID scheme that supports it, or a key the receiver stored from an
 earlier first-contact handshake. This is the *trust-on-first-use* window
 and ends the first time a valid Agent Card is observed.
@@ -40,7 +40,7 @@ this rule closes:
    authoritative set has spoken.
 3. **Bootstrap persistence.** Some identity schemes let receivers derive a
    public key from the agent ID. That key is necessarily frozen at creation
-   time — rotation by definition can't update it. The rule limits its use
+   time, rotation by definition can't update it. The rule limits its use
    to first-contact only.
 
 ## Status taxonomy
@@ -102,7 +102,7 @@ else if card does not exist OR has no keys.signing:
 - This rule does not specify how a sender rotates keys. See
   [`../specs/ink-key-rotation-spec.md`](../specs/ink-key-rotation-spec.md).
 - This rule does not specify receipt / audit integrity under rotation;
-  see [`../specs/ink-key-management-audit.md`](../specs/ink-key-management-audit.md).
+  see [`../specs/ink-auditability.md`](../specs/ink-auditability.md).
 - This rule does not specify identity proof. INK assumes the identity
   system (AT Protocol, DID, etc.) provides senderId → Agent Card
   resolution.

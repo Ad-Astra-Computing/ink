@@ -83,7 +83,7 @@ describe("edge TOFU agent card fallback", () => {
     const authHeader = `INK-Ed25519 ${base64urlEncode(sig)}`;
 
     const result = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/ink/v1/tulpa:zRecipient/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -125,7 +125,7 @@ describe("edge TOFU agent card fallback", () => {
     const authHeader = `INK-Ed25519 ${base64urlEncode(sig)}`;
 
     const result = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/ink/v1/tulpa:zRecipient/intent",
       recipientAgentId: "tulpa:zRecipient",

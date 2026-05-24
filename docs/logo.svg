@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 28" fill="none">
+  <!-- INK wordmark: pen nib IS the "I", then path-based "nk" — dark variant -->
+  <path d="M10 1 L16 9 L16 16 L13.5 23 L12.5 23 L11.5 17 L10 14.5 L8.5 17 L7.5 23 L6.5 23 L4 16 L4 9 Z"
+        fill="#c4b5fd" />
+  <circle cx="10" cy="7.5" r="1.5" fill="#121220" />
+  <path d="M24 9.5 L24 23 L27.5 23 L27.5 14.5 C27.5 12 29.5 10.5 32 10.5 C34 10.5 35.5 12 35.5 14 L35.5 23 L39 23 L39 13.5 C39 10 36.5 8 33 8 C30.5 8 28.5 9 27.5 10.5 L27.5 9.5 Z" fill="#c4b5fd" />
+  <path d="M45 1 L45 23 L48.5 23 L48.5 16 L51 14 L57.5 23 L62 23 L54 13 L60 5 L56 5 L48.5 14 L48.5 1 Z" fill="#c4b5fd" />
+</svg>

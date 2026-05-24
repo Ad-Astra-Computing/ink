@@ -34,6 +34,7 @@ describe("verifyInkAuth: malformed opts.body and authHeader", () => {
     method: "POST",
     path: "/ink/v1/intent",
     recipientAgentId: "did:plc:r",
+    nonceStore: "deferred" as const,
   };
 
   it("returns missing_sender for null body", async () => {

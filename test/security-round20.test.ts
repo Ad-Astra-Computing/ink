@@ -100,7 +100,7 @@ describe("verifyInkAuth: timestamp length cap before Date.parse", () => {
   it("rejects a multi-megabyte timestamp without parsing it", async () => {
     const huge = "2026-04-01T00:00:00Z" + "x".repeat(1_000_000);
     const result = await verifyInkAuth({
-      authHeader: "INK-Ed25519 " + "A".repeat(86),
+      nonceStore: "deferred",      authHeader: "INK-Ed25519 " + "A".repeat(86),
       method: "POST",
       path: "/ink/v1/intent",
       recipientAgentId: "did:plc:recipient",
@@ -112,7 +112,7 @@ describe("verifyInkAuth: timestamp length cap before Date.parse", () => {
 
   it("accepts a normal-length timestamp", async () => {
     const result = await verifyInkAuth({
-      authHeader: "INK-Ed25519 " + "A".repeat(86),
+      nonceStore: "deferred",      authHeader: "INK-Ed25519 " + "A".repeat(86),
       method: "POST",
       path: "/ink/v1/intent",
       recipientAgentId: "did:plc:recipient",

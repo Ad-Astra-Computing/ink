@@ -44,7 +44,7 @@ describe("verifyInkAuth: empty key set rejects, does not fall through", () => {
     const authHeader = `INK-Ed25519 ${sigB64}`;
 
     const result = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/p",
       recipientAgentId: "tulpa:zRecipient",
@@ -78,7 +78,7 @@ describe("verifyInkAuth: empty key set rejects, does not fall through", () => {
     const authHeader = `INK-Ed25519 ${sigB64}`;
 
     const result = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/p",
       recipientAgentId: "tulpa:zRecipient",
@@ -96,7 +96,7 @@ describe("verifyInkAuth: senderDid length cap", () => {
   it("rejects sender DID longer than 256 chars", async () => {
     const longDid = "tulpa:z" + "A".repeat(300);
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${"A".repeat(86)}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${"A".repeat(86)}`,
       method: "POST",
       path: "/p",
       recipientAgentId: "tulpa:zRecipient",

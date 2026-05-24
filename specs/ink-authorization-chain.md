@@ -1,16 +1,16 @@
-# INK v0.3 — Authorization Chain
+# INK Authorization Chain (draft extension)
 
 **Status:** Draft
-**Authors:** tulpa core
+**Authors:** Ad Astra Computing
 **Date:** 2026-03-19
 
 ## Problem
 
-INK v0.2 has single-hop delegation: a Tulpa issues a delegation token to an extension, and the extension can act on the Tulpa's behalf. The message envelope carries a `provenance` field that claims origin (`human`, `agent_approved`, `agent_autonomous`), but:
+The current INK v0.1 model supports single-hop delegation: a Tulpa issues a delegation token to an extension, and the extension can act on the Tulpa's behalf. The message envelope carries a `provenance` field that claims origin (`human`, `agent_approved`, `agent_autonomous`), but:
 
-1. **No cryptographic proof of delegation** — the `provenance` field is a self-asserted claim. A malicious extension can forge `origin: "human"` on autonomous messages.
-2. **No multi-hop chains** — if Extension A delegates to Service B which calls Service C, the recipient sees only the final hop. There's no way to trace the full authorization path.
-3. **No recipient-verifiable authorization** — the recipient must trust the sender's provenance claim. The delegation token is between Tulpa↔Extension only; the recipient never sees it.
+1. **No cryptographic proof of delegation**, the `provenance` field is a self-asserted claim. A malicious extension can forge `origin: "human"` on autonomous messages.
+2. **No multi-hop chains**, if Extension A delegates to Service B which calls Service C, the recipient sees only the final hop. There's no way to trace the full authorization path.
+3. **No recipient-verifiable authorization**, the recipient must trust the sender's provenance claim. The delegation token is between Tulpa↔Extension only; the recipient never sees it.
 
 ## Design
 
@@ -93,7 +93,7 @@ DelegationHopSchema = z.object({
 - Each hop's permissions must be a **subset** of the previous hop's permissions (no privilege escalation)
 - Each hop's `maxAutonomyTier` must be **≤** the previous hop's tier
 - Each hop's `expiresAt` must be **≤** the previous hop's expiration
-- Each hop's `allowedTransports` must be a **subset** of the previous hop's transports (transport attenuation — see INK Containment §7)
+- Each hop's `allowedTransports` must be a **subset** of the previous hop's transports (transport attenuation, see INK Containment §7)
 - Maximum chain depth: 5 hops (prevents unbounded delegation)
 - The first hop must be signed by the Tulpa owner's key
 
@@ -123,7 +123,7 @@ MessageEnvelopeSchema = z.object({
   delegationProof: DelegationProofSchema.optional(),
   delegationChain: DelegationChainSchema.optional(),
 
-  // Deprecated — kept for backward compat during migration
+  // Deprecated, kept for backward compat during migration
   provenance: MessageProvenanceSchema,
 });
 ```
@@ -152,9 +152,9 @@ The current `maxAutonomyTier` in the delegation token becomes **enforceable by t
 
 | Origin | Required Tier | Recipient Can Verify? |
 |--------|--------------|----------------------|
-| `human` | any | Yes — extension signature proves the extension saw user input |
-| `agent_approved` | `social` or lower | Yes — delegation token tier checked |
-| `agent_autonomous` | `transactional` only | Yes — delegation token tier checked |
+| `human` | any | Yes, extension signature proves the extension saw user input |
+| `agent_approved` | `social` or lower | Yes, delegation token tier checked |
+| `agent_autonomous` | `transactional` only | Yes, delegation token tier checked |
 
 If the delegation proof shows `origin: agent_autonomous` but the delegation token's `maxAutonomyTier` is `personal`, the recipient rejects the message.
 
@@ -165,12 +165,12 @@ Existing revocation (token hash stored in installation, checked on each request)
 - Each delegator maintains a revocation list (set of revoked delegate keys)
 - The `delegationChain` includes a `revocationEndpoint` per hop
 - Recipients can optionally check revocation endpoints (non-blocking, cached)
-- Revocation is **eventually consistent** — a revoked chain may be accepted for up to the cache TTL (default: 5 min, matching the replay window)
+- Revocation is **eventually consistent**, a revoked chain may be accepted for up to the cache TTL (default: 5 min, matching the replay window)
 
 ## Migration Path
 
 1. Ship `delegationProof` generation in the extension middleware
-2. Ship `delegationProof` verification in `runPipeline` (optional — don't reject messages without it yet)
+2. Ship `delegationProof` verification in the integrator-side request pipeline (optional, don't reject messages without it yet)
 3. After adoption threshold (e.g. 90% of messages include proofs), make `delegationProof` required for extension-originated messages
 4. Deprecate `provenance` field
 
@@ -183,7 +183,7 @@ UCAN is the closest analog to INK's delegation model. Both use DID-based identit
 
 - **Separate delegation from invocation.** UCAN 1.0 distinguishes "I was granted this capability" from "I am now exercising it." INK adopts this: the `delegationToken` is the grant; the `extensionSignature` over the specific message is the invocation. This prevents confused deputy attacks where a delegation token is accidentally replayed as an action.
 - **Capability attenuation via partial ordering.** UCAN defines a partial order on capabilities where each hop can only narrow scope. INK uses the same approach: permission-subset checking and autonomy tier ≤ comparison. Given INK already has a flat permission enum (`PermissionSchema`), subset checking is straightforward.
-- **CID-referenced vs. inlined proofs.** Early UCANs inlined parent tokens, causing exponential growth. INK avoids this by having each hop carry only its own signature and constraints — the chain is a flat array, not nested tokens.
+- **CID-referenced vs. inlined proofs.** Early UCANs inlined parent tokens, causing exponential growth. INK avoids this by having each hop carry only its own signature and constraints, the chain is a flat array, not nested tokens.
 - **No built-in revocation.** UCAN relies on short-lived tokens rather than revocation infrastructure. INK should adopt the same stance (see Revocation section update below).
 
 ### ZCAP-LD (Authorization Capabilities for Linked Data)
@@ -195,13 +195,13 @@ The `act` (actor) and `may_act` (pre-authorization) claims provide a clean repre
 - The delegation token itself serves as the `may_act` pre-authorization
 - RFC 8693 supports nested `act` claims for multi-hop, which maps to INK's `hops` array
 
-Key difference: RFC 8693 requires a centralized STS (Security Token Service). INK is decentralized — verification is self-contained using the chain signatures.
+Key difference: RFC 8693 requires a centralized STS (Security Token Service). INK is decentralized, verification is self-contained using the chain signatures.
 
 ### SPIFFE/SPIRE
 SPIFFE separates identity from authorization entirely. Relevant pattern: **short-lived credentials with automatic rotation** avoid the revocation problem. SPIFFE SVIDs typically expire in hours, not days. INK should adopt this for delegation tokens (see updated recommendation below).
 
 ### W3C DID + Verifiable Credentials
-INK already uses `did:key` for agent identity, which is the right choice — self-certifying, no resolution infrastructure needed. The DID Document's `capabilityDelegation` verification relationship was designed to support exactly this kind of delegation. INK could optionally reference it for interop with the broader DID ecosystem.
+INK already uses `did:key` for agent identity, which is the right choice, self-certifying, no resolution infrastructure needed. The DID Document's `capabilityDelegation` verification relationship was designed to support exactly this kind of delegation. INK could optionally reference it for interop with the broader DID ecosystem.
 
 ### ActivityPub / AT Protocol
 Neither has meaningful delegation chains. ActivityPub bots are independent actors with no protocol-level delegation proof. AT Protocol has scoped app passwords and PDS-mediated service auth (single-hop). INK's delegation chain is a significant advancement over both.
@@ -230,7 +230,7 @@ Based on SPIFFE's approach and UCAN's lesson that revocation is unsolved in pure
 Adopt UCAN 1.0's delegation/invocation separation explicitly:
 - The `delegationToken` proves "I was granted this capability"
 - The `extensionSignature` over `messageId + intent + JCS(payload)` proves "I am now exercising it on this specific message"
-- Recipients MUST verify both — a valid delegation token alone is not sufficient
+- Recipients MUST verify both, a valid delegation token alone is not sufficient
 
 ## Security Considerations
 

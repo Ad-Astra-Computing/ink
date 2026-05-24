@@ -1,5 +1,5 @@
 {
-  "description": "INK v0.1 key rotation test vectors — auth header keyId extension, rotated-key verification, revoked-key rejection and refresh-on-miss. All scenarios use runtime-generated keys (not static fixtures) and are exercised by test/ink-key-rotation-phase3.test.ts.",
+  "description": "INK v0.1 key rotation test vectors — auth header keyId extension, rotated-key verification, revoked-key rejection and refresh-on-miss. All scenarios use runtime-generated keys (not static fixtures) and are exercised by test/ink-key-rotation.test.ts.",
   "vectors": [
     {
       "id": "auth-header-with-keyid",

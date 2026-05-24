@@ -6,13 +6,13 @@ Reference test vectors for INK v0.1 signing, encryption, replay protection, hand
 
 | File | Covers | Vector count |
 |------|--------|-------------|
-| `keys.json` | Fixed Ed25519 and X25519 key pairs for Alice and Bob (hex-encoded) | — |
+| `keys.json` | Fixed Ed25519 and X25519 key pairs for Alice and Bob (hex-encoded) |, |
 | `signing.json` | Signature generation and verification (§3.3) | 3 |
 | `encryption.json` | ECIES encryption/decryption (§3.4) | 2 |
 | `jcs.json` | JCS canonicalization (RFC 8785) | 4 |
 | `replay.json` | Replay protection acceptance/rejection (§3.5) | 6 |
 | `receipts-and-audit.json` | Receipt signatures, audit query signatures, hash-chained audit events and fork detection (Auditability §1–§3) | 4 |
-| `handshake.json` | Challenge (Stage 2a), rejection (Stage 2b) and resolution (Stage 3) — valid signatures, path/recipient/body binding failures, replay protection | 22 |
+| `handshake.json` | Challenge (Stage 2a), rejection (Stage 2b) and resolution (Stage 3), valid signatures, path/recipient/body binding failures, replay protection | 22 |
 | `witness.json` | Audit submit and query with INK transport auth, plus cross-service interop cases | 15 |
 | `key-rotation.json` | Auth header keyId format, rotated-key verification, historical verification, revoked-key rejection, refresh-on-miss, keyId precedence, unknown keyId fallthrough, audit event signingKeyId tracking | 8 |
 
@@ -25,7 +25,7 @@ Covers the INK Ed25519 signature base construction (`ink/0.1\nMETHOD\nPATH\nreci
 
 ### Handshake (`handshake.json`)
 Each handshake message type (challenge, rejection, resolution) has:
-- **Valid**: canonical body, signature base, signature — full round-trip
+- **Valid**: canonical body, signature base, signature, full round-trip
 - **Invalid path**: same signature replayed against a different endpoint
 - **Invalid recipient**: same body/signature but wrong recipient DID
 - **Tampered body**: a field modified after signing
@@ -41,10 +41,10 @@ Covers the witness transport auth model (INK-Ed25519 on both submit and query):
 **Submit** (`POST /ink/v1/audit/submit`):
 - Transport signature over full body (which contains the signed audit event)
 - Path binding, recipient binding, timestamp freshness, body tamper detection
-- **Event signature vs transport signature separation**: transport auth valid but embedded event signature forged — witness must reject
+- **Event signature vs transport signature separation**: transport auth valid but embedded event signature forged, witness must reject
 
 **Query** (`POST /ink/v1/audit/query`):
-- Signed POST body (not GET) — sender identity derived from verified auth, not caller input
+- Signed POST body (not GET), sender identity derived from verified auth, not caller input
 - Path binding, body tamper detection, timestamp/nonce replay protection
 
 **Interop cases**:
@@ -113,16 +113,16 @@ Standalone timestamp freshness and nonce deduplication tests. The handshake and 
 ```
 
 ### Key rotation (`key-rotation.json`)
-Scenario-based vectors for key rotation behavior. Unlike other vector families, key rotation vectors use runtime-generated keys (not the fixed Alice/Bob keys) because they test lifecycle transitions. The companion test suite `test/ink-key-rotation-phase3.test.ts` exercises all 8 scenarios:
+Scenario-based vectors for key rotation behavior. Unlike other vector families, key rotation vectors use runtime-generated keys (not the fixed Alice/Bob keys) because they test lifecycle transitions. The companion test suite `test/ink-key-rotation.test.ts` exercises all 8 scenarios:
 
-- **Auth header keyId format** — regex parsing of `INK-Ed25519 <sig> keyId=<keyId>` with and without keyId
-- **Rotated-key verification** — new key signs, verifier with [old=retired, new=active] keyset accepts
-- **Historical message verification** — messages signed before rotation still verify against retired key
-- **Revoked-key rejection** — cryptographically valid signatures from revoked keys are rejected
-- **Refresh-on-miss** — stale cache fails, refetch Agent Card, retry succeeds (max 1 retry)
-- **keyId precedence** — auth header keyId takes precedence over body `signingKeyId`
-- **Unknown keyId fallthrough** — unknown keyId hint skipped, normal iteration finds correct key
-- **Audit event signingKeyId** — audit events record `signingKeyId` in data field for historical verification
+- **Auth header keyId format**, regex parsing of `INK-Ed25519 <sig> keyId=<keyId>` with and without keyId
+- **Rotated-key verification**, new key signs, verifier with [old=retired, new=active] keyset accepts
+- **Historical message verification**, messages signed before rotation still verify against retired key
+- **Revoked-key rejection**, cryptographically valid signatures from revoked keys are rejected
+- **Refresh-on-miss**, stale cache fails, refetch Agent Card, retry succeeds (max 1 retry)
+- **keyId precedence**, auth header keyId takes precedence over body `signingKeyId`
+- **Unknown keyId fallthrough**, unknown keyId hint skipped, normal iteration finds correct key
+- **Audit event signingKeyId**, audit events record `signingKeyId` in data field for historical verification
 
 ## Key generation
 

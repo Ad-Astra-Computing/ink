@@ -145,7 +145,9 @@ describe("checkTransportAllowed", () => {
   it("rejects when current transport is not in allowed list", () => {
     const result = checkTransportAllowed("extension_api", ["ink_http"]);
     expect(result.allowed).toBe(false);
-    expect(result.reason).toBe("transport_scope_violation");
+    if (!result.allowed) {
+      expect(result.reason).toBe("transport_scope_violation");
+    }
   });
 
   it("rejects ink_http token used on voice transport", () => {
@@ -182,7 +184,9 @@ describe("checkTransportAttenuation", () => {
       ["ink_http", "extension_api"],
     );
     expect(result.valid).toBe(false);
-    expect(result.addedTransports).toEqual(["extension_api"]);
+    if (!result.valid) {
+      expect(result.addedTransports).toEqual(["extension_api"]);
+    }
   });
 
   it("rejects when child adds multiple transports parent did not allow", () => {
@@ -191,7 +195,9 @@ describe("checkTransportAttenuation", () => {
       ["ink_http", "voice", "line_phone"],
     );
     expect(result.valid).toBe(false);
-    expect(result.addedTransports).toEqual(["voice", "line_phone"]);
+    if (!result.valid) {
+      expect(result.addedTransports).toEqual(["voice", "line_phone"]);
+    }
   });
 
   it("accepts empty child transport list (narrows to nothing)", () => {

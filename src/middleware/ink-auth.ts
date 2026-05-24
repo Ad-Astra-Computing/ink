@@ -4,6 +4,16 @@ import { verifyInkSignatureWithKeys } from "../crypto/multi-key-verify.js";
 import type { CandidateKey, KeyStatus } from "../models/key-entry.js";
 
 /**
+ * Pluggable nonce-record interface. The middleware uses this to enforce
+ * single-use semantics on body.nonce so a captured-and-replayed request
+ * is rejected even within the timestamp freshness window.
+ */
+export interface NonceStore {
+  has(nonce: string): boolean | Promise<boolean>;
+  add(nonce: string): void | Promise<void>;
+}
+
+/**
  * Parse and verify an INK-Ed25519 Authorization header.
  *
  * The spec (§3.3) defines request signing as:
@@ -41,6 +51,17 @@ export async function verifyInkAuth(opts: {
    * paths are unaffected because they do not have status metadata.
    */
   requireActiveKey?: boolean;
+  /**
+   * Single-use nonce enforcement. Required (fail-closed) because the
+   * 5-minute freshness window otherwise allows a captured signed request
+   * to replay. Pass a NonceStore to have the middleware check+record
+   * body.nonce, or pass the literal "deferred" to explicitly take
+   * responsibility for calling `checkReplay` (or equivalent) in the
+   * caller's own request pipeline. Omitting this option returns
+   * `nonce_handling_required` so misconfigured production deployments
+   * fail loudly.
+   */
+  nonceStore: NonceStore | "deferred";
 }): Promise<
   | { valid: true; senderAgentId: string; keyId?: string; keyStatus?: KeyStatus }
   | { valid: false; error: string }
@@ -107,6 +128,37 @@ export async function verifyInkAuth(opts: {
     return { valid: false, error: "timestamp_expired" };
   }
 
+  // Fail-closed nonce policy. Callers must either pass a NonceStore
+  // (middleware enforces single-use within the freshness window) or
+  // explicitly pass "deferred" (caller commits to calling checkReplay
+  // or equivalent in their request pipeline). An omitted/malformed
+  // nonceStore returns nonce_handling_required so a production
+  // deployment without nonce handling fails loudly rather than
+  // silently accepting replays.
+  const storeIsObject =
+    opts.nonceStore !== "deferred" &&
+    opts.nonceStore !== undefined &&
+    opts.nonceStore !== null &&
+    typeof (opts.nonceStore as NonceStore).has === "function" &&
+    typeof (opts.nonceStore as NonceStore).add === "function";
+  if (opts.nonceStore !== "deferred" && !storeIsObject) {
+    return { valid: false, error: "nonce_handling_required" };
+  }
+  const usingNonceStore = storeIsObject;
+  let bodyNonce: string | undefined;
+  if (usingNonceStore) {
+    const candidate = opts.body.nonce;
+    if (
+      typeof candidate !== "string" ||
+      candidate.length < 16 ||
+      candidate.length > 256 ||
+      !/^[A-Za-z0-9_-]+$/.test(candidate)
+    ) {
+      return { valid: false, error: "missing_nonce" };
+    }
+    bodyNonce = candidate;
+  }
+
   const input: InkSignInput = {
     method: opts.method,
     path: opts.path,
@@ -114,6 +166,30 @@ export async function verifyInkAuth(opts: {
     body: opts.body,
     timestamp,
   };
+
+  // Post-verify nonce check+record. Runs only when the caller provided
+  // a NonceStore object. Checking after signature verification means a
+  // forged request never pollutes the nonce store, but a replay of an
+  // authentic signed request is still rejected within the freshness
+  // window. Backend errors fail closed.
+  async function recordNonce(): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (!usingNonceStore) return { ok: true };
+    const store = opts.nonceStore as NonceStore;
+    const nonce = bodyNonce!;
+    let alreadySeen: boolean;
+    try {
+      alreadySeen = await Promise.resolve(store.has(nonce));
+    } catch {
+      return { ok: false, error: "nonce_store_error" };
+    }
+    if (alreadySeen) return { ok: false, error: "nonce_replay" };
+    try {
+      await Promise.resolve(store.add(nonce));
+    } catch {
+      return { ok: false, error: "nonce_store_error" };
+    }
+    return { ok: true };
+  }
 
   // Try multi-key verification first (Phase 1 key rotation support).
   // If the agent has published a key set, it is authoritative: we must NOT
@@ -142,6 +218,8 @@ export async function verifyInkAuth(opts: {
           if (opts.requireActiveKey && result.keyStatus === "retired") {
             return { valid: false, error: "retired_key_for_live_auth" };
           }
+          const noncePass = await recordNonce();
+          if (!noncePass.ok) return { valid: false, error: noncePass.error };
           return {
             valid: true,
             senderAgentId: senderDid,
@@ -176,6 +254,8 @@ export async function verifyInkAuth(opts: {
     if (!valid) {
       return { valid: false, error: "invalid_signature" };
     }
+    const noncePass = await recordNonce();
+    if (!noncePass.ok) return { valid: false, error: noncePass.error };
     return { valid: true, senderAgentId: senderDid };
   } catch {
     return { valid: false, error: "signature_verification_failed" };

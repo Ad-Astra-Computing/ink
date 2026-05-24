@@ -9,7 +9,7 @@
 
 import { z } from "zod";
 import { AgentCardSchema, type AgentCard } from "../models/agent-card.js";
-import { AgentCardVisibilitySchema, type AgentCardVisibility } from "../models/ink-handshake.js";
+import type { AgentCardVisibility } from "../models/ink-handshake.js";
 
 export { AgentCardVisibilitySchema, type AgentCardVisibility } from "../models/ink-handshake.js";
 

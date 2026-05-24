@@ -191,7 +191,7 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
 
     // Without resolveKeySet: should fail (agentId embeds old key)
     const failResult = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -201,7 +201,7 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
 
     // With resolveKeySet providing the new key: should pass
     const passResult = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -245,7 +245,7 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
     // resolveKeySet returns a stale/wrong key — should NOT fall through to bootstrap
     // because the agent has rotated keys (key set exists)
     const result = await verifyInkAuth({
-      authHeader,
+      nonceStore: "deferred",      authHeader,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -358,7 +358,7 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
     const header = `INK-Ed25519 ${sig} keyId=sig-current`;
 
     const result = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -408,7 +408,7 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
     const signature = await signInkMessage(testInput, keyA.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${signature}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${signature}`,
       method: testInput.method,
       path: testInput.path,
       recipientAgentId: testInput.recipientDid,
@@ -433,7 +433,7 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
 
     let resolvePublicKeyCalled = false;
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${signature}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${signature}`,
       method: testInput.method,
       path: testInput.path,
       recipientAgentId: testInput.recipientDid,

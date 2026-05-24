@@ -67,7 +67,7 @@ describe("INK Key Rotation — End-to-End", () => {
 
     // Verify with the new key
     const result = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -103,7 +103,7 @@ describe("INK Key Rotation — End-to-End", () => {
 
     // Stale cache only has old key → fails
     const staleResult = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -122,7 +122,7 @@ describe("INK Key Rotation — End-to-End", () => {
     const freshKeys = extractCandidateKeys(freshCard);
 
     const freshResult = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -156,7 +156,7 @@ describe("INK Key Rotation — End-to-End", () => {
     const header = buildAuthHeader(sig, "sig-revoked");
 
     const result = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",
@@ -191,7 +191,7 @@ describe("INK Key Rotation — End-to-End", () => {
     const header = `INK-Ed25519 ${sig}`;
 
     const result = await verifyInkAuth({
-      authHeader: header,
+      nonceStore: "deferred",      authHeader: header,
       method: "POST",
       path: "/ink/v1/test/intent",
       recipientAgentId: "tulpa:zRecipient",

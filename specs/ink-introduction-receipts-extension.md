@@ -216,6 +216,7 @@ They MUST:
 The signature base SHOULD follow the same pattern as other INK endpoints:
 
 ```text
+ink/0.1
 POST
 /ink/v1/introduction-receipt
 <recipientDid>

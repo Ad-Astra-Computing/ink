@@ -45,7 +45,7 @@ describe("verifyInkAuth: requireActiveKey rejects retired-key signatures", () =>
       { keyId: "old", publicKey: oldKey.pub, status: "retired" },
     ];
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${sig}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${sig}`,
       method: baseInput.method,
       path: baseInput.path,
       recipientAgentId: baseInput.recipientDid,
@@ -69,7 +69,7 @@ describe("verifyInkAuth: requireActiveKey rejects retired-key signatures", () =>
       { keyId: "old", publicKey: oldKey.pub, status: "retired" },
     ];
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${sig}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${sig}`,
       method: baseInput.method,
       path: baseInput.path,
       recipientAgentId: baseInput.recipientDid,
@@ -94,7 +94,7 @@ describe("verifyInkAuth: requireActiveKey rejects retired-key signatures", () =>
       { keyId: "live", publicKey: liveKey.pub, status: "active" },
     ];
     const result = await verifyInkAuth({
-      authHeader: `INK-Ed25519 ${sig}`,
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${sig}`,
       method: baseInput.method,
       path: baseInput.path,
       recipientAgentId: baseInput.recipientDid,

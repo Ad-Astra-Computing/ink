@@ -20,13 +20,7 @@ The goal is to preserve INK’s self-sovereign trust model while addressing oper
 - excessive visibility of agent endpoints and capabilities
 - ambiguous authorization across multiple transports
 
-This specification complements, but does not replace:
-- [specs/tulpa-agentic-protocol-spec.md](/Users/jason/code/tulpa/specs/tulpa-agentic-protocol-spec.md)
-- [specs/ink-authorization-chain.md](/Users/jason/code/tulpa/specs/ink-authorization-chain.md)
-- [specs/ink-v1-readiness-spec.md](/Users/jason/code/tulpa/specs/ink-v1-readiness-spec.md)
-- [specs/tulpa-agent-abuse-prevention-and-guardrails-spec.md](/Users/jason/code/tulpa/specs/tulpa-agent-abuse-prevention-and-guardrails-spec.md)
-- [specs/user-card-and-agent-card-spec.md](/Users/jason/code/tulpa/specs/user-card-and-agent-card-spec.md)
-- [specs/discovery-search-and-discoverability-spec.md](/Users/jason/code/tulpa/specs/discovery-search-and-discoverability-spec.md)
+This specification complements, but does not replace, the authorization chain framing in [`ink-authorization-chain.md`](./ink-authorization-chain.md) and the auditability surface in [`ink-auditability.md`](./ink-auditability.md).
 
 Core principle:
 

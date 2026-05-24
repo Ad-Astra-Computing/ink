@@ -7,18 +7,31 @@ statement as a real limit of the current design.
 ## In-scope protections
 
 ### 1. Request authenticity
-A signed INK message cannot be forged without the sender's current active
-signing key. The signing base covers method, path, recipient DID, canonical
-JSON of the body, and timestamp; an attacker who can replay body bytes but
-mutate any of those fields cannot produce a valid signature.
+A signed INK message cannot be forged without one of the sender's currently
+accepted signing keys under the key-rotation authority rule: any `active`
+or `retired` key inside the validity window verifies, revoked keys never
+verify. Endpoints that require a still-trusted key (writes, capability
+grants) can pass `requireActiveKey: true` to `verifyInkAuth` to reject
+retired-key signatures. The signing base covers method, path, recipient
+DID, canonical JSON of the body, and timestamp; an attacker who can
+replay body bytes but mutate any of those fields cannot produce a valid
+signature.
 
 ### 2. Replay protection (narrow window)
-Every inbound request carries `X-Request-Nonce` and `X-Request-Timestamp`.
-Receivers reject any timestamp more than 5 minutes old or more than 30
-seconds in the future (clock-skew tolerance). Within that window, nonces
-are single-use per (sender, receiver) — a nonce that was already accepted
-is rejected. This means a captured message can only be replayed within ~5
-minutes on a receiver that has not seen its nonce.
+Each INK message body carries a `nonce` and `timestamp` (the latter is
+also covered by the signing base). Receivers reject any timestamp more
+than 5 minutes old or more than 30 seconds in the future (clock-skew
+tolerance). Within that window, nonces are single-use per (sender,
+receiver), a nonce that was already accepted is rejected. This means a
+captured message can only be replayed within ~5 minutes on a receiver
+that has not seen its nonce. Two enforcement paths are available:
+`verifyInkAuth` enforces nonce single-use after signature verification
+when passed a `NonceStore`; passing `"deferred"` is an explicit
+acknowledgement that the caller will run `checkReplay` (or an
+equivalent gate) elsewhere in the pipeline. Omitting `nonceStore`
+returns `nonce_handling_required` so misconfigured deployments fail
+loudly. Nonce backing storage and TTL policy are the integrator's
+choice.
 
 ### 3. Key rotation authority
 See [`key-rotation-rule.md`](./key-rotation-rule.md). Revoked keys can
@@ -88,7 +101,7 @@ onion routing, and other unlinkability mechanisms are not part of INK.
 ### Side-channels in the agent itself
 An agent that signs an INK message has seen the full plaintext. If the
 agent is compromised, no amount of INK-layer protection helps. This is
-especially important for agents that delegate to LLMs — prompt-injection
+especially important for agents that delegate to LLMs, prompt-injection
 attacks against the agent's model can result in INK messages that are
 cryptographically valid but semantically wrong (the model sent what the
 attacker coaxed, not what the user wanted). INK does not address this.
@@ -123,7 +136,7 @@ specify algorithm agility.
   reasonable TTL, typically minutes).
 - Receivers persist nonces durably enough to enforce the no-replay
   window. A receiver that loses its nonce cache during a restart MAY see
-  duplicate accepts — this is a transient failure, not a protocol break.
+  duplicate accepts, this is a transient failure, not a protocol break.
 
 ## Recommended receiver defaults
 

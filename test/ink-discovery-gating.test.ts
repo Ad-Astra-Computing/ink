@@ -101,10 +101,10 @@ describe("buildRedactedCard", () => {
         encryption: [],
       },
     };
-    const redacted = buildRedactedCard(cardWithKeys);
+    const redacted = buildRedactedCard(cardWithKeys as unknown as Parameters<typeof buildRedactedCard>[0]);
     expect(redacted.keys?.signing).toHaveLength(2);
-    expect(redacted.keys?.signing[0]).toEqual({ keyId: "k1", publicKeyMultibase: "zAAA", status: "active" });
-    expect(redacted.keys?.signing[1]).toEqual({ keyId: "k0", publicKeyMultibase: "zBBB", status: "retired" });
+    expect(redacted.keys?.signing[0]).toMatchObject({ keyId: "k1", publicKeyMultibase: "zAAA", status: "active" });
+    expect(redacted.keys?.signing[1]).toMatchObject({ keyId: "k0", publicKeyMultibase: "zBBB", status: "retired" });
   });
 
   it("does not include profileSnapshot", () => {
@@ -112,8 +112,8 @@ describe("buildRedactedCard", () => {
       ...fullCard,
       profileSnapshot: { headline: "Security architect" },
     };
-    const redacted = buildRedactedCard(cardWithProfile);
-    expect((redacted as any).profileSnapshot).toBeUndefined();
+    const redacted = buildRedactedCard(cardWithProfile as unknown as Parameters<typeof buildRedactedCard>[0]);
+    expect((redacted as { profileSnapshot?: unknown }).profileSnapshot).toBeUndefined();
   });
 });
 

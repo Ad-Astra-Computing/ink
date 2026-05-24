@@ -1,4 +1,4 @@
-# INK Containment Phase 1 — Implementation Spec
+# INK Containment Phase 1, Implementation Spec
 
 ## Status
 Draft
@@ -7,9 +7,9 @@ Draft
 
 Narrow implementation spec for Phase 1 of the [Agent Containment and Governance Extension](ink-agent-containment-and-governance-extension-spec.md). Covers three slices:
 
-1. **Transport-bound authorization** — delegation tokens scoped to specific transports
-2. **Capability-gated Agent Card discovery** — redacted cards for unauthenticated peers
-3. **Handshake flood resistance** — per-correlation budgets, typed rejections, backoff hints
+1. **Transport-bound authorization**, delegation tokens scoped to specific transports
+2. **Capability-gated Agent Card discovery**, redacted cards for unauthenticated peers
+3. **Handshake flood resistance**, per-correlation budgets, typed rejections, backoff hints
 
 These three were chosen because they are independently shippable, require no fleet infrastructure, and harden the protocol surface that already exists.
 
@@ -19,7 +19,7 @@ These three were chosen because they are independently shippable, require no fle
 
 ### Problem
 
-A delegation token issued for INK HTTP use can currently be replayed via extension callbacks, voice workflows, or other channels. The authorization chain spec defines `constraints` with `intentTypes`, `targetAgents`, `expiresAt`, and `maxMessages` — but not which transport the token is valid on.
+A delegation token issued for INK HTTP use can currently be replayed via extension callbacks, voice workflows, or other channels. The authorization chain spec defines `constraints` with `intentTypes`, `targetAgents`, `expiresAt`, and `maxMessages`, but not which transport the token is valid on.
 
 ### Wire Changes
 
@@ -58,7 +58,7 @@ type InkTransport = z.infer<typeof InkTransportSchema>;
 If `allowedTransports` is **omitted**, the effective default depends on a version gate:
 
 - **Tokens issued after this spec ships (v0.3+):** omitted `allowedTransports` defaults to `["ink_http"]`. Implementations MUST NOT treat omission as "all transports allowed."
-- **Legacy tokens (pre-v0.3, no `allowedTransports` field):** during the migration window (90 days from deploy), omitted `allowedTransports` defaults to `["ink_http", "extension_api", "voice", "line_phone"]` — matching the set of transports that existed before transport scoping was introduced. After the migration window closes, legacy tokens without `allowedTransports` fall back to `["ink_http"]` only.
+- **Legacy tokens (pre-v0.3, no `allowedTransports` field):** during the migration window (90 days from deploy), omitted `allowedTransports` defaults to `["ink_http", "extension_api", "voice", "line_phone"]`, matching the set of transports that existed before transport scoping was introduced. After the migration window closes, legacy tokens without `allowedTransports` fall back to `["ink_http"]` only.
 
 **Version gate mechanism:** the delegation token issuance endpoint stamps a `tokenVersion` field (string, e.g. `"0.3"`) on newly issued tokens. Tokens without `tokenVersion` are legacy. The migration window end date is stored as a deployment config constant, not hardcoded in the protocol.
 
@@ -305,8 +305,8 @@ Since `GET /ink/v1/{agentId}/agent.json` is unauthenticated, "INK peers only" is
 | `private` | 404 | Responds only to connected peers |
 
 The key difference between `network_only` and `capability_gated`:
-- `network_only`: any peer that can produce a valid INK signature gets the full card. The gate is "are you a real INK agent?" — authentication only, no authorization.
-- `capability_gated`: authenticated peers get filtered results based on relationship tier (unknown → known → connected → same-org). The gate is "what is your relationship to this agent?" — authentication plus authorization.
+- `network_only`: any peer that can produce a valid INK signature gets the full card. The gate is "are you a real INK agent?", authentication only, no authorization.
+- `capability_gated`: authenticated peers get filtered results based on relationship tier (unknown → known → connected → same-org). The gate is "what is your relationship to this agent?", authentication plus authorization.
 
 Both modes return the same redacted card on unauthenticated GET. The difference is in the authenticated query's access policy.
 
@@ -317,7 +317,7 @@ Per the governance spec:
 - Enterprise / internal deployments: `capability_gated`
 
 The default for new Tulpa agents: `network_only`. This is a **behavior change** from current (which returns a full card on unauthenticated GET). The change is safe because:
-- No external INK peers exist yet — there are no consumers of the unauthenticated full card
+- No external INK peers exist yet, there are no consumers of the unauthenticated full card
 - The authenticated query endpoint ships in the same deploy, so any future peer can get full details by signing the request
 - The redacted card still confirms the agent exists and supports INK, which is sufficient for initial discovery
 
@@ -358,8 +358,8 @@ For each `correlationId`, recipients MUST enforce:
 | Counter | Limit | Description |
 |---------|-------|-------------|
 | Challenges received | 3 | Max challenges from a single counterparty on one correlationId |
-| Rejections received | 1 | Terminal — no further messages accepted |
-| Resolutions received | 1 | Terminal — no further messages accepted |
+| Rejections received | 1 | Terminal, no further messages accepted |
+| Resolutions received | 1 | Terminal, no further messages accepted |
 | Total state transitions | 5 | Hard cap on all handshake messages per correlationId |
 | Handshake TTL | Intent's `expiresAt` or 24h, whichever is shorter | After expiry, no further messages accepted |
 
@@ -367,7 +367,7 @@ When any limit is hit:
 - **First violation** on a given correlationId/sender pair: return a typed rejection with the appropriate reason (`handshake_budget_exhausted`, `sender_rate_limited`) and an optional backoff hint. This tells a well-behaved sender what happened.
 - **Subsequent violations** after a typed rejection has already been sent for that correlationId/sender pair: silent drop (no response). This prevents amplification from an attacker who keeps sending after being told to stop.
 
-The budget tracker records whether a typed rejection has been sent per correlationId/sender pair. This is the canonical rule — there is no scenario where a first violation is silently dropped.
+The budget tracker records whether a typed rejection has been sent per correlationId/sender pair. This is the canonical rule, there is no scenario where a first violation is silently dropped.
 
 #### 3.2 Backoff hints
 
@@ -446,7 +446,7 @@ Payload:
 |------|--------|
 | `src/models/ink-handshake.ts` | Add `InkBackoffHintSchema`, new rejection reasons, budget constants |
 | `src/models/ink-audit.ts` | Add rate-limit audit event types |
-| `src/ink/handshake-budget.ts` | **NEW** — Per-correlation and per-sender budget tracking |
+| `src/ink/handshake-budget.ts` | Per-correlation and per-sender budget tracking |
 | `src/middleware/ink-auth.ts` | Wire budget checks before handshake processing |
 | Agent state/orchestration layer | Initialize budget tracker, connect to handshake pipeline |
 
@@ -471,7 +471,7 @@ interface HandshakeBudgetTracker {
 }
 ```
 
-Storage: in-memory within the Durable Object. Correlation state is keyed by `correlationId` and tracks message counts and timestamps. Per-sender state is keyed by `fromDid` with sliding window counters.
+Storage: in-memory within the per-agent state container. Correlation state is keyed by `correlationId` and tracks message counts and timestamps. Per-sender state is keyed by `fromDid` with sliding window counters.
 
 Memory bounds: max 10,000 active correlations tracked. Oldest entries evicted on overflow (LRU). Per-sender windows use fixed-size circular buffers (60 slots for per-minute, 60 slots for per-hour).
 
@@ -481,7 +481,7 @@ Budget checks run **after** signature verification but **before** handshake proc
 
 1. Verify INK auth signature (existing)
 2. Parse message type and correlationId
-3. `budgetTracker.checkAndRecord(...)` — if rejected, return typed rejection with backoff hint
+3. `budgetTracker.checkAndRecord(...)`, if rejected, return typed rejection with backoff hint
 4. Proceed to handshake processing (existing)
 
 This ordering ensures:
@@ -499,8 +499,8 @@ The canonical rule is defined in §3.1: first violation returns a typed rejectio
 |------|-------------|
 | 3 challenges on same correlationId accepted | Within budget |
 | 4th challenge on same correlationId rejected | Budget exhausted |
-| Rejection is terminal — no further messages accepted | Terminal state |
-| Resolution is terminal — no further messages accepted | Terminal state |
+| Rejection is terminal, no further messages accepted | Terminal state |
+| Resolution is terminal, no further messages accepted | Terminal state |
 | Total state transitions capped at 5 | Hard cap |
 | Expired handshake rejects new messages | TTL enforcement |
 | Per-sender minute rate limit triggers after 10 intents | Sender limit |
@@ -546,7 +546,7 @@ Senders can read the recipient's governance fields to pre-filter behavior (e.g.,
 ## Implementation Order
 
 ```
-Step 1: Schema changes — add all new types, enums, audit events
+Step 1: Schema changes, add all new types, enums, audit events
 Step 2: Transport-bound authorization (tests first)
   2a. InkTransportSchema, constraints extension
   2b. Transport context tagging in middleware
@@ -565,7 +565,7 @@ Step 4: Capability-gated Agent Card discovery (tests first)
   4d. Access policy evaluation
   4e. Audit event emission
 Step 5: Agent Card governance fields
-Step 6: Integration tests — all three slices together
+Step 6: Integration tests, all three slices together
 ```
 
 Transport-bound authorization is first because it is the simplest wire change and immediately closes the confused-deputy gap. Handshake flood resistance is second because it protects the existing handshake surface. Discovery gating is third because it has more moving parts (new endpoint, access policy) but lower urgency.
@@ -577,8 +577,8 @@ Transport-bound authorization is first because it is the simplest wire change an
 - `npx vitest run test/ink-transport-auth.test.ts`
 - `npx vitest run test/ink-handshake-budget.test.ts`
 - `npx vitest run test/ink-discovery-gating.test.ts`
-- `npx vitest run` — all existing tests still pass
-- `npx tsc --noEmit` — no new type errors
+- `npx vitest run`, all existing tests still pass
+- `npx tsc --noEmit`, no new type errors
 - Manual: issue delegation token with `allowedTransports: ["ink_http"]`, verify it is rejected on extension API call
 - Manual: set agent visibility to `capability_gated`, verify GET returns redacted card, authenticated query returns full card
 - Manual: send 4 challenges on same correlationId, verify 4th is rejected with `handshake_budget_exhausted`
@@ -590,4 +590,4 @@ Transport-bound authorization is first because it is the simplest wire change an
 - No external dependencies required
 - No new npm packages
 - All crypto uses existing `@noble/ed25519` and JCS canonicalization
-- Budget tracker is pure in-memory (Durable Object state)
+- Budget tracker is pure in-memory (per-agent state)

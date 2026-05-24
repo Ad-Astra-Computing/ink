@@ -1,7 +1,7 @@
 # INK Compatibility and Versioning Policy
 
 ## Status
-Draft — v1 stabilization
+Draft, v1 stabilization
 
 ## Purpose
 
@@ -39,7 +39,7 @@ This version follows the same policy but is independent of the transport protoco
 Message `type` fields throughout INK v0.1 carry the prefix
 `network.tulpa.*` (e.g. `network.tulpa.encrypted`, `network.tulpa.challenge`).
 This is a **historical artifact** of INK's origin at Tulpa and is *not*
-intended to imply Tulpa ownership of the protocol — Ad Astra Computing
+intended to imply Tulpa ownership of the protocol, Ad Astra Computing
 stewards INK; Tulpa is one product built on it.
 
 The prefix is preserved in v0.x for wire compatibility with deployed
@@ -125,7 +125,7 @@ Implementations MUST NOT assume capabilities that are not advertised.
 
 ### 4.2 Required Capabilities
 
-Every INK v1 agent MUST support:
+Every base INK v0.1 agent MUST support:
 - Transport signing (`INK-Ed25519` auth header)
 - Replay protection (timestamp + nonce)
 - At least one intent type
@@ -162,7 +162,7 @@ The signature base format is the most stability-critical element of INK:
 ink/<version>\n<METHOD>\n<PATH>\n<recipientDid>\n<JCS(body)>\n<timestamp>
 ```
 
-Any change to this format — field order, separator, domain prefix, canonicalization algorithm — is a breaking change.
+Any change to this format, field order, separator, domain prefix, canonicalization algorithm, is a breaking change.
 
 ### 5.2 Auth Header
 

@@ -839,5 +839,64 @@ export async function verifyAuditResponseSignature(
   }
 }
 
+/**
+ * Validate the internal continuity of an audit event chain. Distinct
+ * from verifyAuditResponseSignature, which only verifies the response
+ * wrapper signature. Callers fetching audit responses MUST call both:
+ * the signature gate proves the witness/agent attested to this slice,
+ * this gate proves the slice itself is contiguous and fork-free.
+ *
+ * Rules enforced:
+ * - input must be an array of non-null plain objects
+ * - each event must have integer sequence and string-or-null previousEventHash
+ * - sequences within the response must be strictly increasing by 1
+ *   (a partial-window response anchored elsewhere is fine, but no internal gaps)
+ * - duplicate sequence numbers within the response are a fork
+ * - events[i].previousEventHash MUST equal computeEventHash(events[i-1]) for i >= 1
+ * - events[0].previousEventHash is NOT verified against any external
+ *   anchor; callers that have one (a prior pinned event hash) must
+ *   verify the boundary themselves
+ */
+export async function verifyAuditEventChain(
+  events: unknown,
+): Promise<
+  | { valid: true }
+  | { valid: false; error: "invalid_input" | "invalid_event" | "sequence_gap" | "sequence_fork" | "previous_hash_mismatch" }
+> {
+  if (!Array.isArray(events)) return { valid: false, error: "invalid_input" };
+  if (events.length === 0) return { valid: true };
+
+  let lastSeq: number | null = null;
+  let lastHash: string | null = null;
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    if (ev === null || typeof ev !== "object" || Array.isArray(ev)) {
+      return { valid: false, error: "invalid_event" };
+    }
+    const seq = (ev as Record<string, unknown>).sequence;
+    const prev = (ev as Record<string, unknown>).previousEventHash;
+    if (typeof seq !== "number" || !Number.isInteger(seq) || seq < 1) {
+      return { valid: false, error: "invalid_event" };
+    }
+    if (prev !== null && typeof prev !== "string") {
+      return { valid: false, error: "invalid_event" };
+    }
+    if (i > 0) {
+      if (seq === lastSeq) return { valid: false, error: "sequence_fork" };
+      if (seq !== (lastSeq as number) + 1) return { valid: false, error: "sequence_gap" };
+      if (prev !== lastHash) return { valid: false, error: "previous_hash_mismatch" };
+    }
+    let thisHash: string;
+    try {
+      thisHash = await computeEventHash(ev as Record<string, unknown>);
+    } catch {
+      return { valid: false, error: "invalid_event" };
+    }
+    lastSeq = seq;
+    lastHash = thisHash;
+  }
+  return { valid: true };
+}
+
 // Re-export encoding helpers for test use
 export { base64urlEncode, base64urlDecode, hexToBytes, bytesToHex, jcsCanonicalize };

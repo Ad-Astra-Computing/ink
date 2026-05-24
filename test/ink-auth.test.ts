@@ -32,7 +32,7 @@ describe("INK request signature verification (§3.3)", () => {
     }, kp.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/tulpa:zRecipient/receipt",
       recipientAgentId: "tulpa:zRecipient",
@@ -44,7 +44,7 @@ describe("INK request signature verification (§3.3)", () => {
 
   it("rejects missing Authorization header", async () => {
     const result = await verifyInkAuth({
-      authHeader: undefined,
+      nonceStore: "deferred",      authHeader: undefined,
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -52,12 +52,14 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("missing_authorization");
+    if (!result.valid) {
+      expect(result.error).toBe("missing_authorization");
+    }
   });
 
   it("rejects wrong auth scheme", async () => {
     const result = await verifyInkAuth({
-      authHeader: "Bearer token123",
+      nonceStore: "deferred",      authHeader: "Bearer token123",
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -65,12 +67,14 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("invalid_auth_scheme");
+    if (!result.valid) {
+      expect(result.error).toBe("invalid_auth_scheme");
+    }
   });
 
   it("rejects missing from field", async () => {
     const result = await verifyInkAuth({
-      authHeader: "INK-Ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      nonceStore: "deferred",      authHeader: "INK-Ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -78,7 +82,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("missing_sender");
+    if (!result.valid) {
+      expect(result.error).toBe("missing_sender");
+    }
   });
 
   it("rejects missing timestamp field", async () => {
@@ -86,7 +92,7 @@ describe("INK request signature verification (§3.3)", () => {
     const agentId = deriveAgentId(kp.publicKey);
 
     const result = await verifyInkAuth({
-      authHeader: "INK-Ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      nonceStore: "deferred",      authHeader: "INK-Ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -94,7 +100,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("missing_timestamp");
+    if (!result.valid) {
+      expect(result.error).toBe("missing_timestamp");
+    }
   });
 
   it("rejects signature from wrong key", async () => {
@@ -117,7 +125,7 @@ describe("INK request signature verification (§3.3)", () => {
     }, kp2.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -125,7 +133,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("invalid_signature");
+    if (!result.valid) {
+      expect(result.error).toBe("invalid_signature");
+    }
   });
 
   it("rejects tampered body", async () => {
@@ -150,7 +160,7 @@ describe("INK request signature verification (§3.3)", () => {
     const tamperedBody = { ...body, messageId: "msg-tampered" };
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -158,7 +168,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("invalid_signature");
+    if (!result.valid) {
+      expect(result.error).toBe("invalid_signature");
+    }
   });
 
   it("rejects expired timestamp (older than 5 minutes)", async () => {
@@ -180,7 +192,7 @@ describe("INK request signature verification (§3.3)", () => {
     }, kp.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -188,7 +200,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("timestamp_expired");
+    if (!result.valid) {
+      expect(result.error).toBe("timestamp_expired");
+    }
   });
 
   it("rejects timestamp too far in the future (>30s)", async () => {
@@ -210,7 +224,7 @@ describe("INK request signature verification (§3.3)", () => {
     }, kp.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -218,12 +232,14 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("timestamp_too_far_future");
+    if (!result.valid) {
+      expect(result.error).toBe("timestamp_too_far_future");
+    }
   });
 
   it("rejects invalid timestamp format", async () => {
     const result = await verifyInkAuth({
-      authHeader: "INK-Ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+      nonceStore: "deferred",      authHeader: "INK-Ed25519 AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -231,7 +247,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("invalid_timestamp");
+    if (!result.valid) {
+      expect(result.error).toBe("invalid_timestamp");
+    }
   });
 
   it("rejects tampered path", async () => {
@@ -252,7 +270,7 @@ describe("INK request signature verification (§3.3)", () => {
     }, kp.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/audit", // wrong path
       recipientAgentId: "agent",
@@ -260,7 +278,9 @@ describe("INK request signature verification (§3.3)", () => {
     });
 
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("invalid_signature");
+    if (!result.valid) {
+      expect(result.error).toBe("invalid_signature");
+    }
   });
 
   it("rejects bootstrap key fallback when agent has rotated keys", async () => {
@@ -292,7 +312,7 @@ describe("INK request signature verification (§3.3)", () => {
     ];
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
@@ -305,7 +325,9 @@ describe("INK request signature verification (§3.3)", () => {
     // The authoritative key set rejected the signature, so the error is
     // signature_verification_failed rather than unresolvable_sender_key.
     expect(result.valid).toBe(false);
-    expect(result.error).toBe("signature_verification_failed");
+    if (!result.valid) {
+      expect(result.error).toBe("signature_verification_failed");
+    }
   });
 
   it("allows bootstrap key when no key set exists", async () => {
@@ -328,7 +350,7 @@ describe("INK request signature verification (§3.3)", () => {
     }, kp.privateKey);
 
     const result = await verifyInkAuth({
-      authHeader: buildAuthHeader(sig),
+      nonceStore: "deferred",      authHeader: buildAuthHeader(sig),
       method: "POST",
       path: "/ink/v1/agent/receipt",
       recipientAgentId: "agent",
