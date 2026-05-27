@@ -1,7 +1,7 @@
 {
   "name": "@adastracomputing/ink",
-  "version": "0.1.0-alpha.2",
-  "description": "Reference implementation and specification of the INK (Inter-agent Networking Kernel) protocol",
+  "version": "0.1.0-alpha.3",
+  "description": "Library and specification for the INK (Inter-agent Networking Kernel) protocol",
   "license": "MIT OR Apache-2.0",
   "author": "Ad Astra Computing Inc.",
   "repository": {
@@ -71,6 +71,6 @@
     "ed25519",
     "atproto",
     "agent-to-agent",
-    "reference-implementation"
+    "transparency-log"
   ]
 }

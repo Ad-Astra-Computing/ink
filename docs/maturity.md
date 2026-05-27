@@ -17,7 +17,7 @@
   implementations should report discrepancies as issues.
 - The protocol is in use by one production integrator (Tulpa). That is
   one data point, not a guarantee of robustness at scale.
-- The reference implementation in `src/` runs on any runtime providing
+- The library in `src/` runs on any runtime providing
   standard Web Crypto (`crypto.subtle`) and `fetch`, modern Node, Deno,
   Bun, and edge runtimes. Browser use is feasible but not exercised by
   the maintainers.
@@ -55,7 +55,7 @@ Pre-1.0 releases follow `0.Y.Z` semantics:
 
 - `0.Y.0`, Minor version bump indicates a wire-format change. Receivers
   must support at least one prior minor during a transition window.
-- `0.Y.Z` (Z > 0), Patch bumps fix bugs in the reference implementation
+- `0.Y.Z` (Z > 0), Patch bumps fix bugs in the library
   and update test vectors where needed. They do not change wire format.
 
 Breaking changes before v1.0 will be announced in the repository
@@ -71,7 +71,7 @@ be a real incident:
    falls inside the in-scope protections and you accept the out-of-scope
    limits.
 2. Run `../test-vectors/*` against your implementation.
-3. Fuzz your envelope parser. The reference implementation's tests are
+3. Fuzz your envelope parser. The library's tests are
    not a substitute.
 4. Pen-test the rotation and revocation flows specifically. The
    authority rule is the single most security-sensitive piece and the

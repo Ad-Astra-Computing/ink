@@ -211,7 +211,7 @@ export function buildSignatureBase(input: InkSignInput): string {
     throw new Error("Signature base body exceeds maximum allowed complexity");
   }
   const canonical = jcsCanonicalize(input.body);
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+  if (new TextEncoder().encode(canonical).length > MAX_SIGBASE_BODY_BYTES) {
     throw new Error("Signature base body exceeds maximum allowed size");
   }
   return `ink/0.1\n${input.method}\n${input.path}\n${input.recipientDid}\n${canonical}\n${input.timestamp}`;
@@ -685,10 +685,10 @@ export async function computeMessageHash(body: Record<string, unknown>): Promise
     throw new Error("Message body exceeds maximum allowed complexity");
   }
   const canonical = jcsCanonicalize(body);
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+  const bytes = new TextEncoder().encode(canonical);
+  if (bytes.length > MAX_SIGBASE_BODY_BYTES) {
     throw new Error("Message body exceeds maximum allowed size");
   }
-  const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return bytesToHex(new Uint8Array(digest));
 }
@@ -713,12 +713,11 @@ export async function signAuditEvent(
     throw new Error("Audit event exceeds maximum allowed complexity");
   }
   const canonical = jcsCanonicalize(eventWithoutSig);
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
-    throw new Error("Audit event exceeds maximum allowed size");
-  }
-  // Domain separation: prefix prevents cross-protocol signature replay
   const prefixed = `ink/audit-event\n${canonical}`;
   const bytes = new TextEncoder().encode(prefixed);
+  if (bytes.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit event exceeds maximum allowed size");
+  }
   const sig = await ed.signAsync(bytes, privateKey);
   return base64urlEncode(sig);
 }
@@ -741,24 +740,58 @@ export async function verifyAuditEventSignature(
   // attacker-supplied object that would only get rejected by the size cap
   // below. Cheap enough that it adds no cost for real events.
   if (!isWithinCanonicalizeBounds(eventWithoutSig)) return false;
-  const canonical = jcsCanonicalize(eventWithoutSig);
-  // Defense-in-depth: cap canonicalized body size to bound pre-verify work.
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) return false;
-  // Domain separation: must match signAuditEvent prefix
-  const prefixed = `ink/audit-event\n${canonical}`;
-  const bytes = new TextEncoder().encode(prefixed);
   try {
+    const canonical = jcsCanonicalize(eventWithoutSig);
+    const prefixed = `ink/audit-event\n${canonical}`;
+    const bytes = new TextEncoder().encode(prefixed);
+    // Defense-in-depth: cap signed-body byte count to bound pre-verify work.
+    // UTF-8 byte length, not JS string length, so multi-byte event data
+    // cannot smuggle past the cap.
+    if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
     return await ed.verifyAsync(sig, bytes, publicKey);
   } catch {
-    // Malformed signature (wrong length, invalid chars, bad key) — treat as invalid
     return false;
   }
 }
 
 /**
+ * Compute the RFC 6962 Merkle leaf hash for an INK audit event:
+ *
+ *   SHA-256(0x00 || JCS(event-without-agentSignature))
+ *
+ * This is the leaf-hashing rule a witness MUST use when building its
+ * transparency log (Auditability §7.3). It is distinct from
+ * `computeEventHash`, which omits the 0x00 prefix and is used only for
+ * `previousEventHash` chain linkage inside the agent's local audit log.
+ *
+ * Returns the lowercase-hex digest.
+ */
+export async function computeAuditMerkleLeafHash(event: Record<string, unknown>): Promise<string> {
+  if (event === null || typeof event !== "object" || Array.isArray(event)) {
+    throw new Error("event must be a non-null object");
+  }
+  const { agentSignature: _, ...eventWithoutSig } = event;
+  if (!isWithinCanonicalizeBounds(eventWithoutSig)) {
+    throw new Error("Audit event exceeds maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(eventWithoutSig);
+  const canonicalBytes = new TextEncoder().encode(canonical);
+  if (canonicalBytes.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit event exceeds maximum allowed size");
+  }
+  const prefixed = new Uint8Array(canonicalBytes.length + 1);
+  prefixed[0] = 0x00;
+  prefixed.set(canonicalBytes, 1);
+  const digest = await crypto.subtle.digest("SHA-256", prefixed);
+  return bytesToHex(new Uint8Array(digest));
+}
+
+/**
  * Compute SHA-256 hash of JCS-canonicalized audit event (excluding agentSignature).
- * Used for previousEventHash chain linkage.
+ * Used for previousEventHash chain linkage. NOT the Merkle leaf hash:
+ * see `computeAuditMerkleLeafHash` for the RFC 6962 leaf-hash rule used
+ * by witness transparency logs.
  */
 export async function computeEventHash(event: Record<string, unknown>): Promise<string> {
   if (event === null || typeof event !== "object" || Array.isArray(event)) {
@@ -773,10 +806,10 @@ export async function computeEventHash(event: Record<string, unknown>): Promise<
     throw new Error("Audit event exceeds maximum allowed complexity");
   }
   const canonical = jcsCanonicalize(eventWithoutSig);
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
+  const bytes = new TextEncoder().encode(canonical);
+  if (bytes.length > MAX_SIGBASE_BODY_BYTES) {
     throw new Error("Audit event exceeds maximum allowed size");
   }
-  const bytes = new TextEncoder().encode(canonical);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return bytesToHex(new Uint8Array(digest));
 }
@@ -797,14 +830,14 @@ export async function signAuditResponse(
     throw new Error("Audit response events exceed maximum allowed complexity");
   }
   const canonical = jcsCanonicalize(events);
-  // Cap canonicalized body size — mirrors the verify path's guard so the
-  // sign side can't be used to mint signatures over payloads larger than
-  // any conformant verifier would accept.
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) {
-    throw new Error("Audit response events exceed maximum allowed size");
-  }
   const prefixed = `ink/audit-response\n${canonical}`;
   const bytes = new TextEncoder().encode(prefixed);
+  // Cap signed-body byte count. Mirrors the verify path's guard so the
+  // sign side can't mint signatures over payloads larger than any
+  // conformant verifier would accept.
+  if (bytes.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit response events exceed maximum allowed size");
+  }
   const sig = await ed.signAsync(bytes, privateKey);
   return base64urlEncode(sig);
 }
@@ -825,16 +858,14 @@ export async function verifyAuditResponseSignature(
   if (!/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
   // Pre-canonicalize complexity cap (see verifyAuditEventSignature).
   if (!isWithinCanonicalizeBounds(events)) return false;
-  const canonical = jcsCanonicalize(events);
-  // Defense-in-depth: cap canonicalized body size to bound pre-verify work.
-  if (canonical.length > MAX_SIGBASE_BODY_BYTES) return false;
-  const prefixed = `ink/audit-response\n${canonical}`;
-  const bytes = new TextEncoder().encode(prefixed);
   try {
+    const canonical = jcsCanonicalize(events);
+    const prefixed = `ink/audit-response\n${canonical}`;
+    const bytes = new TextEncoder().encode(prefixed);
+    if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
     return await ed.verifyAsync(sig, bytes, publicKey);
   } catch {
-    // Malformed signature (wrong length, invalid chars, bad key) — treat as invalid
     return false;
   }
 }
@@ -896,6 +927,119 @@ export async function verifyAuditEventChain(
     lastHash = thisHash;
   }
   return { valid: true };
+}
+
+// ── Audit-query response (witness side, Auditability Section 7.3) ──
+//
+// Distinct from signAuditResponse, which is the bilateral peer-to-peer
+// audit-exchange response between two agents. The witness query response
+// commits the WITNESS to (a) the events, (b) per-event Merkle proofs,
+// (c) the witness's treeSize / rootHash at response time, (d) the
+// messageId queried, signed under the witness's identity key.
+
+/**
+ * Sign an INK audit-query response from a witness. The signed bytes are:
+ *
+ *   "ink/audit-query-response/v1\n" + JCS(response object minus serviceSignature)
+ *
+ * Callers pass the response object EXCLUDING `serviceSignature`. The
+ * canonical bytes bind every other field, including `protocol`, `type`,
+ * `messageId`, `events`, `proofs`, `treeSize`, `rootHash`, `serviceDid`,
+ * and `timestamp`, so verifiers cannot rebind a valid signature to a
+ * different witness/message/root.
+ */
+export async function signAuditQueryResponse(
+  responseWithoutSignature: Record<string, unknown>,
+  privateKey: Uint8Array,
+): Promise<string> {
+  if (responseWithoutSignature === null || typeof responseWithoutSignature !== "object" || Array.isArray(responseWithoutSignature)) {
+    throw new Error("response must be a non-null object");
+  }
+  // §7.3 / §7.4 sign-side scope enforcement. A conformant witness must
+  // not mint a signature over a response where any event falls outside
+  // the envelope's (messageId, requester) scope: those rules apply at
+  // sign time as well as at verify time. Without this, a witness that
+  // composed payloads incorrectly could ship alpha.3-invalid signed
+  // bytes that the high-level verifier would then reject. Catching it
+  // here ensures the primitive is self-defending.
+  const envMessageId = (responseWithoutSignature as { messageId?: unknown }).messageId;
+  const envRequester = (responseWithoutSignature as { requester?: unknown }).requester;
+  const events = (responseWithoutSignature as { events?: unknown }).events;
+  if (Array.isArray(events) && events.length > 0) {
+    if (typeof envMessageId !== "string" || envMessageId.length === 0) {
+      throw new Error("Audit-query response must include a non-empty messageId");
+    }
+    if (typeof envRequester !== "string" || envRequester.length === 0) {
+      throw new Error("Audit-query response must include a non-empty requester");
+    }
+    for (const event of events) {
+      if (event === null || typeof event !== "object" || Array.isArray(event)) {
+        throw new Error("Every event must be a non-null object");
+      }
+      const e = event as { messageId?: unknown; agentId?: unknown; counterpartyId?: unknown; agentSignature?: unknown };
+      if (e.messageId !== envMessageId) {
+        throw new Error("Per-event scope violation: event.messageId does not match envelope.messageId");
+      }
+      const requesterIsParty =
+        (typeof e.agentId === "string" && e.agentId === envRequester) ||
+        (typeof e.counterpartyId === "string" && e.counterpartyId === envRequester);
+      if (!requesterIsParty) {
+        throw new Error("Per-event scope violation: requester is not a party (agentId/counterpartyId)");
+      }
+      // §7.3 verifier MUST check agentSignature; sign-side mirror so a
+      // witness using this primitive cannot ship signed responses that
+      // strip per-event provenance.
+      if (typeof e.agentSignature !== "string" || e.agentSignature.length === 0) {
+        throw new Error("Per-event scope violation: event.agentSignature is missing or empty");
+      }
+    }
+  }
+  if (!isWithinCanonicalizeBounds(responseWithoutSignature)) {
+    throw new Error("Audit-query response exceeds maximum allowed complexity");
+  }
+  const canonical = jcsCanonicalize(responseWithoutSignature);
+  const prefixed = `ink/audit-query-response/v1\n${canonical}`;
+  const bytes = new TextEncoder().encode(prefixed);
+  if (bytes.length > MAX_SIGBASE_BODY_BYTES) {
+    throw new Error("Audit-query response exceeds maximum allowed size");
+  }
+  const sig = await ed.signAsync(bytes, privateKey);
+  return base64urlEncode(sig);
+}
+
+/**
+ * Verify the Ed25519 signature on an audit-query response. This is the
+ * LOW-LEVEL primitive. Most consumers should call
+ * `verifyAuditQueryResponse` (from `src/audit/inclusion-receipt.ts`)
+ * instead: it enforces envelope shape, requester binding, the
+ * events-to-proofs one-to-one mapping, and walks every Merkle proof.
+ *
+ * Calling this function alone does NOT prove the response is acceptable.
+ * A signed but malformed envelope (wrong type, wrong protocol, no
+ * proofs, wrong requester) can still pass here. Caller is responsible
+ * for pinning / resolving the witness public key out of band (e.g.
+ * via /.well-known/did.json). Returns false (never throws) for any
+ * malformed input.
+ */
+export async function verifyAuditQueryResponseSignature(
+  responseWithoutSignature: Record<string, unknown>,
+  signature: string,
+  publicKey: Uint8Array,
+): Promise<boolean> {
+  if (responseWithoutSignature === null || typeof responseWithoutSignature !== "object" || Array.isArray(responseWithoutSignature)) return false;
+  if (typeof signature !== "string") return false;
+  if (!/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
+  if (!isWithinCanonicalizeBounds(responseWithoutSignature)) return false;
+  try {
+    const canonical = jcsCanonicalize(responseWithoutSignature);
+    const prefixed = `ink/audit-query-response/v1\n${canonical}`;
+    const bytes = new TextEncoder().encode(prefixed);
+    if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
+    const sig = base64urlDecode(signature);
+    return await ed.verifyAsync(sig, bytes, publicKey);
+  } catch {
+    return false;
+  }
 }
 
 // Re-export encoding helpers for test use

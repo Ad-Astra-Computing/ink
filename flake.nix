@@ -1,9 +1,9 @@
 {
-  description = "INK protocol reference implementation";
+  description = "INK protocol library and specification";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
-  outputs = {nixpkgs, ...}: let
+  outputs = {self, nixpkgs, ...}: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
     forAllSystems = nixpkgs.lib.genAttrs systems;
   in {
@@ -33,11 +33,13 @@
       pkgs = nixpkgs.legacyPackages.${system};
       pkg = builtins.fromJSON (builtins.readFile ./package.json);
     in {
+      # Publishable npm tarball. Used to verify the package builds and
+      # ships the right files; not the runnable form.
       default = pkgs.buildNpmPackage {
         pname = "ink";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-i/bLZUKPKREbnckI/5bylZ8j/Y2/9t4ZDH25ngaJX9c=";
+        npmDepsHash = "sha256-y0K4Gxlmh1chESdNTw11wGnqkYkjFGWfupRfGzCl314=";
         nodejs = pkgs.nodejs_22;
         dontNpmBuild = true;
         installPhase = ''
@@ -49,10 +51,50 @@
           runHook postInstall
         '';
         meta = {
-          description = "INK protocol reference implementation";
+          description = "INK protocol library and specification";
           homepage = "https://ink.tulpa.network";
           license = with pkgs.lib.licenses; [mit asl20];
         };
+      };
+
+      # Installed CLI: `nix run github:Ad-Astra-Computing/ink -- verify-inclusion ...`
+      # Copies the package + node_modules into the store and writes a
+      # $out/bin/ink wrapper. No npm install step required for end users.
+      cli = pkgs.buildNpmPackage {
+        pname = "ink-cli";
+        version = pkg.version;
+        src = ./.;
+        npmDepsHash = "sha256-y0K4Gxlmh1chESdNTw11wGnqkYkjFGWfupRfGzCl314=";
+        nodejs = pkgs.nodejs_22;
+        dontNpmBuild = true;
+        installPhase = ''
+          runHook preInstall
+          mkdir -p $out/lib/node_modules/@adastracomputing/ink $out/bin
+          cp -r bin src package.json \
+            $out/lib/node_modules/@adastracomputing/ink/
+          cp -r node_modules \
+            $out/lib/node_modules/@adastracomputing/ink/
+          cat > $out/bin/ink <<EOF
+          #!${pkgs.bash}/bin/bash
+          exec ${pkgs.nodejs_22}/bin/node \\
+            $out/lib/node_modules/@adastracomputing/ink/bin/ink.mjs "\$@"
+          EOF
+          chmod +x $out/bin/ink
+          runHook postInstall
+        '';
+        meta = {
+          description = "INK protocol CLI";
+          homepage = "https://ink.tulpa.network";
+          license = with pkgs.lib.licenses; [mit asl20];
+          mainProgram = "ink";
+        };
+      };
+    });
+
+    apps = forAllSystems (system: {
+      default = {
+        type = "app";
+        program = "${self.packages.${system}.cli}/bin/ink";
       };
     });
   };

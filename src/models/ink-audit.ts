@@ -66,18 +66,18 @@ export type InkAuditEventType = z.infer<typeof InkAuditEventTypeSchema>;
 // ── INK Audit Event (hash-chained, signed) ──
 
 export const InkAuditEventSchema = z.object({
-  id: z.string(),
+  id: z.string().min(1),
   version: z.literal("ink-audit/1"),
-  agentId: z.string(),
-  agentSignature: z.string(),
+  agentId: z.string().min(1),
+  agentSignature: z.string().min(1),
   sequence: z.number().int().positive(),
-  previousEventHash: z.string().nullable(),
+  previousEventHash: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
   eventType: InkAuditEventTypeSchema,
   timestamp: z.string().datetime(),
-  messageId: z.string().optional(),
-  correlationId: z.string().optional(),
-  counterpartyId: z.string().optional(),
-  signingKeyId: z.string().optional(),
+  messageId: z.string().min(1).optional(),
+  correlationId: z.string().min(1).optional(),
+  counterpartyId: z.string().min(1).optional(),
+  signingKeyId: z.string().min(1).optional(),
   data: z.record(z.unknown()).optional(),
 });
 

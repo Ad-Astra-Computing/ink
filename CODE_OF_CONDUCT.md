@@ -11,7 +11,7 @@ Participate in this project as a professional. That means:
 - Assume good faith from contributors and maintainers. If you believe
   someone has acted in bad faith, raise it privately first.
 - Keep public discussions focused on the protocol, the spec, the
-  reference implementation, or related interoperability work.
+  library, or related interoperability work.
 
 ## Scope
 

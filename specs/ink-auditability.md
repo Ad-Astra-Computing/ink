@@ -461,9 +461,9 @@ The audit service:
 1. Accepts signed `InkAuditEvent` submissions from agents
 2. Appends them to a **Merkle tree** (not just a hash chain, enables efficient inclusion proofs)
 3. Returns a **signed inclusion receipt** proving the event was recorded at a specific tree position and timestamp
-4. Serves **inclusion proofs** and **consistency proofs** on demand
+4. Serves **inclusion proofs** on demand (per-submission via the inclusion receipt and per-query via the signed `audit_query_response` envelope). **Consistency proofs** between two arbitrary checkpoints are not in scope for alpha.3; consistency-proof verification against external `tlog-witness` cosigners (§7.0) is the alpha.3 mitigation against split-view attacks.
 
-The service CANNOT forge events (they carry the submitting agent's Ed25519 signature). It CAN prove:
+The service CANNOT forge events that verifiers will accept, because every returned event carries the submitting agent's Ed25519 `agentSignature` and §7.3 verifiers re-check it against the agent's published keys. A witness that commits a fabricated event_json into its Merkle tree can produce a valid inclusion proof, but verifiers will reject the response when the agent signature fails to validate. (Verifiers that walk Merkle proofs without checking `agentSignature` lose this guarantee; see §7.5.) The service CAN prove:
 - That a specific event was submitted at a specific time (inclusion)
 - That the log is append-only and no events have been removed (consistency)
 - That two parties submitted conflicting events for the same message (conflict detection)
@@ -531,41 +531,66 @@ Authorization: INK-Ed25519 <signature>
 }
 ```
 
-**Response includes Merkle inclusion proofs:**
+**Response includes Merkle inclusion proofs and is signed by the witness:**
 
 ```json
 {
   "protocol": "ink/0.1",
-  "type": "network.tulpa.audit_response",
+  "type": "network.tulpa.audit_query_response",
+  "serviceDid": "did:web:witness.example.com",
   "messageId": "msg-123",
-  "events": [ /* InkAuditEvent[] from all agents */ ],
+  "requester": "did:plc:requester",
+  "events": [ /* InkAuditEvent[] visible to the requester */ ],
   "proofs": [
     {
       "eventId": "01JBTEST0001",
       "leafIndex": 48290,
-      "inclusionPath": ["<hash>", "<hash>", "..."],
-      "treeSize": 48291,
-      "rootHash": "<SHA-256 hex>"
+      "inclusionProof": ["<hash>", "<hash>", "..."]
     }
   ],
-  "serviceSignature": "<Ed25519 over JCS(response)>"
+  "treeSize": 48291,
+  "rootHash": "<SHA-256 hex of Merkle tree root at response time>",
+  "timestamp": "2026-03-19T13:00:01Z",
+  "serviceSignature": "<Ed25519, see canonical format below>"
 }
 ```
+
+**Canonical signature format.** `serviceSignature` is an Ed25519 signature over the bytes:
+
+```
+"ink/audit-query-response/v1\n" || JCS(response-fields-without-serviceSignature)
+```
+
+The signed payload binds the witness's `serviceDid`, the `messageId` requested, the authenticated `requester` whose access-control scope produced the result, every returned event, every inclusion proof, the witness's `treeSize` and `rootHash` at response time and the `timestamp`. The `proofs` array has one entry per event, keyed by `eventId`; verifiers MUST reject if proofs do not match events one-to-one. `treeSize` and `rootHash` apply uniformly to every proof. The `requester` binding prevents cross-requester replay: a witness response generated for Alice cannot be presented to Bob as Bob's authoritative view of the same `messageId`. Verifiers MUST check `requester` equals the locally authenticated requester before treating the response as their own scoped view.
+
+Per-event scope: a signed envelope binds `messageId` and `requester` but says nothing about the event objects until verifiers look inside them. To prevent a witness or a tampering intermediary from smuggling out-of-scope events into a signed response, verifiers MUST reject any response where, for any returned event, `event.messageId` differs from the envelope `messageId`, OR the envelope `requester` is neither `event.agentId` nor `event.counterpartyId`. Witnesses SHOULD reject the same conditions at signing time as defense in depth against storage corruption.
+
+Empty-log responses: a witness that has not yet committed any leaves reports `treeSize: 0` and `rootHash` equal to SHA-256 of the empty string (`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`). A signed response with `treeSize: 0` is legitimate but MUST also have empty `events`, empty `proofs` and the empty-tree `rootHash`. Verifiers MUST reject any `treeSize: 0` response that deviates from this shape.
+
+Per-event agent signatures: Merkle validity alone does NOT prove a returned event was produced by the agent named in `event.agentId`. A witness could in principle commit a fabricated event_json that is not a real `InkAuditEvent`. Every returned event MUST therefore include its `agentSignature` field. Verifiers MUST resolve the submitting agent's published Ed25519 keys (via Agent Card §2) and verify `agentSignature` on every event in addition to walking the Merkle proof. A response that omits `agentSignature` on any event MUST be rejected as structurally invalid.
+
+Truncation: witnesses MUST NOT silently sign a partial result. If the requester's visible event set for a `messageId` exceeds the witness's response cap, the witness MUST return an unsigned error response (HTTP 413). A signed response is, by definition, a complete enumeration of the requester's visible events for that `messageId` at `(treeSize, rootHash)`.
+
+Determinism: witnesses MUST emit `events` and matching `proofs` in a stable, deterministic order so verifiers can reproduce the signed bytes from the underlying records.
+
+Leaf hash: each event's Merkle leaf hash is `SHA-256(0x00 || JCS(event-without-agentSignature))`. The leading `0x00` byte is the RFC 6962 leaf-domain-separation tag; internal Merkle nodes use `0x01 || left || right`. Verifiers MUST rehash the returned `event` object themselves (stripping `agentSignature`, then JCS, then SHA-256 with the `0x00` prefix) and use that hash as the leaf input to `inclusionProof`. They MUST NOT trust any leaf-hash value supplied by the witness alongside the event. Walking the proof from this computed leaf hash up through `inclusionProof` MUST reach the top-level `rootHash` per the proof construction in §7.2. The INK library exposes this exact computation as `computeAuditMerkleLeafHash`; it is distinct from `computeEventHash`, which is the unprefixed SHA-256 used for `previousEventHash` chain linkage and MUST NOT be used as the Merkle leaf input.
 
 #### 7.4 Access Control
 
 The audit service operates under **access-controlled transparency** (per SCITT):
 - Events are tagged with the `messageId` and the DIDs of sender/recipient
-- Only the sender, recipient or a party with a valid delegation chain (§ INK Authorization Chain) can query events for a given `messageId`
+- Only the sender or recipient (i.e. an event's own `agentId` or `counterpartyId`) can query events for a given `messageId`. The witness MUST refuse to serve a row to any other requester
 - The service verifies the requester's identity via INK auth (§3.3) before serving events
-- The Merkle tree structure is public (anyone can verify consistency proofs) but event contents are access-controlled
+- The Merkle tree structure is public: anyone can verify inclusion proofs against signed checkpoints and, where consistency-proof endpoints are deployed, cross-check that checkpoints are append-only. Event contents remain access-controlled
+
+Delegated queries (where a third-party agent queries events on behalf of a principal via an INK Authorization Chain) are not in scope for alpha.3. A future revision will define the additional envelope fields the witness signs to bind the effective principal alongside the immediate requester, and verifiers will be updated accordingly. Until then, conformant witnesses MUST treat the per-event scope rule in §7.3 as authoritative: a returned event's `agentId` or `counterpartyId` MUST equal the response `requester`.
 
 This follows SCITT's model: the transparency guarantee (append-only, no suppression) is public, but the data itself is private.
 
 #### 7.5 Trust Model
 
 The audit service is a **semi-trusted witness**, not an arbiter:
-- It CANNOT forge events (Ed25519 signatures from agents)
+- It CANNOT forge events that verifiers will accept, because verifiers re-check `event.agentSignature` against the agent's published Ed25519 keys (§7.3). A witness that commits a fabricated event_json into its Merkle tree can produce a valid inclusion proof, but the per-event agent-signature check fails and the response is rejected. Verifiers that walk the proof without checking `agentSignature` lose this guarantee.
 - It CANNOT modify events without breaking Merkle proofs
 - It CAN suppress events by refusing to include them (detectable via consistency proofs between submissions)
 - It CAN be unavailable (agents fall back to bilateral exchange)

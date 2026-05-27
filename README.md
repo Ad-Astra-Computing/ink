@@ -65,7 +65,9 @@ const ok = await verifyInkSignature(input, signature, keypair.publicKey);
 
 For inbound request verification, `verifyInkAuth` parses the `Authorization: INK-Ed25519 <sig>` header, checks freshness, and applies the key-rotation authority rule. It requires a `nonceStore` option so the 5-minute freshness window does not silently accept replays; pass a `NonceStore` to have the middleware enforce single-use, or `"deferred"` to acknowledge that the caller will run `checkReplay` (or equivalent) elsewhere in the request pipeline.
 
-For consumers of audit-exchange responses, call both `verifyAuditResponseSignature` (signed response wrapper) and `verifyAuditEventChain` (sequence-by-one and `previousEventHash` continuity, fork detection). The signature gate alone does not prevent a witness from returning a gapped or forked slice.
+For consumers of bilateral audit-exchange responses (`network.tulpa.audit_response`), call both `verifyAuditResponseSignature` (signed response wrapper) and `verifyAuditEventChain` (sequence-by-one and `previousEventHash` continuity, fork detection). The signature gate alone does not prevent a peer from returning a gapped or forked slice.
+
+For consumers of witness audit-query responses (`network.tulpa.audit_query_response`, Auditability §7.3, added in `0.1.0-alpha.3`), call `verifyAuditQueryResponse({response, witnessPublicKey, expectedRequester, expectedMessageId, verifyEventSignature, expectedServiceDid?, laterCheckpoint?})`. The `verifyEventSignature` callback is REQUIRED: it resolves the submitting agent's Ed25519 keys (typically via Agent Card §2) and validates each event's `agentSignature`. Without it, the verifier refuses to return valid, because Merkle inclusion alone does not prove a real agent produced the event (§7.5). The verifier enforces envelope shape, the `requester` binding (prevents cross-requester replay), events/proofs strict one-to-one alignment, the §7.4 per-event scope rule, walks every Merkle proof via `computeAuditMerkleLeafHash` up to the response's `rootHash`, runs `verifyEventSignature` on every event and supports an optional later-checkpoint cross-check. The lower-level `verifyAuditQueryResponseSignature` is signature-only and is not sufficient to accept a witness response on its own.
 
 ## Tests
 
@@ -76,12 +78,12 @@ npm run lint        # eslint
 npm run check:surface   # public-surface drift check
 ```
 
-For Nix users: `nix develop` gives a pinned Node 22 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`.
+For Nix users: `nix develop` gives a pinned Node 22 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`. `nix run github:Ad-Astra-Computing/ink -- verify-inclusion --file receipt.json --witness https://witness.example.com` runs the CLI without installing anything globally.
 
 ## Layout
 
 ```
-src/           reference implementation
+src/           library implementation
   crypto/      signing, multi-key verification, key encoding
   models/      Zod schemas for Agent Card, handshake, key entries
   middleware/  transport-level INK auth (verifyInkAuth)
@@ -93,7 +95,7 @@ test-vectors/  JSON interop vectors
 test/          vitest unit + integration tests
 ```
 
-The reference implementation runs on any runtime providing standard Web Crypto and `fetch`: Node 22+, Deno, Bun, Cloudflare Workers, browsers. The timestamp freshness window is enforced inside `verifyInkAuth`; nonce single-use is enforced when a `NonceStore` is passed (otherwise `checkReplay` must be called separately). Nonce backing storage and its TTL policy are the integrator's choice.
+The library runs on any runtime providing standard Web Crypto and `fetch`: Node 22+, Deno, Bun, Cloudflare Workers, browsers. The timestamp freshness window is enforced inside `verifyInkAuth`; nonce single-use is enforced when a `NonceStore` is passed (otherwise `checkReplay` must be called separately). Nonce backing storage and its TTL policy are the integrator's choice.
 
 ## What's stable in v0.1
 
@@ -117,7 +119,7 @@ You will see `network.tulpa.*` on the wire (e.g. `network.tulpa.intent`) and `in
 
 ## Relationship to Tulpa
 
-INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the underlying protocol for [Tulpa](https://tulpa.network). The spec and the reference implementation in this repo are deliberately free of Tulpa product code so other agent platforms can adopt INK without inheriting Tulpa's surface area. Tulpa's product integration (message orchestration, marketplace, user-facing APIs) lives in a separate, closed-source codebase.
+INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the underlying protocol for [Tulpa](https://tulpa.network). The spec and the library in this repo are deliberately free of Tulpa product code so other agent platforms can adopt INK without inheriting Tulpa's surface area. Tulpa's product integration (message orchestration, marketplace, user-facing APIs) lives in a separate, closed-source codebase.
 
 ## Security
 

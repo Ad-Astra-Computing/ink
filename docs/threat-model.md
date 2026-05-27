@@ -80,7 +80,7 @@ bounds the damage window but does not eliminate it. Key custody is out of
 scope.
 
 ### Malicious marketplace extensions (if you integrate one)
-The reference implementation does not include an extension/marketplace
+The library does not include an extension/marketplace
 layer. A product that integrates INK and adds a delegation-token layer
 (for third-party agents to act on behalf of users) must design its own
 trust model for the marketplace, manifest review, and capability

@@ -5,6 +5,11 @@
 import { InkAuditEventTypeSchema } from "../src/models/ink-audit.js";
 import { KeyEntrySchema } from "../src/models/key-entry.js";
 
+// Intent-documentation set of wire types this version of INK defines.
+// NOT a programmatic drift check; there is no single runtime manifest
+// of wire types to diff against, so the set below is human-maintained.
+// When a new wire type is introduced, add it here AND to the matching
+// ink-site doc, AND to any witness/middleware schemas that gate on type.
 const DOCUMENTED_WIRE_TYPES = new Set<string>([
   "network.tulpa.intent",
   "network.tulpa.challenge",
@@ -13,6 +18,7 @@ const DOCUMENTED_WIRE_TYPES = new Set<string>([
   "network.tulpa.encrypted",
   "network.tulpa.receipt",
   "network.tulpa.audit_query",
+  "network.tulpa.audit_query_response",
   "network.tulpa.audit_response",
   "network.tulpa.audit_submit",
   "network.tulpa.audit_inclusion",
@@ -20,6 +26,7 @@ const DOCUMENTED_WIRE_TYPES = new Set<string>([
   "network.tulpa.agent_card_query",
   "network.tulpa.agent_card_response",
   "network.tulpa.agent_card_denied",
+  "network.tulpa.key_rotation",
 ]);
 
 const DOCUMENTED_AUDIT_EVENT_TYPES = new Set<string>([

@@ -76,7 +76,10 @@ Usage:
 Options:
   -w, --witness <url>      Witness base URL (e.g. https://witness.tulpa.network)
   -f, --file <path>        Receipt JSON file. Omit to read from stdin.
-  -e, --event-hash <hex>   Optional. Re-walk the inclusion proof using this leaf.
+  -e, --event-hash <hex>   Optional. RFC 6962 leaf hash for the audit event:
+                            SHA-256(0x00 || JCS(event-without-agentSignature)),
+                            hex-encoded. When set, the inclusion proof is
+                            re-walked from this leaf up to the claimed root.
   -h, --help               Show this help.
 
 Exit codes:

@@ -9,11 +9,14 @@ export {
   buildAuthHeader,
   computeMessageHash,
   computeEventHash,
+  computeAuditMerkleLeafHash,
   signAuditEvent,
   verifyAuditEventSignature,
   signAuditResponse,
   verifyAuditResponseSignature,
   verifyAuditEventChain,
+  signAuditQueryResponse,
+  verifyAuditQueryResponseSignature,
   encryptInkPayload,
   decryptInkPayload,
   checkReplay,
@@ -46,11 +49,14 @@ export {
 // Middleware: transport-level INK auth
 export { verifyInkAuth, type NonceStore } from "./middleware/ink-auth.js";
 
-// Audit: inclusion-receipt verification
+// Audit: inclusion-receipt + audit-query-response verification
 export {
   verifyInclusionReceipt,
+  verifyAuditQueryResponse,
   type InclusionReceipt,
   type InclusionReceiptVerifyResult,
+  type AuditQueryResponse,
+  type AuditQueryResponseVerifyResult,
   type VerifyStep,
 } from "./audit/inclusion-receipt.js";
 

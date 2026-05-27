@@ -39,7 +39,7 @@ In scope:
 
 Out of scope:
 
-- DoS via high-entropy inputs against the reference implementation
+- DoS via high-entropy inputs against the library
 - Attacks that require a compromised identity system (e.g., a malicious PDS returning a fabricated DID document)
 - Timing side-channels in the reference `@noble/ed25519` verification
 - Attacks on Tulpa's product infrastructure (separate codebase, separate disclosure process)

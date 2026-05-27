@@ -16,7 +16,7 @@ This checklist lets an independent implementer verify INK conformance without re
 - **SHOULD**, recommended; deviations require justification
 - **MAY**, truly optional; advertised via capability
 
-**Status column** applies to the Tulpa reference implementation:
+**Status column** applies to the Tulpa implementation:
 - **Required**, part of the v1 wire contract
 - **Optional**, capability-gated, not assumed
 - **Extension**, defined but not required for base interop
@@ -145,6 +145,14 @@ This checklist lets an independent implementer verify INK conformance without re
 | W6 | Checkpoint: C2SP tlog-checkpoint format at `GET /ink/v1/checkpoint` | SHOULD | Optional | Auditability §7 |, | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | `witness.json` | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | `test/ink-key-rotation.test.ts` |
+| W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `witness.json` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
+| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | Auditability §7.3 | `witness.json` | `test/merkle-leaf-hash.test.ts` |
+| W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 |, | `test/verify-audit-query-response.test.ts` |
+| W12 | Deterministic result-set ordering so signed bytes are reproducible | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
+| W13 | Fail-closed on truncation: refuse to sign a partial result; return unsigned 413 | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
+| W14 | Fail-closed on storage integrity (event_hash mismatch, missing Merkle node, column-vs-event_json drift): HTTP 500, no signed response | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
+| W15 | Empty-log response: `treeSize == 0` MUST have empty `events`, empty `proofs` and canonical empty-tree `rootHash` | MUST | Optional | Auditability §7.3 |, | `test/verify-audit-query-response.test.ts` |
+| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance) | MUST | Optional | Auditability §7.3, §7.5 |, | `test/verify-audit-query-response.test.ts` |
 
 ---
 
