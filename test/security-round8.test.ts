@@ -72,8 +72,7 @@ describe("buildSignatureBase: newline injection rejection", () => {
   it("newline injection does not produce a cross-field collision", async () => {
     // Ensure that path="/x\nrecip" does NOT yield the same signature base
     // as path="/x", recipientDid="recip" (by verifying they each fail to verify against the other)
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     const input1: InkSignInput = {
       method: "POST",
@@ -172,15 +171,13 @@ describe("verifyInkSignature: malformed input returns false", () => {
   };
 
   it("returns false for invalid base64url (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
     const result = await verifyInkSignature(goodInput, "!!!not-base64url!!!", pub);
     expect(result).toBe(false);
   });
 
   it("returns false for wrong-length signature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
     const shortSig = base64urlEncode(new Uint8Array(10));
     const result = await verifyInkSignature(goodInput, shortSig, pub);
     expect(result).toBe(false);
@@ -192,8 +189,7 @@ describe("verifyInkSignature: malformed input returns false", () => {
 
 describe("verifyAuditEventSignature: malformed input returns false", () => {
   it("returns false for a non-base64url agentSignature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
     const event = {
       id: "e1",
       agentId: "tulpa:z123",
@@ -205,8 +201,7 @@ describe("verifyAuditEventSignature: malformed input returns false", () => {
   });
 
   it("returns false for a wrong-length signature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
     const event = {
       id: "e1",
       agentId: "tulpa:z123",
@@ -220,15 +215,13 @@ describe("verifyAuditEventSignature: malformed input returns false", () => {
 
 describe("verifyAuditResponseSignature: malformed input returns false", () => {
   it("returns false for a non-base64url signature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
     const result = await verifyAuditResponseSignature([], "!!!not-base64url!!!", pub);
     expect(result).toBe(false);
   });
 
   it("returns false for a wrong-length signature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
     const result = await verifyAuditResponseSignature([], base64urlEncode(new Uint8Array(10)), pub);
     expect(result).toBe(false);
   });
@@ -239,8 +232,7 @@ describe("verifyAuditResponseSignature: malformed input returns false", () => {
 describe("decryptInkPayload: envelope.type validation", () => {
   it("rejects envelope with incorrect type field", async () => {
     const encKp = generateEncryptionKeypair();
-    const sigKp = ed.utils.randomPrivateKey();
-    const sigPub = await ed.getPublicKeyAsync(sigKp);
+    const { secretKey: sigKp, publicKey: sigPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(sigPub);
     const recipientPubHex = toHex(encKp.publicKey);
 
@@ -265,8 +257,7 @@ describe("decryptInkPayload: envelope.type validation", () => {
 
   it("accepts envelope with correct type field", async () => {
     const encKp = generateEncryptionKeypair();
-    const sigKp = ed.utils.randomPrivateKey();
-    const sigPub = await ed.getPublicKeyAsync(sigKp);
+    const { secretKey: sigKp, publicKey: sigPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(sigPub);
     const recipientPubHex = toHex(encKp.publicKey);
 

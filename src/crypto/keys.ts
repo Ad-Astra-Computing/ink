@@ -17,9 +17,8 @@ export interface Keypair {
 
 /** Generate a new Ed25519 keypair (signing). */
 export async function generateKeypair(): Promise<Keypair> {
-  const privateKey = ed.utils.randomPrivateKey();
-  const publicKey = await ed.getPublicKeyAsync(privateKey);
-  return { privateKey, publicKey };
+  const { secretKey, publicKey } = await ed.keygenAsync();
+  return { privateKey: secretKey, publicKey };
 }
 
 /** Generate a new X25519 keypair (encryption). */

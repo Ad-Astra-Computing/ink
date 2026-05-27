@@ -24,8 +24,7 @@ import { deriveAgentId, encodePublicKeyMultibase } from "../src/crypto/keys.js";
 
 describe("verifyInkAuth: empty key set rejects, does not fall through", () => {
   it("returns signature_verification_failed for empty candidate list", async () => {
-    const senderKp = ed.utils.randomPrivateKey();
-    const senderPub = await ed.getPublicKeyAsync(senderKp);
+    const { secretKey: senderKp, publicKey: senderPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(senderPub);
 
     const body = {
@@ -59,8 +58,7 @@ describe("verifyInkAuth: empty key set rejects, does not fall through", () => {
   });
 
   it("falls through to bootstrap only when key set is null", async () => {
-    const senderKp = ed.utils.randomPrivateKey();
-    const senderPub = await ed.getPublicKeyAsync(senderKp);
+    const { secretKey: senderKp, publicKey: senderPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(senderPub);
 
     const body = {
@@ -166,7 +164,7 @@ describe("extractCandidateKeys: empty signing array is authoritative", () => {
   it("skips malformed entries but keeps valid ones (no collapse to legacy)", async () => {
     const { extractCandidateKeys } = await import("../src/discovery/agent-card.js");
     const { encodePublicKeyMultibase } = await import("../src/crypto/keys.js");
-    const validPub = await ed.getPublicKeyAsync(ed.utils.randomPrivateKey());
+    const validPub = (await ed.keygenAsync()).publicKey;
     const validMb = encodePublicKeyMultibase(validPub);
     const card = {
       protocol: "ink/0.1" as const,

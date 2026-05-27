@@ -18,8 +18,7 @@ import { verifyInkSignatureWithKeys } from "../src/crypto/multi-key-verify.js";
 import type { CandidateKey } from "../src/models/key-entry.js";
 
 async function makeKey() {
-  const priv = ed.utils.randomPrivateKey();
-  const pub = await ed.getPublicKeyAsync(priv);
+  const { secretKey: priv, publicKey: pub } = await ed.keygenAsync();
   return { priv, pub };
 }
 

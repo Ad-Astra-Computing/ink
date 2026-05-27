@@ -31,8 +31,7 @@ function base64urlEncode(bytes: Uint8Array): string {
 describe("decryptInkPayload: AES nonce length validation", () => {
   it("rejects envelope with AES nonce that is not 12 bytes (too short)", async () => {
     const encKp = generateEncryptionKeypair();
-    const sigKp = ed.utils.randomPrivateKey();
-    const sigPub = await ed.getPublicKeyAsync(sigKp);
+    const { secretKey: sigKp, publicKey: sigPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(sigPub);
 
     // Encrypt a real envelope first so we have valid outer fields
@@ -57,8 +56,7 @@ describe("decryptInkPayload: AES nonce length validation", () => {
 
   it("rejects envelope with AES nonce that is not 12 bytes (too long)", async () => {
     const encKp = generateEncryptionKeypair();
-    const sigKp = ed.utils.randomPrivateKey();
-    const sigPub = await ed.getPublicKeyAsync(sigKp);
+    const { secretKey: sigKp, publicKey: sigPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(sigPub);
 
     const recipientPubHex = toHex(encKp.publicKey);
@@ -81,8 +79,7 @@ describe("decryptInkPayload: AES nonce length validation", () => {
 
   it("accepts a valid envelope with correct 12-byte AES nonce", async () => {
     const encKp = generateEncryptionKeypair();
-    const sigKp = ed.utils.randomPrivateKey();
-    const sigPub = await ed.getPublicKeyAsync(sigKp);
+    const { secretKey: sigKp, publicKey: sigPub } = await ed.keygenAsync();
     const agentId = deriveAgentId(sigPub);
 
     const recipientPubHex = toHex(encKp.publicKey);

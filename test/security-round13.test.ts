@@ -79,7 +79,7 @@ describe("HandshakeBudgetTracker: per-sender limits apply to rejections", () => 
 
 describe("verifyInkSignature: skips canonicalization on malformed signatures", () => {
   it("rejects malformed sigs without invoking the body", async () => {
-    const publicKey = await ed.getPublicKeyAsync(ed.utils.randomPrivateKey());
+    const publicKey = (await ed.keygenAsync()).publicKey;
     // Construct a body whose canonicalization would throw if reached —
     // a circular structure causes JSON.stringify to throw.
     const circular: Record<string, unknown> = {};
@@ -101,8 +101,7 @@ describe("verifyInkSignature: skips canonicalization on malformed signatures", (
   });
 
   it("still verifies a real signature on a real body", async () => {
-    const privateKey = ed.utils.randomPrivateKey();
-    const publicKey = await ed.getPublicKeyAsync(privateKey);
+    const { secretKey: privateKey, publicKey: publicKey } = await ed.keygenAsync();
     const input = {
       protocol: "ink/0.1" as const,
       method: "POST",

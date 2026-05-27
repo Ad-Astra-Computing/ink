@@ -125,8 +125,7 @@ describe("decryptInkPayload: recipientDid binding cannot be disabled by empty st
 describe("buildRedactedCard: preserves key validity windows", () => {
   it("redacted signing entries keep validFrom/validUntil/revokedAt", async () => {
     const sigKey = await (async () => {
-      const priv = ed.utils.randomPrivateKey();
-      const pub = await ed.getPublicKeyAsync(priv);
+      const { secretKey: priv, publicKey: pub } = await ed.keygenAsync();
       return { priv, pub };
     })();
     const sigMultibase = encodePublicKeyMultibase(sigKey.pub);

@@ -10,8 +10,7 @@ import type { CandidateKey } from "../src/models/key-entry.js";
 import type { AgentCard } from "../src/models/agent-card.js";
 
 async function makeKeypair() {
-  const privateKey = ed.utils.randomPrivateKey();
-  const publicKey = await ed.getPublicKeyAsync(privateKey);
+  const { secretKey: privateKey, publicKey: publicKey } = await ed.keygenAsync();
   return { privateKey, publicKey };
 }
 
