@@ -46,6 +46,14 @@ export {
 // Middleware: transport-level INK auth
 export { verifyInkAuth, type NonceStore } from "./middleware/ink-auth.js";
 
+// Audit: inclusion-receipt verification
+export {
+  verifyInclusionReceipt,
+  type InclusionReceipt,
+  type InclusionReceiptVerifyResult,
+  type VerifyStep,
+} from "./audit/inclusion-receipt.js";
+
 // Optional containment / governance primitives
 export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
 

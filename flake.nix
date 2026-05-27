@@ -37,7 +37,7 @@
         pname = "ink";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-S9a0OL9HkZ5ldfwVmRCK79hO5TM9YDmgjWJrB/3/oRo=";
+        npmDepsHash = "sha256-i/bLZUKPKREbnckI/5bylZ8j/Y2/9t4ZDH25ngaJX9c=";
         nodejs = pkgs.nodejs_22;
         dontNpmBuild = true;
         installPhase = ''
