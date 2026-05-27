@@ -498,9 +498,17 @@ Authorization: INK-Ed25519 <signature>
   "leafIndex": 48290,
   "rootHash": "<SHA-256 hex of Merkle tree root>",
   "timestamp": "2026-03-19T12:00:01Z",
-  "serviceSignature": "<Ed25519 signature over (eventId + treeSize + rootHash + timestamp)>"
+  "serviceSignature": "<Ed25519 signature, see canonical format below>"
 }
 ```
+
+**Canonical signature format.** `serviceSignature` is an Ed25519 signature over the bytes:
+
+```
+"ink/audit-inclusion/v1\n" || JCS(receipt-fields-without-serviceSignature)
+```
+
+where `JCS` is the RFC 8785 canonical JSON serialization of the inclusion-receipt object with all top-level fields except `serviceSignature` itself. The receipt object's fields used for the signature MUST be exactly `{eventId, leafIndex, treeSize, rootHash, timestamp}`. `protocol` and `type` are envelope metadata, not part of the signed payload. Verifiers reconstruct the signed bytes from the response and check the signature against the witness's published Ed25519 public key.
 
 The inclusion receipt is analogous to CT's Signed Certificate Timestamp (SCT). The agent stores it alongside the audit event and can present it as proof of timely submission.
 
