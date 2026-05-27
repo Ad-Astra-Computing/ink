@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+result
+result-*
 .DS_Store
 Thumbs.db
 *.log
