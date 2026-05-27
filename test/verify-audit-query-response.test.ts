@@ -5,7 +5,7 @@
  * binding, events↔proofs alignment, and per-event Merkle proof walk.
  */
 import { describe, it, expect } from "vitest";
-import { sha256 } from "@noble/hashes/sha2";
+import { sha256 } from "@noble/hashes/sha2.js";
 import * as ed from "@noble/ed25519";
 import {
   generateKeypair,

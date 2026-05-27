@@ -10,7 +10,7 @@
  * conformant witness; this test pins the difference.
  */
 import { describe, it, expect } from "vitest";
-import { sha256 } from "@noble/hashes/sha2";
+import { sha256 } from "@noble/hashes/sha2.js";
 import {
   computeAuditMerkleLeafHash,
   computeEventHash,

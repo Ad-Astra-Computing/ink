@@ -78,7 +78,7 @@ export const InkAuditEventSchema = z.object({
   correlationId: z.string().min(1).optional(),
   counterpartyId: z.string().min(1).optional(),
   signingKeyId: z.string().min(1).optional(),
-  data: z.record(z.unknown()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type InkAuditEvent = z.infer<typeof InkAuditEventSchema>;
