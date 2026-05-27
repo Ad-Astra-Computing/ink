@@ -3,15 +3,18 @@ title = "INK Protocol gitleaks config"
 # Inherit gitleaks' default ruleset (AWS, GitHub, GitLab, Stripe, generic
 # API keys, JWTs, private-key PEMs, etc.). Without this, the workflow
 # only catches the custom rule below and silently passes on every other
-# secret class — a placebo defense.
+# secret class, a placebo defense.
 [extend]
 useDefault = true
 
 # INK ships interop test vectors that contain deterministic Ed25519 private
-# keys. They are not secrets — they are the whole point of the fixtures —
-# and are documented as such in test-vectors/README.md. Allowlist them.
-[allowlist]
-description = "Deterministic test vector keys"
+# keys. They are not secrets, they are the whole point of the fixtures,
+# and are documented as such in test-vectors/README.md. Suppress ONLY the
+# generic-api-key rule on those files so other secret classes (AWS keys,
+# GitHub tokens, PEM blocks, etc.) still get caught if they ever slip in.
+[[allowlists]]
+description = "Deterministic test vector keys, generic-api-key only"
+targetRules = ["generic-api-key"]
 paths = [
   '''test-vectors/.*\.json$''',
 ]
