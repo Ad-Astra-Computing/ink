@@ -87,7 +87,7 @@ describe("sendReceiptFireAndForget: SSRF defenses", () => {
   async function run(endpoint: string, opts?: { allowPrivateHosts?: boolean }) {
     let called = false;
     const fakeFetch = (async () => { called = true; return new Response("", { status: 200 }); }) as typeof fetch;
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const receipt = await makeReceipt();
     await sendReceiptFireAndForget(endpoint, receipt, priv, fakeFetch, undefined, opts);
     return called;

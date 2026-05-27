@@ -20,8 +20,7 @@ import { parseCheckpoint } from "../src/ink/checkpoint.js";
 // ── Helpers ──
 
 async function makeKeypair() {
-  const privateKey = ed.utils.randomPrivateKey();
-  const publicKey = await ed.getPublicKeyAsync(privateKey);
+  const { secretKey: privateKey, publicKey: publicKey } = await ed.keygenAsync();
   return { privateKey, publicKey };
 }
 

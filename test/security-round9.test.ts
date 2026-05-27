@@ -19,8 +19,7 @@ function base64urlEncode(bytes: Uint8Array): string {
 
 describe("verifyMessage: malformed input returns false", () => {
   it("returns false for a non-base64url signature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     const msg = { id: "m1", type: "test", signature: "!!!not-base64url!!!" };
     const result = await verifyMessage(msg, pub);
@@ -28,8 +27,7 @@ describe("verifyMessage: malformed input returns false", () => {
   });
 
   it("returns false for a wrong-length signature (does not throw)", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     // 10 bytes — not 64 (Ed25519 sig length)
     const shortSig = base64urlEncode(new Uint8Array(10));
@@ -39,8 +37,7 @@ describe("verifyMessage: malformed input returns false", () => {
   });
 
   it("returns false when signature field is missing", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     const msg = { id: "m1", type: "test" };
     const result = await verifyMessage(msg, pub);
@@ -48,8 +45,7 @@ describe("verifyMessage: malformed input returns false", () => {
   });
 
   it("returns false for a valid-length but incorrect signature", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     const wrongSig = base64urlEncode(new Uint8Array(64));
     const msg = { id: "m1", type: "test", signature: wrongSig };
@@ -58,8 +54,7 @@ describe("verifyMessage: malformed input returns false", () => {
   });
 
   it("rejects signatures with non-base64url characters before decoding", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     // 86 chars including a space (whitespace is not in base64url alphabet)
     const badChars = "A".repeat(85) + " ";
@@ -69,8 +64,7 @@ describe("verifyMessage: malformed input returns false", () => {
   });
 
   it("rejects signatures of wrong length even if base64url-clean", async () => {
-    const kp = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(kp);
+    const { secretKey: kp, publicKey: pub } = await ed.keygenAsync();
 
     // 87 chars — wrong length for an Ed25519 signature
     const tooLong = "A".repeat(87);

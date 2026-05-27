@@ -10,8 +10,7 @@ import * as ed from "@noble/ed25519";
 import { checkReplay } from "../src/crypto/ink.js";
 
 async function makeKeypair() {
-  const privateKey = ed.utils.randomPrivateKey();
-  const publicKey = await ed.getPublicKeyAsync(privateKey);
+  const { secretKey: privateKey, publicKey: publicKey } = await ed.keygenAsync();
   return { privateKey, publicKey };
 }
 

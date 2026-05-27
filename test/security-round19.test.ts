@@ -30,7 +30,7 @@ function bytesToHex(b: Uint8Array): string {
 
 describe("buildSignatureBase: scalar field caps", () => {
   it("rejects empty method", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const input: InkSignInput = {
       method: "",
       path: "/ink/v1/intent",
@@ -42,7 +42,7 @@ describe("buildSignatureBase: scalar field caps", () => {
   });
 
   it("rejects oversized path", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const input: InkSignInput = {
       method: "POST",
       path: "/" + "x".repeat(3000),
@@ -54,7 +54,7 @@ describe("buildSignatureBase: scalar field caps", () => {
   });
 
   it("rejects oversized recipientDid", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const input: InkSignInput = {
       method: "POST",
       path: "/ink/v1/intent",
@@ -66,7 +66,7 @@ describe("buildSignatureBase: scalar field caps", () => {
   });
 
   it("rejects oversized timestamp", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const input: InkSignInput = {
       method: "POST",
       path: "/ink/v1/intent",

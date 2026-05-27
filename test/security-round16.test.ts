@@ -18,8 +18,7 @@ import { encodePublicKeyMultibase } from "../src/crypto/keys.js";
 import type { AgentCard } from "../src/models/agent-card.js";
 
 async function makeKey() {
-  const priv = ed.utils.randomPrivateKey();
-  const pub = await ed.getPublicKeyAsync(priv);
+  const { secretKey: priv, publicKey: pub } = await ed.keygenAsync();
   return { priv, pub };
 }
 

@@ -27,7 +27,7 @@ function bytesToHex(b: Uint8Array): string {
 
 describe("isWithinCanonicalizeBounds: byte budget catches huge single strings", () => {
   it("rejects a single 5MB string field at sign time", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const huge = "x".repeat(5_000_000);
     const input: InkSignInput = {
       method: "POST",
@@ -55,7 +55,7 @@ describe("isWithinCanonicalizeBounds: byte budget catches huge single strings", 
   });
 
   it("rejects signing an audit event with a single huge data field", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     const event = {
       id: "01HEXAMPLE",
       type: "message.sent",
@@ -65,8 +65,7 @@ describe("isWithinCanonicalizeBounds: byte budget catches huge single strings", 
   });
 
   it("sign.ts verifyMessage rejects a huge single-string body without canonicalizing", async () => {
-    const priv = ed.utils.randomPrivateKey();
-    const pub = await ed.getPublicKeyAsync(priv);
+    const { secretKey: priv, publicKey: pub } = await ed.keygenAsync();
     const huge = "x".repeat(5_000_000);
     const message = { from: "did:plc:alice", note: huge, signature: "A".repeat(86) };
     const ok = await verifyMessage(message, pub);
@@ -74,7 +73,7 @@ describe("isWithinCanonicalizeBounds: byte budget catches huge single strings", 
   });
 
   it("sign.ts signMessage rejects a huge single-string body", async () => {
-    const priv = ed.utils.randomPrivateKey();
+    const priv = ed.utils.randomSecretKey();
     await expect(signMessage({ note: "x".repeat(5_000_000) }, priv)).rejects.toThrow(/complexity|size/i);
   });
 });
