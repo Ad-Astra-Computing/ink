@@ -12,6 +12,20 @@
     in {
       default = pkgs.mkShell {
         packages = [pkgs.nodejs_22 pkgs.git pkgs.gitleaks];
+        shellHook = ''
+          cat <<'BANNER'
+
+              /\
+             /  \
+            |    |    ___ _   _ _  __
+            | () |   |_ _| \ | | |/ /
+            |    |    | ||  \| | ' /
+             \  /     | || |\  | . \
+              \/     |___|_| \_|_|\_\
+
+            Inter-agent Networking Kernel
+          BANNER
+        '';
       };
     });
 
