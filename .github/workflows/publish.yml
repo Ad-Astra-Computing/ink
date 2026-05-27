@@ -58,4 +58,9 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish to npm
-        run: npm publish --access public --provenance
+        # `--tag latest` is required because the version contains a
+        # prerelease identifier (e.g. 0.1.0-alpha.N). npm refuses to
+        # auto-tag prereleases as latest as of late 2025; we want the
+        # newest alpha to be the default install target until 1.0 ships.
+        # Switch to `--tag next` after the first stable release.
+        run: npm publish --access public --provenance --tag latest
