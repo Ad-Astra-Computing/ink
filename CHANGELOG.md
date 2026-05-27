@@ -8,6 +8,22 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.0-alpha.1, spec clarification
+
+Spec-only release. Reference-implementation code in `src/` is
+unchanged from `0.1.0-alpha.0`; the bundled spec text is updated.
+
+### Spec changes
+
+- `specs/ink-auditability.md` now pins the canonical
+  inclusion-receipt signature format: `ink/audit-inclusion/v1\n` +
+  JCS(`{eventId, leafIndex, treeSize, rootHash, timestamp}`).
+  Previously the spec described the signature as "over (eventId +
+  treeSize + rootHash + timestamp)" without specifying a separator
+  or encoding, which caused interop drift between implementations.
+  No code change in this package; downstream witness and verifier
+  implementations should align with the canonical format.
+
 ## 0.1.0-alpha.0, first public alpha
 
 Initial open-source release of the INK protocol reference implementation
