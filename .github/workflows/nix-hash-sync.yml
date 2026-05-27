@@ -1,0 +1,55 @@
+name: nix-hash-sync
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+    paths: [package-lock.json]
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  sync:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Compute new npmDepsHash
+        id: hash
+        run: |
+          NEW=$(nix run nixpkgs#prefetch-npm-deps -- package-lock.json)
+          echo "value=sha256-${NEW}" >> "$GITHUB_OUTPUT"
+
+      - name: Read current hash
+        id: current
+        run: |
+          CURRENT=$(grep -oE 'npmDepsHash = "sha256-[A-Za-z0-9+/=]*"' flake.nix | head -1 | sed -E 's/.*"(sha256-[^"]*)".*/\1/')
+          echo "value=$CURRENT" >> "$GITHUB_OUTPUT"
+
+      - name: Update flake.nix and commit via API (signed)
+        if: steps.hash.outputs.value != steps.current.outputs.value
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_HASH: ${{ steps.hash.outputs.value }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          sed -i "s|npmDepsHash = \"sha256-[A-Za-z0-9+/=]*\"|npmDepsHash = \"${NEW_HASH}\"|g" flake.nix
+          ENCODED=$(base64 -w0 flake.nix)
+          CURRENT_SHA=$(gh api "repos/${{ github.repository }}/contents/flake.nix?ref=${PR_BRANCH}" --jq '.sha')
+          gh api -X PUT "repos/${{ github.repository }}/contents/flake.nix" \
+            -f message="flake: sync npmDepsHash after dependency bump" \
+            -f content="$ENCODED" \
+            -f sha="$CURRENT_SHA" \
+            -f branch="$PR_BRANCH"
