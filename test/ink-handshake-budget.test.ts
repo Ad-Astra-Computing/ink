@@ -259,4 +259,57 @@ describe("HandshakeBudgetTracker", () => {
       expect(result.allowed).toBe(true);
     });
   });
+
+  // ── check() / recordAccepted() split ──
+
+  describe("check() vs recordAccepted()", () => {
+    it("check() alone does not mutate correlation or sender state", () => {
+      // Repeatedly check rejections — none of these should commit terminal,
+      // mark transitions, or consume the per-sender activity budget.
+      for (let i = 0; i < 20; i++) {
+        const r = tracker.check({ correlationId, fromDid: sender, messageType: "rejection" });
+        expect(r.allowed, `check #${i + 1} should still be allowed`).toBe(true);
+      }
+      // A subsequent committing call should still succeed.
+      const committed = tracker.recordAccepted({ correlationId, fromDid: sender, messageType: "rejection" });
+      expect(committed.allowed).toBe(true);
+    });
+
+    it("recordAccepted() of a terminal type blocks further check() for that correlation", () => {
+      tracker.recordAccepted({ correlationId, fromDid: sender, messageType: "rejection" });
+      const followup = tracker.check({ correlationId, fromDid: sender, messageType: "challenge" });
+      expect(followup.allowed).toBe(false);
+      expect(followup.reason).toBe("handshake_budget_exhausted");
+    });
+
+    it("check() on an unknown correlation does not create a row", () => {
+      // Exhaust nothing — just probe many distinct correlations.
+      for (let i = 0; i < 100; i++) {
+        tracker.check({ correlationId: `corr:probe-${i}`, fromDid: sender, messageType: "intent" });
+      }
+      // A committing call on a fresh correlation must still succeed,
+      // confirming the prior probes left no per-sender state behind.
+      const r = tracker.recordAccepted({ correlationId: "corr:real", fromDid: sender, messageType: "intent" });
+      expect(r.allowed).toBe(true);
+    });
+
+    it("check() does not burn the typed-rejection budget for a pairKey", () => {
+      // Drive the correlation to terminal via a committed rejection.
+      tracker.recordAccepted({ correlationId, fromDid: sender, messageType: "rejection" });
+
+      // check() the same pairKey: this would normally trigger a typed
+      // first-rejection if it mutated rejectionsSent. The split must
+      // observe the rejection without advancing the silent-drop state
+      // machine — otherwise check() would burn the typed rejection on
+      // behalf of a sender that never reached this code.
+      const r1 = tracker.check({ correlationId, fromDid: sender, messageType: "challenge" });
+      expect(r1.allowed).toBe(false);
+      // The first real eager-commit caller should still see a typed
+      // rejection (silentDrop: false) — i.e. check() did not poison
+      // the rejection-bookkeeping by claiming the typed response first.
+      const r2 = tracker.checkAndRecord({ correlationId, fromDid: sender, messageType: "challenge" });
+      expect(r2.allowed).toBe(false);
+      expect(r2.silentDrop).toBe(false);
+    });
+  });
 });

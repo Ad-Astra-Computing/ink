@@ -96,12 +96,65 @@ export class HandshakeBudgetTracker {
     this.maxRejectionEntries = pos(config.maxRejectionEntries, DEFAULT_MAX_REJECTION_ENTRIES, 1_000_000);
   }
 
+  /**
+   * Side-effect-free budget check. Returns the same BudgetCheckResult as
+   * checkAndRecord without mutating any internal state: no sender activity
+   * recorded, no correlation row created for an unknown intentRef, no
+   * transition counter incremented, no terminal flag set, and no rejection
+   * bookkeeping (rejectionsSent / senderRejectionsSent) advanced. Use this
+   * when you want to gate on budget BEFORE running expensive validation
+   * (signature verification, state-machine), then call recordAccepted()
+   * only on acceptance.
+   *
+   * Without the split, an invalid signed envelope for a known intentRef
+   * could pass the budget check, mark the correlation as terminal, then
+   * fail downstream validation — blocking later legitimate traffic for
+   * that correlation. Integrators that want the original eager-commit
+   * semantics can keep calling checkAndRecord.
+   */
+  check(params: {
+    correlationId: string;
+    fromDid: string;
+    messageType: "intent" | "challenge" | "rejection" | "resolution";
+    intentExpiresAt?: string;
+  }): BudgetCheckResult {
+    return this.checkOrRecord(params, /* commit */ false);
+  }
+
+  /**
+   * Commit a previously-checked acceptance. The check() return value is
+   * not load-bearing here — this method runs the same checks again and
+   * applies the mutation. Callers are responsible for not re-running
+   * recordAccepted() on the same message; a nonce cache typically
+   * prevents that path.
+   */
+  recordAccepted(params: {
+    correlationId: string;
+    fromDid: string;
+    messageType: "intent" | "challenge" | "rejection" | "resolution";
+    intentExpiresAt?: string;
+  }): BudgetCheckResult {
+    return this.checkOrRecord(params, /* commit */ true);
+  }
+
   checkAndRecord(params: {
     correlationId: string;
     fromDid: string;
     messageType: "intent" | "challenge" | "rejection" | "resolution";
     intentExpiresAt?: string;
   }): BudgetCheckResult {
+    return this.checkOrRecord(params, /* commit */ true);
+  }
+
+  private checkOrRecord(
+    params: {
+      correlationId: string;
+      fromDid: string;
+      messageType: "intent" | "challenge" | "rejection" | "resolution";
+      intentExpiresAt?: string;
+    },
+    commit: boolean,
+  ): BudgetCheckResult {
     const { correlationId, fromDid, messageType, intentExpiresAt } = params;
     const now = Date.now();
     // Reject unbounded IDs before they hit Map keys / Set entries — caps the
@@ -124,7 +177,7 @@ export class HandshakeBudgetTracker {
     }
 
     // Check per-sender rate limits first (applies across all correlations)
-    const senderResult = this.checkSenderLimits(fromDid, messageType, now);
+    const senderResult = this.checkSenderLimits(fromDid, messageType, now, commit);
     if (!senderResult.allowed) {
       return senderResult;
     }
@@ -133,7 +186,10 @@ export class HandshakeBudgetTracker {
     // syntactically valid attempt — including ones that fail downstream
     // budget checks. Otherwise an attacker varying correlationId can trigger
     // unlimited typed rejections without ever hitting the per-sender cap.
-    this.recordSenderActivity(fromDid, messageType, now);
+    // Skip in check-only mode so the public check() is side-effect free.
+    if (commit) {
+      this.recordSenderActivity(fromDid, messageType, now);
+    }
 
     // Check TTL from intent expiry.
     // Distinguish "field absent" (undefined) from "field present but
@@ -157,13 +213,13 @@ export class HandshakeBudgetTracker {
       ) {
         return this.makeRejection(pairKey, "handshake_budget_exhausted", {
           backoffClass: "intent_ref",
-        });
+        }, commit);
       }
       const expiryMs = new Date(intentExpiresAt).getTime();
       if (!Number.isFinite(expiryMs) || expiryMs <= now) {
         return this.makeRejection(pairKey, "handshake_budget_exhausted", {
           backoffClass: "intent_ref",
-        });
+        }, commit);
       }
       parsedExpiryMs = expiryMs;
     }
@@ -174,6 +230,12 @@ export class HandshakeBudgetTracker {
     // other's handshake.
     let state = this.correlations.get(pairKey);
     if (!state) {
+      if (!commit) {
+        // Check-only mode does NOT create a row for an unknown
+        // correlation — that would itself be a side effect and would
+        // let unauthenticated traffic balloon the in-memory map.
+        return { allowed: true };
+      }
       // Enforce memory bounds before creating new entry
       this.enforceMemoryBounds();
 
@@ -196,28 +258,32 @@ export class HandshakeBudgetTracker {
     if (state.expiresAt <= now) {
       return this.makeRejection(pairKey, "handshake_budget_exhausted", {
         backoffClass: "intent_ref",
-      });
+      }, commit);
     }
 
     // Check if terminal state was already reached
     if (state.terminal) {
       return this.makeRejection(pairKey, "handshake_budget_exhausted", {
         backoffClass: "intent_ref",
-      });
+      }, commit);
     }
 
     // Check total transitions
     if (state.totalTransitions >= this.maxTotalTransitions) {
       return this.makeRejection(pairKey, "handshake_budget_exhausted", {
         backoffClass: "intent_ref",
-      });
+      }, commit);
     }
 
     // Check per-type limits
     if (messageType === "challenge" && state.challenges >= this.maxChallenges) {
       return this.makeRejection(pairKey, "handshake_budget_exhausted", {
         backoffClass: "intent_ref",
-      });
+      }, commit);
+    }
+
+    if (!commit) {
+      return { allowed: true };
     }
 
     // Record the message
@@ -268,6 +334,7 @@ export class HandshakeBudgetTracker {
     fromDid: string,
     messageType: string,
     now: number,
+    commit: boolean,
   ): BudgetCheckResult {
     const state = this.senders.get(fromDid);
     if (!state) return { allowed: true };
@@ -278,14 +345,14 @@ export class HandshakeBudgetTracker {
     if (messageType === "intent") {
       const recentIntents = state.intentTimestamps.filter((t) => t > oneMinuteAgo);
       if (recentIntents.length >= this.maxIntentsPerMinute) {
-        return this.makeSenderRejection(fromDid, now);
+        return this.makeSenderRejection(fromDid, now, commit);
       }
     }
 
     // Check per-minute total handshake message limit
     const recentHandshake = state.handshakeTimestamps.filter((t) => t > oneMinuteAgo);
     if (recentHandshake.length >= this.maxHandshakeMsgsPerMinute) {
-      return this.makeSenderRejection(fromDid, now);
+      return this.makeSenderRejection(fromDid, now, commit);
     }
 
     return { allowed: true };
@@ -295,10 +362,24 @@ export class HandshakeBudgetTracker {
   // the first time a sender crosses the limit in the current window; silent-drops
   // subsequent violations until the window resets. Mirrors the per-correlation
   // makeRejection pattern from §5 of the INK Containment spec.
-  private makeSenderRejection(fromDid: string, now: number): BudgetCheckResult {
+  //
+  // When commit=false the rejection shape is computed without touching
+  // senderRejectionsSent, so check() can peek at the rate-limit state
+  // without burning the "typed rejection" budget for that sender.
+  private makeSenderRejection(fromDid: string, now: number, commit: boolean): BudgetCheckResult {
     const lastSent = this.senderRejectionsSent.get(fromDid);
     if (lastSent !== undefined && now - lastSent < SENDER_REJECTION_WINDOW_MS) {
       return { allowed: false, reason: "sender_rate_limited", silentDrop: true };
+    }
+    if (!commit) {
+      // Observation-only: would have been a typed rejection on a commit
+      // path, but the silent-drop state machine is not advanced here.
+      return {
+        allowed: false,
+        reason: "sender_rate_limited",
+        backoffHint: { retryAfterSeconds: 60, backoffClass: "sender" },
+        silentDrop: false,
+      };
     }
     // Bound the map by maxSenders to prevent attacker-driven growth. Evict the
     // oldest record if at capacity; the pruneExpired pass also cleans up
@@ -341,9 +422,18 @@ export class HandshakeBudgetTracker {
     pairKey: string,
     reason: string,
     backoffHint: InkBackoffHint,
+    commit: boolean,
   ): BudgetCheckResult {
     if (this.rejectionsSent.has(pairKey)) {
       return { allowed: false, reason, silentDrop: true };
+    }
+    if (!commit) {
+      // Observation-only: would have been the typed first-rejection on a
+      // commit path. rejectionsSent is left alone so that a subsequent
+      // recordAccepted (or checkAndRecord) for the same pairKey still
+      // gets the "first typed" response — otherwise check() would burn
+      // the typed-rejection budget for any pairKey it ever probed.
+      return { allowed: false, reason, backoffHint, silentDrop: false };
     }
     this.rejectionsSent.add(pairKey);
     this.enforceRejectionBounds();
