@@ -20,13 +20,13 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v22
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
           extra-conf: |
             experimental-features = nix-command flakes
 
       - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@v13
+        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
 
       - name: Install npm deps
         run: nix develop --command npm ci
@@ -42,6 +42,13 @@ jobs:
 
       - name: Public-surface drift check
         run: nix develop --command npm run check:surface
+
+      - name: Pack-and-import smoke
+        # Builds the tarball with the same hooks publish uses, installs
+        # it into a clean directory, and imports the entry point. Catches
+        # any release that would ship a broken package (missing dist/,
+        # wrong main, unresolvable re-exports, raw TS sneaking back in).
+        run: nix develop --command npm run check:pack
 
       - name: Verify version matches tag
         run: |

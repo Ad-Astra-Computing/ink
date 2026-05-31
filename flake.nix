@@ -11,7 +11,7 @@
       pkgs = nixpkgs.legacyPackages.${system};
     in {
       default = pkgs.mkShell {
-        packages = [pkgs.nodejs_22 pkgs.git pkgs.gitleaks];
+        packages = [pkgs.nodejs_24 pkgs.git pkgs.gitleaks];
         shellHook = ''
           cat <<'BANNER'
 
@@ -40,7 +40,7 @@
         version = pkg.version;
         src = ./.;
         npmDepsHash = "sha256-Ve3SYzvESuBqKGl14ig/6HRRtgKvIgTRDPvkpK69Tts=";
-        nodejs = pkgs.nodejs_22;
+        nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
           runHook preInstall
@@ -65,7 +65,7 @@
         version = pkg.version;
         src = ./.;
         npmDepsHash = "sha256-Ve3SYzvESuBqKGl14ig/6HRRtgKvIgTRDPvkpK69Tts=";
-        nodejs = pkgs.nodejs_22;
+        nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
           runHook preInstall
@@ -76,7 +76,7 @@
             $out/lib/node_modules/@adastracomputing/ink/
           cat > $out/bin/ink <<EOF
           #!${pkgs.bash}/bin/bash
-          exec ${pkgs.nodejs_22}/bin/node \\
+          exec ${pkgs.nodejs_24}/bin/node \\
             $out/lib/node_modules/@adastracomputing/ink/bin/ink.mjs "\$@"
           EOF
           chmod +x $out/bin/ink

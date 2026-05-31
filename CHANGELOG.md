@@ -8,6 +8,30 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.0-alpha.5, ship compiled JS
+
+Fixes a publish-time regression in `0.1.0-alpha.3` (and the unreleased
+`alpha.4`) where the package shipped raw TypeScript under `main` and
+`exports`. Node 24 refuses to strip types from anything under
+`node_modules`, so any consumer following the quickstart hit
+`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` on the first `import`
+and could not use the library at all.
+
+### Changed
+
+- `npm run build` compiles `src/` to `dist/` via `tsconfig.build.json`;
+  `prepublishOnly` runs it automatically so the npm tarball always
+  contains compiled JS plus declaration maps.
+- `main`, `types` and `exports."."` now point at `./dist/index.js` and
+  `./dist/index.d.ts`. The `files` array ships `dist/` instead of
+  `src/`, so consumers no longer see raw TS in `node_modules`.
+- Dev shell and `engines.node` move from Node 22 to Node 24 (the
+  current Active LTS) to match CI.
+
+End-to-end verified against `witness-demo.tulpa.network`: the
+quickstart `submit.mjs` now returns a signed inclusion receipt on
+Node 24 without modification.
+
 ## 0.1.0-alpha.3, signed audit-query response
 
 Closes the last HIGH conformance-audit finding (witness audit-query
