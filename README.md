@@ -29,7 +29,7 @@ INK assumes [AT Protocol](https://atproto.com) for identity by default but isn't
 npm install @adastracomputing/ink
 ```
 
-The package ships TypeScript sources directly. Consumers need a TS-aware toolchain (tsx, ts-node, esbuild, Vite, etc.).
+The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly — no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
 
 ```ts
 import {
@@ -78,7 +78,7 @@ npm run lint        # eslint
 npm run check:surface   # public-surface drift check
 ```
 
-For Nix users: `nix develop` gives a pinned Node 22 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`. `nix run github:Ad-Astra-Computing/ink -- verify-inclusion --file receipt.json --witness https://witness.example.com` runs the CLI without installing anything globally.
+For Nix users: `nix develop` gives a pinned Node 24 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`. `nix run github:Ad-Astra-Computing/ink -- verify-inclusion --file receipt.json --witness https://witness.example.com` runs the CLI without installing anything globally.
 
 ## Layout
 
@@ -95,7 +95,7 @@ test-vectors/  JSON interop vectors
 test/          vitest unit + integration tests
 ```
 
-The library runs on any runtime providing standard Web Crypto and `fetch`: Node 22+, Deno, Bun, Cloudflare Workers, browsers. The timestamp freshness window is enforced inside `verifyInkAuth`; nonce single-use is enforced when a `NonceStore` is passed (otherwise `checkReplay` must be called separately). Nonce backing storage and its TTL policy are the integrator's choice.
+The library runs on any runtime providing standard Web Crypto and `fetch`: Node 24+, Deno, Bun, Cloudflare Workers, browsers. The timestamp freshness window is enforced inside `verifyInkAuth`; nonce single-use is enforced when a `NonceStore` is passed (otherwise `checkReplay` must be called separately). Nonce backing storage and its TTL policy are the integrator's choice.
 
 ## What's stable in v0.1
 
