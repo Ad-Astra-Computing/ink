@@ -20,7 +20,7 @@ npm test          # vitest run
 npm run typecheck # tsc --noEmit
 ```
 
-Requires Node 22+ and npm 10+.
+Requires Node 24+ and npm 10+.
 
 ## Test policy
 
