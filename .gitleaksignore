@@ -1,0 +1,12 @@
+# False positives suppressed from gitleaks scans.
+#
+# Each line is `<commit>:<path>:<rule>:<line>`. New entries here mean
+# gitleaks WILL NOT alert on that specific match. Every entry must
+# have a justification comment explaining why the match is not a real
+# secret.
+
+# `private_key: Ed25519PrivateKey` is a Python dataclass type
+# annotation, not an actual secret. The generic-api-key rule trips on
+# the high-entropy substring. The class itself documents that the raw
+# bytes are intentionally not exposed on the dataclass surface.
+c82048276408ea1321b39ae9c4f722c9599d8cd3:examples/interop-cli/src/ink_interop/crypto.py:generic-api-key:52
