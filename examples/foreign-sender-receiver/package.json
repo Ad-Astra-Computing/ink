@@ -1,0 +1,20 @@
+{
+  "name": "@adastracomputing/ink-foreign-sender-receiver-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reference TypeScript implementation of the receive-side patterns documented in the INK Accepting Foreign Senders implementer guide.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@adastracomputing/ink": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "@types/node": "^22.0.0"
+  }
+}
