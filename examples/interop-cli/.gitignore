@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+
+# Private seed files written by `ink-interop keygen --out-seed`. Never commit a real one.
+*.seed
