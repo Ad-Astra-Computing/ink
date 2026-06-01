@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
+  id-token: write   # required for npm provenance (sigstore OIDC).
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -75,3 +75,35 @@ jobs:
         # versions a maintainer has stamped adopter-grade. Adopters who
         # want the bleeding edge use `npm install @adastracomputing/ink@next`.
         run: npm publish --access public --provenance --tag next
+
+      - name: Create GitHub Release from CHANGELOG
+        # The release body is the matching CHANGELOG section. Reading
+        # from the file lives in-repo so future contributors don't
+        # need a maintainer's machine to backfill or re-cut a release.
+        # Heredoc + literal markdown is intentional — no external action,
+        # so no third-party SHA to keep updated, and no privileged token
+        # beyond the default GITHUB_TOKEN which can only act on this repo.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#v}"
+          # Extract the CHANGELOG block from `## <version>(,|$)` up to
+          # (but not including) the next `## ` heading. Drop the leading
+          # heading line; the release title carries the version already.
+          body_file="$(mktemp)"
+          awk -v p="^## ${version}(,|\$)" '
+            $0 ~ p { in_block=1; next }
+            in_block && /^## / { in_block=0 }
+            in_block { print }
+          ' CHANGELOG.md > "$body_file"
+          if [ ! -s "$body_file" ]; then
+            echo "No CHANGELOG section found for ${version}; skipping release body."
+            echo "Refer to CHANGELOG.md for changes." > "$body_file"
+          fi
+          # All pre-1.0 releases are pre-release. Once a 1.0.0 lands
+          # this should switch to a semver-based check on the tag.
+          gh release create "$tag" \
+            --title "$tag" \
+            --notes-file "$body_file" \
+            --prerelease
