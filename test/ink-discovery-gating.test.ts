@@ -60,7 +60,9 @@ describe("buildRedactedCard", () => {
     expect(redacted.displayName).toBe(fullCard.displayName);
     expect(redacted.supportsInk).toBe(true);
     expect(redacted.discoveryMode).toBe("authenticate_for_details");
-    expect(redacted.type).toBe("tulpa.agent.card");
+    // INK v0.1.1 emits the protocol-generic name; the type union
+    // still accepts the legacy "tulpa.agent.card" for inbound parsing.
+    expect(redacted.type).toBe("ink.agent.card");
     expect(redacted.version).toBe("1.0");
   });
 

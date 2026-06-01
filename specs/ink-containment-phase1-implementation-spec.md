@@ -182,7 +182,7 @@ When visibility is `capability_gated`, unauthenticated requests to the Agent Car
 
 ```typescript
 interface RedactedAgentCard {
-  type: "tulpa.agent.card";
+  type: "ink.agent.card";  // legacy "tulpa.agent.card" MUST also be accepted during v0.1.x
   version: "1.0";
   agentId: string;
   displayName?: string;

@@ -425,7 +425,7 @@ A third-party audit service is a **INK service role**, not a standard INK agent.
 | Concern | INK Agent | Audit Service |
 |---------|-----------|--------------|
 | Identity | DID bound to a human via `agentLink` | `did:web` or `did:key`, self-sovereign, no human owner |
-| Discovery | `TulpaAgentEndpoint` in DID document | Advertised in subscribing agents' Agent Card `capabilities.thirdPartyAudit.services` |
+| Discovery | `INKAgentEndpoint` in DID document (legacy `TulpaAgentEndpoint` also accepted during v0.1.x) | Advertised in subscribing agents' Agent Card `capabilities.thirdPartyAudit.services` |
 | Auth (inbound) | INK auth §3.3, verifies sender's `agentLink` delegation | INK auth §3.3, verifies sender's `agentLink` delegation (same as any INK endpoint) |
 | Auth (outbound) | Signs with `agentLink.signingKeyMultibase` | Signs with its own Ed25519 key (published in subscribing agents' Agent Card) |
 | Delegation proof | Required, must trace authority back to a human DID | Not applicable, the service is independently trusted by each subscribing agent |
@@ -436,7 +436,7 @@ A third-party audit service is a **INK service role**, not a standard INK agent.
 
 2. **Inbound auth is standard INK.** When agents submit events TO the service, the service verifies the submitter's identity via standard INK auth (§3.3), resolve the sender's DID, find their `agentLink`, verify the signature. The service is a normal INK recipient in this direction.
 
-3. **Service DID resolution.** The service's `did:web` (or `did:key`) is resolved normally for TLS binding and key discovery, but the service does NOT need a `TulpaAgentEndpoint` service entry in its DID document. Its endpoint is provided directly in the subscribing agent's Agent Card configuration.
+3. **Service DID resolution.** The service's `did:web` (or `did:key`) is resolved normally for TLS binding and key discovery, but the service does NOT need an `INKAgentEndpoint` service entry in its DID document. Its endpoint is provided directly in the subscribing agent's Agent Card configuration.
 
 4. **No inbox, no intents.** The audit service does not accept INK intents, challenges or resolutions. It exposes only the audit-specific endpoints (`/ink/v1/audit/submit`, `/ink/v1/audit/query`).
 

@@ -19,8 +19,21 @@ export const AgentCardSchema = z.object({
   atprotoRecordUri: z.string().optional(),
   handle: z.string(),
   displayName: z.string().max(200),
+  /**
+   * Inbound message endpoint URL. Required.
+   *
+   * `inboxEndpoint` is accepted as an optional forward-compat hint
+   * from v0.1.1 onward; when present it MUST equal `endpoint`. The
+   * long-term name is settled at the next wire-version bump, so
+   * publishers SHOULD continue to emit `endpoint` for v0.1.x and
+   * MAY emit `inboxEndpoint` alongside it. The runtime helper
+   * `resolveAgentInbox(card)` returns whichever value is present.
+   */
   endpoint: z.string().url(),
+  inboxEndpoint: z.string().url().optional(),
   publicKeyMultibase: z.string().startsWith("z"),
+  // (other fields below; the `inboxEndpoint === endpoint` invariant
+  // is enforced by the .superRefine() at the bottom of this schema.)
   profileSnapshot: ProfileSnapshotSchema.optional(),
   capabilities: z.object({
     intentsAccepted: z.array(IntentTypeSchema),
@@ -58,6 +71,42 @@ export const AgentCardSchema = z.object({
       maxIntentsPerMinute: z.number().int().positive().optional(),
     }).optional(),
   }).optional(),
+}).superRefine((card, ctx) => {
+  // v0.1.1: when both endpoint and inboxEndpoint are present they
+  // MUST refer to the same URL. The spec rationale is that the alias
+  // exists for forward compat, not as a way to publish two distinct
+  // inbound URLs under one card — a card with mismatched endpoints
+  // is ambiguous about which one to deliver to.
+  if (card.inboxEndpoint && card.endpoint && card.inboxEndpoint !== card.endpoint) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["inboxEndpoint"],
+      message: "inboxEndpoint MUST equal endpoint when both are present (v0.1.1 spec).",
+    });
+  }
 });
 
 export type AgentCard = z.infer<typeof AgentCardSchema>;
+
+/**
+ * Return the inbound message URL for an Agent Card.
+ *
+ * Under v0.1.1, `endpoint` is still required on every parsed
+ * `AgentCard`, so this helper effectively returns `card.endpoint`
+ * today. The `?? card.inboxEndpoint` fallback is in place for the
+ * future v0.x revision where `inboxEndpoint` will become primary
+ * (with `endpoint` accepted as the legacy alias). Consumers SHOULD
+ * use this helper rather than reading `.endpoint` directly so the
+ * eventual swap is a one-import change.
+ *
+ * `inboxEndpoint` (when present alongside `endpoint`) MUST equal
+ * `endpoint`; that invariant is enforced by `AgentCardSchema`.
+ */
+export function resolveAgentInbox(card: AgentCard): string {
+  // `card.endpoint` is required by the v0.1.x schema so the first
+  // branch always succeeds today. The `??` chain is in place for the
+  // future revision where `endpoint` becomes optional and
+  // `inboxEndpoint` becomes the primary field; consumers using this
+  // helper get the swap for free.
+  return card.endpoint ?? card.inboxEndpoint;
+}

@@ -8,6 +8,24 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.1, discovery rename and normative SSRF floor
+
+This release is **wire-compatible with v0.1.0**; the wire version stays `ink/0.1`. Every change below is additive and accepts the prior shape for the duration of the v0.1.x line — implementations that emit and consume v0.1.0 cards / service entries continue to interoperate. One observable library behavior changes: the runtime emit value of the redacted Agent Card `type` field flips from `"tulpa.agent.card"` to `"ink.agent.card"` (see below). Consumers that pinned to the literal must accept either string; the TypeScript union has been widened accordingly.
+
+**Service entry rename.** The DID Document service entry for INK endpoints is now `type: "INKAgentEndpoint"`. The legacy `"TulpaAgentEndpoint"` is still accepted by consumers during v0.1.x; new publishers SHOULD emit `INKAgentEndpoint`. When both are present, `INKAgentEndpoint` takes precedence. Removed at the next wire-version bump.
+
+**Service entry now points at the Agent Card URL.** `serviceEndpoint` is the URL of the Agent Card, not the inbound message endpoint. Inbound URL stays on the Card itself in the `endpoint` field. Per the spec update, `inboxEndpoint` is also accepted as a synonym for `endpoint`.
+
+**Normative SSRF floor for discovery fetches.** The Discovery spec now mandates HTTPS-only, refusal of private/link-local/loopback/cloud-metadata hosts, bounded redirects with host re-checking on each hop, response size and time caps, and honoring `Cache-Control`. Detailed hardening stays implementer responsibility but the normative floor lives in the spec.
+
+**Normative DID-binding of fetched cards.** Consumers MUST bind the card's `ownerDid` (when present) to the DID under resolution, and bind the card's `agentId` to the agent identifier being sent to. A mismatch on either field is a hard reject. This closes the substitution attack where a host that legitimately publishes one DID claims to publish another.
+
+**Cache and refresh rules lifted into normative Discovery.** Refresh on signature/keyId miss, on observed `keySetVersion` increase, never fall back to bootstrap keys after a valid card has been observed.
+
+**Redacted Agent Card type renamed.** The `type` field on a redacted Agent Card is now `"ink.agent.card"`. Consumers MUST also accept the legacy `"tulpa.agent.card"` during v0.1.x. The `network.tulpa.*` wire-message types are explicitly **frozen** for v0.x per the compatibility policy; rewriting them would break every deployed router.
+
+**Wire version is `ink/0.1`.** All v0.1.x package releases emit `protocol: "ink/0.1"` on the wire. The next wire-version bump is `ink/0.2`.
+
 ## 0.1.0-alpha.5, ship compiled JS
 
 Fixes a publish-time regression in `0.1.0-alpha.3` (and the unreleased

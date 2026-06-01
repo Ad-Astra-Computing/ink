@@ -15,8 +15,17 @@ export { AgentCardVisibilitySchema, type AgentCardVisibility } from "../models/i
 
 // ── Redacted card ──
 
+/**
+ * The redacted Agent Card returned by visibility-aware GETs.
+ *
+ * The `type` field's canonical value is `"ink.agent.card"` from
+ * INK v0.1.1 onward. The legacy value `"tulpa.agent.card"` MUST
+ * also be accepted by consumers during the v0.1.x window so old
+ * publishers (and older snapshots of this library) keep parsing.
+ * The legacy synonym is removed at the next wire-version bump.
+ */
 export interface RedactedAgentCard {
-  type: "tulpa.agent.card";
+  type: "ink.agent.card" | "tulpa.agent.card";
   version: "1.0";
   agentId: string;
   displayName?: string;
@@ -69,7 +78,10 @@ export function buildRedactedCard(card: AgentCard): RedactedAgentCard {
   const visibility: "network_only" | "capability_gated" =
     card.visibility === "network_only" ? "network_only" : "capability_gated";
   const out: RedactedAgentCard = {
-    type: "tulpa.agent.card",
+    // INK v0.1.1+: emit the protocol-generic name. The interface
+    // union accepts both so consumers that hold pre-v0.1.1 cached
+    // values keep parsing.
+    type: "ink.agent.card",
     version: "1.0",
     agentId: card.agentId,
     displayName: card.displayName,
