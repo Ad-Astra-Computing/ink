@@ -19,6 +19,21 @@ paths = [
   '''test-vectors/.*\.json$''',
 ]
 
+# The Python interop CLI's Keypair dataclass at
+# examples/interop-cli/src/ink_interop/crypto.py declares its
+# private-key field with the cryptography library's class as the type
+# annotation. The generic-api-key rule trips on the type name (a long
+# alphanumeric substring), not on any actual secret value. The class
+# docstring documents that the raw key bytes are deliberately not
+# exposed on the dataclass surface. Suppress ONLY the generic-api-key
+# rule on this file so an actual secret would still be caught.
+[[allowlists]]
+description = "Python dataclass type annotation, generic-api-key only"
+targetRules = ["generic-api-key"]
+paths = [
+  '''examples/interop-cli/src/ink_interop/crypto\.py$''',
+]
+
 [[rules]]
 id = "cloudflare-api-token"
 description = "Cloudflare API token"
