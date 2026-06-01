@@ -124,8 +124,18 @@ def decode_public_key_multibase(multibase: str) -> bytes:
     return key
 
 
+MIN_NONCE_BYTES = 16
+
+
 def generate_nonce(num_bytes: int = 16) -> str:
-    """Generate a base64url-encoded random nonce for replay protection."""
+    """Generate a base64url-encoded random nonce for replay protection.
+
+    Enforces a 16-byte minimum so a caller cannot accidentally request a
+    nonce too short to be collision-resistant against an adversary
+    replaying intents within the spec's freshness window.
+    """
+    if num_bytes < MIN_NONCE_BYTES:
+        raise ValueError(f"nonce must be at least {MIN_NONCE_BYTES} bytes, got {num_bytes}")
     return base64.urlsafe_b64encode(token_bytes(num_bytes)).rstrip(b"=").decode("ascii")
 
 

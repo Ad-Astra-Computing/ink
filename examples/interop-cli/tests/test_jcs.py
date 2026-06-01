@@ -81,3 +81,43 @@ def test_empty_collections() -> None:
 def test_unsupported_type_rejected() -> None:
     with pytest.raises(ValueError, match="unsupported JSON type"):
         canonicalize({"k": object()})
+
+
+def test_non_integer_float_rejected() -> None:
+    with pytest.raises(ValueError, match="non-integer float"):
+        canonicalize({"v": 0.5})
+    with pytest.raises(ValueError, match="non-integer float"):
+        canonicalize({"v": 1.000_001})
+
+
+def test_oversized_integer_rejected() -> None:
+    # ±(2^53 - 1) is the safe boundary; one step past it must reject.
+    with pytest.raises(ValueError, match="safe range"):
+        canonicalize({"v": 1 << 53})
+    with pytest.raises(ValueError, match="safe range"):
+        canonicalize({"v": -(1 << 53)})
+
+
+def test_safe_integer_boundary_accepted() -> None:
+    safe_max = (1 << 53) - 1
+    assert canonicalize({"v": safe_max}) == f'{{"v":{safe_max}}}'.encode()
+    assert canonicalize({"v": -safe_max}) == f'{{"v":-{safe_max}}}'.encode()
+
+
+def test_oversized_integer_float_rejected() -> None:
+    with pytest.raises(ValueError, match="safe range"):
+        canonicalize({"v": float(1 << 53)})
+
+
+def test_lone_surrogate_in_string_rejected() -> None:
+    lone_high = "\ud800"
+    with pytest.raises(ValueError, match="lone surrogate"):
+        canonicalize({"v": lone_high})
+    lone_low = "\udfff"
+    with pytest.raises(ValueError, match="lone surrogate"):
+        canonicalize({"v": lone_low})
+
+
+def test_lone_surrogate_in_key_rejected() -> None:
+    with pytest.raises(ValueError, match="lone surrogate"):
+        canonicalize({"\ud800": 1})

@@ -63,6 +63,13 @@ def test_generate_nonce_is_url_safe_and_long_enough() -> None:
     assert len(n) >= 20
 
 
+def test_generate_nonce_rejects_under_minimum() -> None:
+    with pytest.raises(ValueError, match="at least"):
+        crypto.generate_nonce(num_bytes=8)
+    with pytest.raises(ValueError, match="at least"):
+        crypto.generate_nonce(num_bytes=0)
+
+
 def test_seed_with_wrong_length_rejected() -> None:
     with pytest.raises(ValueError, match="32 bytes"):
         crypto.Keypair.from_private_bytes(b"\x00" * 16)

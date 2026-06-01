@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -33,14 +34,57 @@ def _err(message: str) -> None:
 
 
 def _load_seed(path: Path) -> bytes:
-    raw = path.read_text(encoding="utf-8").strip()
+    try:
+        raw = path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        # Give the operator a controlled CLI error rather than a raw
+        # Python traceback. The error message intentionally does NOT
+        # echo `path` content — only its filesystem location.
+        raise typer.BadParameter(f"could not read seed file {path}: {exc.strerror}") from exc
     try:
         seed = bytes.fromhex(raw)
     except ValueError as exc:
-        raise typer.BadParameter(f"seed file is not valid hex: {exc}") from exc
+        # Generic message — never include the malformed hex string
+        # because it might be partial key material.
+        raise typer.BadParameter("seed file is not a valid 32-byte hex string") from exc
     if len(seed) != 32:
-        raise typer.BadParameter(f"seed must be 32 bytes ({64} hex chars), got {len(seed)}")
+        raise typer.BadParameter("seed file must contain exactly 32 bytes (64 hex chars)")
     return seed
+
+
+def _write_seed_atomically(path: Path, seed_hex: str) -> None:
+    """Write the seed to ``path`` with 0o600 mode in a single syscall.
+
+    We use ``os.open(O_CREAT | O_EXCL | O_WRONLY)`` so:
+      * the file is created with mode 0o600 atomically (no race window
+        where umask permissions briefly apply);
+      * an existing file or symlink at the target path causes a
+        controlled failure rather than silently overwriting it (which
+        would be catastrophic if the operator pointed --out-seed at a
+        wrong file, or if an attacker created a symlink there).
+    On POSIX we also pass ``O_NOFOLLOW`` so a symlink at the target
+    location is treated as already-existing and refused.
+    """
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        fd = os.open(path, flags, 0o600)
+    except FileExistsError as exc:
+        raise typer.BadParameter(
+            f"refusing to overwrite existing path {path}; pick a fresh filename for --out-seed"
+        ) from exc
+    except OSError as exc:
+        raise typer.BadParameter(f"could not create seed file {path}: {exc.strerror}") from exc
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(seed_hex)
+    except Exception:
+        # If write fails partway, do not leave a half-written seed file
+        # at the target.
+        with contextlib.suppress(OSError):
+            path.unlink()
+        raise
 
 
 def _load_keypair(seed_file: Path | None) -> crypto.Keypair:
@@ -69,11 +113,7 @@ def keygen(
     typer.echo(json.dumps(payload, indent=2))
     if out_seed is not None:
         seed_bytes = kp.private_key.private_bytes_raw()
-        out_seed.write_text(seed_bytes.hex(), encoding="utf-8")
-        # Best-effort: tighten file mode so a casual `ls` reveals the key
-        # only to the owner. Caller is responsible for further hardening.
-        with contextlib.suppress(OSError):
-            out_seed.chmod(0o600)
+        _write_seed_atomically(out_seed, seed_bytes.hex())
         typer.echo(f"# seed written to {out_seed}", err=True)
 
 
@@ -139,6 +179,8 @@ def build(
     ] = 60,
 ) -> None:
     """Build and sign an INK intent envelope. Prints everything needed to send it."""
+    if expires_in_minutes <= 0:
+        raise typer.BadParameter("--expires-in must be > 0; an already-expired intent is invalid")
     keypair = _load_keypair(seed)
     timestamp = envelope.utc_timestamp()
     expires_at = datetime.now(tz=UTC) + timedelta(minutes=expires_in_minutes)
@@ -230,6 +272,8 @@ def send(
     ] = 60,
 ) -> None:
     """Build, sign, and POST an INK intent envelope. Prints the response."""
+    if expires_in_minutes <= 0:
+        raise typer.BadParameter("--expires-in must be > 0; an already-expired intent is invalid")
     keypair = _load_keypair(seed)
     timestamp = envelope.utc_timestamp()
     expires_str = envelope.utc_timestamp(

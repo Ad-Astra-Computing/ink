@@ -34,6 +34,88 @@ def test_keygen_writes_seed_file_with_0600(tmp_path: Path) -> None:
         assert (out.stat().st_mode & 0o777) == 0o600
 
 
+def test_keygen_refuses_to_overwrite_existing_file(tmp_path: Path) -> None:
+    """Atomic O_EXCL: an existing target path must abort the write so we
+    never silently clobber an unrelated file or attacker-planted symlink."""
+    runner = CliRunner()
+    out = tmp_path / "seed.hex"
+    out.write_text("existing content")
+    result = runner.invoke(app, ["keygen", "--out-seed", str(out)])
+    assert result.exit_code != 0
+    # Existing content unchanged.
+    assert out.read_text() == "existing content"
+
+
+def test_keygen_refuses_symlink_target(tmp_path: Path) -> None:
+    """On POSIX, --out-seed at a symlink must be refused even if the
+    symlink target does not exist yet (NOFOLLOW protects against an
+    attacker planting a symlink to a sensitive path)."""
+    import sys
+
+    if sys.platform == "win32":
+        return
+    runner = CliRunner()
+    target = tmp_path / "target"
+    link = tmp_path / "seed.hex"
+    link.symlink_to(target)
+    result = runner.invoke(app, ["keygen", "--out-seed", str(link)])
+    assert result.exit_code != 0
+    assert not target.exists()
+
+
+def test_build_rejects_zero_or_negative_expires_in() -> None:
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--from-did",
+            "did:key:x",
+            "--to-did",
+            "did:plc:y",
+            "--expires-in",
+            "0",
+        ],
+    )
+    assert result.exit_code != 0
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--from-did",
+            "did:key:x",
+            "--to-did",
+            "did:plc:y",
+            "--expires-in",
+            "-5",
+        ],
+    )
+    assert result.exit_code != 0
+
+
+def test_load_seed_rejects_partial_hex_without_echoing_bytes(tmp_path: Path) -> None:
+    """Error message must not echo the partial seed hex."""
+    runner = CliRunner()
+    seed_file = tmp_path / "bad.hex"
+    secret_partial = "deadbeef" * 2  # only 16 hex chars, not 64
+    seed_file.write_text(secret_partial)
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--from-did",
+            "did:key:x",
+            "--to-did",
+            "did:plc:y",
+            "--seed",
+            str(seed_file),
+        ],
+    )
+    assert result.exit_code != 0
+    # Partial seed content must not leak into the error path.
+    assert secret_partial not in result.output
+
+
 def test_build_dry_run_produces_valid_signature_base() -> None:
     runner = CliRunner()
     result = runner.invoke(

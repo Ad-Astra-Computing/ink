@@ -188,3 +188,133 @@ def test_verify_response_signature_without_auth_returns_false(httpx_mock: HTTPXM
         )
         is False
     )
+
+
+def test_url_validation_rejects_userinfo() -> None:
+    with pytest.raises(transport.TransportError, match="userinfo"):
+        transport.fetch_agent_card("https://attacker:pw@example.test/agent.json")
+
+
+def test_url_validation_rejects_private_ip_by_default() -> None:
+    with pytest.raises(transport.TransportError, match="private"):
+        transport.fetch_agent_card("https://10.0.0.5/agent.json")
+    with pytest.raises(transport.TransportError, match="private"):
+        transport.fetch_agent_card("https://169.254.169.254/agent.json")
+    with pytest.raises(transport.TransportError, match="private"):
+        transport.fetch_agent_card("https://192.168.1.10/agent.json")
+
+
+def test_url_validation_allows_private_ip_with_env_optin(
+    httpx_mock: HTTPXMock, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("INK_INTEROP_ALLOW_PRIVATE_HOSTS", "1")
+    httpx_mock.add_response(
+        url="https://10.0.0.5/agent.json",
+        json={
+            "protocol": "ink/0.1",
+            "agentId": "x",
+            "endpoint": "https://10.0.0.5/ink/v1/x/intent",
+        },
+    )
+    card = transport.fetch_agent_card("https://10.0.0.5/agent.json")
+    assert card.agent_id == "x"
+
+
+def test_url_validation_rejects_missing_hostname() -> None:
+    with pytest.raises(transport.TransportError, match="hostname"):
+        transport.fetch_agent_card("https:///foo")
+
+
+def test_fetch_agent_card_refuses_redirect(httpx_mock: HTTPXMock) -> None:
+    httpx_mock.add_response(
+        url="https://example.test/agent.json",
+        status_code=302,
+        headers={"location": "https://elsewhere/"},
+    )
+    with pytest.raises(transport.DiscoveryError, match="redirect"):
+        transport.fetch_agent_card("https://example.test/agent.json")
+
+
+def test_fetch_agent_card_streams_with_oversized_response_aborted(
+    httpx_mock: HTTPXMock,
+) -> None:
+    # Mock returns a 200 with Content-Length spoofed but a body exceeding
+    # MAX_CARD_BYTES. The streaming reader must abort before buffering it.
+    huge = b"a" * (transport.MAX_CARD_BYTES + 100)
+    httpx_mock.add_response(
+        url="https://example.test/agent.json",
+        status_code=200,
+        headers={"content-length": "10"},  # lying about size
+        content=huge,
+    )
+    with pytest.raises(transport.DiscoveryError, match="exceeded"):
+        transport.fetch_agent_card("https://example.test/agent.json")
+
+
+def test_send_signed_request_refuses_redirect(httpx_mock: HTTPXMock) -> None:
+    kp = crypto.Keypair.generate()
+    httpx_mock.add_response(
+        method="POST",
+        url="https://example.test/ink/v1/x/intent",
+        status_code=307,
+        headers={"location": "https://elsewhere/"},
+    )
+    signed = envelope.build_signed_request(
+        keypair=kp,
+        target_url="https://example.test/ink/v1/x/intent",
+        path="/ink/v1/x/intent",
+        recipient_did="did:plc:x",
+        body=envelope.build_intent_envelope(
+            from_did="did:key:foo",
+            to_did="did:plc:x",
+            intent_type="introduction",
+            purpose="test",
+            expires_at="2026-12-31T23:59:59Z",
+            timestamp="2026-06-01T00:00:00Z",
+            nonce="abc",
+        ).body,
+        timestamp="2026-06-01T00:00:00Z",
+    )
+    with pytest.raises(transport.DiscoveryError, match="redirect"):
+        transport.send_signed_request(signed)
+
+
+def test_verify_response_signature_derives_method_and_path_from_request(
+    httpx_mock: HTTPXMock,
+) -> None:
+    """Default method/path come from the actual request, not caller-supplied values."""
+    import base64
+
+    kp = crypto.Keypair.generate()
+    body = {"ok": True}
+    canonical = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    timestamp = "2026-06-01T00:00:00Z"
+    sig_base = envelope.build_signature_base(
+        method="POST",
+        path="/ink/v1/x/intent",
+        recipient_did="did:plc:x",
+        canonical_body=canonical,
+        timestamp=timestamp,
+    )
+    sig = crypto.sign_detached(kp, sig_base)
+    sig_b64 = base64.urlsafe_b64encode(sig).rstrip(b"=").decode("ascii")
+    request = httpx.Request("POST", "https://example.test/ink/v1/x/intent")
+    response = httpx.Response(
+        status_code=200,
+        headers={
+            "authorization": f"INK-Ed25519 {sig_b64}",
+            "x-ink-timestamp": timestamp,
+            "content-type": "application/json",
+        },
+        content=canonical,
+        request=request,
+    )
+    # No method/path overrides — they should come from response.request.
+    assert (
+        transport.verify_response_signature(
+            response,
+            recipient_did="did:plc:x",
+            candidate_keys=[kp.public_key_bytes],
+        )
+        is True
+    )

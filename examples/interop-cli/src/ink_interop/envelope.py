@@ -82,12 +82,15 @@ def utc_timestamp(now: _dt.datetime | None = None) -> str:
 
     The spec uses second-precision timestamps; receivers reject finer
     precision because it complicates replay windows. We strip microseconds
-    explicitly.
+    explicitly. A non-UTC tz-aware datetime is converted to UTC before
+    formatting — otherwise the output would carry the caller's local
+    offset and the receiver would reject the signature.
     """
     moment = now if now is not None else _dt.datetime.now(tz=_dt.UTC)
     if moment.tzinfo is None:
         raise ValueError("timestamp must be timezone-aware (UTC)")
-    return moment.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    moment_utc = moment.astimezone(_dt.UTC).replace(microsecond=0)
+    return moment_utc.isoformat().replace("+00:00", "Z")
 
 
 def build_intent_envelope(
@@ -133,6 +136,14 @@ def build_intent_envelope(
         "timestamp": timestamp,
     }
     if extra:
+        # Refuse to overwrite core envelope fields via `extra`. Silent
+        # overwrites would let a caller accidentally sign a malformed
+        # intent (e.g. an `extra` containing a stale "nonce" or a
+        # swapped "to"), and there's no legitimate reason a higher-
+        # level helper would do that intentionally.
+        clashing = set(extra) & set(body)
+        if clashing:
+            raise ValueError(f"extra fields collide with core envelope keys: {sorted(clashing)}")
         body.update(extra)
     return Envelope(body=body)
 
@@ -150,6 +161,12 @@ def build_signature_base(
     The base is plain ASCII/UTF-8 text with explicit "\\n" separators —
     NOT JSON, NOT URL-encoded. The body slot is the JCS bytes verbatim.
     """
+    # All non-body parts are restricted to printable ASCII by the spec
+    # (HTTP methods, paths after percent-encoding, ISO-8601 timestamps,
+    # the protocol literal). Encode as ASCII so a non-ASCII surprise
+    # raises here rather than producing a signature base that no
+    # receiver can reconstruct. recipientDid is UTF-8 because did:web:
+    # technically allows IDN labels.
     parts = [
         INK_PROTOCOL_VERSION.encode("ascii"),
         method.upper().encode("ascii"),
@@ -158,6 +175,18 @@ def build_signature_base(
         canonical_body,
         timestamp.encode("ascii"),
     ]
+    # Reject embedded newlines anywhere except the body — they would
+    # alias separator semantics in the signature base and let an
+    # attacker craft a payload whose canonical signature base matches
+    # a different intended message.
+    for component in (
+        method.upper(),
+        path,
+        recipient_did,
+        timestamp,
+    ):
+        if "\n" in component or "\r" in component:
+            raise ValueError("signature base components must not contain CR or LF")
     return b"\n".join(parts)
 
 
@@ -170,10 +199,14 @@ def format_authorization_header(signature_bytes: bytes, key_id: str | None = Non
     sig_b64 = base64.urlsafe_b64encode(signature_bytes).rstrip(b"=").decode("ascii")
     header = f"INK-Ed25519 {sig_b64}"
     if key_id:
-        # Per spec the keyId parameter is separated by a space then "keyId=".
-        # We do NOT quote — keyIds are restricted to the spec's id alphabet.
-        if any(ch.isspace() or ch in '";\\' for ch in key_id):
-            raise ValueError("keyId must not contain whitespace or quote characters")
+        # Enforce a conservative key-id alphabet: ASCII letters, digits,
+        # `-`, `_`, `.`. This blocks header-parser confusion via commas,
+        # equals, semicolons, control bytes, or non-ASCII characters
+        # (any of which a future spec addition could repurpose as a
+        # delimiter). The published INK key-id format is keyed-rotation
+        # hints like ``sig-2026-06`` which fit this alphabet.
+        if not key_id or not all(ch.isascii() and (ch.isalnum() or ch in "-_.") for ch in key_id):
+            raise ValueError("keyId must contain only ASCII letters, digits, '-', '_', or '.'")
         header = f"{header} keyId={key_id}"
     return header
 
