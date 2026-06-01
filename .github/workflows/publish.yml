@@ -65,9 +65,13 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Publish to npm
-        # `--tag latest` is required because the version contains a
-        # prerelease identifier (e.g. 0.1.0-alpha.N). npm refuses to
-        # auto-tag prereleases as latest as of late 2025; we want the
-        # newest alpha to be the default install target until 1.0 ships.
-        # Switch to `--tag next` after the first stable release.
-        run: npm publish --access public --provenance --tag latest
+        # Pre-1.0 releases publish under the `next` dist-tag, NOT
+        # `latest`. The 0.1.x line is wire-compatible across patches
+        # (`ink/0.1` is frozen) but the API surface and trust semantics
+        # remain alpha-quality — see docs/maturity.md. `latest` only
+        # advances when a release is explicitly promoted, with:
+        #   npm dist-tag add @adastracomputing/ink@<ver> latest
+        # so bare `npm install @adastracomputing/ink` only picks up
+        # versions a maintainer has stamped adopter-grade. Adopters who
+        # want the bleeding edge use `npm install @adastracomputing/ink@next`.
+        run: npm publish --access public --provenance --tag next

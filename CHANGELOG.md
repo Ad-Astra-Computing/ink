@@ -10,6 +10,8 @@ No unreleased changes.
 
 ## 0.1.2, Python interop CLI emits canonical envelope
 
+> **Maturity note.** v0.1.x is wire-compatible across patches (`ink/0.1` stays frozen) but the API surface and trust semantics remain alpha-quality. See [`docs/maturity.md`](docs/maturity.md). Starting with this release, pre-1.0 versions publish under npm's `next` dist-tag; `latest` only advances when a release is explicitly promoted. Adopters who want the current pre-1.0 line install with `npm install @adastracomputing/ink@next`; the bare `npm install @adastracomputing/ink` will resolve to the most recent release a maintainer has stamped adopter-grade.
+
 Fixes the v0.1.1 erratum: the Python `examples/interop-cli/` shipped in v0.1.1 emitted a phantom envelope shape (`type`, `intentType`, `purpose`, `urgency` at top level, no `id`, no `correlationId`, no `createdAt`, no body-level `signature`) that no conforming receiver could accept. v0.1.2 rewrites the CLI's envelope builder to emit the canonical `MessageEnvelopeSchema` shape:
 
 - `id` and `correlationId` are now generated as 26-char Crockford-base32 ULIDs.
