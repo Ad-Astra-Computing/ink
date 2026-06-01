@@ -8,7 +8,32 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.2, Python interop CLI emits canonical envelope
+
+Fixes the v0.1.1 erratum: the Python `examples/interop-cli/` shipped in v0.1.1 emitted a phantom envelope shape (`type`, `intentType`, `purpose`, `urgency` at top level, no `id`, no `correlationId`, no `createdAt`, no body-level `signature`) that no conforming receiver could accept. v0.1.2 rewrites the CLI's envelope builder to emit the canonical `MessageEnvelopeSchema` shape:
+
+- `id` and `correlationId` are now generated as 26-char Crockford-base32 ULIDs.
+- `createdAt` is the ISO-8601 UTC timestamp the receiver checks.
+- `intent` is the canonical enum value (`intro_request` for introductions); the legacy `intentType`/`purpose` flatten into `payload: { target, reason, urgency }` per `IntroRequestPayloadSchema`.
+- Body-level `signature` is now produced by the canonical domain-separated signer (`Ed25519("tulpa/sign\n" + JCS(envelope-without-signature))`, base64url, no padding) — matches `src/crypto/sign.ts` byte-for-byte.
+- `provenance` is omitted when absent (the field is `.optional()`; an explicit `null` would be rejected by Zod).
+- HTTP §3.3 fields (`timestamp`, `nonce`) ride alongside the canonical fields so `verifyInkAuth()` still reads them.
+
+**CLI now builds `connection_request` envelopes.** `ink-interop send/build --intent-type connection_request` (or the alias `connection`) constructs a `ConnectionRequestPayloadSchema`-conformant payload (`method`, `context`, `profileSnapshot`). This is the bootstrap intent for first contact between strangers: receivers that opt in to foreign senders verify the body signature against the inline key extracted from the sender's `did:key` (trust-on-first-use). Other intent types (`intro_request`, `ask`, `follow_up`) presume the sender is already a known contact and remain reserved for established relationships.
+
+Verified end-to-end against `https://api.tulpa.network/ink/v1/<agentId>/intent`: a `did:key:` `connection_request` from `ink-interop send` lands as a pending action in the recipient's inbox (`status: 200`, `accepted: true`, `pendingActionId: 01KT…`). Coverage spans schema validation, body + transport signature verification, replay/freshness, identity resolution, routing, the foreign-DID policy gate, and shield risk-scoring. Tests pinned to the canonical shape (`tests/test_envelope.py`) prevent regression. The npm library itself is unchanged from v0.1.1.
+
+**Example-helper API break.** `examples/interop-cli/`'s Python helper `build_intent_envelope()` now requires `keypair`, replaces `intent_type`/`purpose`/`timestamp` with canonical args (`target`, `reason`, `created_at`, etc.), and removes the `extra=` kwarg. Adopters who imported the old helper directly will need to update their calls — the previous signature emitted invalid wire data so no callable interop existed there to preserve. This is an example-only change; the npm library (`@adastracomputing/ink`) exports are unchanged.
+
 ## 0.1.1, discovery rename and normative SSRF floor
+
+> **Erratum, 2026-06-01:** the bundled Python interop CLI at
+> `examples/interop-cli/` shipped with this tag emits an envelope
+> shape that does not match the canonical `MessageEnvelopeSchema`
+> (`id`, `correlationId`, `createdAt`, `intent` enum, payload,
+> body-level `signature`). The npm library is unaffected. End-to-end
+> sends from the Python CLI to a conforming receiver fail with
+> `invalid_envelope`. Fixed in v0.1.2.
 
 This release is **wire-compatible with v0.1.0**; the wire version stays `ink/0.1`. Every change below is additive and accepts the prior shape for the duration of the v0.1.x line — implementations that emit and consume v0.1.0 cards / service entries continue to interoperate. One observable library behavior changes: the runtime emit value of the redacted Agent Card `type` field flips from `"tulpa.agent.card"` to `"ink.agent.card"` (see below). Consumers that pinned to the literal must accept either string; the TypeScript union has been widened accordingly.
 

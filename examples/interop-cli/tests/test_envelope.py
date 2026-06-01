@@ -9,52 +9,108 @@ import pytest
 from ink_interop import crypto, envelope, jcs
 
 
-def test_build_intent_envelope_includes_required_fields() -> None:
+def test_build_intent_envelope_emits_canonical_message_envelope_shape() -> None:
+    """v0.1.2: the CLI MUST emit the canonical MessageEnvelopeSchema
+    shape defined by `@adastracomputing/ink/src/models/intent.ts`.
+    A v0.1.1-shape body would be rejected by the tulpa receiver with
+    `invalid_envelope` — this test pins the bug closed."""
+    kp = crypto.Keypair.generate()
     env = envelope.build_intent_envelope(
+        keypair=kp,
         from_did="did:plc:sender",
         to_did="did:plc:recipient",
-        intent_type="introduction",
-        purpose="Test",
+        target="did:plc:target-person",
+        reason="Test introduction",
+        created_at="2026-06-01T00:00:00Z",
         expires_at="2026-12-31T23:59:59Z",
-        timestamp="2026-06-01T00:00:00Z",
         nonce="fixed-nonce",
     )
     body = env.body
+    # Required canonical fields (provenance is optional in the schema
+    # and intentionally omitted here so the envelope parses cleanly —
+    # explicit `null` would be rejected by Zod):
+    for required in (
+        "protocol", "id", "correlationId", "createdAt",
+        "from", "to", "intent", "payload", "signature",
+    ):
+        assert required in body, f"missing canonical field: {required}"
+    assert "provenance" not in body, (
+        "provenance MUST be omitted when not supplied; an explicit null fails "
+        "MessageProvenanceSchema parsing on the receiver"
+    )
     assert body["protocol"] == "ink/0.1"
-    assert body["type"] == "network.tulpa.intent"
-    assert body["from"] == "did:plc:sender"
-    assert body["to"] == "did:plc:recipient"
-    assert body["intentType"] == "introduction"
-    assert body["purpose"] == "Test"
-    assert body["urgency"] == "normal"
-    assert body["expiresAt"] == "2026-12-31T23:59:59Z"
+    assert body["intent"] == "intro_request"
+    assert isinstance(body["id"], str) and len(body["id"]) == 26
+    assert isinstance(body["correlationId"], str) and len(body["correlationId"]) == 26
+    assert body["payload"] == {
+        "target": "did:plc:target-person",
+        "reason": "Test introduction",
+        "urgency": "normal",
+    }
+    assert body["createdAt"] == "2026-06-01T00:00:00Z"
+    # The legacy phantom-shape fields MUST NOT be on the wire:
+    for forbidden in ("type", "intentType", "purpose"):
+        assert forbidden not in body, f"legacy field {forbidden!r} must not appear"
+    # HTTP-auth fields (timestamp + nonce) ride alongside canonical
+    # fields because verifyInkAuth() reads them from the body.
     assert body["timestamp"] == "2026-06-01T00:00:00Z"
     assert body["nonce"] == "fixed-nonce"
+    # Body-level signature MUST be present.
+    assert isinstance(body["signature"], str) and len(body["signature"]) > 0
 
 
 def test_build_intent_envelope_auto_generates_nonce() -> None:
+    kp = crypto.Keypair.generate()
     env = envelope.build_intent_envelope(
+        keypair=kp,
         from_did="did:plc:sender",
         to_did="did:plc:recipient",
-        intent_type="introduction",
-        purpose="Test",
+        target="did:plc:target",
+        reason="Test",
+        created_at="2026-06-01T00:00:00Z",
         expires_at="2026-12-31T23:59:59Z",
-        timestamp="2026-06-01T00:00:00Z",
     )
     assert env.body["nonce"]
     assert isinstance(env.body["nonce"], str)
 
 
-def test_build_signed_request_round_trips() -> None:
-    """Sign a request and verify it locally — proves the wire format is internally consistent."""
+def test_build_intent_envelope_body_signature_round_trips() -> None:
+    """The body-level signature uses the canonical `tulpa/sign\\n` domain
+    prefix per `src/crypto/sign.ts`. Verify the prefix + JCS-bytes
+    integrity by signing locally and re-verifying."""
     kp = crypto.Keypair.generate()
-    body = envelope.build_intent_envelope(
+    env = envelope.build_intent_envelope(
+        keypair=kp,
         from_did="did:key:" + kp.public_key_multibase,
         to_did="did:plc:recipient",
-        intent_type="introduction",
-        purpose="Test",
+        target="did:plc:target",
+        reason="Test",
+        created_at="2026-06-01T00:00:00Z",
         expires_at="2026-12-31T23:59:59Z",
-        timestamp="2026-06-01T00:00:00Z",
+        nonce="fixed-nonce",
+    )
+    body = env.body
+    # Recompute the signed bytes and verify with the public key.
+    import base64 as _b64
+    unsigned = {k: v for k, v in body.items() if k != "signature"}
+    canonical = jcs.canonicalize(unsigned)
+    prefixed = b"tulpa/sign\n" + canonical
+    sig_bytes = _b64.urlsafe_b64decode(body["signature"] + "===")
+    assert crypto.verify_detached(kp.public_key_bytes, prefixed, sig_bytes)
+
+
+def test_build_signed_request_round_trips() -> None:
+    """Sign a request and verify the HTTP §3.3 signature against the
+    reconstructed signature base."""
+    kp = crypto.Keypair.generate()
+    body = envelope.build_intent_envelope(
+        keypair=kp,
+        from_did="did:key:" + kp.public_key_multibase,
+        to_did="did:plc:recipient",
+        target="did:plc:target",
+        reason="Test",
+        created_at="2026-06-01T00:00:00Z",
+        expires_at="2026-12-31T23:59:59Z",
         nonce="fixed-nonce",
     ).body
     signed = envelope.build_signed_request(
@@ -156,14 +212,26 @@ def test_format_authorization_header_accepts_safe_key_id() -> None:
     assert "keyId=sig-2026-06.v1_a" in header
 
 
-def test_build_intent_envelope_refuses_to_overwrite_core_fields() -> None:
-    with pytest.raises(ValueError, match="collide"):
+def test_build_intent_envelope_refuses_invalid_urgency() -> None:
+    """IntroRequestPayloadSchema constrains urgency to 'low' | 'normal'.
+    Catching this client-side gives a clearer error than the receiver's
+    Zod rejection."""
+    kp = crypto.Keypair.generate()
+    with pytest.raises(ValueError, match="urgency"):
         envelope.build_intent_envelope(
+            keypair=kp,
             from_did="did:key:sender",
             to_did="did:plc:recipient",
-            intent_type="introduction",
-            purpose="Test",
+            target="did:plc:target",
+            reason="Test",
+            urgency="urgent",  # invalid for intro_request
+            created_at="2026-06-01T00:00:00Z",
             expires_at="2026-12-31T23:59:59Z",
-            timestamp="2026-06-01T00:00:00Z",
-            extra={"nonce": "attacker-controlled"},
         )
+
+
+def test_new_ulid_is_26_chars_crockford_base32() -> None:
+    u = envelope.new_ulid()
+    assert len(u) == 26
+    for ch in u:
+        assert ch in "0123456789ABCDEFGHJKMNPQRSTVWXYZ", f"non-Crockford char: {ch!r}"

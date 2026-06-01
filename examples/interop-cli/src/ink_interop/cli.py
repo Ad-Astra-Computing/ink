@@ -187,14 +187,38 @@ def build(
     expires_str = envelope.utc_timestamp(expires_at)
     request_path = path if path is not None else f"/ink/v1/{to_did}/intent"
     url = target_url if target_url is not None else f"https://example.invalid{request_path}"
-    body = envelope.build_intent_envelope(
-        from_did=from_did,
-        to_did=to_did,
-        intent_type=intent_type,
-        purpose=purpose,
-        expires_at=expires_str,
-        timestamp=timestamp,
-    ).body
+    # v0.1.2: the CLI emits the canonical MessageEnvelopeSchema shape
+    # (id, correlationId, createdAt, intent enum, payload, body-level
+    # signature). The legacy `--intent-type=introduction` value maps
+    # to `intent='intro_request'` per IntroRequestPayloadSchema.
+    if intent_type in {"introduction", "intro_request"}:
+        body = envelope.build_intent_envelope(
+            keypair=keypair,
+            from_did=from_did,
+            to_did=to_did,
+            target=to_did,
+            reason=purpose,
+            created_at=timestamp,
+            expires_at=expires_str,
+            signing_key_id=key_id,
+        ).body
+    elif intent_type in {"connection", "connection_request"}:
+        body = envelope.build_connection_envelope(
+            keypair=keypair,
+            from_did=from_did,
+            to_did=to_did,
+            context=purpose,
+            headline=purpose[:500] or "Interop smoke test",
+            created_at=timestamp,
+            expires_at=expires_str,
+            signing_key_id=key_id,
+        ).body
+    else:
+        raise typer.BadParameter(
+            f"--intent-type must be one of: introduction, intro_request, "
+            f"connection, connection_request (got {intent_type!r}); "
+            "other intent types are not yet wired into this CLI"
+        )
     signed = envelope.build_signed_request(
         keypair=keypair,
         target_url=url,
@@ -280,14 +304,34 @@ def send(
         datetime.now(tz=UTC) + timedelta(minutes=expires_in_minutes)
     )
     request_path = path if path is not None else f"/ink/v1/{to_did}/intent"
-    body = envelope.build_intent_envelope(
-        from_did=from_did,
-        to_did=to_did,
-        intent_type=intent_type,
-        purpose=purpose,
-        expires_at=expires_str,
-        timestamp=timestamp,
-    ).body
+    if intent_type in {"introduction", "intro_request"}:
+        body = envelope.build_intent_envelope(
+            keypair=keypair,
+            from_did=from_did,
+            to_did=to_did,
+            target=to_did,
+            reason=purpose,
+            created_at=timestamp,
+            expires_at=expires_str,
+            signing_key_id=key_id,
+        ).body
+    elif intent_type in {"connection", "connection_request"}:
+        body = envelope.build_connection_envelope(
+            keypair=keypair,
+            from_did=from_did,
+            to_did=to_did,
+            context=purpose,
+            headline=purpose[:500] or "Interop smoke test",
+            created_at=timestamp,
+            expires_at=expires_str,
+            signing_key_id=key_id,
+        ).body
+    else:
+        raise typer.BadParameter(
+            f"--intent-type must be one of: introduction, intro_request, "
+            f"connection, connection_request (got {intent_type!r}); "
+            "other intent types are not yet wired into this CLI"
+        )
     signed = envelope.build_signed_request(
         keypair=keypair,
         target_url=target_url,
