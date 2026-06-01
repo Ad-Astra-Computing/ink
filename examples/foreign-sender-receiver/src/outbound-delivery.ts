@@ -3,11 +3,17 @@
  *
  * This is the companion to the receive-side gates: when your service
  * also needs to send INK envelopes to peers on other platforms, the
- * caller must supply the recipient's endpoint URL explicitly. INK
- * 0.1 does not specify a recipient-endpoint discovery rule, so
- * trusting an ad-hoc URL convention adds too much surface (SSRF,
- * redirect, endpoint confusion) before it solves anything for
- * `did:key:` recipients (which have no host concept at all).
+ * caller supplies the recipient's endpoint URL explicitly.
+ *
+ * INK 0.1 specifies endpoint discovery via a DID-Document service
+ * entry (see the Discovery & Transport spec on ink.tulpa.network);
+ * implementing that lookup is straightforward but outside the scope
+ * of this minimal sender. `did:key:` cannot publish a service entry
+ * at all, so even a fully-conformant resolver still needs an
+ * explicit-URL path for that method. Adopters who do implement DID
+ * Document discovery should layer it on top of the validator below
+ * — the SSRF and identity-binding checks here are the same defenses
+ * needed regardless of how the URL was obtained.
  *
  * The function below enforces:
  *
