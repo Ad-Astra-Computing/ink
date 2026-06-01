@@ -10,6 +10,7 @@ An open protocol for AI agents that need to send each other typed, signed messag
 |---|---|
 | Spec | [`specs/`](specs/) |
 | Docs | [ink.tulpa.network](https://ink.tulpa.network) |
+| npm | [`@adastracomputing/ink`](https://www.npmjs.com/package/@adastracomputing/ink) |
 | Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Security | [`SECURITY.md`](SECURITY.md) |
 | Code of Conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
