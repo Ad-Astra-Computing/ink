@@ -16,11 +16,27 @@ An open protocol for AI agents that need to send each other typed, signed messag
 | Code of Conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
 | Changelog | [`CHANGELOG.md`](CHANGELOG.md) |
 
+## Contents
+
+- [What's in the envelope](#whats-in-the-envelope)
+- [Install](#install)
+- [Agent-assisted implementation](#agent-assisted-implementation)
+- [Tests](#tests)
+- [Layout](#layout)
+- [What's stable in v0.1](#whats-stable-in-v01)
+- [Naming](#naming)
+- [Relationship to Tulpa](#relationship-to-tulpa)
+- [Interoperability](#interoperability)
+- [Security](#security)
+- [License](#license)
+
 ## What's in the envelope
 
 Every INK message is an Ed25519-signed envelope over a [JCS](https://datatracker.ietf.org/doc/html/rfc8785) (RFC 8785) canonical serialization. The signature base binds the protocol version, HTTP method, request path, recipient DID, body, and timestamp. Replay protection uses a per-sender nonce plus a timestamp freshness window of 5 minutes past and 30 seconds future.
 
 Message types cover intents, challenges, resolutions, receipts, audit events, encrypted payloads, and authenticated agent-card queries. Handshake messages carry a correlation ID; audit and receipt messages do not. Key rotation is governed by an authority rule documented in [`docs/key-rotation-rule.md`](docs/key-rotation-rule.md): the Agent Card's published key set is canonical, revoked keys never verify, and a stale bootstrap key cannot bypass rotation.
+
+A foreign sender's first envelope to an unestablished recipient is a `connection_request` — the bootstrap intent for first contact. Receivers that opt in to foreign senders verify the body signature against the inline key extracted from the sender's DID (trust-on-first-use) and SHOULD reject any other intent type from a sender they have no prior relationship with; richer intent types (`intro_request`, `ask`, `follow_up`, `schedule_meeting`) presume the sender is already a known contact. See the [Accepting Foreign Senders guide](https://ink.tulpa.network/guides/accepting-foreign-senders/) for the receive-side rules and [`examples/foreign-sender-receiver/`](examples/foreign-sender-receiver/) for a reference implementation.
 
 INK assumes [AT Protocol](https://atproto.com) for identity by default but isn't coupled to it. Any system that can publish an Ed25519 signing key under a stable identifier can participate.
 
@@ -50,10 +66,18 @@ const input = {
   recipientDid: "tulpa:zRecipient",
   body: {
     protocol: "ink/0.1",
-    type: "network.tulpa.intent",
+    id: crypto.randomUUID(),
+    correlationId: crypto.randomUUID(),
+    createdAt: new Date().toISOString(),
     from: agentId,
     to: "tulpa:zRecipient",
-    intent: "meeting_request",
+    intent: "schedule_meeting",
+    payload: {
+      proposedTimes: ["2026-06-15T14:00:00Z"],
+      topic: "Quick sync",
+      format: "video",
+      urgency: "normal",
+    },
     timestamp: new Date().toISOString(),
     nonce: crypto.randomUUID(),
   },

@@ -15,7 +15,7 @@ No unreleased changes.
 Fixes the v0.1.1 erratum: the Python `examples/interop-cli/` shipped in v0.1.1 emitted a phantom envelope shape (`type`, `intentType`, `purpose`, `urgency` at top level, no `id`, no `correlationId`, no `createdAt`, no body-level `signature`) that no conforming receiver could accept. v0.1.2 rewrites the CLI's envelope builder to emit the canonical `MessageEnvelopeSchema` shape:
 
 - `id` and `correlationId` are now generated as 26-char Crockford-base32 ULIDs.
-- `createdAt` is the ISO-8601 UTC timestamp the receiver checks.
+- `createdAt` is the canonical envelope creation timestamp (ISO-8601 UTC); the body also carries a separate `timestamp` field that `verifyInkAuth()` uses for HTTP §3.3 freshness, distinct from `createdAt`.
 - `intent` is the canonical enum value (`intro_request` for introductions); the legacy `intentType`/`purpose` flatten into `payload: { target, reason, urgency }` per `IntroRequestPayloadSchema`.
 - Body-level `signature` is now produced by the canonical domain-separated signer (`Ed25519("tulpa/sign\n" + JCS(envelope-without-signature))`, base64url, no padding) — matches `src/crypto/sign.ts` byte-for-byte.
 - `provenance` is omitted when absent (the field is `.optional()`; an explicit `null` would be rejected by Zod).

@@ -99,6 +99,66 @@ def test_build_intent_envelope_body_signature_round_trips() -> None:
     assert crypto.verify_detached(kp.public_key_bytes, prefixed, sig_bytes)
 
 
+def test_build_connection_envelope_emits_canonical_connection_request_shape() -> None:
+    """v0.1.2: the CLI MUST emit a `ConnectionRequestPayloadSchema`-
+    conformant payload (method, context, profileSnapshot) under the
+    `connection_request` intent. Tulpa receivers only accept this
+    intent from a first-contact foreign sender, so getting the shape
+    right is the difference between "lands as pending action" and
+    "rejected with unknown_sender / invalid_envelope"."""
+    kp = crypto.Keypair.generate()
+    env = envelope.build_connection_envelope(
+        keypair=kp,
+        from_did="did:key:" + kp.public_key_multibase,
+        to_did="did:plc:recipient",
+        context="Saw your profile in the discovery index",
+        headline="Researcher exploring agent-to-agent coordination",
+        created_at="2026-06-01T00:00:00Z",
+        expires_at="2026-06-01T01:00:00Z",
+        nonce="fixed-conn-nonce",
+    )
+    body = env.body
+    assert body["intent"] == "connection_request"
+    payload = body["payload"]
+    assert payload["method"] == "discovery"
+    assert payload["context"] == "Saw your profile in the discovery index"
+    snap = payload["profileSnapshot"]
+    assert snap == {
+        "headline": "Researcher exploring agent-to-agent coordination",
+        "skills": [],
+        "interests": [],
+        "openTo": [],
+    }
+    assert "introducedBy" not in payload, (
+        "introducedBy is optional and MUST be omitted when not supplied"
+    )
+    for forbidden in ("type", "intentType", "purpose"):
+        assert forbidden not in body
+    import base64 as _b64
+    unsigned = {k: v for k, v in body.items() if k != "signature"}
+    canonical = jcs.canonicalize(unsigned)
+    prefixed = b"tulpa/sign\n" + canonical
+    sig_bytes = _b64.urlsafe_b64decode(body["signature"] + "===")
+    assert crypto.verify_detached(kp.public_key_bytes, prefixed, sig_bytes)
+
+
+def test_build_connection_envelope_rejects_invalid_method() -> None:
+    """method MUST be one of qr|intro|discovery|import per
+    ConnectionRequestPayloadSchema."""
+    kp = crypto.Keypair.generate()
+    with pytest.raises(ValueError, match="qr|intro|discovery|import"):
+        envelope.build_connection_envelope(
+            keypair=kp,
+            from_did="did:key:" + kp.public_key_multibase,
+            to_did="did:plc:recipient",
+            context="Test",
+            headline="Test",
+            method="garbage",
+            created_at="2026-06-01T00:00:00Z",
+            expires_at="2026-06-01T01:00:00Z",
+        )
+
+
 def test_build_signed_request_round_trips() -> None:
     """Sign a request and verify the HTTP §3.3 signature against the
     reconstructed signature base."""
