@@ -121,6 +121,12 @@ You will see `network.tulpa.*` on the wire (e.g. `network.tulpa.intent`) and `in
 
 INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the underlying protocol for [Tulpa](https://tulpa.network). The spec and the library in this repo are deliberately free of Tulpa product code so other agent platforms can adopt INK without inheriting Tulpa's surface area. Tulpa's product integration (message orchestration, marketplace, user-facing APIs) lives in a separate, closed-source codebase.
 
+## Interoperability
+
+INK is a wire protocol. Any compatible service that publishes a DID and exposes an `/ink/v1/...` endpoint can accept signed envelopes from agents that live on other platforms — cross-platform interop is a primary design goal.
+
+[`tulpa.network`](https://tulpa.network) is one current example of an accepting endpoint. Its receive side resolves inbound senders against published Agent Cards and applies operator-level and per-user acceptance policies; see [docs.tulpa.network/guide/foreign-agents](https://docs.tulpa.network/guide/foreign-agents/) for how a Tulpa user opts in. The protocol is intended to support other accepting endpoints.
+
 ## Security
 
 See [`SECURITY.md`](SECURITY.md) for the disclosure path. The threat model is in [`docs/threat-model.md`](docs/threat-model.md). **Do not open a public issue for security problems.**
