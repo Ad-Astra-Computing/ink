@@ -35,6 +35,7 @@ export {
   generateEncryptionKeypair,
   deriveAgentId,
   encodePublicKeyMultibase,
+  encodeEncryptionKeyMultibase,
   decodePublicKeyMultibase,
   decodeEncryptionKeyMultibase,
   extractPublicKeyFromAgentId,
@@ -63,6 +64,65 @@ export {
 
 // Optional containment / governance primitives
 export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
+
+// Receipts: build and send INK delivery receipts
+export {
+  buildReceipt,
+  shouldSendReceipt,
+  sendReceiptFireAndForget,
+} from "./ink/receipts.js";
+
+// Transport-auth: token-level transport allowlist for extension tokens
+export {
+  resolveEffectiveTransports,
+  checkTransportAllowed,
+} from "./ink/transport-auth.js";
+
+// Discovery-gating: visibility-aware Agent Card redaction
+export {
+  buildRedactedCard,
+  shouldRedactOnGet,
+  AgentCardQuerySchema,
+} from "./ink/discovery-gating.js";
+
+// Checkpoint parsing for transparency-log signed checkpoints
+export {
+  parseCheckpoint,
+  formatCheckpoint,
+} from "./ink/checkpoint.js";
+export type { CheckpointData } from "./ink/checkpoint.js";
+
+// Audit event schemas + types for receipts, query, inclusion proofs
+export {
+  InkAuditEventTypeSchema,
+  InkAuditEventSchema,
+  InkAuditInclusionSchema,
+  InkReceiptSchema,
+  InkAuditQuerySchema,
+  InkIntroductionReceiptSchema,
+} from "./models/ink-audit.js";
+export type {
+  InkAuditEventType,
+  InkAuditEvent,
+  InkAuditInclusion,
+  InkReceipt,
+  InkAuditQuery,
+  InkAuditResponse,
+  InkIntroductionReceiptStatus,
+} from "./models/ink-audit.js";
+
+// Handshake message schemas
+export {
+  InkChallengeSchema,
+  InkRejectionSchema,
+  InkResolutionSchema,
+} from "./models/ink-handshake.js";
+export type {
+  AgentCardVisibility,
+} from "./models/ink-handshake.js";
+
+// Agent Card schema (the canonical .well-known/ink/agent.json document)
+export { AgentCardSchema } from "./models/agent-card.js";
 
 // Envelope validation: full Zod-backed parse of the canonical
 // MessageEnvelope shape. Adopters building receivers need this to

@@ -8,6 +8,25 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.4, expose receipts, transport-auth, discovery-gating, audit schemas and handshake schemas from the package root
+
+Pure additive release. The implementation files have shipped in earlier releases under deep paths; this release brings them to the package root so adopters writing receivers, builders, or auditor clients can import everything they need from `@adastracomputing/ink` directly.
+
+New root-level exports:
+
+- **Receipts** (`./ink/receipts`): `buildReceipt`, `shouldSendReceipt`, `sendReceiptFireAndForget`. The canonical INK delivery-receipt builders, signing helpers and fire-and-forget transport. A receiver that wants to ack inbound envelopes per Auditability §6 can drop these in without rolling its own.
+- **Transport-auth** (`./ink/transport-auth`): `resolveEffectiveTransports`, `checkTransportAllowed`. The token-level transport allowlist enforcement, including the "field absent vs empty array" semantics. Required for any extension token issuer.
+- **Discovery-gating** (`./ink/discovery-gating`): `buildRedactedCard`, `shouldRedactOnGet`, `AgentCardQuerySchema`. Visibility-aware Agent Card responses (`public`, `network_only`, `capability_gated`, `private`).
+- **Checkpoint parsing** (`./ink/checkpoint`): `parseCheckpoint`, `formatCheckpoint`, `CheckpointData`. For consumers of transparency-log signed checkpoints.
+- **Audit event schemas + types** (`./models/ink-audit`): `InkAuditEventTypeSchema`, `InkAuditEventSchema`, `InkAuditInclusionSchema`, `InkReceiptSchema`, `InkAuditQuerySchema`, `InkIntroductionReceiptSchema`, plus matching types `InkAuditEventType`, `InkAuditEvent`, `InkAuditInclusion`, `InkReceipt`, `InkAuditQuery`, `InkAuditResponse`, `InkIntroductionReceiptStatus`.
+- **Handshake message schemas** (`./models/ink-handshake`): `InkChallengeSchema`, `InkRejectionSchema`, `InkResolutionSchema`, type `AgentCardVisibility`.
+- **Agent Card schema** (`./models/agent-card`): `AgentCardSchema` (the type was already exported).
+- **Encryption key encoder** (`./crypto/keys`): `encodeEncryptionKeyMultibase` (the encoder companion to the already-exported `decodeEncryptionKeyMultibase` from 0.1.3).
+
+No wire-level changes. No behavior changes inside the existing functions. Receivers on 0.1.3 work unchanged on 0.1.4.
+
+Per the pre-1.0 policy this release publishes under the `next` dist-tag.
+
 ## 0.1.3, expose validateMessage and decodeEncryptionKeyMultibase from the package root
 
 Pure additive release that re-exports two helpers from the package root so adopters no longer have to import them through a deep internal path:
