@@ -1,0 +1,56 @@
+import { describe, it, expect } from "vitest";
+import { buildAgentCard, SUPPORTED_INTENTS } from "../src/agent-card.js";
+import { buildDidDocument } from "../src/did-web.js";
+import { loadReceiverIdentity } from "../src/keys.js";
+import { generateKeypair, encodePublicKeyMultibase, base64urlEncode, AgentCardSchema } from "@adastracomputing/ink";
+
+async function freshIdentity() {
+  const kp = await generateKeypair();
+  return loadReceiverIdentity({
+    INK_RECEIVER_SIGNING_SEED: base64urlEncode(kp.privateKey),
+    INK_RECEIVER_PUBLIC_KEY_MULTIBASE: encodePublicKeyMultibase(kp.publicKey),
+  });
+}
+
+describe("buildAgentCard", () => {
+  it("returns a card that parses cleanly against AgentCardSchema", async () => {
+    const id = await freshIdentity();
+    const card = buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id });
+    const parsed = AgentCardSchema.safeParse(card);
+    expect(parsed.success).toBe(true);
+  });
+
+  it("announces only the supported intents", async () => {
+    const id = await freshIdentity();
+    const card = buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+      capabilities: { intentsAccepted: string[] };
+    };
+    expect(card.capabilities.intentsAccepted.sort()).toEqual([...SUPPORTED_INTENTS].sort());
+  });
+
+  it("uses the configured host for the endpoint URL", async () => {
+    const id = await freshIdentity();
+    const card = buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+      endpoint: string; inboxEndpoint: string;
+    };
+    expect(card.endpoint).toBe("https://r.example/ink/v1/inbound");
+    expect(card.inboxEndpoint).toBe(card.endpoint);
+  });
+});
+
+describe("buildDidDocument", () => {
+  it("includes the verification method and service entries", async () => {
+    const id = await freshIdentity();
+    const doc = buildDidDocument({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+      id: string;
+      verificationMethod: Array<{ id: string; type: string; publicKeyMultibase: string }>;
+      service: Array<{ id: string; type: string; serviceEndpoint: string }>;
+    };
+    expect(doc.id).toBe("did:web:r.example");
+    expect(doc.verificationMethod[0]!.type).toBe("Ed25519VerificationKey2020");
+    expect(doc.verificationMethod[0]!.publicKeyMultibase).toBe(id.publicKeyMultibase);
+    const services = doc.service.map((s) => s.type);
+    expect(services).toContain("InkAgentEndpoint");
+    expect(services).toContain("InkAgentCard");
+  });
+});

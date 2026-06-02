@@ -1,0 +1,19 @@
+name = "ink-reference-receiver"
+main = "src/index.ts"
+compatibility_date = "2026-06-02"
+compatibility_flags = ["nodejs_compat"]
+
+# KV namespaces.
+# Replace the placeholder ids before deploying. Adopters should run
+# `wrangler kv namespace create INK_RECEIVER` and paste the returned id.
+[[kv_namespaces]]
+binding = "INK_RECEIVER"
+id = "0000000000000000000000000000000000000000000000000000000000000000"
+
+# Secrets (set via `wrangler secret put`, not in this file):
+#   INK_RECEIVER_SIGNING_SEED   — 32-byte Ed25519 seed, base64url-encoded
+#   INK_RECEIVER_HOST           — public hostname this receiver answers on
+#                                  (e.g. "ink-receiver.example.workers.dev"
+#                                   or "echo.your-domain.example"). Used
+#                                  to derive the did:web id and the
+#                                  agent-card endpoint URL.

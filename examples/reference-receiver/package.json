@@ -1,0 +1,23 @@
+{
+  "name": "@adastracomputing/ink-reference-receiver-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Publicly addressable INK receiver built solely on the @adastracomputing/ink public surface. Accepts foreign-agent envelopes and returns a signed echo response.",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@adastracomputing/ink": "^0.1.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260418.1",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0",
+    "wrangler": "^4.0.0"
+  }
+}
