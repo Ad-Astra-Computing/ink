@@ -136,8 +136,24 @@ export { AgentCardSchema } from "./models/agent-card.js";
 // non-public path.
 export {
   validateMessage,
+  getPayloadSchema,
   MessageEnvelopeSchema,
   IntentTypeSchema,
+  ScheduleMeetingPayloadSchema,
+  ScheduleMeetingResponsePayloadSchema,
+  IntroRequestPayloadSchema,
+  IntroResponsePayloadSchema,
+  OpportunityPayloadSchema,
+  OpportunityResponsePayloadSchema,
+  ConnectionRequestPayloadSchema,
+  ConnectionResponsePayloadSchema,
+  FollowUpPayloadSchema,
+  AskPayloadSchema,
+  AskResponsePayloadSchema,
+  PingPayloadSchema,
+  RetractPayloadSchema,
+  ContextSharePayloadSchema,
+  MultiPartySyncPayloadSchema,
 } from "./models/intent.js";
 export type {
   MessageEnvelope,

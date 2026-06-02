@@ -8,6 +8,14 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.7, expose per-intent payload schemas and getPayloadSchema from the package root
+
+Pure additive release. Re-exports every per-intent Zod payload schema (`ScheduleMeetingPayloadSchema`, `IntroRequestPayloadSchema`, `OpportunityPayloadSchema`, `ConnectionRequestPayloadSchema`, `FollowUpPayloadSchema`, `AskPayloadSchema`, `PingPayloadSchema`, `RetractPayloadSchema`, `ContextSharePayloadSchema`, `MultiPartySyncPayloadSchema`, plus the matching `*ResponsePayloadSchema` variants) and the `getPayloadSchema(intent)` resolver from the package root. Adopters writing intent-aware receivers / handlers can now type their dispatch surface directly against the canonical payload shapes.
+
+No wire-level changes. No behavior changes inside the existing functions. Receivers on 0.1.6 work unchanged on 0.1.7.
+
+Per the pre-1.0 policy this release publishes under the `next` dist-tag.
+
 ## 0.1.6, expose intent + key-entry types and add optional inclusionProof to InkAuditInclusionSchema
 
 Pure additive release. Two surface expansions and one backward-compatible schema addition:

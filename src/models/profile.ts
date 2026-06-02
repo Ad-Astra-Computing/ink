@@ -1,10 +1,14 @@
 import { z } from "zod";
 
 export const AvailabilityConfigSchema = z.object({
-  timezone: z.string(),
-  meetingHours: z.string().optional(),
-  responseSla: z.string().optional(),
-});
+  // IANA timezone name. The longest legitimate value is ~50 chars.
+  timezone: z.string().max(64),
+  // Free-text availability description ("9-5 PT weekdays") capped
+  // to a sane display length. Larger values are almost certainly
+  // garbage or an attempted DoS.
+  meetingHours: z.string().max(200).optional(),
+  responseSla: z.string().max(200).optional(),
+}).strict();
 
 export const ProfileSnapshotSchema = z.object({
   headline: z.string().max(500),
@@ -12,7 +16,7 @@ export const ProfileSnapshotSchema = z.object({
   interests: z.array(z.string().max(100)).max(50),
   availability: AvailabilityConfigSchema.optional(),
   openTo: z.array(z.string().max(100)).max(20),
-});
+}).strict();
 
 export const ProfileSchema = z.object({
   agentId: z.string(),
