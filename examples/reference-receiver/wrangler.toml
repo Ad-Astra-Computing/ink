@@ -2,6 +2,18 @@ name = "ink-reference-receiver"
 main = "src/index.ts"
 compatibility_date = "2026-06-02"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Custom domain creates the DNS record + cert. The explicit /* route
+# is required to OVERRIDE the pre-existing `*.tulpa.network/*` wildcard
+# handle-worker route — without it, the wildcard worker intercepts
+# ink-echo.tulpa.network and 302-redirects to tulpa.network. This is
+# the same custom-domain + explicit-route pairing the witness worker
+# uses in the tulpa infra terraform.
+routes = [
+  { pattern = "ink-echo.tulpa.network", custom_domain = true },
+  { pattern = "ink-echo.tulpa.network/*", zone_name = "tulpa.network" },
+]
 
 # KV namespaces.
 # Replace the placeholder ids before deploying. Adopters should run
@@ -14,7 +26,7 @@ id = "1403de75d6e94c71897f9a8824a4c848"
 INK_RECEIVER_PUBLIC_KEY_MULTIBASE = "z6MknEs8ZYGD5yyTnT2LDrjhgTJMx6yXK1AmvxKBSPrQWZNi"
 # Set INK_RECEIVER_HOST to the hostname this worker answers on.
 # Will be updated post-deploy to the actual workers.dev URL.
-INK_RECEIVER_HOST = "ink-reference-receiver.ad-astra-computing-inc.workers.dev"
+INK_RECEIVER_HOST = "ink-echo.tulpa.network"
 
 # Secrets (set via `wrangler secret put`, not in this file):
 #   INK_RECEIVER_SIGNING_SEED   — 32-byte Ed25519 seed, base64url-encoded

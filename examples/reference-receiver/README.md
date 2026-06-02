@@ -98,12 +98,13 @@ wire format end-to-end against your deployment.
 
 ## Live reference deployment
 
-Ad Astra Computing runs this example at:
+Ad Astra Computing runs this example at **ink-echo.tulpa.network**:
 
-- Host: `ink-reference-receiver.ad-astra-computing-inc.workers.dev`
-- DID: `did:web:ink-reference-receiver.ad-astra-computing-inc.workers.dev`
-- Agent card: <https://ink-reference-receiver.ad-astra-computing-inc.workers.dev/.well-known/ink/agent.json>
-- DID document: <https://ink-reference-receiver.ad-astra-computing-inc.workers.dev/.well-known/did.json>
+- DID: `did:web:ink-echo.tulpa.network`
+- Landing page: <https://ink-echo.tulpa.network/>
+- Agent card: <https://ink-echo.tulpa.network/.well-known/ink/agent.json>
+- DID document: <https://ink-echo.tulpa.network/.well-known/did.json>
+- Inbound endpoint: `https://ink-echo.tulpa.network/ink/v1/inbound`
 
 Treat the live deploy as a moving target. Keys rotate, rate limits drop
 unauthenticated callers, and the deploy may go offline without notice. The
