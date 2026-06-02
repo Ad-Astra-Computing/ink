@@ -161,6 +161,14 @@ export const InkAuditInclusionSchema = z.object({
   treeSize: z.number().int().positive(),
   leafIndex: z.number().int().min(0),
   rootHash: z.string(),
+  /** Optional Merkle inclusion proof — array of 64-character lowercase hex
+   *  hash siblings on the path from the leaf to the root. Consumers that
+   *  verify proofs (third-party auditor clients) read this field; consumers
+   *  that only check signatures can ignore it. Bounds mirror the verifier's
+   *  own input validation (`src/audit/inclusion-receipt.ts`): max 64 entries,
+   *  each exactly 64 lowercase hex chars, so a malicious witness cannot
+   *  force the parser to allocate megabytes of garbage proof data. */
+  inclusionProof: z.array(z.string().regex(/^[0-9a-f]{64}$/)).max(64).optional(),
   timestamp: z.string().datetime(),
   serviceSignature: z.string(),
 });

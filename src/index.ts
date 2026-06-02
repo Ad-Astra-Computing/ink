@@ -134,8 +134,30 @@ export { AgentCardSchema } from "./models/agent-card.js";
 // reject malformed envelopes before signature verification; without
 // it they have to re-implement the schema check or import from a
 // non-public path.
-export { validateMessage, MessageEnvelopeSchema } from "./models/intent.js";
-export type { MessageEnvelope } from "./models/intent.js";
+export {
+  validateMessage,
+  MessageEnvelopeSchema,
+  IntentTypeSchema,
+} from "./models/intent.js";
+export type {
+  MessageEnvelope,
+  IntentType,
+} from "./models/intent.js";
+
+// Key-entry types and schemas for adopters wiring their own key-set
+// storage and rotation. `CandidateKey` was already root-exported via
+// the verifier surface; this batch adds the persistence shapes.
+export {
+  KeyStatusSchema,
+  KeyRoleSchema,
+  KeyEntrySchema,
+} from "./models/key-entry.js";
+export type {
+  KeyStatus,
+  KeyRole,
+  KeyEntry,
+  StoredKey,
+} from "./models/key-entry.js";
 
 // Type re-exports
 export type { InkSignInput } from "./crypto/ink.js";

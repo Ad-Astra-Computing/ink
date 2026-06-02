@@ -8,6 +8,18 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.6, expose intent + key-entry types and add optional inclusionProof to InkAuditInclusionSchema
+
+Pure additive release. Two surface expansions and one backward-compatible schema addition:
+
+- **Intent surface** — re-exports `IntentTypeSchema` constant and `IntentType` type from the package root. Adopters writing payload-aware receivers can now type their intent dispatch off the canonical Zod enum without reaching into a deep path.
+- **Key-entry surface** — re-exports `KeyStatusSchema`, `KeyRoleSchema`, `KeyEntrySchema` constants and `KeyStatus`, `KeyRole`, `KeyEntry`, `StoredKey` types. Adopters wiring their own key-set storage and rotation can now type the persistence shapes without reaching into a deep path. `CandidateKey` was already root-exported.
+- **InkAuditInclusionSchema** — adds an optional `inclusionProof: z.array(z.string()).optional()` field. Third-party auditor clients that verify Merkle inclusion proofs use this field; receivers that only check signatures can ignore it. Backward-compatible because the field is optional — receivers on 0.1.5 work unchanged on 0.1.6.
+
+No wire-level changes. No behavior changes inside the existing functions.
+
+Per the pre-1.0 policy this release publishes under the `next` dist-tag.
+
 ## 0.1.5, expose handshake type re-exports and InkTransportSchema from the package root
 
 Pure additive release. Re-exports the `InkChallenge`, `InkRejection`, `InkResolution`, `InkTransport` types and the `InkTransportSchema` constant from the package root. Adopters writing handshake-aware receivers can now type their state-machine without reaching into a deep path. No wire-level changes. No behavior changes inside the existing functions. Receivers on 0.1.4 work unchanged on 0.1.5.
