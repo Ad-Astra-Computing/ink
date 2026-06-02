@@ -17,10 +17,15 @@ export interface AgentCardConfig {
 }
 
 /**
- * The intents this reference receiver actually handles. Keep small and
+ * The intents this reference receiver acknowledges. Keep small and
  * well-scoped; the inbound handler MUST agree with the card.
+ *
+ * `connection_request` and `intro_request` are the foreign-first-contact
+ * bootstrap intents the `interop-cli` reference sender emits, so a test
+ * sender can exercise the full wire against this target. `ping` and
+ * `ask` round out a minimal liveness + query set.
  */
-export const SUPPORTED_INTENTS = ["ping", "ask"] as const;
+export const SUPPORTED_INTENTS = ["ping", "ask", "connection_request", "intro_request"] as const;
 
 export function buildAgentCard(cfg: AgentCardConfig): unknown {
   const endpoint = `https://${cfg.host}/ink/v1/inbound`;
@@ -34,7 +39,7 @@ export function buildAgentCard(cfg: AgentCardConfig): unknown {
     publicKeyMultibase: cfg.identity.publicKeyMultibase,
     capabilities: {
       intentsAccepted: [...SUPPORTED_INTENTS],
-      intentsSent: ["ask_response" as const],
+      intentsSent: [] as Array<never>,
       receipts: {
         send: false,
         dispositions: [] as Array<never>,

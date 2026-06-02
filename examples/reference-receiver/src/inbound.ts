@@ -31,6 +31,7 @@ import {
   validateMessage,
   verifyInkAuth,
   extractCandidateKeys,
+  decodePublicKeyMultibase,
   type CandidateKey,
   type MessageEnvelope,
 } from "@adastracomputing/ink";
@@ -104,22 +105,50 @@ export async function readBoundedBody(
 }
 
 /**
- * Resolve the sender's candidate signing keys via their did:web agent
- * card. Returns an empty array on any failure — `verifyInkAuth`
- * treats an empty key set as a rejected signature.
+ * Decode the signing key embedded in a `did:key:` identifier. A
+ * did:key is self-certifying — the multibase string after the prefix
+ * IS the Ed25519 public key (with a multicodec tag) — so there is NO
+ * network fetch and NO SSRF surface. This is the simplest and safest
+ * sender type for a public test target, and the one the `interop-cli`
+ * reference sender uses by default. Returns [] on any decode failure.
+ */
+export function resolveDidKeySenderKeys(senderDid: string): CandidateKey[] {
+  const multibase = senderDid.slice("did:key:".length);
+  // did:key MAY carry a URL fragment (did:key:z6Mk...#z6Mk...); the
+  // verification key is the part before any fragment.
+  const keyPart = multibase.split("#")[0] ?? "";
+  if (!keyPart.startsWith("z")) return [];
+  try {
+    const publicKey = decodePublicKeyMultibase(keyPart);
+    return [{ keyId: keyPart, publicKey, status: "active" }];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Resolve the sender's candidate signing keys.
  *
- * Only handles `did:web:` senders. Other DID methods need a different
- * resolver; supporting them is out of scope for the reference receiver.
+ * - `did:key:` — decoded inline from the identifier (no fetch).
+ * - `did:web:` — resolved from the sender's published agent card,
+ *   behind the SSRF guards in `did-web-resolver.ts`.
+ * - anything else — unsupported; returns [] so `verifyInkAuth` treats
+ *   it as a rejected signature.
  */
 export async function resolveSenderKeys(
   senderDid: string,
   opts: { fetcher?: typeof fetch } = {},
 ): Promise<CandidateKey[]> {
-  if (!senderDid.startsWith("did:web:")) return [];
-  const card = await resolveAgentCardForDidWeb(senderDid, opts);
-  if (!card) return [];
-  // resolveAgentCardForDidWeb has already AgentCardSchema-parsed it.
-  return extractCandidateKeys(card as Parameters<typeof extractCandidateKeys>[0]);
+  if (senderDid.startsWith("did:key:")) {
+    return resolveDidKeySenderKeys(senderDid);
+  }
+  if (senderDid.startsWith("did:web:")) {
+    const card = await resolveAgentCardForDidWeb(senderDid, opts);
+    if (!card) return [];
+    // resolveAgentCardForDidWeb has already AgentCardSchema-parsed it.
+    return extractCandidateKeys(card as Parameters<typeof extractCandidateKeys>[0]);
+  }
+  return [];
 }
 
 /**
@@ -233,9 +262,28 @@ export async function processInbound(
   return {
     kind: "ok",
     intent: envelope.intent,
-    sender: envelope.from,
+    // Canonicalize the sender so the per-sender rate-limit bucket and
+    // audit record key on the identity, not on an alias. For did:key,
+    // the fragment (did:key:z...#frag) selects a verification method
+    // but does NOT change which key authenticated — so a single key
+    // holder must not be able to mint unbounded distinct buckets by
+    // varying the fragment.
+    sender: canonicalizeSenderDid(envelope.from),
     response: buildAckResponse(envelope, cfg),
   };
+}
+
+/**
+ * Strip the URL fragment from a `did:key:` sender so aliases like
+ * `did:key:z...#a` and `did:key:z...#b` collapse to one identity for
+ * rate-limiting and audit. Other DID methods are returned unchanged.
+ */
+export function canonicalizeSenderDid(did: string): string {
+  if (did.startsWith("did:key:")) {
+    const hash = did.indexOf("#");
+    return hash === -1 ? did : did.slice(0, hash);
+  }
+  return did;
 }
 
 function safeReadString(o: unknown, k: string): string {

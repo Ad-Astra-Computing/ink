@@ -14,10 +14,22 @@ adopters can lift directly.
 
 | Intent | What the receiver does |
 |--------|-----------------------|
-| `ping` | Returns `{ ok: true, inReplyTo, receiverDid, receivedIntent }`. |
-| `ask`  | Same plain ack; payload is logged in the audit ring. |
+| `connection_request` | The foreign-first-contact bootstrap intent. Returns `{ ok: true, inReplyTo, receiverDid, receivedIntent, correlationId }`. |
+| `intro_request` | Same plain ack. |
+| `ping` | Same plain ack — minimal liveness check. |
+| `ask` | Same plain ack; payload is logged in the audit ring. |
 
 Everything else is rejected with `400 unsupported_intent`.
+
+## Sender DID methods
+
+- **`did:key:`** — the public key is decoded inline from the identifier. No
+  fetch, no SSRF surface. This is what the [`interop-cli`](../interop-cli/)
+  reference sender uses, so it is the quickest way to exercise the receiver.
+- **`did:web:`** — the sender's agent card is resolved over HTTPS behind the
+  SSRF guards in `did-web-resolver.ts`, and the card's `agentId` must match the
+  DID (identity binding).
+- Any other method is rejected as an unresolvable sender.
 
 ## Authentication model
 
@@ -94,7 +106,25 @@ curl https://<your-host>/.well-known/did.json
 ## Send a test envelope
 
 Use the [`examples/interop-cli`](../interop-cli/) Python sender to exercise the
-wire format end-to-end against your deployment.
+wire format end-to-end. It signs from a `did:key:`, which this receiver decodes
+inline:
+
+```sh
+cd ../interop-cli && pip install -e .
+ink-interop keygen --out-seed /tmp/sender.seed   # prints the did:key
+
+ink-interop send \
+  --seed /tmp/sender.seed \
+  --from-did did:key:<printed-multibase> \
+  --to-did did:web:ink-echo.tulpa.network \
+  --target-url https://ink-echo.tulpa.network/ink/v1/inbound \
+  --path /ink/v1/inbound \
+  --intent-type connection_request \
+  --purpose "interop smoke"
+```
+
+A `200` with `{ "ok": true, ... }` means your envelope is on the canonical wire.
+Point `--to-did` / `--target-url` at your own deployment to test it instead.
 
 ## Live reference deployment
 

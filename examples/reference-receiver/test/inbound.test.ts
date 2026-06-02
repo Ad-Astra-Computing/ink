@@ -4,6 +4,8 @@ import {
   readBoundedBody,
   buildAckResponse,
   resolveSenderKeys,
+  resolveDidKeySenderKeys,
+  canonicalizeSenderDid,
   MAX_BODY_BYTES,
 } from "../src/inbound.js";
 import { InMemoryNonceStore } from "../src/nonce-store.js";
@@ -108,9 +110,61 @@ describe("readBoundedBody", () => {
   });
 });
 
+describe("canonicalizeSenderDid", () => {
+  it("strips a did:key fragment", () => {
+    expect(canonicalizeSenderDid("did:key:z6MkAAA#z6MkAAA")).toBe("did:key:z6MkAAA");
+    expect(canonicalizeSenderDid("did:key:z6MkAAA#a")).toBe("did:key:z6MkAAA");
+  });
+
+  it("leaves a fragmentless did:key unchanged", () => {
+    expect(canonicalizeSenderDid("did:key:z6MkAAA")).toBe("did:key:z6MkAAA");
+  });
+
+  it("leaves did:web unchanged (fragments not stripped)", () => {
+    expect(canonicalizeSenderDid("did:web:example.com")).toBe("did:web:example.com");
+  });
+});
+
+describe("resolveDidKeySenderKeys", () => {
+  it("decodes the embedded key from a valid did:key", async () => {
+    const kp = await generateKeypair();
+    const multibase = encodePublicKeyMultibase(kp.publicKey);
+    const out = resolveDidKeySenderKeys(`did:key:${multibase}`);
+    expect(out.length).toBe(1);
+    expect(out[0]!.status).toBe("active");
+    expect(Array.from(out[0]!.publicKey)).toEqual(Array.from(kp.publicKey));
+  });
+
+  it("ignores a did:key URL fragment", async () => {
+    const kp = await generateKeypair();
+    const multibase = encodePublicKeyMultibase(kp.publicKey);
+    const out = resolveDidKeySenderKeys(`did:key:${multibase}#${multibase}`);
+    expect(out.length).toBe(1);
+    expect(Array.from(out[0]!.publicKey)).toEqual(Array.from(kp.publicKey));
+  });
+
+  it("returns [] for a malformed multibase", () => {
+    expect(resolveDidKeySenderKeys("did:key:znotvalidbase58!!!")).toEqual([]);
+  });
+
+  it("returns [] when the key part lacks the z prefix", () => {
+    expect(resolveDidKeySenderKeys("did:key:Qmsomething")).toEqual([]);
+  });
+});
+
 describe("resolveSenderKeys", () => {
-  it("returns [] for non-did:web senders", async () => {
-    const out = await resolveSenderKeys("did:key:z6MkXXX");
+  it("resolves a did:key sender inline (no fetch)", async () => {
+    const kp = await generateKeypair();
+    const multibase = encodePublicKeyMultibase(kp.publicKey);
+    let fetched = false;
+    const fetcher = (async () => { fetched = true; return new Response("", { status: 200 }); }) as typeof fetch;
+    const out = await resolveSenderKeys(`did:key:${multibase}`, { fetcher });
+    expect(out.length).toBe(1);
+    expect(fetched).toBe(false);
+  });
+
+  it("returns [] for unsupported DID methods", async () => {
+    const out = await resolveSenderKeys("did:plc:abc123");
     expect(out).toEqual([]);
   });
 
@@ -243,6 +297,37 @@ describe("processInbound", () => {
       expect(ack.ok).toBe(true);
       expect(ack.inReplyTo).toBe(envelope.id);
     }
+  });
+
+  it("accepts a correctly signed ping from a did:key sender (no card fetch)", async () => {
+    const { id, did } = await makeReceiver();
+    const kp = await generateKeypair();
+    const senderDid = `did:key:${encodePublicKeyMultibase(kp.publicKey)}`;
+    const envelope = buildPingEnvelope({ from: senderDid, to: did });
+    const auth = await signWithSender(envelope, kp);
+    let fetched = false;
+    const fetcher = (async () => { fetched = true; return new Response("", { status: 404 }); }) as typeof fetch;
+    const out = await processInbound(JSON.stringify(envelope), auth, {
+      identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
+    });
+    expect(out.kind).toBe("ok");
+    if (out.kind === "ok") expect(out.sender).toBe(senderDid);
+    expect(fetched).toBe(false);
+  });
+
+  it("canonicalizes a did:key sender's fragment in the recorded sender", async () => {
+    const { id, did } = await makeReceiver();
+    const kp = await generateKeypair();
+    const multibase = encodePublicKeyMultibase(kp.publicKey);
+    const senderDid = `did:key:${multibase}#${multibase}`;
+    const envelope = buildPingEnvelope({ from: senderDid, to: did });
+    const auth = await signWithSender(envelope, kp);
+    const out = await processInbound(JSON.stringify(envelope), auth, {
+      identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore(),
+    });
+    expect(out.kind).toBe("ok");
+    // Fragment stripped so per-sender rate limit keys on the identity.
+    if (out.kind === "ok") expect(out.sender).toBe(`did:key:${multibase}`);
   });
 
   it("rejects a replay of the same nonce", async () => {
