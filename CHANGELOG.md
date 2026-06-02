@@ -8,6 +8,17 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.3, expose validateMessage and decodeEncryptionKeyMultibase from the package root
+
+Pure additive release that re-exports two helpers from the package root so adopters no longer have to import them through a deep internal path:
+
+- `validateMessage(raw)` runs the canonical `MessageEnvelopeSchema` parse plus the intent-specific payload schema. Receivers building from scratch were either re-implementing the schema check or pulling from `@adastracomputing/ink/dist/models/intent.js`, which is not a stable surface. The implementer-guide at https://ink.tulpa.network/guides/implementing-a-receiver/ documented this helper as if it were already exported; this release makes that documentation accurate.
+- `decodeEncryptionKeyMultibase(multibase)` is the companion to the already-exported `decodePublicKeyMultibase`. The former handles X25519 keys (the Agent Card encryption-key prefix); the latter handles Ed25519. The encrypted-intents guide tells adopters to decode an Agent Card's `publicKeyMultibase` for use with `encryptInkPayload`, which expects hex; without the X25519 decoder exported, adopters had to inline the multicodec strip themselves.
+
+Also re-exports the `MessageEnvelope` type and the `MessageEnvelopeSchema` constant so adopters can type their parser surface against the canonical schema. No wire-level changes. No behavior changes inside the existing functions. Receivers on 0.1.2 work unchanged on 0.1.3.
+
+This release publishes under the npm `next` dist-tag per the pre-1.0 policy.
+
 ## 0.1.2, Python interop CLI emits canonical envelope
 
 > **Maturity note.** v0.1.x is wire-compatible across patches (`ink/0.1` stays frozen) but the API surface and trust semantics remain alpha-quality. See [`docs/maturity.md`](docs/maturity.md). Starting with this release, pre-1.0 versions publish under npm's `next` dist-tag; `latest` only advances when a release is explicitly promoted. Adopters who want the current pre-1.0 line install with `npm install @adastracomputing/ink@next`; the bare `npm install @adastracomputing/ink` will resolve to the most recent release a maintainer has stamped adopter-grade.

@@ -36,6 +36,7 @@ export {
   deriveAgentId,
   encodePublicKeyMultibase,
   decodePublicKeyMultibase,
+  decodeEncryptionKeyMultibase,
   extractPublicKeyFromAgentId,
 } from "./crypto/keys.js";
 
@@ -62,6 +63,14 @@ export {
 
 // Optional containment / governance primitives
 export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
+
+// Envelope validation: full Zod-backed parse of the canonical
+// MessageEnvelope shape. Adopters building receivers need this to
+// reject malformed envelopes before signature verification; without
+// it they have to re-implement the schema check or import from a
+// non-public path.
+export { validateMessage, MessageEnvelopeSchema } from "./models/intent.js";
+export type { MessageEnvelope } from "./models/intent.js";
 
 // Type re-exports
 export type { InkSignInput } from "./crypto/ink.js";
