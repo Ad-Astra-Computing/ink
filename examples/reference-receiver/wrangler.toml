@@ -4,34 +4,38 @@ compatibility_date = "2026-06-02"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
-# Custom domain creates the DNS record + cert. The explicit /* route
-# is required to OVERRIDE the pre-existing `*.tulpa.network/*` wildcard
-# handle-worker route — without it, the wildcard worker intercepts
-# ink-echo.tulpa.network and 302-redirects to tulpa.network. This is
-# the same custom-domain + explicit-route pairing the witness worker
-# uses in the tulpa infra terraform.
+# NOTE: the values below (routes, KV id, host, public key) are the LIVE
+# Ad Astra Computing deployment at ink-echo.tulpa.network. They are
+# committed so the example is self-documenting, NOT so they can be
+# reused. To run your own, replace every one of them with your own
+# hostname, KV namespace id, and keypair.
+
+# Custom domain creates the DNS record + cert. The explicit /* route is
+# required to OVERRIDE a pre-existing wildcard worker route on the same
+# zone — without it, that wildcard worker intercepts the subdomain. If
+# your zone has no wildcard route, the custom-domain entry alone is
+# enough; drop the /* route. Adopters: change the hostname and zone.
 routes = [
   { pattern = "ink-echo.tulpa.network", custom_domain = true },
   { pattern = "ink-echo.tulpa.network/*", zone_name = "tulpa.network" },
 ]
 
-# KV namespaces.
-# Replace the placeholder ids before deploying. Adopters should run
-# `wrangler kv namespace create INK_RECEIVER` and paste the returned id.
+# KV namespace. Run `wrangler kv namespace create INK_RECEIVER` and
+# replace the id below with the one it returns.
 [[kv_namespaces]]
 binding = "INK_RECEIVER"
 id = "1403de75d6e94c71897f9a8824a4c848"
 
+# Public (non-secret) config. Replace both with your own values.
+#   INK_RECEIVER_PUBLIC_KEY_MULTIBASE — multibase ed25519-pub of the
+#     receiver's signing key. Must match the seed set as the secret
+#     below; mint a keypair offline (see README) and paste both halves.
+#   INK_RECEIVER_HOST — the bare hostname this worker answers on. Used
+#     to derive the did:web id and the agent-card / inbound URLs.
 [vars]
 INK_RECEIVER_PUBLIC_KEY_MULTIBASE = "z6MknEs8ZYGD5yyTnT2LDrjhgTJMx6yXK1AmvxKBSPrQWZNi"
-# Set INK_RECEIVER_HOST to the hostname this worker answers on.
-# Will be updated post-deploy to the actual workers.dev URL.
 INK_RECEIVER_HOST = "ink-echo.tulpa.network"
 
-# Secrets (set via `wrangler secret put`, not in this file):
-#   INK_RECEIVER_SIGNING_SEED   — 32-byte Ed25519 seed, base64url-encoded
-#   INK_RECEIVER_HOST           — public hostname this receiver answers on
-#                                  (e.g. "ink-receiver.example.workers.dev"
-#                                   or "echo.your-domain.example"). Used
-#                                  to derive the did:web id and the
-#                                  agent-card endpoint URL.
+# Secret (set via `wrangler secret put`, never in this file):
+#   INK_RECEIVER_SIGNING_SEED — 32-byte Ed25519 seed, base64url-encoded.
+#     Anyone with this can sign as this DID; treat it like a private key.

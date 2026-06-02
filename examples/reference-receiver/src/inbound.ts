@@ -9,8 +9,10 @@
  *     Schema validation runs BEFORE signature verification because
  *     verification depends on canonicalizing the body, and we should
  *     refuse to canonicalize clearly-invalid input.
- *  4. Resolve the sender's signing keys from their published agent
- *     card (did:web only — `did:key` senders are out of scope here).
+ *  4. Resolve the sender's signing keys: `did:key` is decoded inline
+ *     from the identifier (no fetch); `did:web` is resolved from the
+ *     sender's published agent card behind the SSRF guards. Other DID
+ *     methods are unsupported and resolve to no keys.
  *  5. Run `verifyInkAuth` from the OSS package against the request
  *     Authorization header, body, and resolved key set. That call
  *     enforces the spec's signature, timestamp freshness and nonce
