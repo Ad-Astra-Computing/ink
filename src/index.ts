@@ -116,9 +116,14 @@ export {
   InkChallengeSchema,
   InkRejectionSchema,
   InkResolutionSchema,
+  InkTransportSchema,
 } from "./models/ink-handshake.js";
 export type {
   AgentCardVisibility,
+  InkChallenge,
+  InkRejection,
+  InkResolution,
+  InkTransport,
 } from "./models/ink-handshake.js";
 
 // Agent Card schema (the canonical .well-known/ink/agent.json document)

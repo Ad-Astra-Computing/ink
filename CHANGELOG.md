@@ -8,6 +8,12 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 No unreleased changes.
 
+## 0.1.5, expose handshake type re-exports and InkTransportSchema from the package root
+
+Pure additive release. Re-exports the `InkChallenge`, `InkRejection`, `InkResolution`, `InkTransport` types and the `InkTransportSchema` constant from the package root. Adopters writing handshake-aware receivers can now type their state-machine without reaching into a deep path. No wire-level changes. No behavior changes inside the existing functions. Receivers on 0.1.4 work unchanged on 0.1.5.
+
+Per the pre-1.0 policy this release publishes under the `next` dist-tag.
+
 ## 0.1.4, expose receipts, transport-auth, discovery-gating, audit schemas and handshake schemas from the package root
 
 Pure additive release. The implementation files have shipped in earlier releases under deep paths; this release brings them to the package root so adopters writing receivers, builders, or auditor clients can import everything they need from `@adastracomputing/ink` directly.
