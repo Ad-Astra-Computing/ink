@@ -8,10 +8,10 @@
  *   GET  /                                → minimal HTML landing page
  *
  * The worker is the smallest plausibly-useful INK receiver: it
- * publishes a stable DID, accepts envelopes from any
- * `did:web:`-resolvable sender, verifies the signature against the
- * sender's published agent card, and replies with a signed
- * `ping_ack` or `ask_response` envelope.
+ * publishes a stable DID, accepts envelopes from `did:key:` and
+ * `did:web:`-resolvable senders, verifies the transport signature
+ * against the resolved sender key, and replies with a plain (unsigned)
+ * JSON acknowledgement. Signing the response is a Phase B follow-up.
  *
  * It's intentionally NOT a model for a production receiver: there is
  * no user authentication, no policy layer, no spam scoring, no
@@ -89,6 +89,30 @@ function safeJsonText(value: unknown): string {
   try { return JSON.stringify(value); } catch { return "{}"; }
 }
 
+// INK favicon: the nib mark (the wordmark's "I") in lavender on a dark
+// rounded square so it reads at 16px. Served same-origin so the CSP
+// `img-src 'self'` covers it; cached a day since it never changes.
+const FAVICON_SVG = [
+  "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 32 32\">",
+  "<rect width=\"32\" height=\"32\" rx=\"7\" fill=\"#121220\"/>",
+  "<g transform=\"translate(6 4)\">",
+  "<path d=\"M10 1 L16 9 L16 16 L13.5 23 L12.5 23 L11.5 17 L10 14.5 L8.5 17 L7.5 23 L6.5 23 L4 16 L4 9 Z\" fill=\"#c4b5fd\"/>",
+  "<circle cx=\"10\" cy=\"7.5\" r=\"1.5\" fill=\"#121220\"/>",
+  "</g>",
+  "</svg>",
+].join("");
+
+function faviconResponse(): Response {
+  return new Response(FAVICON_SVG, {
+    status: 200,
+    headers: {
+      "content-type": "image/svg+xml",
+      "cache-control": "public, max-age=86400",
+      ...BASE_SECURITY_HEADERS,
+    },
+  });
+}
+
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     let id: { identity: Awaited<ReturnType<typeof loadReceiverIdentity>>; host: string; did: string };
@@ -113,6 +137,9 @@ export default {
     }
     if (method === "GET" && path === "/") {
       return landingResponse(landingHtml(id.did, id.host));
+    }
+    if (method === "GET" && (path === "/favicon.svg" || path === "/favicon.ico")) {
+      return faviconResponse();
     }
     if (method === "OPTIONS") {
       return new Response(null, { status: 204, headers: { ...BASE_SECURITY_HEADERS } });
@@ -220,6 +247,7 @@ function landingHtml(did: string, host: string): string {
     "<meta charset=\"utf-8\">",
     "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">",
     "<title>INK Reference Receiver</title>",
+    "<link rel=\"icon\" type=\"image/svg+xml\" href=\"/favicon.svg\">",
     "<style>",
     ":root{color-scheme:dark;--bg:#0b0b12;--surface:#121220;--text:#f6f2ff;--muted:#b9b4c9;--accent:#c4b5fd;--line:#2a2540;--code:#171528}",
     "*{box-sizing:border-box}",
