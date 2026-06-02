@@ -96,6 +96,19 @@ curl https://<your-host>/.well-known/did.json
 Use the [`examples/interop-cli`](../interop-cli/) Python sender to exercise the
 wire format end-to-end against your deployment.
 
+## Live reference deployment
+
+Ad Astra Computing runs this example at:
+
+- Host: `ink-reference-receiver.ad-astra-computing-inc.workers.dev`
+- DID: `did:web:ink-reference-receiver.ad-astra-computing-inc.workers.dev`
+- Agent card: <https://ink-reference-receiver.ad-astra-computing-inc.workers.dev/.well-known/ink/agent.json>
+- DID document: <https://ink-reference-receiver.ad-astra-computing-inc.workers.dev/.well-known/did.json>
+
+Treat the live deploy as a moving target. Keys rotate, rate limits drop
+unauthenticated callers, and the deploy may go offline without notice. The
+canonical artifact is the source in this directory, not the live URL.
+
 ## Replay defense in multi-isolate deployments
 
 `nonce-store.ts` is an in-memory ring buffer scoped to a single Cloudflare

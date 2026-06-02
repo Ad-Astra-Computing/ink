@@ -8,7 +8,13 @@ compatibility_flags = ["nodejs_compat"]
 # `wrangler kv namespace create INK_RECEIVER` and paste the returned id.
 [[kv_namespaces]]
 binding = "INK_RECEIVER"
-id = "0000000000000000000000000000000000000000000000000000000000000000"
+id = "1403de75d6e94c71897f9a8824a4c848"
+
+[vars]
+INK_RECEIVER_PUBLIC_KEY_MULTIBASE = "z6MknEs8ZYGD5yyTnT2LDrjhgTJMx6yXK1AmvxKBSPrQWZNi"
+# Set INK_RECEIVER_HOST to the hostname this worker answers on.
+# Will be updated post-deploy to the actual workers.dev URL.
+INK_RECEIVER_HOST = "ink-reference-receiver.ad-astra-computing-inc.workers.dev"
 
 # Secrets (set via `wrangler secret put`, not in this file):
 #   INK_RECEIVER_SIGNING_SEED   — 32-byte Ed25519 seed, base64url-encoded
