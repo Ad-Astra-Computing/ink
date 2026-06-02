@@ -48,6 +48,8 @@ npm install @adastracomputing/ink
 
 The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly — no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
 
+From 0.1.3 onward, receivers can also import `validateMessage` (canonical envelope + payload-schema parse, throws on drift) and `decodeEncryptionKeyMultibase` (X25519 multibase → 32 bytes, the companion to `decodePublicKeyMultibase` for Ed25519). These let an implementer drop the inline schema guard and key-decode helpers the previous guides asked them to write. `MessageEnvelope` (type) and `MessageEnvelopeSchema` (Zod constant) are also re-exported for adopters who want to type their parser surface against the canonical schema.
+
 ```ts
 import {
   generateKeypair,
