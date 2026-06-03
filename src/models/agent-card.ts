@@ -60,6 +60,18 @@ export const AgentCardSchema = z.object({
   currentSigningKeyId: z.string().optional(),
   currentEncryptionKeyId: z.string().optional(),
   keySetVersion: z.number().int().positive().optional(),
+  // Message protocol versions this agent's receiver can verify on the
+  // body signature. When absent, assume ink/0.1 only. A sender MUST NOT
+  // emit a newer version to a card that does not advertise it; advertising
+  // a version here is necessary but not sufficient for a sender to use it.
+  //
+  // The entries are advisory hints, so they are accepted as bounded
+  // strings rather than the strict version enum: a newer peer may
+  // advertise a version this build does not know yet, and that must not
+  // make its whole card unparseable. A sender intersects this list with
+  // the versions it can actually emit. The strict enum lives on the
+  // envelope (MessageEnvelopeSchema), where an unknown version is rejected.
+  supportedProtocolVersions: z.array(z.string().max(16)).max(8).optional(),
   // Containment extension (Phase 1)
   visibility: AgentCardVisibilitySchema.optional(),
   governance: z.object({
@@ -87,6 +99,18 @@ export const AgentCardSchema = z.object({
 });
 
 export type AgentCard = z.infer<typeof AgentCardSchema>;
+
+/**
+ * The message protocol versions a card's receiver can verify. Falls back
+ * to ink/0.1 when the card does not advertise the field, so a sender
+ * defaults to the original version for any card that predates it.
+ */
+export function agentSupportedProtocolVersions(
+  card: Pick<AgentCard, "supportedProtocolVersions">,
+): string[] {
+  const advertised = card.supportedProtocolVersions;
+  return advertised && advertised.length > 0 ? advertised : ["ink/0.1"];
+}
 
 /**
  * Return the inbound message URL for an Agent Card.

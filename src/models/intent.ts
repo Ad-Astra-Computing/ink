@@ -182,8 +182,19 @@ export const MessageProvenanceSchema = z.object({
   installationId: z.string().uuid(),
 }).strict().optional();
 
+/**
+ * INK protocol versions a receiver accepts. ink/0.1 is the original wire
+ * version; ink/0.2 differs only in the body-signature domain (see
+ * src/crypto/sign.ts). The enum is strict: an unknown version is rejected
+ * at schema validation, never inferred. Senders still emit ink/0.1 by
+ * default; emitting ink/0.2 is a later, negotiated step.
+ */
+export const INK_PROTOCOL_VERSIONS = ["ink/0.1", "ink/0.2"] as const;
+export const ProtocolVersionSchema = z.enum(INK_PROTOCOL_VERSIONS);
+export type ProtocolVersion = z.infer<typeof ProtocolVersionSchema>;
+
 export const MessageEnvelopeSchema = z.object({
-  protocol: z.literal("ink/0.1"),
+  protocol: ProtocolVersionSchema,
   id: z.string().max(ID_MAX),
   correlationId: z.string().max(ID_MAX),
   createdAt: z.string().max(TIMESTAMP_MAX),

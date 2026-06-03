@@ -138,6 +138,8 @@ export {
   validateMessage,
   getPayloadSchema,
   MessageEnvelopeSchema,
+  ProtocolVersionSchema,
+  INK_PROTOCOL_VERSIONS,
   IntentTypeSchema,
   ScheduleMeetingPayloadSchema,
   ScheduleMeetingResponsePayloadSchema,
@@ -157,6 +159,7 @@ export {
 } from "./models/intent.js";
 export type {
   MessageEnvelope,
+  ProtocolVersion,
   IntentType,
 } from "./models/intent.js";
 
@@ -178,7 +181,7 @@ export type {
 // Type re-exports
 export type { InkSignInput } from "./crypto/ink.js";
 export type { CandidateKey } from "./models/key-entry.js";
-export { resolveAgentInbox } from "./models/agent-card.js";
+export { resolveAgentInbox, agentSupportedProtocolVersions } from "./models/agent-card.js";
 export type { AgentCard } from "./models/agent-card.js";
 export type {
   BudgetCheckResult,
