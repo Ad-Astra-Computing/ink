@@ -8,3 +8,7 @@ __pycache__/
 
 # Private seed files written by `ink-interop keygen --out-seed`. Never commit a real one.
 *.seed
+
+# nix build output symlinks
+/result
+/result-*

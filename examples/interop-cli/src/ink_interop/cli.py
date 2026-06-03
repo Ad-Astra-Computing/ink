@@ -25,7 +25,7 @@ from . import crypto, envelope, transport
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="Non-tulpa INK protocol reference client.",
+    help="Standalone INK protocol reference client.",
 )
 
 

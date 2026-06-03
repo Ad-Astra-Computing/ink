@@ -1,4 +1,4 @@
-"""Non-tulpa INK protocol reference client."""
+"""Standalone INK protocol reference client."""
 
 from importlib.metadata import PackageNotFoundError, version
 

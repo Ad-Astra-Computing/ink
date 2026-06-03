@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "ink-interop"
 version = "0.1.0"
-description = "Non-tulpa INK protocol reference client. Generates Ed25519 keys, builds envelopes, signs, and verifies — all without depending on @adastracomputing/ink."
+description = "Standalone INK protocol reference client. Generates Ed25519 keys, builds envelopes, signs, and verifies — all without depending on @adastracomputing/ink."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT OR Apache-2.0" }
@@ -78,3 +78,6 @@ warn_redundant_casts = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra -q"
+# Import the package straight from src/ so `pytest` works from a fresh
+# checkout (e.g. inside `nix develop`) with no editable install.
+pythonpath = ["src"]

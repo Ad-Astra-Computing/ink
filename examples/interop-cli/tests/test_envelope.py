@@ -146,7 +146,7 @@ def test_build_connection_envelope_rejects_invalid_method() -> None:
     """method MUST be one of qr|intro|discovery|import per
     ConnectionRequestPayloadSchema."""
     kp = crypto.Keypair.generate()
-    with pytest.raises(ValueError, match="qr|intro|discovery|import"):
+    with pytest.raises(ValueError, match=r"qr|intro|discovery|import"):
         envelope.build_connection_envelope(
             keypair=kp,
             from_did="did:key:" + kp.public_key_multibase,

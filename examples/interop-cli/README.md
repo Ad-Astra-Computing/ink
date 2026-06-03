@@ -1,4 +1,4 @@
-# `ink-interop` — non-tulpa INK reference client
+# `ink-interop` — standalone INK reference client
 
 A standalone Python CLI that talks INK end-to-end **without depending on
 `@adastracomputing/ink`**. Generates Ed25519 keys, builds envelopes by
@@ -17,6 +17,22 @@ pip install -e .
 ```
 
 Requires Python 3.11+.
+
+### With Nix (no Python setup)
+
+This directory is a self-contained flake, so you can run the CLI without
+installing Python or any dependencies:
+
+```sh
+# Run a command directly:
+nix run . -- keygen --out-seed ./alice.seed
+
+# Drop into a dev shell with the runtime + pytest, ruff, and mypy:
+nix develop
+
+# Build the package and run its tests + lint:
+nix flake check
+```
 
 ## Usage
 
