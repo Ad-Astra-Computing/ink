@@ -6,7 +6,11 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ## Unreleased
 
-No unreleased changes.
+Version-keyed body-signature domain. The body message signature is now domain-separated by protocol version. ink/0.1 messages, and any object with no explicit ink/0.2 protocol, keep the legacy `tulpa/sign` domain so every signature produced to date still verifies. ink/0.2 messages are signed and verified under the neutral `ink/sign` domain. The verifier selects exactly one domain from the signed `protocol` field and never tries an alternate, so a signature made under one version's domain cannot be replayed under another.
+
+This change is receiver-first and backward compatible. Verifiers accept both versions and `MessageEnvelopeSchema` now accepts ink/0.1 and ink/0.2 as a strict enum, rejecting any unknown version. Senders still emit ink/0.1 by default. The HTTP transport-auth signature is unchanged.
+
+New vectors in `test-vectors/body-signature.json` pin the version-keyed domain including the cross-version and tamper cases. The standalone Python interop client verifies them identically.
 
 ## 0.1.7, expose per-intent payload schemas and getPayloadSchema from the package root
 

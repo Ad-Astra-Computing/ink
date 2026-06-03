@@ -7,16 +7,17 @@ Reference test vectors for INK v0.1 signing, encryption, replay protection, hand
 | File | Covers | Vector count |
 |------|--------|-------------|
 | `keys.json` | Fixed Ed25519 and X25519 key pairs for Alice and Bob (hex-encoded) |, |
-| `signing.json` | Signature generation and verification (§3.3) | 3 |
+| `signing.json` | Transport-auth signature generation and verification (§3.3) | 3 |
+| `body-signature.json` | Version-keyed body message signature: legacy vs ink/0.2 domain, plus cross-version and tamper cases | 9 |
 | `encryption.json` | ECIES encryption/decryption (§3.4) | 2 |
-| `jcs.json` | JCS canonicalization (RFC 8785) | 4 |
+| `jcs.json` | JCS canonicalization (RFC 8785) | 2 |
 | `replay.json` | Replay protection acceptance/rejection (§3.5) | 6 |
 | `receipts-and-audit.json` | Receipt signatures, audit query signatures, hash-chained audit events and fork detection (Auditability §1–§3) | 4 |
 | `handshake.json` | Challenge (Stage 2a), rejection (Stage 2b) and resolution (Stage 3), valid signatures, path/recipient/body binding failures, replay protection | 22 |
 | `witness.json` | Audit submit and query with INK transport auth, plus cross-service interop cases | 15 |
 | `key-rotation.json` | Auth header keyId format, rotated-key verification, historical verification, revoked-key rejection, refresh-on-miss, keyId precedence, unknown keyId fallthrough, audit event signingKeyId tracking | 8 |
 
-**Total: 64 deterministic vectors across 9 families**
+**Total: 71 deterministic vectors across 10 families**
 
 ## Vector categories
 
