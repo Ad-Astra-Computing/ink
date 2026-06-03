@@ -1,7 +1,8 @@
 # INK Key Rotation Specification v0.1
 
-## Status
-Draft
+**Status:** Draft
+**Authors:** Ad Astra Computing
+**Last updated:** 2026-05-24
 
 ## Purpose
 

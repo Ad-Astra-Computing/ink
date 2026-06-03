@@ -1,10 +1,8 @@
 # INK Introduction Receipts Extension v0.1
 
-## Status
-Draft
-
-## Last Updated
-23 March 2026
+**Status:** Draft
+**Authors:** Ad Astra Computing
+**Last updated:** 2026-05-24
 
 ## Purpose
 
