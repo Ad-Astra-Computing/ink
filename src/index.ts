@@ -138,6 +138,8 @@ export {
   validateMessage,
   getPayloadSchema,
   MessageEnvelopeSchema,
+  ProtocolVersionSchema,
+  INK_PROTOCOL_VERSIONS,
   IntentTypeSchema,
   ScheduleMeetingPayloadSchema,
   ScheduleMeetingResponsePayloadSchema,
@@ -157,6 +159,7 @@ export {
 } from "./models/intent.js";
 export type {
   MessageEnvelope,
+  ProtocolVersion,
   IntentType,
 } from "./models/intent.js";
 
