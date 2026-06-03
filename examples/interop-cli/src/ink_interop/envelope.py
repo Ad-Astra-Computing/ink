@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import datetime as _dt
+import re
 import secrets
 from dataclasses import dataclass
 from typing import Any
@@ -58,20 +59,121 @@ def new_ulid(now: _dt.datetime | None = None) -> str:
     return out
 
 
+# An Ed25519 signature is 64 bytes = 86 base64url chars with no padding.
+_SIGNATURE_RE = re.compile(r"[A-Za-z0-9_-]{86}")
+
+# Complexity caps mirroring src/crypto/sign.ts so this client agrees with
+# the package on which bodies are too large to verify, and so a deep or
+# huge body cannot exhaust CPU/memory before the signature check.
+_MAX_NODES = 10_000
+_MAX_DEPTH = 32
+_MAX_CHARS = 1_200_000
+# Cap on the canonical length in UTF-16 code units, matching sign.ts.
+_MAX_CANONICAL_LENGTH = 1_048_576
+
+
+def _utf16_len(s: str) -> int:
+    """String length in UTF-16 code units, matching JS String.length so the
+    char bounds agree with sign.ts even for characters outside the BMP.
+    surrogatepass keeps lone surrogates countable (one unit) rather than
+    raising, matching how a JS string measures them."""
+    return len(s.encode("utf-16-le", "surrogatepass")) // 2
+
+
+def _within_bounds(value: Any) -> bool:
+    """Bounded node/depth/char walk, matching isWithinBounds in sign.ts.
+    Character counts use UTF-16 code units, as the TS walk does."""
+    counters = {"nodes": 0, "chars": 0}
+
+    def walk(v: Any, depth: int) -> bool:
+        if depth > _MAX_DEPTH:
+            return False
+        counters["nodes"] += 1
+        if counters["nodes"] > _MAX_NODES:
+            return False
+        if v is None or not isinstance(v, (dict, list)):
+            if isinstance(v, str):
+                counters["chars"] += _utf16_len(v)
+                if counters["chars"] > _MAX_CHARS:
+                    return False
+            return True
+        if isinstance(v, list):
+            return all(walk(item, depth + 1) for item in v)
+        for key, val in v.items():
+            counters["nodes"] += 1
+            if counters["nodes"] > _MAX_NODES:
+                return False
+            counters["chars"] += _utf16_len(key) if isinstance(key, str) else 0
+            if counters["chars"] > _MAX_CHARS:
+                return False
+            if not walk(val, depth + 1):
+                return False
+        return True
+
+    return walk(value, 0)
+
+
+def _body_signature_domain(unsigned: dict[str, Any]) -> bytes:
+    """Body-signature domain separator, keyed off the signed protocol field.
+
+    Mirrors ``bodySignatureDomain`` in ``src/crypto/sign.ts``. ink/0.2 uses
+    ``ink/sign\\n``; ink/0.1 and any object without an exact ink/0.2
+    protocol use the legacy ``tulpa/sign\\n`` domain, kept for backward
+    compatibility. Only the exact string ``"ink/0.2"`` switches domains.
+    """
+    if unsigned.get("protocol") == "ink/0.2":
+        return b"ink/sign\n"
+    return b"tulpa/sign\n"
+
+
 def sign_body(keypair: crypto.Keypair, unsigned: dict[str, Any]) -> str:
     """Domain-separated body-level signature per `src/crypto/sign.ts`.
 
-    Prefixes `tulpa/sign\\n` to the JCS-canonical bytes before Ed25519
-    signing. That domain separator prevents cross-protocol signature
-    replay (the body signature must not be confusable with the HTTP
-    Authorization signature even though both are over canonical JSON).
-    Output is base64url, no padding.
+    Prefixes the version-keyed domain (see ``_body_signature_domain``) to
+    the JCS-canonical bytes before Ed25519 signing. That domain separator
+    prevents cross-protocol and cross-version signature replay. Output is
+    base64url, no padding.
     """
     without_sig = {k: v for k, v in unsigned.items() if k != "signature"}
     canonical = jcs.canonicalize(without_sig)
-    prefixed = b"tulpa/sign\n" + canonical
+    prefixed = _body_signature_domain(without_sig) + canonical
     sig = crypto.sign_detached(keypair, prefixed)
     return base64.urlsafe_b64encode(sig).rstrip(b"=").decode("ascii")
+
+
+def verify_body(public_key_bytes: bytes, body: dict[str, Any]) -> bool:
+    """Verify a body-level signature using the version-keyed domain.
+
+    Strips the ``signature`` field, JCS-canonicalizes the rest, selects the
+    domain from the signed protocol version, and verifies the Ed25519
+    signature. The verifier tries exactly one domain, so a signature made
+    under one version's domain does not verify under another.
+
+    Never raises: any malformed input returns ``False``. The signature must
+    be exactly 86 base64url characters with no padding, matching the strict
+    shape the TypeScript ``verifyMessage`` enforces, so the two
+    implementations agree on what counts as a well-formed signature.
+    """
+    if not isinstance(body, dict):
+        return False
+    signature = body.get("signature")
+    if not isinstance(signature, str) or not _SIGNATURE_RE.fullmatch(signature):
+        return False
+    try:
+        without_sig = {k: v for k, v in body.items() if k != "signature"}
+        if not _within_bounds(without_sig):
+            return False
+        canonical = jcs.canonicalize(without_sig)
+        # Match sign.ts, which caps canonical.length in UTF-16 code units
+        # (JS string length), not UTF-8 bytes, so the two implementations
+        # agree on the cap for non-ASCII bodies.
+        if len(canonical.decode("utf-8").encode("utf-16-le")) // 2 > _MAX_CANONICAL_LENGTH:
+            return False
+        prefixed = _body_signature_domain(without_sig) + canonical
+        sig = base64.urlsafe_b64decode(signature + "==")
+        return crypto.verify_detached(public_key_bytes, prefixed, sig)
+    except (ValueError, TypeError, RecursionError):
+        return False
 
 INK_PROTOCOL_VERSION = "ink/0.1"
 
