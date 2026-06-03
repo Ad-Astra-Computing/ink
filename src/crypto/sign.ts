@@ -50,11 +50,40 @@ function isWithinBounds(value: unknown): boolean {
 }
 
 /**
+ * Body-signature domain-separation prefix, keyed off the message's
+ * declared `protocol` version.
+ *
+ * - `ink/0.2` -> `ink/sign\n` (neutral, current).
+ * - everything else (`ink/0.1`, or any object with no explicit
+ *   `ink/0.2` protocol) -> `tulpa/sign\n`, the legacy domain, kept
+ *   forever so every signature ever produced still verifies.
+ *
+ * The prefix is derived from the `protocol` field that is part of the
+ * signed body, so a verifier selects exactly one domain and tampering
+ * with `protocol` after signing breaks the signature (an `ink/0.2` body
+ * re-labelled `ink/0.1` is verified under `tulpa/sign\n` against a
+ * signature made over `ink/sign\n`, and fails). Only the exact string
+ * `"ink/0.2"` switches domains, so no other value can smuggle one in.
+ *
+ * This raw signer stays permissive on purpose: it is a general-purpose
+ * Ed25519 message signer (receipts, arbitrary objects), not envelope-
+ * specific. Strict "reject unknown protocol version" lives at the
+ * envelope schema layer, which validates `protocol` against the allowed
+ * set before this function is reached.
+ */
+const LEGACY_SIGN_DOMAIN = "tulpa/sign\n";
+const V02_SIGN_DOMAIN = "ink/sign\n";
+
+function bodySignatureDomain(unsigned: Record<string, unknown>): string {
+  return unsigned.protocol === "ink/0.2" ? V02_SIGN_DOMAIN : LEGACY_SIGN_DOMAIN;
+}
+
+/**
  * Sign a message object using Ed25519.
  *
  * 1. Remove `signature` field if present
  * 2. JCS canonicalize (RFC 8785) via `canonicalize` library
- * 3. Sign canonical bytes directly with Ed25519
+ * 3. Sign domain-prefixed canonical bytes directly with Ed25519
  * 4. Return base64url-encoded signature (no padding)
  */
 export async function signMessage(
@@ -81,8 +110,10 @@ export async function signMessage(
   if (canonical.length > MAX_MESSAGE_CANONICAL_BYTES) {
     throw new Error("Canonicalized message exceeds maximum allowed size");
   }
-  // Domain-separated signing to prevent cross-protocol signature replay
-  const prefixed = `tulpa/sign\n${canonical}`;
+  // Domain-separated signing to prevent cross-protocol signature replay.
+  // Domain is keyed off the (signed) protocol version; see
+  // bodySignatureDomain. Legacy ink/0.1 keeps the tulpa/sign domain.
+  const prefixed = `${bodySignatureDomain(unsigned)}${canonical}`;
   const bytes = new TextEncoder().encode(prefixed);
   const sig = await ed.signAsync(bytes, privateKey);
   return base64urlEncode(sig);
@@ -126,9 +157,12 @@ export async function verifyMessage(
     return false;
   }
 
-  // Domain-prefixed verification only — legacy unprefixed signatures are no longer accepted.
-  // signMessage() has always used `tulpa/sign\n` prefix; no callers produce unprefixed signatures.
-  const prefixed = `tulpa/sign\n${canonical}`;
+  // Domain-prefixed verification only. The domain is selected from the
+  // signed `protocol` field (see bodySignatureDomain); a verifier never
+  // tries an alternate prefix, so a signature made under one version's
+  // domain cannot be replayed under another. Legacy unprefixed
+  // signatures are not accepted.
+  const prefixed = `${bodySignatureDomain(unsigned)}${canonical}`;
   const prefixedBytes = new TextEncoder().encode(prefixed);
   try {
     const sig = base64urlDecode(signature);
