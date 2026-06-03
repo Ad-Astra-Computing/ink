@@ -112,7 +112,6 @@ describe("version-keyed body signature domain", () => {
 
     it("a boxed String('ink/0.2') object does NOT select the v0.2 domain (strict ===)", async () => {
       const k = await kp();
-      // eslint-disable-next-line no-new-wrappers
       const body: Record<string, unknown> = { ...baseBody(), protocol: new String("ink/0.2") };
       const signature = await signMessage(body, k.privateKey);
       // Signs + verifies under legacy; a true v0.2 signature would not verify.

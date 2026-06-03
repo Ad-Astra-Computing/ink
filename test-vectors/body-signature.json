@@ -1,0 +1,201 @@
+{
+  "description": "INK body message signature: domain is keyed off the signed protocol field (ink/0.2 -> ink/sign, else tulpa/sign). Verify each body with the signer public key; signatureVerifies is the expected verifyMessage result.",
+  "vectors": [
+    {
+      "description": "ink/0.1 body signed under the legacy tulpa/sign domain verifies",
+      "input": {
+        "body": {
+          "protocol": "ink/0.1",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "W44kkGyQFg348NADetWQPq5Ogi7rL_72CwjmK-XVn2hL8sXYuSM7cFaDVidGV5LeK3dmmqW6iu5QiWkm6qboAQ"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": true
+      }
+    },
+    {
+      "description": "ink/0.2 body signed under the ink/sign domain verifies",
+      "input": {
+        "body": {
+          "protocol": "ink/0.2",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "UAITw3Qqcg96s4r5tmxHXGpuHCfzJBgxihVRPdR8FYcQKk2nYcYxrV8fRFUH3NB_-z-006tFWgZfzJbFILw4Bg"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": true
+      }
+    },
+    {
+      "description": "protocol-less body signed under the legacy domain verifies",
+      "input": {
+        "body": {
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "qP1oxHKCEImzkYT8Iz00N4Crqi5prbKRguKj_zg8YlLyCrE4CmElrNWECEBWBe-8XV_rNB4oMc1wReXwHqOFCA"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": true
+      }
+    },
+    {
+      "description": "ink/0.2 body relabelled ink/0.1 (domain mismatch) does not verify",
+      "input": {
+        "body": {
+          "protocol": "ink/0.1",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "UAITw3Qqcg96s4r5tmxHXGpuHCfzJBgxihVRPdR8FYcQKk2nYcYxrV8fRFUH3NB_-z-006tFWgZfzJbFILw4Bg"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": false
+      }
+    },
+    {
+      "description": "ink/0.1 body relabelled ink/0.2 (domain mismatch) does not verify",
+      "input": {
+        "body": {
+          "protocol": "ink/0.2",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "W44kkGyQFg348NADetWQPq5Ogi7rL_72CwjmK-XVn2hL8sXYuSM7cFaDVidGV5LeK3dmmqW6iu5QiWkm6qboAQ"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": false
+      }
+    },
+    {
+      "description": "ink/0.2 body with protocol removed (falls back to legacy domain) does not verify",
+      "input": {
+        "body": {
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "UAITw3Qqcg96s4r5tmxHXGpuHCfzJBgxihVRPdR8FYcQKk2nYcYxrV8fRFUH3NB_-z-006tFWgZfzJbFILw4Bg"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": false
+      }
+    },
+    {
+      "description": "ink/0.1 body with a flipped payload field does not verify",
+      "input": {
+        "body": {
+          "protocol": "ink/0.1",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "qr"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "W44kkGyQFg348NADetWQPq5Ogi7rL_72CwjmK-XVn2hL8sXYuSM7cFaDVidGV5LeK3dmmqW6iu5QiWkm6qboAQ"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": false
+      }
+    },
+    {
+      "description": "ink/0.2 body signed under the legacy domain does not verify (a verifier must not try both domains)",
+      "input": {
+        "body": {
+          "protocol": "ink/0.2",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "axpZvQqF8KPG-Mh1q3hnfZhnaSUHbYfToUz-wA_WD7PV0qKOnVHpuTu8DTaR0OTtGBVHoqpoQFlfMVskELfgDg"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": false
+      }
+    },
+    {
+      "description": "unknown protocol string uses the legacy body-signature domain and verifies",
+      "input": {
+        "body": {
+          "protocol": "ink/0.3",
+          "id": "01HVECTORID0000000000000000",
+          "from": "did:key:zAlice",
+          "to": "did:key:zBob",
+          "intent": "connection_request",
+          "payload": {
+            "method": "discovery"
+          },
+          "timestamp": "2026-06-03T00:00:00Z",
+          "nonce": "ZmtmaXhlZG5vbmNl",
+          "signature": "I3JIzt0kg9zncGvRU9nSZ2ldVrE4L9JnolDJAgW4kNUAqmp6bLAfPptfbYttqp1nTX4OB3oCCOOBPFCA7Fw4Cw"
+        },
+        "signerPublicKeyHex": "79b5562e8fe654f94078b112e8a98ba7901f853ae695bed7e0e3910bad049664"
+      },
+      "expected": {
+        "signatureVerifies": true
+      }
+    }
+  ]
+}
