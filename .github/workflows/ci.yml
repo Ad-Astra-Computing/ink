@@ -69,3 +69,21 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run typecheck
+
+  interop-cli:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@565684385bcd71bad329742eefe8d12f2e765b39 # v13
+
+      - name: Python interop tests, lint and types
+        working-directory: examples/interop-cli
+        run: nix develop --command bash -c "pytest -q && ruff check src tests && mypy src"
