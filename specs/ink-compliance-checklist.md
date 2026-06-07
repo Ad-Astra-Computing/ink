@@ -1,7 +1,8 @@
 # INK v0.1 Compliance Checklist and Implementation Matrix
 
-## Status
-Draft, v0.1 alpha conformance
+**Status:** Draft, v0.1 alpha conformance
+**Authors:** Ad Astra Computing
+**Last updated:** 2026-05-27
 
 ## Purpose
 
