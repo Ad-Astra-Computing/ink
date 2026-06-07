@@ -1,8 +1,10 @@
 # Maturity Notice
 
-> INK v0.1 is **experimental**. Wire formats, trust semantics and APIs
-> may change without backward-compatible migration before v1.0. Do not
-> use for load-bearing production traffic without your own review.
+> INK is **experimental**. The current defined wire version is `ink/0.2`, a
+> backward-compatible minor over `ink/0.1` (both major version 0). Wire formats,
+> trust semantics and APIs may change without backward-compatible migration
+> before v1.0. Do not use for load-bearing production traffic without your own
+> review.
 
 ## What "experimental" means here
 
@@ -12,8 +14,8 @@
   agent-card fetch, and DoS-amplification surfaces. Internal review is
   not a substitute for a third-party audit, treat the security
   posture accordingly.
-- Interop vectors (`../test-vectors/`) are authoritative for v0.1 but may
-  be added to or revised between v0.1 patch releases. Mismatched
+- Interop vectors (`../test-vectors/`) are authoritative for the current wire
+  version but may be added to or revised between patch releases. Mismatched
   implementations should report discrepancies as issues.
 - The protocol is in use by one production integrator (Tulpa). That is
   one data point, not a guarantee of robustness at scale.
@@ -22,7 +24,9 @@
   Bun, and edge runtimes. Browser use is feasible but not exercised by
   the maintainers.
 
-## What is stable in v0.1
+## What is stable
+
+These hold across major version 0 (`ink/0.1` and `ink/0.2`):
 
 - Envelope structure (fields, canonicalization with JCS / RFC 8785)
 - Ed25519 signing base: `ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp`
