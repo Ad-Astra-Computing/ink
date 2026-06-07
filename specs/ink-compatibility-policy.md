@@ -16,7 +16,7 @@ This is the normative compatibility contract. Any change to the INK wire format 
 
 INK uses a single protocol version string in every message envelope, receipt, audit event and handshake message.
 
-Current version: `ink/0.1`
+Defined versions: `ink/0.1` (default) and `ink/0.2` (negotiated). See [§1.4](#14-defined-wire-versions).
 
 The version string appears in the `protocol` field of every top-level INK object and in the first line of every signature base.
 
@@ -48,6 +48,17 @@ implementations. A future major version MAY introduce a vendor-neutral
 prefix (e.g. `network.ink.*`) and define a transition policy. Until then,
 conforming implementations MUST emit and accept `network.tulpa.*` types as
 specified.
+
+### 1.4 Defined wire versions
+
+Two wire versions are defined:
+
+- `ink/0.1`, the original version. A sender emits it by default unless it has positively negotiated otherwise.
+- `ink/0.2`, a backward-compatible minor that changes only the body-signature domain separator, from the legacy `tulpa/sign\n` to the neutral `ink/sign\n`. Everything else, the transport-auth signature base, the envelope shape, the encryption and audit sub-protocols and every `network.tulpa.*` type, is identical to `ink/0.1`.
+
+`ink/0.2` is receiver-first. A receiver advertises the versions it verifies in its Agent Card `supportedProtocolVersions` array; when that field is absent a sender MUST assume `ink/0.1` only, and a sender MUST NOT emit `ink/0.2` to a receiver that has not advertised it. The negotiation is what keeps the change compatible: an `ink/0.1`-only receiver never receives `ink/0.2` traffic, so it is never asked to verify a domain it does not implement. An `ink/0.2` receiver selects the body-signature domain from the signed `protocol` field and verifies both versions, and because `protocol` is inside the signed body a relabelled message fails verification.
+
+This satisfies §1.1. The minor bump adds a capability without breaking deployed `ink/0.1` implementations, because the body-signature domain is negotiated rather than assumed.
 
 ---
 
