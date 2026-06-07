@@ -1,7 +1,8 @@
 # INK Compatibility and Versioning Policy
 
-## Status
-Draft, v1 stabilization
+**Status:** Draft, v1 stabilization
+**Authors:** Ad Astra Computing
+**Last updated:** 2026-05-24
 
 ## Purpose
 

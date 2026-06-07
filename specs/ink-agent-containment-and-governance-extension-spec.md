@@ -1,7 +1,8 @@
 # INK Agent Containment and Governance Extension v0.1
 
-## Status
-Draft
+**Status:** Draft
+**Authors:** Ad Astra Computing
+**Last updated:** 2026-05-24
 
 ## Purpose
 
