@@ -31,6 +31,10 @@ export function buildAgentCard(cfg: AgentCardConfig): unknown {
   const endpoint = `https://${cfg.host}/ink/v1/inbound`;
   const card = {
     protocol: "ink/0.1",
+    // Runs the 0.2 runtime and accepts both ink/0.1 and ink/0.2 envelopes (the
+    // schema admits either, and transport auth covers the canonical body), so
+    // advertise both and a sender may negotiate up to ink/0.2.
+    supportedProtocolVersions: ["ink/0.1", "ink/0.2"],
     agentId: cfg.did,
     handle: cfg.host,
     displayName: "INK Reference Receiver",
