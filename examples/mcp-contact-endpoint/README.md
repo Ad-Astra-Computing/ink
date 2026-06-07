@@ -98,10 +98,15 @@ the lifted reference-receiver helpers rather than re-implementing crypto:
   signature work — never canonicalize clearly-invalid input.
 - Resolve the sender's rotation-aware key set (`resolveSenderKeys` →
   `CandidateKey[]`), then call `verifyInkAuth({ ..., resolveKeySet, nonceStore })`,
-  which verifies **both** the transport-auth header and the body signature, plus
-  the `nonce` store and the timestamp window (5 minutes past, 30 seconds future),
-  and selects the body-signature domain from the signed `protocol` field
-  (`ink/0.1` / `ink/0.2`).
+  which verifies the transport-auth signature (the `Authorization` header) against
+  the key set, plus the `nonce` store and the timestamp window (5 minutes past,
+  30 seconds future). Its signature base covers the canonical JSON of the whole
+  body, so a pass also proves the envelope arrived intact and bound to our DID. It
+  does **not** separately verify the envelope's own `signature` field: that body
+  signature is the portable, transport-independent proof of authorship, which a
+  receiver that relays, stores, or audits the envelope should verify with
+  `verifyMessage` against the sender key set. A contact endpoint that forwards a
+  rendered notification and acts on the envelope directly does not need it.
 - Confirm `auth.senderAgentId` matches the envelope `from` (reject a forged
   `from`), and bind `recipientDid` to our DID (decision 1).
 - `did:web` sender resolution runs behind the discovery SSRF guards (the

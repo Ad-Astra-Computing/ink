@@ -114,9 +114,16 @@ export async function handleInbound(req: Request, env: Env): Promise<Response> {
   const candidateKeys: CandidateKey[] = await resolveSenderKeys(envelope.from, { fetcher: env.fetcher });
   if (candidateKeys.length === 0) return json(400, { error: "unresolvable_sender" });
 
-  // 7. Verify BOTH signatures + replay in one call: verifyInkAuth checks the
-  //    transport Authorization header AND the body signature against the
-  //    resolved key set, plus the nonce store and timestamp window.
+  // 7. Authenticate the request: verifyInkAuth checks the transport-auth
+  //    signature (the Authorization header) against the resolved key set, plus
+  //    the nonce store and the timestamp window. Its signature base covers the
+  //    canonical JSON of the whole body, so a valid result also proves the
+  //    envelope arrived byte-for-byte intact and bound to OUR_DID — which is all
+  //    a receiver that acts on the envelope now (forward a notification) needs.
+  //    It does NOT separately verify the envelope's own `signature` field: that
+  //    body signature is the portable, transport-independent proof of authorship.
+  //    A receiver that RELAYS, STORES, or AUDITS the envelope should additionally
+  //    call verifyMessage against the sender key set; this endpoint does not.
   const auth = await verifyInkAuth({
     authHeader: req.headers.get("Authorization") ?? undefined,
     method: "POST",
