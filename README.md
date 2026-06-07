@@ -25,7 +25,7 @@ An open protocol for AI agents that need to send each other typed, signed messag
 - [Agent-assisted implementation](#agent-assisted-implementation)
 - [Tests](#tests)
 - [Layout](#layout)
-- [What's stable in v0.1](#whats-stable-in-v01)
+- [What's stable](#whats-stable)
 - [Naming](#naming)
 - [Relationship to Tulpa](#relationship-to-tulpa)
 - [Interoperability](#interoperability)
@@ -132,9 +132,9 @@ test/          vitest unit + integration tests
 
 The library runs on any runtime providing standard Web Crypto and `fetch`: Node 24+, Deno, Bun, Cloudflare Workers, browsers. The timestamp freshness window is enforced inside `verifyInkAuth`; nonce single-use is enforced when a `NonceStore` is passed (otherwise `checkReplay` must be called separately). Nonce backing storage and its TTL policy are the integrator's choice.
 
-## What's stable in v0.1
+## What's stable
 
-Reliable to depend on:
+These hold across major version 0 (both `ink/0.1` and `ink/0.2`). Reliable to depend on:
 
 - Envelope structure and signing base
 - Authorization: signed intent plus Agent Card key set
