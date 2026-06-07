@@ -1,7 +1,8 @@
 # INK Containment Phase 1, Implementation Spec
 
-## Status
-Draft
+**Status:** Draft
+**Authors:** Ad Astra Computing
+**Last updated:** 2026-06-01
 
 ## Purpose
 
