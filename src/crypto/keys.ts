@@ -187,8 +187,16 @@ export function decodeEncryptionKeyMultibase(multibase: string): Uint8Array {
 }
 
 /**
+ * agentId method prefixes that carry the same key-derived identity. Both encode
+ * the identical multibase public key, so they denote the same actor. `tulpa:`
+ * is canonical for emission (see deriveAgentId); `ink:` is an accepted inbound
+ * alias introduced in ink/0.4. Accept both, emit one.
+ */
+export const AGENT_ID_KEY_PREFIXES = Object.freeze(["tulpa:", "ink:"] as const);
+
+/**
  * Derive agent ID from a public key.
- * Format: tulpa:<multibase-encoded-public-key>
+ * Format: tulpa:<multibase-encoded-public-key> (canonical emission).
  */
 export function deriveAgentId(publicKey: Uint8Array): string {
   return `tulpa:${encodePublicKeyMultibase(publicKey)}`;
@@ -197,13 +205,19 @@ export function deriveAgentId(publicKey: Uint8Array): string {
 /**
  * Extract the public key from an agent ID.
  * Only used for initial key exchange — after that, always resolve via identity store.
+ *
+ * Accepts either the canonical `tulpa:` prefix or the `ink:` alias (ink/0.4):
+ * both carry the identical multibase key, so a signature made with that key
+ * verifies regardless of which accepted prefix carried it. The prefix is
+ * identity syntax, not signing authority. The multibase tail is decoded the
+ * same way for both, so a malformed tail is rejected identically.
  */
 export function extractPublicKeyFromAgentId(agentId: string): Uint8Array {
   if (typeof agentId !== "string" || agentId.length === 0 || agentId.length > 512) {
     throw new Error("Invalid agent ID");
   }
-  const prefix = "tulpa:";
-  if (!agentId.startsWith(prefix)) {
+  const prefix = AGENT_ID_KEY_PREFIXES.find((p) => agentId.startsWith(p));
+  if (!prefix) {
     throw new Error("Invalid agent ID format");
   }
   return decodePublicKeyMultibase(agentId.slice(prefix.length));
