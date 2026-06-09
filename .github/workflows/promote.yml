@@ -28,11 +28,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: promote-${{ inputs.version }}-${{ inputs.dist_tag }}
+  cancel-in-progress: false
+
 jobs:
   promote:
     runs-on: ubuntu-latest
+    # Bind the NPM_TOKEN to a deployment environment so required-reviewer
+    # protection can be added on it (Settings → Environments → npm-release),
+    # gating who can move a dist-tag.
+    environment: npm-release
     steps:
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 24.x
           registry-url: "https://registry.npmjs.org"
