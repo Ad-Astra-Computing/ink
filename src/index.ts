@@ -39,6 +39,7 @@ export {
   decodePublicKeyMultibase,
   decodeEncryptionKeyMultibase,
   extractPublicKeyFromAgentId,
+  AGENT_ID_KEY_PREFIXES,
 } from "./crypto/keys.js";
 
 // Discovery: Agent Card fetch + candidate-key extraction
