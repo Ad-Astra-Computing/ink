@@ -1,24 +1,43 @@
 name: nix-hash-sync
 
 on:
-  pull_request_target:
+  # pull_request_target is required: the job commits the recomputed hash back to
+  # the PR branch, which pull_request cannot do. Risk is mitigated by gating to
+  # same-repo Dependabot PRs only (see the job `if`), least-privilege, and
+  # persist-credentials:false. Accepted intentionally.
+  pull_request_target: # zizmor: ignore[dangerous-triggers]
     types: [opened, synchronize]
     paths: [package-lock.json]
 
-permissions:
-  contents: write
-  pull-requests: read
+# Deny by default; the one job elevates to exactly what it needs.
+permissions: {}
+
+concurrency:
+  group: nix-hash-sync-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   sync:
-    if: github.actor == 'dependabot[bot]'
+    # pull_request_target runs with repo write + secrets, so gate hard: only
+    # Dependabot's own PRs, and only when they originate from a branch in THIS
+    # repo (never a fork). The PR-author login is more robust than github.actor,
+    # and the same-repo guard means the checked-out head is repo-controlled.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+      pull-requests: read
     runs-on: ubuntu-latest
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
         with:
           ref: ${{ github.event.pull_request.head.ref }}
+          # The repo token is provided per-step via GITHUB_TOKEN env, not git
+          # config — never persist it into the checkout of PR-supplied code.
+          persist-credentials: false
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
