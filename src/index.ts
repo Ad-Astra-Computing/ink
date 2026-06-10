@@ -87,10 +87,11 @@ export {
   AgentCardQuerySchema,
 } from "./ink/discovery-gating.js";
 
-// Checkpoint parsing for transparency-log signed checkpoints
+// Checkpoint parsing and signature verification for transparency-log checkpoints
 export {
   parseCheckpoint,
   formatCheckpoint,
+  verifyCheckpoint,
 } from "./ink/checkpoint.js";
 export type { CheckpointData } from "./ink/checkpoint.js";
 

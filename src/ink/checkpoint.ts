@@ -3,6 +3,9 @@
  * Used for the public checkpoint endpoint (INK Auditability §7.7).
  */
 
+import * as ed from "@noble/ed25519";
+import { base64urlDecode } from "../crypto/ink.js";
+
 export interface CheckpointData {
   origin: string;
   treeSize: number;
@@ -72,4 +75,79 @@ export function parseCheckpoint(body: string): CheckpointData | null {
   if (!/^[0-9a-f]{64}$/.test(rootHash)) return null;
 
   return { origin, treeSize, rootHash };
+}
+
+/** A signed checkpoint is the 3-line body, a blank line, then one or more
+ *  signature lines, plus a trailing newline. Bound the whole thing so an
+ *  attacker-supplied blob cannot drive large scans before rejection. */
+const MAX_SIGNED_CHECKPOINT_BODY = 4096;
+/** Cap the number of cosignature lines a verifier will scan. */
+const MAX_CHECKPOINT_SIGNATURES = 8;
+
+/**
+ * Verify a signed checkpoint and return its parsed body, or `null` if the
+ * signature, origin, or format is invalid.
+ *
+ * The signed form is the C2SP-style note used by the INK witness:
+ *
+ *   <origin>\n<treeSize>\n<rootHash>\n\n-- <origin> <base64url(sig)>\n
+ *
+ * The Ed25519 signature covers the body bytes `<origin>\n<treeSize>\n<rootHash>`
+ * exactly (no trailing newline), so the `origin` first line is the domain
+ * separator binding the signed bytes to this log. Verification REQUIRES the
+ * caller's `expectedOrigin`: a checkpoint whose body origin, or whose matching
+ * signature-line origin, is not `expectedOrigin` is rejected, so a witness that
+ * operates several logs (or an attacker replaying another log's signed
+ * checkpoint) cannot substitute a different tree. This is the authenticated
+ * input that anti-rollback / freshness checks MUST consume; an unverified
+ * checkpoint body provides no security.
+ *
+ * Verification uses RFC 8032 strict mode (small-order keys rejected).
+ */
+export async function verifyCheckpoint(
+  signed: string,
+  witnessPublicKey: Uint8Array,
+  expectedOrigin: string,
+): Promise<CheckpointData | null> {
+  if (typeof signed !== "string" || signed.length === 0 || signed.length > MAX_SIGNED_CHECKPOINT_BODY) {
+    return null;
+  }
+  if (!(witnessPublicKey instanceof Uint8Array) || witnessPublicKey.length !== 32) {
+    return null;
+  }
+  if (typeof expectedOrigin !== "string" || expectedOrigin.length === 0 || expectedOrigin.length > MAX_CHECKPOINT_LINE) {
+    return null;
+  }
+  const SEP = "\n\n-- ";
+  const idx = signed.indexOf(SEP);
+  if (idx === -1) return null;
+  const body = signed.slice(0, idx); // <origin>\n<treeSize>\n<rootHash>
+  const data = parseCheckpoint(body + "\n");
+  if (!data) return null;
+  // Bind the body's own origin to the caller's expectation before any crypto.
+  if (data.origin !== expectedOrigin) return null;
+
+  // Signature block starts at the "-- " that began the separator.
+  const sigBlock = signed.slice(idx + 2);
+  const sigLines = sigBlock.split("\n").filter((l) => l.length > 0);
+  if (sigLines.length === 0 || sigLines.length > MAX_CHECKPOINT_SIGNATURES) return null;
+  const bodyBytes = new TextEncoder().encode(body);
+  for (const line of sigLines) {
+    if (!line.startsWith("-- ")) return null; // any malformed signature line is fatal
+    const rest = line.slice(3);
+    const sp = rest.indexOf(" ");
+    if (sp === -1) return null;
+    const lineOrigin = rest.slice(0, sp);
+    const sigB64 = rest.slice(sp + 1);
+    if (lineOrigin !== expectedOrigin) continue; // a cosigner whose key we were not given
+    try {
+      const sig = base64urlDecode(sigB64);
+      if (sig.length !== 64) return null;
+      const ok = await ed.verifyAsync(sig, bodyBytes, witnessPublicKey, { zip215: false });
+      return ok ? data : null; // a matching-origin signature that fails verification is fatal
+    } catch {
+      return null;
+    }
+  }
+  return null; // no signature line for the expected origin
 }

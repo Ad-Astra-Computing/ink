@@ -73,9 +73,12 @@ export async function verifyInclusionReceipt(opts: {
    *  Use `computeAuditMerkleLeafHash` to derive it. When provided, the
    *  inclusion proof is walked from this leaf up to the claimed rootHash. */
   eventHash?: string;
-  /** Optional later checkpoint to cross-check the receipt against.
-   *  Must come from a `/ink/v1/checkpoint` response that the verifier
-   *  has separately validated as authentic. */
+  /** Optional later checkpoint to cross-check the receipt against. This MUST be
+   *  the parsed body of a checkpoint whose Ed25519 signature and origin the
+   *  caller has already verified with `verifyCheckpoint` against the witness
+   *  key. Passing an unverified (merely parsed) checkpoint gives the
+   *  anti-rollback / fork cross-check no security, because the treeSize and
+   *  rootHash would then be attacker-controllable. */
   laterCheckpoint?: { treeSize: number; rootHash: string };
 }): Promise<InclusionReceiptVerifyResult> {
   const steps: VerifyStep[] = [];

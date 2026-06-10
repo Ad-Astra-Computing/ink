@@ -36,6 +36,7 @@ describe("public API surface (src/index.ts → package root)", () => {
     expect(typeof ink.fetchAgentCard).toBe("function");
     expect(typeof ink.extractCandidateKeys).toBe("function");
     expect(typeof ink.verifyInkAuth).toBe("function");
+    expect(typeof ink.verifyCheckpoint).toBe("function");
   });
 
   it("re-exports audit/handshake helpers", () => {
