@@ -38,6 +38,7 @@ function parseArgs(argv) {
     const a = argv[i];
     if (a === "--file" || a === "-f") out.file = argv[++i];
     else if (a === "--witness" || a === "-w") out.witness = argv[++i];
+    else if (a === "--origin") out.origin = argv[++i];
     else if (a === "--event-hash" || a === "-e") out.eventHash = argv[++i];
     else if (a === "--allow-http") out.allowHttp = true;
     else if (a === "--help" || a === "-h") out.help = true;
@@ -75,6 +76,10 @@ Usage:
 
 Options:
   -w, --witness <url>      Witness base URL (e.g. https://witness.tulpa.network)
+      --origin <name>      Optional. Expected checkpoint origin (log identity)
+                            to bind the signed checkpoint to. When omitted, the
+                            checkpoint signature is still verified against the
+                            witness key and the body/signature origins must agree.
   -f, --file <path>        Receipt JSON file. Omit to read from stdin.
   -e, --event-hash <hex>   Optional. RFC 6962 leaf hash for the audit event:
                             SHA-256(0x00 || JCS(event-without-agentSignature)),
@@ -226,7 +231,8 @@ async function verifyReceipt(receipt, witnessPublicKey, eventHash, laterCheckpoi
   let sigValid = false;
   try {
     const sig = base64urlDecode(receipt.serviceSignature);
-    sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey);
+    // RFC 8032 strict verification, matching the library (reject small-order keys).
+    sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
   } catch (e) {
     steps.push({ name: "signature", pass: false, detail: e instanceof Error ? e.message : "signature decode failed" });
     return { valid: false, steps };
@@ -343,28 +349,59 @@ async function fetchWitnessPublicKey(witnessUrl) {
 }
 
 /**
- * Parse a C2SP tlog-checkpoint response. The body has three header
- * lines (origin, treeSize, rootHash), each terminated by \n, then a
- * blank line, then a signature line. We don't verify the signature
- * here (it'd require pre-fetching the witness key, which the caller
- * already does for the receipt). Just extract the header fields with
- * strict regexes so a malformed checkpoint can't fake-pass.
+ * Verify a signed C2SP tlog-checkpoint and return { treeSize, rootHash,
+ * origin }, or null if the signature, origin, or format is invalid. The
+ * Ed25519 signature covers the body bytes `<origin>\n<treeSize>\n<rootHash>`
+ * (no trailing newline). The anti-rollback cross-check below only means
+ * anything against a checkpoint whose signature we have verified against the
+ * witness key, so this MUST verify, not just parse.
+ *
+ * Mirrors verifyCheckpoint() in src/ink/checkpoint.ts — keep them in sync.
  */
-function parseCheckpointBody(body) {
-  const sepIdx = body.indexOf("\n\n");
-  if (sepIdx < 0) return null;
-  const header = body.slice(0, sepIdx);
-  const lines = header.split("\n");
+async function verifyCheckpointBody(signed, witnessPublicKey, expectedOrigin) {
+  if (typeof signed !== "string" || signed.length === 0 || signed.length > 4096) return null;
+  const SEP = "\n\n-- ";
+  const idx = signed.indexOf(SEP);
+  if (idx < 0) return null;
+  const body = signed.slice(0, idx);
+  const lines = body.split("\n");
   if (lines.length !== 3) return null;
-  if (!lines[0]) return null;
-  if (!/^\d+$/.test(lines[1])) return null;
-  const treeSize = parseInt(lines[1], 10);
+  const [origin, sizeLine, rootHash] = lines;
+  if (!origin || origin.length > 256) return null;
+  if (!/^\d+$/.test(sizeLine)) return null;
+  const treeSize = parseInt(sizeLine, 10);
   if (!Number.isInteger(treeSize) || treeSize < 0 || treeSize > Number.MAX_SAFE_INTEGER) return null;
-  if (!/^[0-9a-f]{64}$/.test(lines[2])) return null;
-  return { treeSize, rootHash: lines[2] };
+  if (!/^[0-9a-f]{64}$/.test(rootHash)) return null;
+  // The expected origin must be supplied by the caller (a trusted value), not
+  // taken from the checkpoint body, so a witness key that signs several origins
+  // cannot substitute a checkpoint for a different log than the receipt's.
+  if (typeof expectedOrigin !== "string" || expectedOrigin.length === 0) return null;
+  if (origin !== expectedOrigin) return null;
+  const sigLines = signed.slice(idx + 2).split("\n").filter((l) => l.length > 0);
+  if (sigLines.length === 0 || sigLines.length > 8) return null;
+  const bodyBytes = new TextEncoder().encode(body);
+  for (const line of sigLines) {
+    if (!line.startsWith("-- ")) return null;
+    const rest = line.slice(3);
+    const sp = rest.indexOf(" ");
+    if (sp < 0) return null;
+    if (rest.slice(0, sp) !== expectedOrigin) continue;
+    try {
+      const sig = base64urlDecode(rest.slice(sp + 1));
+      if (sig.length !== 64) return null;
+      const ok = await ed.verifyAsync(sig, bodyBytes, witnessPublicKey, { zip215: false });
+      return ok ? { treeSize, rootHash, origin } : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
-async function fetchCurrentCheckpoint(witnessUrl) {
+async function fetchCurrentCheckpoint(witnessUrl, witnessPublicKey, expectedOrigin) {
+  // No trusted origin, no cross-check: refuse to trust the checkpoint body's
+  // self-asserted origin. Pass --origin <witness-origin> to enable it.
+  if (typeof expectedOrigin !== "string" || expectedOrigin.length === 0) return null;
   const url = `${witnessUrl.replace(/\/$/, "")}/ink/v1/checkpoint`;
   let body;
   try {
@@ -374,7 +411,7 @@ async function fetchCurrentCheckpoint(witnessUrl) {
     // 'not available' rather than crashing the verifier.
     return null;
   }
-  return parseCheckpointBody(body);
+  return verifyCheckpointBody(body, witnessPublicKey, expectedOrigin);
 }
 
 async function readStdin() {
@@ -451,16 +488,22 @@ async function main() {
     process.exit(2);
   }
 
-  const laterCheckpoint = await fetchCurrentCheckpoint(witnessBase);
+  // The checkpoint cross-check only carries weight against a checkpoint whose
+  // Ed25519 signature we have verified against the witness key. An unverified
+  // checkpoint (bad/absent signature, or origin mismatch) is dropped so the
+  // cross-check is skipped rather than trusting attacker-controlled values.
+  const laterCheckpoint = await fetchCurrentCheckpoint(witnessBase, witnessPublicKey, args.origin);
 
   const result = await verifyReceipt(receipt, witnessPublicKey, args.eventHash, laterCheckpoint ?? undefined);
 
   console.log(`Receipt: eventId=${receipt?.eventId} leafIndex=${receipt?.leafIndex} treeSize=${receipt?.treeSize}`);
   console.log(`Witness: ${witnessBase}`);
   if (laterCheckpoint) {
-    console.log(`Current checkpoint: treeSize=${laterCheckpoint.treeSize} rootHash=${laterCheckpoint.rootHash}`);
+    console.log(`Current checkpoint (signature verified): treeSize=${laterCheckpoint.treeSize} rootHash=${laterCheckpoint.rootHash}`);
+  } else if (!args.origin) {
+    console.log("Current checkpoint: cross-check skipped (pass --origin <witness-origin> to enable the anti-rollback check)");
   } else {
-    console.log("Current checkpoint: not available (skipping checkpoint cross-check)");
+    console.log("Current checkpoint: not available or signature unverified (skipping checkpoint cross-check)");
   }
   console.log("");
   for (const step of result.steps) {
