@@ -232,13 +232,15 @@ export interface FetchAgentCardOptions {
    * connect targets (e.g. undici with a custom dispatcher on Node, or
    * `cf: { resolveOverride: validatedIp }` on Cloudflare Workers). */
   fetch?: typeof fetch;
-  /** Strict mode: require that the caller supply `options.fetch`. When
-   * true, the default global `fetch` is refused for non-literal hostnames
-   * because the default cannot perform connect-time IP filtering and is
-   * therefore vulnerable to DNS rebinding. Off by default for backwards
-   * compatibility; on by default for any production integration where
-   * `baseUrl` is taken from untrusted input. Returns null without
-   * fetching when the condition fails. */
+  /** Strict mode: require that the caller supply `options.fetch`, returning
+   * null (without fetching) if it is absent. This only guarantees that *some*
+   * fetch override was provided; it does NOT and cannot verify that the
+   * override pins connect-time IPs, so passing `requireSafeFetch: true` with
+   * the plain global `fetch` does not close the DNS-rebinding window. The
+   * literal-private-IP allowlist this module applies to `baseUrl` does not stop
+   * a public hostname that resolves to a private address at fetch time; only a
+   * connect-time-IP-pinning `options.fetch` (for example a custom undici
+   * dispatcher) does. Off by default for backwards compatibility. */
   requireSafeFetch?: boolean;
 }
 

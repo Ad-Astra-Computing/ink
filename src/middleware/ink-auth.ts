@@ -84,8 +84,10 @@ export async function verifyInkAuth(opts: {
   }
   // Ed25519 signatures are exactly 86 base64url chars — tighten the regex to
   // {86} so clearly-wrong lengths get rejected up front, rather than burning
-  // CPU on verifyInkSignature for a malformed value.
-  const match = opts.authHeader.match(/^INK-Ed25519\s+([A-Za-z0-9_-]{86})(?:\s+keyId=([A-Za-z0-9_:.-]{1,128}))?$/);
+  // CPU on verifyInkSignature for a malformed value. Single literal spaces
+  // match the spec grammar and buildAuthHeader's output; `\s` would let
+  // CR/LF/TAB into a parsed header value.
+  const match = opts.authHeader.match(/^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$/);
   if (!match) {
     return { valid: false, error: "invalid_auth_scheme" };
   }
