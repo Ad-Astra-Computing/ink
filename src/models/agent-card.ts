@@ -6,18 +6,18 @@ import { KeyEntrySchema } from "./key-entry.js";
 import { InkTransportSchema, AgentCardVisibilitySchema } from "./ink-handshake.js";
 
 export const ThirdPartyAuditServiceSchema = z.object({
-  endpoint: z.string().url(),
-  did: z.string(),
-  publicKey: z.string(),
+  endpoint: z.string().max(2048).url(),
+  did: z.string().max(512),
+  publicKey: z.string().max(256),
 });
 
 export const AgentCardSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  agentId: z.string(),
-  ownerDid: z.string().optional(),
-  ownerHandle: z.string().optional(),
-  atprotoRecordUri: z.string().optional(),
-  handle: z.string(),
+  agentId: z.string().max(512),
+  ownerDid: z.string().max(512).optional(),
+  ownerHandle: z.string().max(256).optional(),
+  atprotoRecordUri: z.string().max(2048).optional(),
+  handle: z.string().max(256),
   displayName: z.string().max(200),
   /**
    * Inbound message endpoint URL. Required.
@@ -29,36 +29,36 @@ export const AgentCardSchema = z.object({
    * MAY emit `inboxEndpoint` alongside it. The runtime helper
    * `resolveAgentInbox(card)` returns whichever value is present.
    */
-  endpoint: z.string().url(),
-  inboxEndpoint: z.string().url().optional(),
-  publicKeyMultibase: z.string().startsWith("z"),
+  endpoint: z.string().max(2048).url(),
+  inboxEndpoint: z.string().max(2048).url().optional(),
+  publicKeyMultibase: z.string().startsWith("z").max(128),
   // (other fields below; the `inboxEndpoint === endpoint` invariant
   // is enforced by the .superRefine() at the bottom of this schema.)
   profileSnapshot: ProfileSnapshotSchema.optional(),
   capabilities: z.object({
-    intentsAccepted: z.array(IntentTypeSchema),
-    intentsSent: z.array(IntentTypeSchema),
+    intentsAccepted: z.array(IntentTypeSchema).max(32),
+    intentsSent: z.array(IntentTypeSchema).max(32),
     receipts: z.object({
       send: z.boolean(),
-      dispositions: z.array(InkReceiptDispositionSchema),
+      dispositions: z.array(InkReceiptDispositionSchema).max(16),
     }).optional(),
     auditExchange: z.boolean().optional(),
     thirdPartyAudit: z.object({
-      services: z.array(ThirdPartyAuditServiceSchema),
+      services: z.array(ThirdPartyAuditServiceSchema).max(16),
       submitPolicy: z.enum(["all", "high_value", "none"]),
     }).optional(),
   }),
   availability: z.object({
-    timezone: z.string(),
-    meetingHours: z.string().optional(),
-    responseSla: z.string().optional(),
+    timezone: z.string().max(64),
+    meetingHours: z.string().max(200).optional(),
+    responseSla: z.string().max(200).optional(),
   }),
   keys: z.object({
-    signing: z.array(KeyEntrySchema),
-    encryption: z.array(KeyEntrySchema),
+    signing: z.array(KeyEntrySchema).max(32),
+    encryption: z.array(KeyEntrySchema).max(32),
   }).optional(),
-  currentSigningKeyId: z.string().optional(),
-  currentEncryptionKeyId: z.string().optional(),
+  currentSigningKeyId: z.string().max(128).optional(),
+  currentEncryptionKeyId: z.string().max(128).optional(),
   keySetVersion: z.number().int().positive().optional(),
   // Message protocol versions this agent's receiver can verify on the
   // body signature. When absent, assume ink/0.1 only. A sender MUST NOT
