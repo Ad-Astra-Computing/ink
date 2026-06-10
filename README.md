@@ -152,9 +152,11 @@ Subject to change before v1.0:
 
 You will see `network.tulpa.*` on the wire (e.g. `network.tulpa.intent`) and `ink.tulpa.network` for the docs site. Both are historical artifacts of the protocol's origin and do not imply a runtime dependency on Tulpa. A vendor-neutral namespace may be introduced in a future revision.
 
+As a first, non-breaking step in that direction, agentIds may use either the canonical `tulpa:` method prefix or the `ink:` alias; both encode the same Ed25519 key and denote the same actor. `deriveAgentId` still emits `tulpa:`, and `extractPublicKeyFromAgentId` accepts both (accept-both, emit-one). A receiver MUST collapse the two spellings to one prefix-independent principal for all per-sender security state (blocks, rate limits, duplicate-payload checks, cached keys, connection identity).
+
 ## Relationship to Tulpa
 
-INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the underlying protocol for [Tulpa](https://tulpa.network). The spec and the library in this repo are deliberately free of Tulpa product code so other agent platforms can adopt INK without inheriting Tulpa's surface area. Tulpa's product integration (message orchestration, marketplace, user-facing APIs) lives in a separate, closed-source codebase.
+INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the underlying protocol for [Tulpa](https://tulpa.network). The spec and the library in this repo are deliberately free of Tulpa product code so other agent platforms can adopt INK without inheriting Tulpa's surface area. Tulpa's product integration (message orchestration, marketplace, user-facing APIs) lives in a separate codebase.
 
 ## Interoperability
 
