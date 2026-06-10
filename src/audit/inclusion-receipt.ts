@@ -61,17 +61,24 @@ export interface InclusionReceiptVerifyResult {
  *  - Service signature verification against `witnessPublicKey`
  *
  * Optionally performs (when the corresponding input is provided):
- *  - Leaf-to-root proof walk (`eventHash`)
+ *  - Leaf-to-root proof walk: pass `event` (recommended — recomputes the leaf
+ *    hash and binds it to `receipt.eventId`) or `eventHash` (legacy, unbound)
  *  - Cross-check against a later signed checkpoint (`laterCheckpoint`)
  */
 export async function verifyInclusionReceipt(opts: {
   receipt: InclusionReceipt;
   /** Raw 32-byte Ed25519 public key of the witness service. */
   witnessPublicKey: Uint8Array;
-  /** Optional RFC 6962 leaf hash for the underlying audit event:
-   *  SHA-256(0x00 || JCS(event-without-agentSignature)), hex-encoded.
-   *  Use `computeAuditMerkleLeafHash` to derive it. When provided, the
-   *  inclusion proof is walked from this leaf up to the claimed rootHash. */
+  /** Optional audit event the receipt claims inclusion for. This is the
+   *  RECOMMENDED way to verify the proof: the leaf hash is recomputed from the
+   *  event with `computeAuditMerkleLeafHash`, and `event.id` is bound to
+   *  `receipt.eventId`, so the proof attests that the event named by the
+   *  receipt is in the tree — not merely that some caller-chosen hash is. */
+  event?: Record<string, unknown>;
+  /** Optional pre-computed RFC 6962 leaf hash (hex). LEGACY / lower-assurance:
+   *  unlike `event`, a bare hash is NOT bound to `receipt.eventId`, so the proof
+   *  only attests "this hash is in the tree", not "the event the receipt names
+   *  is in the tree". Prefer `event`. Ignored when `event` is provided. */
   eventHash?: string;
   /** Optional later checkpoint to cross-check the receipt against. This MUST be
    *  the parsed body of a checkpoint whose Ed25519 signature and origin the
@@ -82,7 +89,7 @@ export async function verifyInclusionReceipt(opts: {
   laterCheckpoint?: { treeSize: number; rootHash: string };
 }): Promise<InclusionReceiptVerifyResult> {
   const steps: VerifyStep[] = [];
-  const { receipt, witnessPublicKey, eventHash, laterCheckpoint } = opts;
+  const { receipt, witnessPublicKey, event, eventHash, laterCheckpoint } = opts;
 
   // ── Step 1: structural validation ──
   const structuralProblem = checkReceiptShape(receipt);
@@ -120,13 +127,34 @@ export async function verifyInclusionReceipt(opts: {
   steps.push({ name: "signature", pass: true });
 
   // ── Step 3: inclusion-proof walk (optional) ──
-  if (eventHash !== undefined) {
+  // Prefer the `event` path: recompute the leaf hash from the event and bind it
+  // to receipt.eventId, so the proof attests the named event's inclusion.
+  let leafHash: string | undefined;
+  if (event !== undefined) {
+    if (typeof event.id !== "string") {
+      steps.push({ name: "proof", pass: false, detail: "event.id is missing or not a string" });
+      return { valid: false, steps };
+    }
+    if (event.id !== receipt.eventId) {
+      steps.push({ name: "proof", pass: false, detail: "event.id does not match receipt.eventId" });
+      return { valid: false, steps };
+    }
+    try {
+      leafHash = await computeAuditMerkleLeafHash(event);
+    } catch {
+      steps.push({ name: "proof", pass: false, detail: "could not compute leaf hash from event" });
+      return { valid: false, steps };
+    }
+  } else if (eventHash !== undefined) {
     if (!/^[0-9a-f]{64}$/.test(eventHash)) {
       steps.push({ name: "proof", pass: false, detail: "eventHash must be 64 lowercase hex chars" });
       return { valid: false, steps };
     }
+    leafHash = eventHash;
+  }
+  if (leafHash !== undefined) {
     const verified = await verifyInclusionProof(
-      eventHash,
+      leafHash,
       receipt.inclusionProof,
       receipt.leafIndex,
       receipt.treeSize,
