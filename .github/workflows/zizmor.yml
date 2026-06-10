@@ -1,0 +1,43 @@
+name: zizmor
+
+# Static security analysis of the GitHub Actions workflows. Catches dangerous
+# triggers, template injection, unpinned actions and over-broad permissions so a
+# workflow-security regression fails a PR rather than landing silently. Runs on
+# every pull request and push to main so the check is always present, plus a
+# daily schedule. zizmor is pinned through the flake (nix develop), and runs
+# offline so the gate is deterministic and needs no token.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 7 * * *"
+
+permissions: {}
+
+concurrency:
+  group: zizmor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+
+      - name: Analyze workflows
+        run: nix develop --command zizmor --offline .github/workflows/
