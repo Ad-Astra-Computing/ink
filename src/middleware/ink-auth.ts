@@ -1,5 +1,5 @@
 import { verifyInkSignature, type InkSignInput, MAX_TIMESTAMP_AGE_MS, MAX_FUTURE_TIMESTAMP_MS } from "../crypto/ink.js";
-import { extractPublicKeyFromAgentId } from "../crypto/keys.js";
+import { extractPublicKeyFromAgentId, canonicalAgentPrincipal } from "../crypto/keys.js";
 import { verifyInkSignatureWithKeys } from "../crypto/multi-key-verify.js";
 import type { CandidateKey, KeyStatus } from "../models/key-entry.js";
 
@@ -63,7 +63,12 @@ export async function verifyInkAuth(opts: {
    */
   nonceStore: NonceStore | "deferred";
 }): Promise<
-  | { valid: true; senderAgentId: string; keyId?: string; keyStatus?: KeyStatus }
+  // `senderAgentId` is the raw, sender-chosen spelling (useful for audit and
+  // display). `principal` is the canonical, prefix-independent identity:
+  // authorization, block lists, rate limits, and every per-sender abuse
+  // control MUST key on `principal`, never on `senderAgentId`, or a sender can
+  // switch the tulpa:/ink: prefix to evade them.
+  | { valid: true; senderAgentId: string; principal: string; keyId?: string; keyStatus?: KeyStatus }
   | { valid: false; error: string }
 > {
   if (typeof opts.authHeader !== "string" || opts.authHeader.length === 0) {
@@ -223,6 +228,7 @@ export async function verifyInkAuth(opts: {
           return {
             valid: true,
             senderAgentId: senderDid,
+            principal: canonicalAgentPrincipal(senderDid),
             keyId: result.keyId,
             keyStatus: result.keyStatus,
           };
@@ -256,7 +262,7 @@ export async function verifyInkAuth(opts: {
     }
     const noncePass = await recordNonce();
     if (!noncePass.ok) return { valid: false, error: noncePass.error };
-    return { valid: true, senderAgentId: senderDid };
+    return { valid: true, senderAgentId: senderDid, principal: canonicalAgentPrincipal(senderDid) };
   } catch {
     return { valid: false, error: "signature_verification_failed" };
   }
