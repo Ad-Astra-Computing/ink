@@ -1,7 +1,7 @@
 import { computeMessageHash, signInkMessage, buildAuthHeader } from "../crypto/ink.js";
-import { signMessage } from "../crypto/sign.js";
+import { signMessage, verifyMessage } from "../crypto/sign.js";
 import { isPrivateHostname } from "../discovery/agent-card.js";
-import type { InkReceipt } from "../models/ink-audit.js";
+import { InkReceiptSchema, type InkReceipt } from "../models/ink-audit.js";
 
 export interface BuildReceiptInput {
   from: string;
@@ -42,6 +42,64 @@ export async function buildReceipt(input: BuildReceiptInput): Promise<InkReceipt
   const signature = await signMessage(unsigned as unknown as Record<string, unknown>, input.privateKey);
 
   return { ...unsigned, signature };
+}
+
+export interface VerifyReceiptResult {
+  valid: boolean;
+  /** Machine-readable reason when `valid` is false. */
+  reason?: string;
+}
+
+/**
+ * Verify an INK receipt against the message it claims to acknowledge.
+ *
+ * Checks all the bindings a hand-rolled verifier commonly forgets: the
+ * receipt's Ed25519 signature against the issuer's (`from`) key, that `from`,
+ * `to` and `messageId` equal the expected values, and that `messageHash`
+ * equals the hash of the exact message body that was sent (recomputed here,
+ * not trusted from the receipt). A receipt that passes proves the named
+ * counterparty acknowledged that specific message; nothing weaker should be
+ * treated as proof of delivery.
+ */
+export async function verifyReceipt(opts: {
+  receipt: unknown;
+  /** Raw 32-byte Ed25519 public key of the issuer (the receipt's `from`). */
+  senderPublicKey: Uint8Array;
+  expected: {
+    from: string;
+    to: string;
+    messageId: string;
+    messageBody: Record<string, unknown>;
+    /** When set, require the receipt to acknowledge this specific disposition
+     *  (e.g. "delivered"). The disposition is covered by the signature, but
+     *  without this a signed receipt for a different state would still pass, so
+     *  callers proving a specific delivery state MUST pin it. */
+    disposition?: InkReceipt["disposition"];
+  };
+}): Promise<VerifyReceiptResult> {
+  const parsed = InkReceiptSchema.safeParse(opts.receipt);
+  if (!parsed.success) return { valid: false, reason: "malformed_receipt" };
+  const receipt = parsed.data;
+  const { senderPublicKey, expected } = opts;
+  if (!(senderPublicKey instanceof Uint8Array) || senderPublicKey.length !== 32) {
+    return { valid: false, reason: "invalid_public_key" };
+  }
+  if (receipt.from !== expected.from) return { valid: false, reason: "from_mismatch" };
+  if (receipt.to !== expected.to) return { valid: false, reason: "to_mismatch" };
+  if (receipt.messageId !== expected.messageId) return { valid: false, reason: "message_id_mismatch" };
+  if (expected.disposition !== undefined && receipt.disposition !== expected.disposition) {
+    return { valid: false, reason: "disposition_mismatch" };
+  }
+  let expectedHash: string;
+  try {
+    expectedHash = await computeMessageHash(expected.messageBody);
+  } catch {
+    return { valid: false, reason: "message_hash_error" };
+  }
+  if (receipt.messageHash !== expectedHash) return { valid: false, reason: "message_hash_mismatch" };
+  const sigOk = await verifyMessage(receipt as unknown as Record<string, unknown>, senderPublicKey);
+  if (!sigOk) return { valid: false, reason: "invalid_signature" };
+  return { valid: true };
 }
 
 /** Loop prevention: don't send receipts for receipts or audit messages. */

@@ -67,9 +67,10 @@ export {
 // Optional containment / governance primitives
 export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
 
-// Receipts: build and send INK delivery receipts
+// Receipts: build, verify, and send INK delivery receipts
 export {
   buildReceipt,
+  verifyReceipt,
   shouldSendReceipt,
   sendReceiptFireAndForget,
 } from "./ink/receipts.js";
