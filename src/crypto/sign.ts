@@ -166,7 +166,11 @@ export async function verifyMessage(
   const prefixedBytes = new TextEncoder().encode(prefixed);
   try {
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, prefixedBytes, publicKey);
+    // RFC 8032 strict verification, not the library default ZIP-215 mode:
+    // reject small-order public keys and non-canonical point encodings so a
+    // signature binds to exactly one (key, message). Identity is the embedded
+    // public key and signatures feed the audit log, so strictness is required.
+    return await ed.verifyAsync(sig, prefixedBytes, publicKey, { zip215: false });
   } catch {
     // Malformed signature (invalid base64url, wrong byte length, bad key) — treat as invalid
     return false;

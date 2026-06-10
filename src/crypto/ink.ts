@@ -253,7 +253,9 @@ export async function verifyInkSignature(
   const bytes = new TextEncoder().encode(sigBase);
   try {
     const sig = base64urlDecode(signatureBase64url);
-    return await ed.verifyAsync(sig, bytes, publicKey);
+    // RFC 8032 strict verification (not the default ZIP-215): reject
+    // small-order keys and non-canonical encodings. See verifyMessage.
+    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
   } catch {
     return false;
   }
@@ -749,7 +751,7 @@ export async function verifyAuditEventSignature(
     // cannot smuggle past the cap.
     if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey);
+    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
   } catch {
     return false;
   }
@@ -864,7 +866,7 @@ export async function verifyAuditResponseSignature(
     const bytes = new TextEncoder().encode(prefixed);
     if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey);
+    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
   } catch {
     return false;
   }
@@ -1036,7 +1038,7 @@ export async function verifyAuditQueryResponseSignature(
     const bytes = new TextEncoder().encode(prefixed);
     if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey);
+    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
   } catch {
     return false;
   }
