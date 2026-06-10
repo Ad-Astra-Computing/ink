@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ProfileSnapshotSchema } from "./profile.js";
+import { isWithinBounds } from "../crypto/sign.js";
 
 // --- Intent Types ---
 
@@ -223,6 +224,14 @@ export type MessageEnvelope = z.infer<typeof MessageEnvelopeSchema>;
  * Returns the validated message or throws a ZodError.
  */
 export function validateMessage(raw: unknown): MessageEnvelope {
+  // Bound the raw object's complexity BEFORE Zod walks it. A strict-mode parse
+  // must enumerate every key to reject unknowns, so a million-key object would
+  // otherwise burn hundreds of ms of CPU before being rejected. This also
+  // rejects JCS-unsafe numbers so a validated envelope is always one a
+  // canonicalizer can sign unambiguously.
+  if (!isWithinBounds(raw)) {
+    throw new Error("message exceeds complexity bounds");
+  }
   const envelope = MessageEnvelopeSchema.parse(raw);
   const payloadSchema = payloadSchemas[envelope.intent];
   // Validate payload strictly — reject unknown fields

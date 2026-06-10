@@ -13,6 +13,22 @@ const MAX_MESSAGE_CHARS = 1_200_000;
 const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
 
 /**
+ * A number is safe for canonical JSON only if every conforming canonicalizer
+ * serializes it identically. We reject non-finite values (not valid JSON),
+ * negative zero (serializes as `0`, losing the sign), and any value whose
+ * shortest decimal uses exponential notation (`1e21`, `1e-7`) — exponential
+ * forms are exactly where JSON serializers and strict RFC 8785 disagree.
+ * Rejecting them keeps the signed-byte representation unambiguous across
+ * implementations (the reference and a future second implementation), without
+ * affecting the small integers and plain decimals INK payloads actually carry.
+ */
+export function isJcsSafeNumber(n: number): boolean {
+  if (!Number.isFinite(n)) return false;
+  if (Object.is(n, -0)) return false;
+  return !/[eE]/.test(String(n));
+}
+
+/**
  * Cheap depth/node/byte walk over a value before it is handed to
  * `canonicalize`. Bails before the recursive sort+serialize runs, so an
  * attacker who supplies a syntactically valid-shape signature with a
@@ -21,7 +37,7 @@ const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
  * the byte counter that stops a single huge string from sneaking past
  * the node check.
  */
-function isWithinBounds(value: unknown): boolean {
+export function isWithinBounds(value: unknown): boolean {
   let nodes = 0;
   let chars = 0;
   function walk(v: unknown, depth: number): boolean {
@@ -31,6 +47,8 @@ function isWithinBounds(value: unknown): boolean {
       if (typeof v === "string") {
         chars += v.length;
         if (chars > MAX_MESSAGE_CHARS) return false;
+      } else if (typeof v === "number" && !isJcsSafeNumber(v)) {
+        return false;
       }
       return true;
     }

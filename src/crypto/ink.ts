@@ -1,6 +1,7 @@
 import * as ed from "@noble/ed25519";
 import { x25519 } from "@noble/curves/ed25519.js";
 import canonicalize from "canonicalize";
+import { isJcsSafeNumber } from "./sign.js";
 
 // ── Encoding helpers ──
 
@@ -153,6 +154,10 @@ function isWithinCanonicalizeBounds(value: unknown): boolean {
       if (typeof v === "string") {
         chars += v.length;
         if (chars > MAX_PRECHECK_CHARS) return false;
+      } else if (typeof v === "number" && !isJcsSafeNumber(v)) {
+        // Reject numbers that don't canonicalize identically across JSON
+        // serializers (non-finite, -0, exponential notation). See sign.ts.
+        return false;
       }
       return true;
     }
