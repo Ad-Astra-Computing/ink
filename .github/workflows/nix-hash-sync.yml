@@ -52,6 +52,10 @@ jobs:
         id: hash
         run: |
           NEW=$(nix run nixpkgs#prefetch-npm-deps -- package-lock.json)
+          # prefetch-npm-deps already prints the sha256- prefix; strip any
+          # existing prefix before re-adding one so the hash is never
+          # double-prefixed (which produces an unparseable SRI hash).
+          NEW=${NEW#sha256-}
           echo "value=sha256-${NEW}" >> "$GITHUB_OUTPUT"
 
       - name: Read current hash

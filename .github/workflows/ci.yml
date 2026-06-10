@@ -55,6 +55,12 @@ jobs:
       - name: Public-surface drift check
         run: nix develop --command npm run check:surface
 
+      - name: Build nix package
+        # Builds the cli derivation, which verifies npmDepsHash against the
+        # lockfile. Catches a stale or malformed hash that the devshell-based
+        # steps above never exercise.
+        run: nix build .#default .#cli --no-link
+
       - name: Verify npm package would publish cleanly
         run: nix develop --command npm pack --dry-run
 
