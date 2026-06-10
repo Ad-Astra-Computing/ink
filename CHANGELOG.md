@@ -4,6 +4,48 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.4.0, stricter verification, message-size bounds, checkpoint and receipt verification
+
+This release tightens signature verification and input validation and adds
+several verification helpers. It is published on the `next` dist-tag.
+
+### Potentially breaking validation tightenings
+
+These reject inputs that `0.3.0` accepted. Legitimate signer and receiver
+traffic is unaffected; the rejected inputs are malformed, malicious, or outside
+the documented profile.
+
+- Ed25519 signatures are now verified in strict RFC 8032 mode at every
+  verification site. Small-order public keys and non-canonical point encodings
+  are rejected.
+- Signed JSON numbers are constrained to the forms every canonicalizer
+  serializes identically: non-finite values, negative zero, and values whose
+  shortest form uses exponential notation are rejected at signing and
+  verification.
+- The agent card, audit, handshake, and discovery schemas now enforce maximum
+  field lengths and array sizes.
+- The `Authorization: INK-Ed25519` header is matched against single literal
+  spaces; a tab, carriage return, or line feed in the separator is rejected.
+
+### Additions
+
+- `verifyCheckpoint(signed, witnessPublicKey, expectedOrigin)` verifies a signed
+  C2SP checkpoint: the witness Ed25519 signature over the checkpoint body and the
+  log origin. A checkpoint used for the inclusion-receipt cross-check must be
+  verified this way first.
+- `verifyReceipt({ receipt, senderPublicKey, expected })` binds a delivery
+  receipt to the exact message it acknowledges: issuer key, `from`/`to`/
+  `messageId`, the recomputed message hash, and an optional `disposition`.
+- `verifyInclusionReceipt` accepts an `event` option that recomputes the leaf
+  hash and binds it to `receipt.eventId`. The legacy `eventHash` is retained but
+  does not provide that binding.
+- `verifyInkAuth` returns a prefix-independent `principal` alongside the raw
+  sender id; per-sender security state (blocks, rate limits) should key on
+  `principal`. `canonicalAgentPrincipal(agentId)` is exported for the same use.
+
+Per the pre-1.0 policy this release publishes under the `next` dist-tag; `latest`
+is unchanged.
+
 ## 0.3.0, accept the ink: agentId alias for key extraction
 
 `extractPublicKeyFromAgentId` now accepts either the canonical `tulpa:` prefix or the `ink:` alias introduced in ink/0.4. Both carry the identical multibase Ed25519 key, so the bootstrap verification key is byte-identical and a signature made with that key verifies regardless of which accepted prefix carried it. The prefix is identity syntax, not signing authority.
