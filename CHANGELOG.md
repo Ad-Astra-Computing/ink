@@ -4,6 +4,16 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.3.0, accept the ink: agentId alias for key extraction
+
+`extractPublicKeyFromAgentId` now accepts either the canonical `tulpa:` prefix or the `ink:` alias introduced in ink/0.4. Both carry the identical multibase Ed25519 key, so the bootstrap verification key is byte-identical and a signature made with that key verifies regardless of which accepted prefix carried it. The prefix is identity syntax, not signing authority.
+
+Emission is unchanged: `deriveAgentId` still returns `tulpa:` (accept both, emit one). The new `AGENT_ID_KEY_PREFIXES` export is frozen so a consumer cannot widen the accepted set at runtime. The change is additive and backward compatible. Existing `tulpa:` inputs behave exactly as before, and every previously rejected prefix other than `ink:` is still rejected. The wire protocol version is unchanged.
+
+A receiver that keys per-sender security state (blocks, rate limits, duplicate-payload checks, cached verification keys, connection identity) MUST collapse the two spellings to one prefix-independent principal so a sender cannot switch prefix to dodge a block or split a rate-limit window. See [Identity](https://ink.tulpa.network/spec/identity/).
+
+Per the pre-1.0 policy this release publishes under the `next` dist-tag.
+
 ## 0.2.0, version-keyed body-signature domain
 
 Version-keyed body-signature domain. The body message signature is now domain-separated by protocol version. ink/0.1 messages, and any object with no explicit ink/0.2 protocol, keep the legacy `tulpa/sign` domain so every signature produced to date still verifies. ink/0.2 messages are signed and verified under the neutral `ink/sign` domain. The verifier selects exactly one domain from the signed `protocol` field and never tries an alternate, so a signature made under one version's domain cannot be replayed under another.
