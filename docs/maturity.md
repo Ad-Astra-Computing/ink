@@ -28,7 +28,13 @@
 
 These hold across major version 0 (`ink/0.1` and `ink/0.2`):
 
-- Envelope structure (fields, canonicalization with JCS / RFC 8785)
+- Envelope structure (fields, canonicalization with JCS / RFC 8785).
+  Signed bodies are restricted to JSON numbers that every conforming
+  canonicalizer serializes identically: non-finite values, negative zero,
+  and values whose shortest form uses exponential notation (for example
+  `1e21` or `1e-7`) are rejected at sign and verify time. INK payloads
+  carry only small integers and plain decimals, so this keeps the signed
+  bytes unambiguous across implementations.
 - Ed25519 signing base: `ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp`
 - Agent Card schema for `keys.signing` and `keys.encryption`
 - Key rotation authority rule (see `key-rotation-rule.md`)
