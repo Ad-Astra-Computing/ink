@@ -66,18 +66,18 @@ export type InkAuditEventType = z.infer<typeof InkAuditEventTypeSchema>;
 // ── INK Audit Event (hash-chained, signed) ──
 
 export const InkAuditEventSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).max(256),
   version: z.literal("ink-audit/1"),
-  agentId: z.string().min(1),
-  agentSignature: z.string().min(1),
+  agentId: z.string().min(1).max(512),
+  agentSignature: z.string().min(1).max(256),
   sequence: z.number().int().positive(),
   previousEventHash: z.string().regex(/^[0-9a-f]{64}$/).nullable(),
   eventType: InkAuditEventTypeSchema,
   timestamp: z.string().datetime(),
-  messageId: z.string().min(1).optional(),
-  correlationId: z.string().min(1).optional(),
-  counterpartyId: z.string().min(1).optional(),
-  signingKeyId: z.string().min(1).optional(),
+  messageId: z.string().min(1).max(256).optional(),
+  correlationId: z.string().min(1).max(256).optional(),
+  counterpartyId: z.string().min(1).max(512).optional(),
+  signingKeyId: z.string().min(1).max(128).optional(),
   data: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -98,16 +98,16 @@ export type InkReceiptDisposition = z.infer<typeof InkReceiptDispositionSchema>;
 export const InkReceiptSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.receipt"),
-  from: z.string(),
-  to: z.string(),
-  messageId: z.string(),
+  from: z.string().max(512),
+  to: z.string().max(512),
+  messageId: z.string().max(256),
   disposition: InkReceiptDispositionSchema,
   dispositionAt: z.string().datetime(),
   note: z.string().max(500).optional(),
-  messageHash: z.string(),
-  nonce: z.string(),
+  messageHash: z.string().max(256),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
-  signature: z.string(),
+  signature: z.string().max(256),
 });
 
 export type InkReceipt = z.infer<typeof InkReceiptSchema>;
@@ -117,10 +117,10 @@ export type InkReceipt = z.infer<typeof InkReceiptSchema>;
 export const InkAuditQuerySchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.audit_query"),
-  from: z.string(),
-  to: z.string(),
-  messageId: z.string(),
-  nonce: z.string(),
+  from: z.string().max(512),
+  to: z.string().max(512),
+  messageId: z.string().max(256),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
 });
 
@@ -131,9 +131,13 @@ export type InkAuditQuery = z.infer<typeof InkAuditQuerySchema>;
 export const InkAuditResponseSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.audit_response"),
-  messageId: z.string(),
-  events: z.array(InkAuditEventSchema),
-  responseSignature: z.string(),
+  messageId: z.string().max(256),
+  // Bound both the event count and (via InkAuditEventSchema's per-field caps)
+  // each event, so an audit response from an untrusted witness cannot force
+  // unbounded buffering. A single response that needs more than this should
+  // page rather than return one giant array.
+  events: z.array(InkAuditEventSchema).max(1000),
+  responseSignature: z.string().max(256),
 });
 
 export type InkAuditResponse = z.infer<typeof InkAuditResponseSchema>;
@@ -157,10 +161,10 @@ export type InkAuditSubmit = z.infer<typeof InkAuditSubmitSchema>;
 export const InkAuditInclusionSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.audit_inclusion"),
-  eventId: z.string(),
+  eventId: z.string().max(256),
   treeSize: z.number().int().positive(),
   leafIndex: z.number().int().min(0),
-  rootHash: z.string(),
+  rootHash: z.string().max(128),
   /** Optional Merkle inclusion proof — array of 64-character lowercase hex
    *  hash siblings on the path from the leaf to the root. Consumers that
    *  verify proofs (third-party auditor clients) read this field; consumers
@@ -170,7 +174,7 @@ export const InkAuditInclusionSchema = z.object({
    *  force the parser to allocate megabytes of garbage proof data. */
   inclusionProof: z.array(z.string().regex(/^[0-9a-f]{64}$/)).max(64).optional(),
   timestamp: z.string().datetime(),
-  serviceSignature: z.string(),
+  serviceSignature: z.string().max(256),
 });
 
 export type InkAuditInclusion = z.infer<typeof InkAuditInclusionSchema>;
@@ -190,23 +194,23 @@ export type InkIntroductionReceiptStatus = z.infer<typeof InkIntroductionReceipt
 export const InkIntroductionReceiptSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.introduction_receipt"),
-  id: z.string(),
-  correlationId: z.string(),
-  from: z.string(),
-  to: z.string(),
-  requesterDid: z.string(),
-  introducerDid: z.string(),
-  beneficiaryDid: z.string(),
-  targetDid: z.string(),
+  id: z.string().max(256),
+  correlationId: z.string().max(256),
+  from: z.string().max(512),
+  to: z.string().max(512),
+  requesterDid: z.string().max(512),
+  introducerDid: z.string().max(512),
+  beneficiaryDid: z.string().max(512),
+  targetDid: z.string().max(512),
   status: InkIntroductionReceiptStatusSchema,
   purpose: z.string().min(1).max(500),
-  nonce: z.string(),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
-  relatedIntentId: z.string().optional(),
-  relatedResolutionId: z.string().optional(),
+  relatedIntentId: z.string().max(256).optional(),
+  relatedResolutionId: z.string().max(256).optional(),
   note: z.string().max(500).optional(),
-  contextHash: z.string().optional(),
-  authorizationChainRef: z.string().optional(),
+  contextHash: z.string().max(256).optional(),
+  authorizationChainRef: z.string().max(512).optional(),
   expiresAt: z.string().datetime().optional(),
 });
 

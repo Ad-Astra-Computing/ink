@@ -49,12 +49,12 @@ export type ChallengeType = z.infer<typeof ChallengeTypeSchema>;
 export const InkChallengeSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.challenge"),
-  intentRef: z.string(),
+  intentRef: z.string().max(256),
   challengeType: ChallengeTypeSchema,
-  fields: z.array(z.string()).optional(),
-  availableWindows: z.array(z.string()).optional(),
-  contextFields: z.array(z.string()).optional(),
-  nonce: z.string(),
+  fields: z.array(z.string().max(256)).max(32).optional(),
+  availableWindows: z.array(z.string().max(64)).max(32).optional(),
+  contextFields: z.array(z.string().max(256)).max(32).optional(),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
 });
 
@@ -82,12 +82,12 @@ export type RejectionReason = z.infer<typeof RejectionReasonSchema>;
 export const InkRejectionSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.rejection"),
-  intentRef: z.string(),
+  intentRef: z.string().max(256),
   reason: RejectionReasonSchema,
   detail: z.string().max(500).optional(),
-  retryAfter: z.string().optional(),
+  retryAfter: z.string().max(64).optional(),
   backoffHint: InkBackoffHintSchema.optional(),
-  nonce: z.string(),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
 });
 
@@ -105,18 +105,18 @@ export const ResolutionOutcomeSchema = z.enum([
 export type ResolutionOutcome = z.infer<typeof ResolutionOutcomeSchema>;
 
 export const ResolutionDetailsSchema = z.object({
-  scheduledAt: z.string().optional(),
-  duration: z.string().optional(),
+  scheduledAt: z.string().max(64).optional(),
+  duration: z.string().max(64).optional(),
 }).passthrough();
 
 export const InkResolutionSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.resolution"),
-  intentRef: z.string(),
+  intentRef: z.string().max(256),
   outcome: ResolutionOutcomeSchema,
   details: ResolutionDetailsSchema.optional(),
-  counterpartyDid: z.string().optional(),
-  nonce: z.string(),
+  counterpartyDid: z.string().max(512).optional(),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
 });
 

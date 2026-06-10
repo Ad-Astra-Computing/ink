@@ -121,10 +121,10 @@ export function buildRedactedCard(card: AgentCard): RedactedAgentCard {
 export const AgentCardQuerySchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.agent_card_query"),
-  from: z.string(),
-  nonce: z.string(),
+  from: z.string().max(512),
+  nonce: z.string().max(256),
   timestamp: z.string().datetime(),
-  requestedFields: z.array(z.string()).optional(),
+  requestedFields: z.array(z.string().max(64)).max(32).optional(),
 });
 
 export type AgentCardQuery = z.infer<typeof AgentCardQuerySchema>;
@@ -133,7 +133,7 @@ export const AgentCardResponseSchema = z.object({
   protocol: z.literal("ink/0.1"),
   type: z.literal("network.tulpa.agent_card_response"),
   card: AgentCardSchema,
-  grantedFields: z.array(z.string()),
+  grantedFields: z.array(z.string().max(64)).max(32),
   timestamp: z.string().datetime(),
 });
 
