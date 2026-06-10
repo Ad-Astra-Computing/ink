@@ -633,3 +633,98 @@ async function verifyInclusionProof(
     return false;
   }
 }
+
+function isMerkleHashHex(s: unknown): s is string {
+  return typeof s === "string" && /^[0-9a-f]{64}$/.test(s);
+}
+
+/**
+ * Verify an RFC 6962 Section 2.1.2 consistency proof: that the Merkle tree of
+ * `first` leaves with root `firstRoot` is a prefix of the tree of `second`
+ * leaves with root `secondRoot`. A valid proof is proof the log only ever
+ * appended; it is what detects a witness that forks its history (split view)
+ * rather than merely growing, which the `second >= first` size comparison
+ * alone cannot.
+ *
+ * `firstRoot`, `secondRoot` and every proof entry are 64 lowercase hex chars
+ * (SHA-256). Internal nodes are hashed as SHA-256(0x01 || left || right), the
+ * same construction the inclusion verifier uses, so the two agree on tree
+ * shape. Returns false (never throws) for any malformed input or any proof that
+ * does not reconstruct both roots with every element consumed.
+ */
+export async function verifyConsistencyProof(
+  first: number,
+  firstRoot: string,
+  second: number,
+  secondRoot: string,
+  proof: string[],
+): Promise<boolean> {
+  if (!Number.isSafeInteger(first) || !Number.isSafeInteger(second)) return false;
+  if (first < 0 || second < 0) return false;
+  if (!isMerkleHashHex(firstRoot) || !isMerkleHashHex(secondRoot)) return false;
+  if (!Array.isArray(proof) || !proof.every(isMerkleHashHex)) return false;
+  // A consistency proof for a tree of `second` safe-integer leaves has at most
+  // ceil(log2(second)) + 1 nodes, comfortably under 64. Cap it so a hostile
+  // caller cannot force unbounded hashing work.
+  if (proof.length > 64) return false;
+  if (first > second) return false;
+  // Same size: the roots must match and there is nothing to prove.
+  if (first === second) return proof.length === 0 && firstRoot === secondRoot;
+  // The empty tree is a prefix of every tree; its root is fixed and the proof
+  // carries no nodes.
+  if (first === 0) return proof.length === 0 && firstRoot === EMPTY_TREE_ROOT;
+
+  // 0 < first < second. Walk the path from leaf `first - 1` up to the roots,
+  // shifting `node`/`last` together. `node` indexes the first tree's rightmost
+  // leaf, `last` the second tree's.
+  let node = first - 1;
+  let last = second - 1;
+  while (node % 2 === 1) {
+    node = Math.floor(node / 2);
+    last = Math.floor(last / 2);
+  }
+
+  let i = 0;
+  const take = (): string | null => (i < proof.length ? proof[i++]! : null);
+
+  // When `first` is an exact power of two, `node` has shifted to 0 and the old
+  // subtree hash is `firstRoot` itself; otherwise it is the first proof node.
+  let oldHash: string;
+  if (node > 0) {
+    const h = take();
+    if (h === null) return false;
+    oldHash = h;
+  } else {
+    oldHash = firstRoot;
+  }
+  let newHash = oldHash;
+
+  while (node > 0) {
+    if (node % 2 === 1) {
+      // Right child: the sibling on the left is shared by both trees.
+      const h = take();
+      if (h === null) return false;
+      oldHash = await hashPair(h, oldHash);
+      newHash = await hashPair(h, newHash);
+    } else if (node < last) {
+      // Left child with a right sibling that exists only in the second tree.
+      const h = take();
+      if (h === null) return false;
+      newHash = await hashPair(newHash, h);
+    }
+    node = Math.floor(node / 2);
+    last = Math.floor(last / 2);
+  }
+
+  // Remaining nodes extend only the second tree to its root.
+  while (last > 0) {
+    const h = take();
+    if (h === null) return false;
+    newHash = await hashPair(newHash, h);
+    last = Math.floor(last / 2);
+  }
+
+  // Every proof element must be consumed, and both reconstructions must match.
+  if (i !== proof.length) return false;
+  return oldHash === firstRoot && newHash === secondRoot;
+}
