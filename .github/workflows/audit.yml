@@ -1,0 +1,33 @@
+name: audit
+
+# Dependency vulnerability gate. Fails a PR or push on a high or critical npm
+# advisory in any project (the library and the example apps), and runs daily on
+# the default branch so a newly disclosed advisory is caught even without a PR.
+# npm audit reads the committed lockfiles, so no install is required.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 7 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.x
+      - name: Dependency audit (high/critical, all projects)
+        run: npm run audit:all
