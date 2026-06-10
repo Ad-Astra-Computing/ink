@@ -56,6 +56,7 @@ export { verifyInkAuth, type NonceStore } from "./middleware/ink-auth.js";
 // Audit: inclusion-receipt + audit-query-response verification
 export {
   verifyInclusionReceipt,
+  verifyConsistencyProof,
   verifyAuditQueryResponse,
   type InclusionReceipt,
   type InclusionReceiptVerifyResult,
