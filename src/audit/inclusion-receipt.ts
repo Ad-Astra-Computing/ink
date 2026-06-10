@@ -101,7 +101,7 @@ export async function verifyInclusionReceipt(opts: {
   let sigValid = false;
   try {
     const sig = base64urlDecode(receipt.serviceSignature);
-    sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey);
+    sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
   } catch (e) {
     steps.push({
       name: "signature",
