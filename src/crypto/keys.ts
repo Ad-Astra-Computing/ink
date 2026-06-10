@@ -222,3 +222,42 @@ export function extractPublicKeyFromAgentId(agentId: string): Uint8Array {
   }
   return decodePublicKeyMultibase(agentId.slice(prefix.length));
 }
+
+/**
+ * Collapse an agent ID to a single, prefix-independent principal string that
+ * per-sender security state (block lists, rate limits, duplicate-payload
+ * checks, cached verification keys, connection identity) MUST key on.
+ *
+ * The accepted spellings `tulpa:zKEY` and `ink:zKEY` encode the same Ed25519
+ * key and are therefore the same actor; this maps both — and any non-canonical
+ * multibase encoding of that key — to `key:<canonical-multibase>`, so a sender
+ * cannot switch prefix or re-encode to dodge a block or split a rate-limit
+ * window. DIDs (and any other identifier) are returned unchanged. A raw `key:`
+ * input — never a legitimate agent ID — is escaped to `raw:key:…` so a sender
+ * cannot forge a collision with a canonicalized key principal.
+ *
+ * Not idempotent: call exactly once, at the storage boundary, on the raw
+ * agent ID. Total over well-formed string input (it never throws on a
+ * malformed key body — that is escaped to `raw:…` so a principal is always
+ * derivable); throws only on a non-string, empty, or over-length argument.
+ */
+export function canonicalAgentPrincipal(agentId: string): string {
+  if (typeof agentId !== "string" || agentId.length === 0 || agentId.length > 512) {
+    throw new Error("Invalid agent ID");
+  }
+  const prefix = AGENT_ID_KEY_PREFIXES.find((p) => agentId.startsWith(p));
+  if (prefix) {
+    try {
+      return "key:" + encodePublicKeyMultibase(decodePublicKeyMultibase(agentId.slice(prefix.length)));
+    } catch {
+      // Malformed multibase body: keep the function total by treating it as an
+      // opaque identifier. Such an ID cannot authenticate via the bootstrap
+      // path anyway, so it never collides with a real key principal.
+      return "raw:" + agentId;
+    }
+  }
+  if (agentId.startsWith("key:")) {
+    return "raw:" + agentId;
+  }
+  return agentId;
+}

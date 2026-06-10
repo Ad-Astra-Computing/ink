@@ -39,6 +39,7 @@ export {
   decodePublicKeyMultibase,
   decodeEncryptionKeyMultibase,
   extractPublicKeyFromAgentId,
+  canonicalAgentPrincipal,
   AGENT_ID_KEY_PREFIXES,
 } from "./crypto/keys.js";
 

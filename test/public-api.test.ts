@@ -29,6 +29,7 @@ describe("public API surface (src/index.ts → package root)", () => {
     expect(typeof ink.encodePublicKeyMultibase).toBe("function");
     expect(typeof ink.decodePublicKeyMultibase).toBe("function");
     expect(typeof ink.extractPublicKeyFromAgentId).toBe("function");
+    expect(typeof ink.canonicalAgentPrincipal).toBe("function");
   });
 
   it("re-exports the documented discovery and middleware functions", () => {
