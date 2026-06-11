@@ -164,6 +164,10 @@ jobs:
             echo "promote_version must be a bare semver (got: $PROMOTE_VERSION)"
             exit 1
           fi
+          case "$PROMOTE_TAG" in
+            latest|next) ;;
+            *) echo "promote_tag must be latest or next (got: $PROMOTE_TAG)"; exit 1 ;;
+          esac
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
             echo "NPM_TOKEN is not set on the npm-release environment. Add a granular"
             echo "read-write npm token for @adastracomputing/ink and re-run; trusted-"
