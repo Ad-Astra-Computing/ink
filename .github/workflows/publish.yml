@@ -136,48 +136,40 @@ jobs:
             --prerelease
 
   promote:
-    # Move an already-published version's dist-tag (e.g. next -> latest) with no
-    # static npm token. npm only runs the trusted-publishing OIDC handshake for
-    # `npm publish`, so this exchanges the GitHub OIDC token for a short-lived npm
-    # token by hand (npm/cli#8547) and uses it for the dist-tag move. Runs only on
-    # a manual dispatch that supplies promote_version; the trusted publisher is
-    # keyed to this workflow filename, so the promotion must live here, not in a
-    # separate workflow.
+    # Move an already-published version's dist-tag (e.g. next -> latest). npm
+    # trusted-publishing OIDC only authenticates `npm publish`, not `npm dist-tag`
+    # (npm/cli#8547), so promotion needs a real automation token: NPM_TOKEN, a
+    # granular read-write token for @adastracomputing/ink, stored on the
+    # npm-release environment. Runs only on a manual dispatch that supplies
+    # promote_version. OIDC trusted publishing still covers the publish job.
     if: github.event_name == 'workflow_dispatch' && inputs.promote_version != ''
     runs-on: ubuntu-latest
     environment: npm-release
-    permissions:
-      id-token: write   # exchange the GitHub OIDC token for a short-lived npm token.
+    permissions: {}
     steps:
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6 # zizmor: ignore[cache-poisoning]
         with:
           node-version: 24.x
           registry-url: "https://registry.npmjs.org"
 
-      - name: Promote dist-tag via OIDC token exchange
+      - name: Promote dist-tag
         env:
           PROMOTE_VERSION: ${{ inputs.promote_version }}
           PROMOTE_TAG: ${{ inputs.promote_tag }}
           PKG: "@adastracomputing/ink"
-          PKG_ENC: "@adastracomputing%2Fink"
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           if ! [[ "$PROMOTE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "promote_version must be a bare semver (got: $PROMOTE_VERSION)"
             exit 1
           fi
-          oidc="$(curl -sSf \
-            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=npm:registry.npmjs.org" | jq -r '.value')"
-          token="$(curl -sSf -X POST \
-            -H "Authorization: Bearer ${oidc}" \
-            "https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/${PKG_ENC}" | jq -r '.token')"
-          if [ -z "$token" ] || [ "$token" = "null" ]; then
-            echo "OIDC token exchange did not return a token"
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "NPM_TOKEN is not set on the npm-release environment. Add a granular"
+            echo "read-write npm token for @adastracomputing/ink and re-run; trusted-"
+            echo "publishing OIDC cannot move dist-tags (npm/cli#8547)."
             exit 1
           fi
-          echo "::add-mask::$token"
-          export NODE_AUTH_TOKEN="$token"
           echo "Before:"
           npm dist-tag ls "$PKG"
           npm dist-tag add "${PKG}@${PROMOTE_VERSION}" "$PROMOTE_TAG"
