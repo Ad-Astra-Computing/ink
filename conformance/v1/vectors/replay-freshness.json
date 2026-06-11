@@ -1,0 +1,98 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "replay-freshness",
+  "cases": [
+    {
+      "caseId": "fresh-unseen-nonce-accepts",
+      "description": "A current timestamp with a nonce not seen before is accepted.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "within-window-accepts",
+      "description": "A timestamp 20 seconds in the past is inside the freshness window and is accepted.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-10T23:59:40.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "duplicate-nonce-rejects",
+      "description": "A nonce already in previouslySeenNonces is a replay and is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": [
+            "nonce-conformance-0001"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "stale-timestamp-rejects",
+      "description": "A timestamp older than the 5 minute age window is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-10T23:54:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "future-timestamp-rejects",
+      "description": "A timestamp more than 30 seconds in the future is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:31.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "malformed-nonce-rejects",
+      "description": "A nonce shorter than the minimum length is rejected before any freshness check.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "short",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}
