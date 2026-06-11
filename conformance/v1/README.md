@@ -45,6 +45,11 @@ additive field then.
 - **jcs-number** — numbers whose shortest form is exponential are rejected even
   when they are otherwise valid, so the signed bytes stay agnostic to which
   canonicalizer produced them.
+- **key-rotation** — a signature is verified against a key set under the
+  authority rule: an active key verifies; a retired key verifies only while its
+  validity window contains the message timestamp; a revoked key, an expired key,
+  and a key set without the signing key all fail. Accept cases also pin the
+  `keyStatus` that verified.
 
 ## Running them
 

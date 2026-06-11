@@ -9,7 +9,7 @@
     "format": { "const": "ink.conformance.v1" },
     "category": {
       "type": "string",
-      "enum": ["principal-normalization", "signature-base", "jcs-number"]
+      "enum": ["principal-normalization", "signature-base", "jcs-number", "key-rotation"]
     },
     "cases": {
       "type": "array",
@@ -28,7 +28,8 @@
             "additionalProperties": false,
             "properties": {
               "result": { "type": "string", "enum": ["accept", "reject"] },
-              "canonicalPrincipal": { "type": "string" }
+              "canonicalPrincipal": { "type": "string" },
+              "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] }
             }
           }
         }
