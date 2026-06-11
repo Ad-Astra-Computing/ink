@@ -105,6 +105,10 @@ Verification helpers added in `0.4.0`:
 - `verifyInclusionReceipt` accepts an `event` option that recomputes the leaf hash and binds `event.id` to `receipt.eventId`, so the proof attests the named event's inclusion. Prefer it over the legacy unbound `eventHash`.
 - `verifyInkAuth` returns a prefix-independent `principal` alongside the raw `senderAgentId`. Per-sender security state (block lists, rate limits) MUST key on `principal`, because the `tulpa:` and `ink:` spellings of one key are the same actor; `canonicalAgentPrincipal(agentId)` exposes the same mapping.
 
+Added in `0.5.0`:
+
+- `verifyConsistencyProof(first, firstRoot, second, secondRoot, proof)` verifies an RFC 6962 consistency proof that the tree of `first` leaves is an append-only prefix of the tree of `second` leaves, so a witness that forks its history rather than only appending is detected. The witness serves these proofs at `GET /ink/v1/consistency?first=N&second=M`, and the `verify-inclusion` CLI checks one against the current checkpoint when `--origin` is passed.
+
 ## Agent-assisted implementation
 
 If you are asking an AI coding agent to add INK support to an existing service, the canonical packet for that workflow is the [Agent-assisted implementation](https://ink.tulpa.network/guides/agent-assisted-implementation/) guide. It contains the curated implementer prompt, a mandatory traceability matrix, the conformance checklist, and a human-review checklist. The guide is updated as the protocol evolves; treat it as the live source rather than copying its contents into your repo.
