@@ -4,6 +4,29 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.5.0, transparency-log consistency proofs
+
+This release adds RFC 6962 consistency-proof verification, so a verifier can
+confirm a transparency log only ever appended to its tree between two
+checkpoints rather than forking its history. The size comparison alone cannot
+detect a split view. It is published on the `next` dist-tag; this release is
+additive, with no breaking changes.
+
+### Additions
+
+- `verifyConsistencyProof(first, firstRoot, second, secondRoot, proof)` verifies
+  an RFC 6962 Section 2.1.2 consistency proof: that the tree of `first` leaves is
+  an append-only prefix of the tree of `second` leaves. It returns false (never
+  throws) for any malformed input or any proof that does not reconstruct both
+  roots with every node consumed.
+- The `verify-inclusion` CLI uses it: when `--origin` enables the checkpoint
+  cross-check and the signature-verified checkpoint is newer than the receipt's
+  tree, the CLI fetches a consistency proof and verifies the receipt's tree is an
+  append-only prefix of the checkpoint. A witness that serves no proof has the
+  step reported as skipped, not passed.
+
+The reference witness serves these proofs at `GET /ink/v1/consistency?first=N&second=M`.
+
 ## 0.4.0, stricter verification, message-size bounds, checkpoint and receipt verification
 
 This release tightens signature verification and input validation and adds
