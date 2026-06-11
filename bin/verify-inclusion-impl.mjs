@@ -77,9 +77,16 @@ Usage:
 Options:
   -w, --witness <url>      Witness base URL (e.g. https://witness.tulpa.network)
       --origin <name>      Optional. Expected checkpoint origin (log identity)
-                            to bind the signed checkpoint to. When omitted, the
-                            checkpoint signature is still verified against the
-                            witness key and the body/signature origins must agree.
+                            to bind the signed checkpoint to. Enables the
+                            checkpoint cross-check: the current checkpoint's
+                            signature is verified against the witness key, and
+                            when it is newer than the receipt and the witness
+                            serves an RFC 6962 consistency proof, that proof is
+                            verified so a forked history is caught. If the witness
+                            serves no proof the consistency step is reported as
+                            skipped, not passed. When --origin is omitted the
+                            cross-check is skipped rather than trusting an
+                            unverified checkpoint body.
   -f, --file <path>        Receipt JSON file. Omit to read from stdin.
   -e, --event-hash <hex>   Optional. RFC 6962 leaf hash for the audit event:
                             SHA-256(0x00 || JCS(event-without-agentSignature)),
@@ -178,6 +185,47 @@ async function recomputeRoot(currentHash, proof, proofIdx, leafIndex, start, siz
   }
   const rightResult = await recomputeRoot(currentHash, proof, proofIdx + 1, leafIndex, start + split, size - split);
   return hashPair(proof[proofIdx], rightResult);
+}
+
+const EMPTY_TREE_ROOT = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+/**
+ * Verify an RFC 6962 Section 2.1.2 consistency proof (the first-sized tree is a
+ * prefix of the second). Mirrors verifyConsistencyProof() in
+ * src/audit/inclusion-receipt.ts — keep them in sync.
+ */
+async function verifyConsistencyProofCli(first, firstRoot, second, secondRoot, proof) {
+  const isHash = (s) => typeof s === "string" && /^[0-9a-f]{64}$/.test(s);
+  if (!Number.isSafeInteger(first) || !Number.isSafeInteger(second)) return false;
+  if (first < 0 || second < 0) return false;
+  if (!isHash(firstRoot) || !isHash(secondRoot)) return false;
+  if (!Array.isArray(proof) || !proof.every(isHash) || proof.length > 64) return false;
+  if (first > second) return false;
+  if (first === second) return proof.length === 0 && firstRoot === secondRoot;
+  if (first === 0) return proof.length === 0 && firstRoot === EMPTY_TREE_ROOT;
+
+  let node = first - 1;
+  let last = second - 1;
+  while (node % 2 === 1) { node = Math.floor(node / 2); last = Math.floor(last / 2); }
+  let i = 0;
+  const take = () => (i < proof.length ? proof[i++] : null);
+  let oldHash;
+  if (node > 0) { const h = take(); if (h === null) return false; oldHash = h; } else { oldHash = firstRoot; }
+  let newHash = oldHash;
+  while (node > 0) {
+    if (node % 2 === 1) {
+      const h = take(); if (h === null) return false;
+      oldHash = await hashPair(h, oldHash);
+      newHash = await hashPair(h, newHash);
+    } else if (node < last) {
+      const h = take(); if (h === null) return false;
+      newHash = await hashPair(newHash, h);
+    }
+    node = Math.floor(node / 2); last = Math.floor(last / 2);
+  }
+  while (last > 0) { const h = take(); if (h === null) return false; newHash = await hashPair(newHash, h); last = Math.floor(last / 2); }
+  if (i !== proof.length) return false;
+  return oldHash === firstRoot && newHash === secondRoot;
 }
 
 // ── core verifier ──
@@ -414,6 +462,26 @@ async function fetchCurrentCheckpoint(witnessUrl, witnessPublicKey, expectedOrig
   return verifyCheckpointBody(body, witnessPublicKey, expectedOrigin);
 }
 
+async function fetchConsistencyProof(witnessUrl, first, second) {
+  const url = `${witnessUrl.replace(/\/$/, "")}/ink/v1/consistency?first=${first}&second=${second}`;
+  let body;
+  try {
+    body = await fetchBounded(url);
+  } catch {
+    // A witness that does not serve consistency proofs downgrades the check to
+    // 'not available' rather than failing the receipt.
+    return null;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  if (!parsed || !Array.isArray(parsed.proof)) return null;
+  return parsed.proof;
+}
+
 async function readStdin() {
   return new Promise((resolve, reject) => {
     let data = "";
@@ -496,6 +564,43 @@ async function main() {
 
   const result = await verifyReceipt(receipt, witnessPublicKey, args.eventHash, laterCheckpoint ?? undefined);
 
+  // Append-only proof: when the signature-verified checkpoint is strictly newer
+  // than the receipt's tree, fetch and verify an RFC 6962 consistency proof, so
+  // a witness that forked its history between the two snapshots is caught. The
+  // checkpoint size comparison alone cannot detect a same-prefix fork.
+  if (laterCheckpoint && Number.isInteger(receipt?.treeSize) && laterCheckpoint.treeSize > receipt.treeSize) {
+    const proof = await fetchConsistencyProof(witnessBase, receipt.treeSize, laterCheckpoint.treeSize);
+    if (proof === null) {
+      // Honest downgrade: the witness did not serve a usable consistency proof.
+      // Mark it skipped (NOT passed) so a witness that forked cannot look clean
+      // by withholding the endpoint; the checkpoint signature, rewind, and
+      // same-size fork checks still ran.
+      result.steps.push({
+        name: "consistency",
+        skip: true,
+        detail: "not checked (witness did not serve a consistency proof); append-only growth was not verified",
+      });
+    } else {
+      const consistent = await verifyConsistencyProofCli(
+        receipt.treeSize, receipt.rootHash, laterCheckpoint.treeSize, laterCheckpoint.rootHash, proof,
+      );
+      if (consistent) {
+        result.steps.push({
+          name: "consistency",
+          pass: true,
+          detail: `receipt tree (size ${receipt.treeSize}) is an append-only prefix of the checkpoint (size ${laterCheckpoint.treeSize})`,
+        });
+      } else {
+        result.steps.push({
+          name: "consistency",
+          pass: false,
+          detail: `receipt tree (size ${receipt.treeSize}) is NOT an append-only prefix of the checkpoint (size ${laterCheckpoint.treeSize}); the witness forked its history`,
+        });
+        result.valid = false;
+      }
+    }
+  }
+
   console.log(`Receipt: eventId=${receipt?.eventId} leafIndex=${receipt?.leafIndex} treeSize=${receipt?.treeSize}`);
   console.log(`Witness: ${witnessBase}`);
   if (laterCheckpoint) {
@@ -507,7 +612,7 @@ async function main() {
   }
   console.log("");
   for (const step of result.steps) {
-    const mark = step.pass ? "PASS" : "FAIL";
+    const mark = step.skip ? "SKIP" : step.pass ? "PASS" : "FAIL";
     console.log(`  [${mark}] ${step.name}${step.detail ? ": " + step.detail : ""}`);
   }
   console.log("");
