@@ -1,6 +1,7 @@
 package ink
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -68,4 +69,50 @@ func TestPrincipalNormalization(t *testing.T) {
 			t.Errorf("%s: principal = %q, want %q", c.CaseID, got, c.Expect.CanonicalPrincipal)
 		}
 	}
+}
+
+func TestSignatureBase(t *testing.T) {
+	vf := loadVectors(t, "signature-base")
+	for _, c := range vf.Cases {
+		var in struct {
+			SignInput struct {
+				Method       string      `json:"method"`
+				Path         string      `json:"path"`
+				RecipientDid string      `json:"recipientDid"`
+				Body         interface{} `json:"body"`
+				Timestamp    string      `json:"timestamp"`
+			} `json:"signInput"`
+			Signature    string `json:"signature"`
+			PublicKeyHex string `json:"publicKeyHex"`
+		}
+		if err := json.Unmarshal(mustJSON(t, c.Input, "signInput"), &in.SignInput); err != nil {
+			t.Fatalf("%s: bad signInput: %v", c.CaseID, err)
+		}
+		_ = json.Unmarshal(c.Input["signature"], &in.Signature)
+		_ = json.Unmarshal(c.Input["publicKeyHex"], &in.PublicKeyHex)
+		pub, err := hex.DecodeString(in.PublicKeyHex)
+		if err != nil {
+			t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+		}
+		ok := VerifyInkSignature(InkSignInput{
+			Method:       in.SignInput.Method,
+			Path:         in.SignInput.Path,
+			RecipientDid: in.SignInput.RecipientDid,
+			Body:         in.SignInput.Body,
+			Timestamp:    in.SignInput.Timestamp,
+		}, in.Signature, pub)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
+func mustJSON(t *testing.T, m map[string]json.RawMessage, key string) json.RawMessage {
+	t.Helper()
+	v, ok := m[key]
+	if !ok {
+		t.Fatalf("missing input key %q", key)
+	}
+	return v
 }
