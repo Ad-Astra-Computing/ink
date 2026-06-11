@@ -217,4 +217,52 @@ vectorFile("key-rotation", [
   },
 ]);
 
+// ── replay-freshness ───────────────────────────────────────────────────────
+// Pure timestamp-freshness + nonce-dedup decision. A message is fresh only
+// within [receiverClock - 5min, receiverClock + 30s], and a nonce already seen
+// is a replay. No key material is involved.
+const recvClock = "2026-06-11T00:00:00.000Z";
+const goodNonce = "nonce-conformance-0001";
+function replayInput(messageTimestamp, nonce, previouslySeenNonces = []) {
+  return { messageTimestamp, receiverClock: recvClock, nonce, previouslySeenNonces };
+}
+vectorFile("replay-freshness", [
+  {
+    caseId: "fresh-unseen-nonce-accepts",
+    description: "A current timestamp with a nonce not seen before is accepted.",
+    input: { replay: replayInput(recvClock, goodNonce) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "within-window-accepts",
+    description: "A timestamp 20 seconds in the past is inside the freshness window and is accepted.",
+    input: { replay: replayInput("2026-06-10T23:59:40.000Z", goodNonce) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "duplicate-nonce-rejects",
+    description: "A nonce already in previouslySeenNonces is a replay and is rejected.",
+    input: { replay: replayInput(recvClock, goodNonce, [goodNonce]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "stale-timestamp-rejects",
+    description: "A timestamp older than the 5 minute age window is rejected.",
+    input: { replay: replayInput("2026-06-10T23:54:00.000Z", goodNonce) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "future-timestamp-rejects",
+    description: "A timestamp more than 30 seconds in the future is rejected.",
+    input: { replay: replayInput("2026-06-11T00:00:31.000Z", goodNonce) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-nonce-rejects",
+    description: "A nonce shorter than the minimum length is rejected before any freshness check.",
+    input: { replay: replayInput(recvClock, "short") },
+    expect: { result: "reject" },
+  },
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

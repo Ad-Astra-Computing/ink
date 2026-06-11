@@ -50,6 +50,10 @@ additive field then.
   validity window contains the message timestamp; a revoked key, an expired key,
   and a key set without the signing key all fail. Accept cases also pin the
   `keyStatus` that verified.
+- **replay-freshness** — a message is accepted only inside the freshness window
+  (5 minutes old to 30 seconds ahead of the receiver clock) and only if its
+  nonce has not been seen; a stale or future timestamp, a duplicate nonce, and a
+  malformed nonce all reject.
 
 ## Running them
 

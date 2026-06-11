@@ -6,6 +6,7 @@ import {
   verifyInkSignature,
   verifyInkSignatureWithKeys,
   validateMessage,
+  checkReplay,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -67,6 +68,10 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       }));
       const r = await verifyInkSignatureWithKeys(signInput, signature, candidates);
       return { result: r.verified ? "accept" : "reject", keyStatus: r.keyStatus };
+    }
+    case "replay-freshness": {
+      const r = checkReplay(input.replay as Parameters<typeof checkReplay>[0]);
+      return { result: r.accepted ? "accept" : "reject" };
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);

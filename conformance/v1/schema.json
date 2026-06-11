@@ -9,7 +9,7 @@
     "format": { "const": "ink.conformance.v1" },
     "category": {
       "type": "string",
-      "enum": ["principal-normalization", "signature-base", "jcs-number", "key-rotation"]
+      "enum": ["principal-normalization", "signature-base", "jcs-number", "key-rotation", "replay-freshness"]
     },
     "cases": {
       "type": "array",
