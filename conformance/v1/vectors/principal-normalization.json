@@ -1,0 +1,60 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "principal-normalization",
+  "cases": [
+    {
+      "caseId": "tulpa-prefix-canonical",
+      "description": "A tulpa: agentId normalizes to the key principal.",
+      "input": {
+        "agentId": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "key:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      }
+    },
+    {
+      "caseId": "ink-alias-same-principal",
+      "description": "The ink: alias of the same key normalizes to the same principal.",
+      "input": {
+        "agentId": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "key:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      }
+    },
+    {
+      "caseId": "literal-key-prefix-escaped",
+      "description": "A literal key: agentId is escaped to raw:key:, never confused with the canonical key principal.",
+      "input": {
+        "agentId": "key:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "raw:key:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      }
+    },
+    {
+      "caseId": "did-web-passthrough",
+      "description": "A did:web identity is carried through unchanged.",
+      "input": {
+        "agentId": "did:web:example.com"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "did:web:example.com"
+      }
+    },
+    {
+      "caseId": "empty-agentid-rejected",
+      "description": "An empty agentId is rejected.",
+      "input": {
+        "agentId": ""
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

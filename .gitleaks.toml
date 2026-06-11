@@ -7,9 +7,10 @@ title = "INK Protocol gitleaks config"
 [extend]
 useDefault = true
 
-# INK ships interop test vectors that contain deterministic Ed25519 private
-# keys. They are not secrets, they are the whole point of the fixtures,
-# and are documented as such in test-vectors/README.md. Suppress ONLY the
+# INK ships interop test vectors that contain deterministic Ed25519 keys and
+# the public key multibase strings derived from them. They are not secrets,
+# they are the whole point of the fixtures, and are documented as such in
+# test-vectors/README.md and conformance/v1/README.md. Suppress ONLY the
 # generic-api-key rule on those files so other secret classes (AWS keys,
 # GitHub tokens, PEM blocks, etc.) still get caught if they ever slip in.
 [[allowlists]]
@@ -17,6 +18,7 @@ description = "Deterministic test vector keys, generic-api-key only"
 targetRules = ["generic-api-key"]
 paths = [
   '''test-vectors/.*\.json$''',
+  '''conformance/v1/vectors/.*\.json$''',
 ]
 
 # The Python interop CLI's Keypair dataclass at
