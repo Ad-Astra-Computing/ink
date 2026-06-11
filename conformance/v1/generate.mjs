@@ -57,6 +57,12 @@ vectorFile("principal-normalization", [
     expect: { result: "accept", canonicalPrincipal: "did:web:example.com" },
   },
   {
+    caseId: "non-ascii-under-utf16-cap-passes-through",
+    description: "A non-ASCII identifier whose UTF-16 length is within the 512 cap (its UTF-8 byte length is not) is accepted and passed through, so an implementation that measures length in bytes instead of UTF-16 code units would diverge here.",
+    input: { agentId: "你".repeat(200) },
+    expect: { result: "accept", canonicalPrincipal: "你".repeat(200) },
+  },
+  {
     caseId: "empty-agentid-rejected",
     description: "An empty agentId is rejected.",
     input: { agentId: "" },
