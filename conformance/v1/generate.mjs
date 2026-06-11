@@ -176,4 +176,45 @@ vectorFile("jcs-number", [
   },
 ]);
 
+// ── key-rotation ───────────────────────────────────────────────────────────
+// The same signed message verified against a key set. The authority rule:
+// revoked keys are always skipped, active keys are tried before retired, and a
+// key only admits a message whose timestamp falls inside its validity window.
+const otherKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(7)));
+function keyEntry(status, extra = {}) {
+  return { keyId: `signer-${status}`, publicKeyHex, status, ...extra };
+}
+vectorFile("key-rotation", [
+  {
+    caseId: "active-key-accepts",
+    description: "A signature verifies against the signer's active key.",
+    input: { signInput, signature, keys: [keyEntry("active")] },
+    expect: { result: "accept", keyStatus: "active" },
+  },
+  {
+    caseId: "retired-key-in-window-accepts",
+    description: "A retired key whose validity window still contains the message timestamp verifies.",
+    input: { signInput, signature, keys: [keyEntry("retired", { validUntil: "2027-01-01T00:00:00.000Z" })] },
+    expect: { result: "accept", keyStatus: "retired" },
+  },
+  {
+    caseId: "revoked-key-rejects",
+    description: "A revoked key is always skipped, so verification fails even though the signature matches it.",
+    input: { signInput, signature, keys: [keyEntry("revoked")] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "expired-window-rejects",
+    description: "A retired key whose validUntil precedes the message timestamp is out of window and is skipped.",
+    input: { signInput, signature, keys: [keyEntry("retired", { validUntil: "2025-01-01T00:00:00.000Z" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "unknown-key-rejects",
+    description: "A key set that does not contain the signing key cannot verify the signature.",
+    input: { signInput, signature, keys: [{ keyId: "someone-else", publicKeyHex: otherKeyHex, status: "active" }] },
+    expect: { result: "reject" },
+  },
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

@@ -1,0 +1,200 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "key-rotation",
+  "cases": [
+    {
+      "caseId": "active-key-accepts",
+      "description": "A signature verifies against the signer's active key.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ]
+      },
+      "expect": {
+        "result": "accept",
+        "keyStatus": "active"
+      }
+    },
+    {
+      "caseId": "retired-key-in-window-accepts",
+      "description": "A retired key whose validity window still contains the message timestamp verifies.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-retired",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "retired",
+            "validUntil": "2027-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expect": {
+        "result": "accept",
+        "keyStatus": "retired"
+      }
+    },
+    {
+      "caseId": "revoked-key-rejects",
+      "description": "A revoked key is always skipped, so verification fails even though the signature matches it.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-revoked",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "revoked"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "expired-window-rejects",
+      "description": "A retired key whose validUntil precedes the message timestamp is out of window and is skipped.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-retired",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "retired",
+            "validUntil": "2025-01-01T00:00:00.000Z"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "unknown-key-rejects",
+      "description": "A key set that does not contain the signing key cannot verify the signature.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "someone-else",
+            "publicKeyHex": "ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c",
+            "status": "active"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

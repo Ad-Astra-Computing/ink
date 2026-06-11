@@ -4,9 +4,11 @@ import { fileURLToPath } from "node:url";
 import {
   canonicalAgentPrincipal,
   verifyInkSignature,
+  verifyInkSignatureWithKeys,
   validateMessage,
   hexToBytes,
 } from "../src/index.js";
+import type { CandidateKey } from "../src/index.js";
 
 // Runs the versioned ink/1 conformance vectors against this reference
 // implementation. The vectors are the cross-implementation contract: a second
@@ -18,10 +20,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; errorCode?: string };
+  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string };
+type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -49,6 +51,23 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         return { result: "reject" };
       }
     }
+    case "key-rotation": {
+      const { signInput, signature, keys } = input as {
+        signInput: Parameters<typeof verifyInkSignatureWithKeys>[0];
+        signature: string;
+        keys: Array<{ keyId: string; publicKeyHex: string; status: CandidateKey["status"]; validFrom?: string; validUntil?: string; revokedAt?: string }>;
+      };
+      const candidates: CandidateKey[] = keys.map((k) => ({
+        keyId: k.keyId,
+        publicKey: hexToBytes(k.publicKeyHex),
+        status: k.status,
+        validFrom: k.validFrom,
+        validUntil: k.validUntil,
+        revokedAt: k.revokedAt,
+      }));
+      const r = await verifyInkSignatureWithKeys(signInput, signature, candidates);
+      return { result: r.verified ? "accept" : "reject", keyStatus: r.keyStatus };
+    }
     default:
       throw new Error(`unknown conformance category: ${category}`);
   }
@@ -69,6 +88,9 @@ describe("ink/1 conformance vectors", () => {
           expect(actual.result, c.caseId).toBe(c.expect.result);
           if (c.expect.canonicalPrincipal !== undefined) {
             expect(actual.canonicalPrincipal, c.caseId).toBe(c.expect.canonicalPrincipal);
+          }
+          if (c.expect.keyStatus !== undefined) {
+            expect(actual.keyStatus, c.caseId).toBe(c.expect.keyStatus);
           }
         });
       }
