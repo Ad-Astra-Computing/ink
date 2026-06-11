@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ink.tulpa.network/conformance/v1/schema.json",
+  "title": "INK conformance vector file (ink.conformance.v1)",
+  "type": "object",
+  "required": ["format", "category", "cases"],
+  "additionalProperties": false,
+  "properties": {
+    "format": { "const": "ink.conformance.v1" },
+    "category": {
+      "type": "string",
+      "enum": ["principal-normalization", "signature-base", "jcs-number"]
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["caseId", "description", "input", "expect"],
+        "additionalProperties": false,
+        "properties": {
+          "caseId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+          "description": { "type": "string" },
+          "input": { "type": "object" },
+          "expect": {
+            "type": "object",
+            "required": ["result"],
+            "additionalProperties": false,
+            "properties": {
+              "result": { "type": "string", "enum": ["accept", "reject"] },
+              "canonicalPrincipal": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

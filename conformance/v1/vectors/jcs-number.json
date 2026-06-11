@@ -1,0 +1,56 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "jcs-number",
+  "cases": [
+    {
+      "caseId": "ordinary-integer-accepts",
+      "description": "An ordinary integer in a numeric payload field is accepted.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "correlationId": "55555555-5555-4555-8555-555555555555",
+          "createdAt": "2026-06-11T00:00:00.000Z",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "intent": "ask_response",
+          "payload": {
+            "answer": "ok",
+            "choiceIndex": 3
+          },
+          "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "timestamp": "2026-06-11T00:00:00.000Z",
+          "nonce": "66666666-6666-4666-8666-666666666666"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "exponential-number-rejects",
+      "description": "A value whose shortest form uses exponential notation is rejected as not JCS-safe even though it is a valid integer, so the signed bytes stay canonicalizer-agnostic.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "id": "44444444-4444-4444-8444-444444444444",
+          "correlationId": "55555555-5555-4555-8555-555555555555",
+          "createdAt": "2026-06-11T00:00:00.000Z",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "intent": "ask_response",
+          "payload": {
+            "answer": "ok",
+            "choiceIndex": 1e+21
+          },
+          "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "timestamp": "2026-06-11T00:00:00.000Z",
+          "nonce": "66666666-6666-4666-8666-666666666666"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}
