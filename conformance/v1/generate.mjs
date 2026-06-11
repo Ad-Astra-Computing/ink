@@ -215,6 +215,106 @@ vectorFile("key-rotation", [
     input: { signInput, signature, keys: [{ keyId: "someone-else", publicKeyHex: otherKeyHex, status: "active" }] },
     expect: { result: "reject" },
   },
+  {
+    caseId: "fallthrough-active-to-retired",
+    description: "When a non-matching active key precedes the retired signing key, verification falls through to the retired key.",
+    input: {
+      signInput,
+      signature,
+      keys: [
+        { keyId: "rotated-in", publicKeyHex: otherKeyHex, status: "active" },
+        keyEntry("retired", { validUntil: "2027-01-01T00:00:00.000Z" }),
+      ],
+    },
+    expect: { result: "accept", keyStatus: "retired", keyId: "signer-retired" },
+  },
+  {
+    caseId: "active-preferred-over-retired",
+    description: "When the signing key is listed as both active and retired, the active entry verifies first.",
+    input: {
+      signInput,
+      signature,
+      keys: [
+        { keyId: "signer-retired", publicKeyHex, status: "retired", validUntil: "2027-01-01T00:00:00.000Z" },
+        { keyId: "signer-active", publicKeyHex, status: "active" },
+      ],
+    },
+    expect: { result: "accept", keyStatus: "active", keyId: "signer-active" },
+  },
+  {
+    caseId: "not-yet-valid-key-rejects",
+    description: "A key whose validFrom is after the message timestamp is not yet valid and is skipped.",
+    input: { signInput, signature, keys: [keyEntry("active", { validFrom: "2027-01-01T00:00:00.000Z" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "revoked-at-set-skips-key",
+    description: "A key with status active but a revokedAt timestamp present is treated as revoked and skipped.",
+    input: { signInput, signature, keys: [keyEntry("active", { revokedAt: "2026-06-10T00:00:00.000Z" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "hinted-key-accepts",
+    description: "A keyId hint that names the signing key verifies it directly.",
+    input: { signInput, signature, keys: [keyEntry("active")], hintKeyId: "signer-active" },
+    expect: { result: "accept", keyStatus: "active", keyId: "signer-active" },
+  },
+  {
+    caseId: "hinted-out-of-window-key-falls-through-to-active",
+    description: "A hint that names a key whose status is allowed but whose validity window has expired does not verify via the hint, so verification falls through to a usable active key.",
+    input: {
+      signInput,
+      signature,
+      keys: [
+        { keyId: "hinted-expired", publicKeyHex, status: "active", validUntil: "2025-01-01T00:00:00.000Z" },
+        { keyId: "current-active", publicKeyHex, status: "active" },
+      ],
+      hintKeyId: "hinted-expired",
+    },
+    expect: { result: "accept", keyStatus: "active", keyId: "current-active" },
+  },
+  {
+    caseId: "hinted-revoked-key-falls-through-to-active",
+    description: "A hint that names a revoked key is rejected by the hint allowlist, so verification still falls through to a usable active key.",
+    input: {
+      signInput,
+      signature,
+      keys: [
+        { keyId: "old-revoked", publicKeyHex, status: "revoked" },
+        { keyId: "current-active", publicKeyHex, status: "active" },
+      ],
+      hintKeyId: "old-revoked",
+    },
+    expect: { result: "accept", keyStatus: "active", keyId: "current-active" },
+  },
+  {
+    caseId: "hinted-out-of-window-key-no-fallback-rejects",
+    description: "A hint that names an out-of-window key with no other usable key in the set is rejected; the hint does not bypass the validity window.",
+    input: {
+      signInput,
+      signature,
+      keys: [{ keyId: "only-expired", publicKeyHex, status: "active", validUntil: "2025-01-01T00:00:00.000Z" }],
+      hintKeyId: "only-expired",
+    },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "hinted-revoked-key-no-fallback-rejects",
+    description: "A hint that names a revoked key with no other usable key in the set is rejected; a revoked key is never selected even when it is the only candidate.",
+    input: {
+      signInput,
+      signature,
+      keys: [{ keyId: "only-revoked", publicKeyHex, status: "revoked" }],
+      hintKeyId: "only-revoked",
+    },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-status-skipped-rejects",
+    description: "A key whose status is not one of active/retired/revoked is skipped by the status allowlist, so a set with only such a key cannot verify.",
+    input: { signInput, signature, keys: [{ keyId: "weird", publicKeyHex, status: "Active" }] },
+    expect: { result: "reject" },
+  },
 ]);
 
 // ── replay-freshness ───────────────────────────────────────────────────────
