@@ -108,6 +108,26 @@ func TestSignatureBase(t *testing.T) {
 	}
 }
 
+func TestReplayFreshness(t *testing.T) {
+	vf := loadVectors(t, "replay-freshness")
+	for _, c := range vf.Cases {
+		var r struct {
+			MessageTimestamp     string   `json:"messageTimestamp"`
+			ReceiverClock        string   `json:"receiverClock"`
+			Nonce                string   `json:"nonce"`
+			PreviouslySeenNonces []string `json:"previouslySeenNonces"`
+		}
+		if err := json.Unmarshal(mustJSON(t, c.Input, "replay"), &r); err != nil {
+			t.Fatalf("%s: bad replay input: %v", c.CaseID, err)
+		}
+		ok := CheckReplay(r.MessageTimestamp, r.ReceiverClock, r.Nonce, r.PreviouslySeenNonces)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: checkReplay = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
 func mustJSON(t *testing.T, m map[string]json.RawMessage, key string) json.RawMessage {
 	t.Helper()
 	v, ok := m[key]
