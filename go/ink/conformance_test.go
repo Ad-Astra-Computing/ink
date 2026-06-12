@@ -24,6 +24,8 @@ type conformanceCase struct {
 	Expect      struct {
 		Result             string `json:"result"`
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
+		KeyStatus          string `json:"keyStatus"`
+		KeyID              string `json:"keyId"`
 	} `json:"expect"`
 }
 
@@ -124,6 +126,67 @@ func TestReplayFreshness(t *testing.T) {
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: checkReplay = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
+func TestKeyRotation(t *testing.T) {
+	vf := loadVectors(t, "key-rotation")
+	for _, c := range vf.Cases {
+		var in struct {
+			SignInput struct {
+				Method       string      `json:"method"`
+				Path         string      `json:"path"`
+				RecipientDid string      `json:"recipientDid"`
+				Body         interface{} `json:"body"`
+				Timestamp    string      `json:"timestamp"`
+			} `json:"signInput"`
+			Signature string `json:"signature"`
+			HintKeyID string `json:"hintKeyId"`
+			Keys      []struct {
+				KeyID        string `json:"keyId"`
+				PublicKeyHex string `json:"publicKeyHex"`
+				Status       string `json:"status"`
+				ValidFrom    string `json:"validFrom"`
+				ValidUntil   string `json:"validUntil"`
+				RevokedAt    string `json:"revokedAt"`
+			} `json:"keys"`
+		}
+		if err := json.Unmarshal(mustJSON(t, c.Input, "signInput"), &in.SignInput); err != nil {
+			t.Fatalf("%s: bad signInput: %v", c.CaseID, err)
+		}
+		_ = json.Unmarshal(c.Input["signature"], &in.Signature)
+		_ = json.Unmarshal(c.Input["hintKeyId"], &in.HintKeyID)
+		if err := json.Unmarshal(c.Input["keys"], &in.Keys); err != nil {
+			t.Fatalf("%s: bad keys: %v", c.CaseID, err)
+		}
+		keys := make([]CandidateKey, 0, len(in.Keys))
+		for _, k := range in.Keys {
+			pub, err := hex.DecodeString(k.PublicKeyHex)
+			if err != nil {
+				t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+			}
+			keys = append(keys, CandidateKey{
+				KeyID: k.KeyID, PublicKey: pub, Status: k.Status,
+				ValidFrom: k.ValidFrom, ValidUntil: k.ValidUntil, RevokedAt: k.RevokedAt,
+			})
+		}
+		r := VerifyInkSignatureWithKeys(InkSignInput{
+			Method:       in.SignInput.Method,
+			Path:         in.SignInput.Path,
+			RecipientDid: in.SignInput.RecipientDid,
+			Body:         in.SignInput.Body,
+			Timestamp:    in.SignInput.Timestamp,
+		}, in.Signature, keys, in.HintKeyID)
+		want := c.Expect.Result == "accept"
+		if r.Verified != want {
+			t.Errorf("%s: verified = %v, want %v", c.CaseID, r.Verified, want)
+		}
+		if c.Expect.KeyStatus != "" && r.KeyStatus != c.Expect.KeyStatus {
+			t.Errorf("%s: keyStatus = %q, want %q", c.CaseID, r.KeyStatus, c.Expect.KeyStatus)
+		}
+		if c.Expect.KeyID != "" && r.KeyID != c.Expect.KeyID {
+			t.Errorf("%s: keyId = %q, want %q", c.CaseID, r.KeyID, c.Expect.KeyID)
 		}
 	}
 }
