@@ -161,6 +161,70 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "body-string-with-newline-accepts",
+      "description": "A signed body string containing a newline and a tab is JCS-escaped, so the signature over it verifies and the control characters cannot shift the signature base boundaries.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "line1\nline2",
+              "scope": "tab\there"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "6BGBHpIpqFnfJDJjBOH2I1Dz-eIZyQog75tbXEK4_m8sZzTqONkpktFrT8pqpT3ak3qv4BEXkzbNA3PTkHAvAw",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "malformed-signature-rejects",
+      "description": "A signature that is not 86 base64url characters is rejected before any verification work.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaC+",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
     }
   ]
 }

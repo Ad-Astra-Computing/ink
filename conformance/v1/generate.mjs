@@ -114,6 +114,13 @@ const reordered = {
   },
 };
 const tampered = { ...signInput, body: { ...signInput.body, intent: "schedule_meeting" } };
+// A body string carrying a literal newline: JCS escapes it to \n, so the bytes
+// are unambiguous and the signature over them must verify in any implementation.
+const newlineBody = {
+  ...signInput,
+  body: { ...signInput.body, payload: { note: "line1\nline2", scope: "tab\there" } },
+};
+const newlineSignature = await signInkMessage(newlineBody, seed);
 
 vectorFile("signature-base", [
   {
@@ -144,6 +151,18 @@ vectorFile("signature-base", [
     caseId: "wrong-key-rejects",
     description: "Verifying against a different public key fails.",
     input: { signInput, signature, publicKeyHex: bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(7))) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "body-string-with-newline-accepts",
+    description: "A signed body string containing a newline and a tab is JCS-escaped, so the signature over it verifies and the control characters cannot shift the signature base boundaries.",
+    input: { signInput: newlineBody, signature: newlineSignature, publicKeyHex },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "malformed-signature-rejects",
+    description: "A signature that is not 86 base64url characters is rejected before any verification work.",
+    input: { signInput, signature: signature.slice(0, 85) + "+", publicKeyHex },
     expect: { result: "reject" },
   },
 ]);
