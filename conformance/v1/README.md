@@ -55,6 +55,17 @@ additive field then.
   nonce has not been seen; a stale or future timestamp, a duplicate nonce, and a
   malformed nonce all reject.
 
+## String length and ordering
+
+INK measures string lengths (the agentId and multibase caps) in UTF-16 code
+units, matching JavaScript's `String.length`, and JCS sorts object members by
+UTF-16 code unit per RFC 8785. An implementation in another language must measure
+and sort the same way or it will disagree with these vectors on a multi-byte
+input; the `non-ascii-under-utf16-cap-passes-through` case exercises exactly that
+boundary. Inputs are assumed to be well-formed Unicode; a lone surrogate is the
+one value whose UTF-16 length does not round-trip through UTF-8, and is out of
+scope for v1.
+
 ## Running them
 
 The reference implementation runs the corpus in `test/conformance.test.ts` as

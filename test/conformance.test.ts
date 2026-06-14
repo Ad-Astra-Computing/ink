@@ -21,10 +21,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string };
+  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string };
+type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -53,10 +53,11 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       }
     }
     case "key-rotation": {
-      const { signInput, signature, keys } = input as {
+      const { signInput, signature, keys, hintKeyId } = input as {
         signInput: Parameters<typeof verifyInkSignatureWithKeys>[0];
         signature: string;
         keys: Array<{ keyId: string; publicKeyHex: string; status: CandidateKey["status"]; validFrom?: string; validUntil?: string; revokedAt?: string }>;
+        hintKeyId?: string;
       };
       const candidates: CandidateKey[] = keys.map((k) => ({
         keyId: k.keyId,
@@ -66,8 +67,8 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         validUntil: k.validUntil,
         revokedAt: k.revokedAt,
       }));
-      const r = await verifyInkSignatureWithKeys(signInput, signature, candidates);
-      return { result: r.verified ? "accept" : "reject", keyStatus: r.keyStatus };
+      const r = await verifyInkSignatureWithKeys(signInput, signature, candidates, hintKeyId);
+      return { result: r.verified ? "accept" : "reject", keyStatus: r.keyStatus, keyId: r.keyId };
     }
     case "replay-freshness": {
       const r = checkReplay(input.replay as Parameters<typeof checkReplay>[0]);
@@ -96,6 +97,9 @@ describe("ink/1 conformance vectors", () => {
           }
           if (c.expect.keyStatus !== undefined) {
             expect(actual.keyStatus, c.caseId).toBe(c.expect.keyStatus);
+          }
+          if (c.expect.keyId !== undefined) {
+            expect(actual.keyId, c.caseId).toBe(c.expect.keyId);
           }
         });
       }

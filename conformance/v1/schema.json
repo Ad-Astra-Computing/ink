@@ -29,7 +29,8 @@
             "properties": {
               "result": { "type": "string", "enum": ["accept", "reject"] },
               "canonicalPrincipal": { "type": "string" },
-              "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] }
+              "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] },
+              "keyId": { "type": "string" }
             }
           }
         }
