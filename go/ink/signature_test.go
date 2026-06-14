@@ -1,6 +1,40 @@
 package ink
 
-import "testing"
+import (
+	"encoding/base64"
+	"encoding/hex"
+	"testing"
+)
+
+// A small-order public key yields a universal forgery under the cofactorless
+// verification equation: for A = identity, [h]A = identity for every h, so
+// [S]B = R + [h]A reduces to [S]B = R, which holds for S = 1 and R = [1]B = B
+// (the basepoint) regardless of the message. The reference verifier
+// (@noble/ed25519 with zip215:false) rejects small-order keys up front, so the
+// Go verifier must reject them too or it would accept signatures the reference
+// rejects. Go's bare crypto/ed25519.Verify does NOT reject small-order A.
+func TestSmallOrderPublicKeyRejected(t *testing.T) {
+	identity := make([]byte, 32)
+	identity[0] = 0x01
+	basepoint, _ := hex.DecodeString("5866666666666666666666666666666666666666666666666666666666666666")
+	scalarOne := make([]byte, 32)
+	scalarOne[0] = 0x01
+	forgedSig := make([]byte, 0, 64)
+	forgedSig = append(forgedSig, basepoint...)
+	forgedSig = append(forgedSig, scalarOne...)
+	sigB64 := base64.RawURLEncoding.EncodeToString(forgedSig)
+
+	in := InkSignInput{
+		Method:       "POST",
+		Path:         "/ink/v1/x/intent",
+		RecipientDid: "tulpa:z",
+		Body:         map[string]interface{}{},
+		Timestamp:    "2026-06-11T00:00:00.000Z",
+	}
+	if VerifyInkSignature(in, sigB64, identity) {
+		t.Errorf("verifier accepted a small-order-A (identity) universal forgery")
+	}
+}
 
 // A newline inside a signed body string is escaped by JCS, so it cannot shift
 // the newline-delimited signature base boundaries.

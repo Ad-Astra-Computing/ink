@@ -6,6 +6,8 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+
+	"filippo.io/edwards25519"
 )
 
 // InkSignInput is the canonical request shape an INK signature covers.
@@ -53,14 +55,19 @@ func BuildSignatureBase(in InkSignInput) (string, error) {
 }
 
 // VerifyInkSignature verifies a base64url Ed25519 signature over the signature
-// base. Verification is RFC 8032 strict (Go's crypto/ed25519), matching the
-// reference implementation's zip215:false. A malformed signature, an invalid
-// key length, or an unbuildable signature base all return false.
+// base. Verification matches the reference implementation (@noble/ed25519 with
+// zip215:false): the public key must be canonically encoded and must not be a
+// small-order point, then the RFC 8032 cofactorless equation is checked by
+// Go's crypto/ed25519. A malformed signature, an invalid or small-order key, or
+// an unbuildable signature base all return false.
 func VerifyInkSignature(in InkSignInput, signatureBase64url string, publicKey []byte) bool {
 	if !signatureRe.MatchString(signatureBase64url) {
 		return false
 	}
 	if len(publicKey) != ed25519.PublicKeySize {
+		return false
+	}
+	if !isStrongEd25519PublicKey(publicKey) {
 		return false
 	}
 	sigBase, err := BuildSignatureBase(in)
@@ -72,4 +79,20 @@ func VerifyInkSignature(in InkSignInput, signatureBase64url string, publicKey []
 		return false
 	}
 	return ed25519.Verify(ed25519.PublicKey(publicKey), []byte(sigBase), sig)
+}
+
+// isStrongEd25519PublicKey rejects keys that Go's bare crypto/ed25519.Verify
+// would accept but the reference (noble zip215:false) rejects: non-canonically
+// encoded points and small-order points. A small-order A makes [h]A constant
+// across messages, which lets an attacker forge a signature that verifies for
+// any message; noble rejects such keys before any arithmetic, so the Go
+// verifier must too. SetBytes rejects a non-canonical encoding (y >= p); a
+// point is small-order iff multiplying it by the cofactor (8) yields identity.
+func isStrongEd25519PublicKey(publicKey []byte) bool {
+	a, err := new(edwards25519.Point).SetBytes(publicKey)
+	if err != nil {
+		return false
+	}
+	cofactored := new(edwards25519.Point).MultByCofactor(a)
+	return cofactored.Equal(edwards25519.NewIdentityPoint()) != 1
 }

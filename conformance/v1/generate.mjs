@@ -122,6 +122,19 @@ const newlineBody = {
 };
 const newlineSignature = await signInkMessage(newlineBody, seed);
 
+// A small-order public key (the identity point) makes [h]A constant across all
+// messages, so for A = identity the cofactorless verification equation
+// [S]B = R + [h]A reduces to [S]B = R; with S = 1 and R = [1]B = B (the
+// basepoint) the signature R||S verifies for any message. @noble/ed25519 with
+// {zip215:false} rejects small-order keys before any arithmetic, so a conforming
+// verifier must reject this universal forgery. Go's bare crypto/ed25519.Verify
+// does not, which this vector pins.
+const identityPublicKeyHex = "01" + "00".repeat(31);
+const basepointBytes = Buffer.from("5866666666666666666666666666666666666666666666666666666666666666", "hex");
+const scalarOneBytes = Buffer.alloc(32);
+scalarOneBytes[0] = 1;
+const smallOrderForgedSig = Buffer.concat([basepointBytes, scalarOneBytes]).toString("base64url");
+
 vectorFile("signature-base", [
   {
     caseId: "valid-signature-accepts",
@@ -163,6 +176,12 @@ vectorFile("signature-base", [
     caseId: "malformed-signature-rejects",
     description: "A signature that is not 86 base64url characters is rejected before any verification work.",
     input: { signInput, signature: signature.slice(0, 85) + "+", publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "small-order-public-key-rejects",
+    description: "A small-order public key (the identity point) yields a signature that verifies for any message under the cofactorless equation; the reference rejects small-order keys before any arithmetic, so a conforming verifier must reject this universal forgery rather than accept it.",
+    input: { signInput, signature: smallOrderForgedSig, publicKeyHex: identityPublicKeyHex },
     expect: { result: "reject" },
   },
 ]);
