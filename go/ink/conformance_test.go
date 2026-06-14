@@ -188,6 +188,17 @@ func TestKeyRotation(t *testing.T) {
 		if c.Expect.KeyID != "" && r.KeyID != c.Expect.KeyID {
 			t.Errorf("%s: keyId = %q, want %q", c.CaseID, r.KeyID, c.Expect.KeyID)
 		}
+		// On a rejection the result must not attribute a key: a populated
+		// keyId/keyStatus alongside Verified=false would hide an authority
+		// bug in the fallback path.
+		if !want {
+			if r.KeyID != "" {
+				t.Errorf("%s: rejected result leaked keyId %q", c.CaseID, r.KeyID)
+			}
+			if r.KeyStatus != "" {
+				t.Errorf("%s: rejected result leaked keyStatus %q", c.CaseID, r.KeyStatus)
+			}
+		}
 	}
 }
 

@@ -22,12 +22,15 @@ type MultiKeyResult struct {
 	KeyStatus string
 }
 
-// keyValidAtTime applies the validity window. A present revokedAt skips the key
-// regardless of value; validFrom/validUntil must bracket the message time
-// inclusively, and a present-but-unparseable bound fails closed. Presence here
-// is "non-empty string"; the reference treats any value other than undefined as
-// present, so an explicit empty-string field (which the vectors never set)
-// would be the one place this could differ.
+// keyValidAtTime applies the validity window. A non-empty revokedAt skips the
+// key; validFrom/validUntil must bracket the message time inclusively, and a
+// present-but-unparseable bound fails closed. The reference treats revokedAt as
+// "revoked" when it is a non-empty, parseable timestamp of at most 64 chars, so
+// an empty-string revokedAt is not revoked in either implementation. The one
+// residual divergence is a non-empty but unparseable revokedAt: here Go fails
+// closed (skips the key) while the reference, requiring a parseable value, does
+// not skip it. The conformance vectors do not set such a value; the stricter
+// Go behavior is intentional pending a reference decision on the edge.
 func keyValidAtTime(k CandidateKey, msgTime time.Time) bool {
 	if k.RevokedAt != "" {
 		return false
