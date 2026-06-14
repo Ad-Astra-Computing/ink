@@ -36,6 +36,18 @@ func TestSmallOrderPublicKeyRejected(t *testing.T) {
 	}
 }
 
+// A non-canonical public-key encoding (y >= p) decodes to a valid, non-small-
+// order point, so the small-order check alone does not catch it; the reference
+// (@noble/ed25519 with zip215:false) requires y < p and rejects it, so the Go
+// verifier must reject it too via a canonical re-encode check. This encoding is
+// y = p + 3 (the point whose canonical encoding is 0x03..00).
+func TestNonCanonicalPublicKeyRejected(t *testing.T) {
+	nonCanonical, _ := hex.DecodeString("f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f")
+	if isStrongEd25519PublicKey(nonCanonical) {
+		t.Errorf("accepted a non-canonical (y >= p) public-key encoding")
+	}
+}
+
 // A newline inside a signed body string is escaped by JCS, so it cannot shift
 // the newline-delimited signature base boundaries.
 func TestBodyNewlineIsEscaped(t *testing.T) {

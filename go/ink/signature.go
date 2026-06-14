@@ -1,6 +1,7 @@
 package ink
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"encoding/base64"
 	"errors"
@@ -86,11 +87,16 @@ func VerifyInkSignature(in InkSignInput, signatureBase64url string, publicKey []
 // encoded points and small-order points. A small-order A makes [h]A constant
 // across messages, which lets an attacker forge a signature that verifies for
 // any message; noble rejects such keys before any arithmetic, so the Go
-// verifier must too. SetBytes rejects a non-canonical encoding (y >= p); a
-// point is small-order iff multiplying it by the cofactor (8) yields identity.
+// verifier must too. edwards25519.SetBytes accepts non-canonical encodings of
+// valid points (e.g. a y-coordinate not reduced mod p), so canonicality is
+// enforced by re-encoding and comparing; noble requires y < p. A point is
+// small-order iff multiplying it by the cofactor (8) yields the identity.
 func isStrongEd25519PublicKey(publicKey []byte) bool {
 	a, err := new(edwards25519.Point).SetBytes(publicKey)
 	if err != nil {
+		return false
+	}
+	if !bytes.Equal(a.Bytes(), publicKey) {
 		return false
 	}
 	cofactored := new(edwards25519.Point).MultByCofactor(a)
