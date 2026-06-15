@@ -2,6 +2,7 @@ import * as ed from "@noble/ed25519";
 import { x25519 } from "@noble/curves/ed25519.js";
 import canonicalize from "canonicalize";
 import { isJcsSafeNumber } from "./sign.js";
+import { parseInkTimestampMs } from "./timestamp.js";
 
 // ── Encoding helpers ──
 
@@ -639,22 +640,16 @@ export function checkReplay(input: ReplayCheckInput): ReplayCheckResult {
   // so a multi-megabyte value can't burn CPU in the engine's date
   // parser before the finite-time check rejects. 64 chars matches the
   // cap used elsewhere in INK (ISO 8601 fits in ~30 chars).
-  if (
-    typeof input.messageTimestamp !== "string" ||
-    input.messageTimestamp.length === 0 ||
-    input.messageTimestamp.length > 64 ||
-    typeof input.receiverClock !== "string" ||
-    input.receiverClock.length === 0 ||
-    input.receiverClock.length > 64
-  ) {
-    return { accepted: false, errorCode: "expired_message" };
-  }
-  // Parse timestamps — NaN values would cause all drift comparisons to return
-  // false (NaN > x and NaN < x are both false), allowing any timestamp to pass.
-  // Explicitly reject non-finite results.
-  const msgTime = new Date(input.messageTimestamp).getTime();
-  const recvTime = new Date(input.receiverClock).getTime();
-  if (!Number.isFinite(msgTime) || !Number.isFinite(recvTime)) {
+  // Parse both timestamps with the strict RFC 3339 / millisecond grammar
+  // shared across implementations. A lenient (date-only, no-zone,
+  // space-separated) or oversized value another implementation rejects is
+  // rejected here too; the length cap inside the parser bounds work before
+  // the date parser runs. A null result fails closed: leaving the drift
+  // comparisons to a NaN would let any timestamp pass (NaN > x and NaN < x
+  // are both false).
+  const msgTime = parseInkTimestampMs(input.messageTimestamp);
+  const recvTime = parseInkTimestampMs(input.receiverClock);
+  if (msgTime === null || recvTime === null) {
     return { accepted: false, errorCode: "expired_message" };
   }
 

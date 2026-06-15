@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isInkTimestamp } from "../crypto/timestamp.js";
 
 export const KeyStatusSchema = z.enum(["active", "retired", "revoked"]);
 export type KeyStatus = z.infer<typeof KeyStatusSchema>;
@@ -6,14 +7,22 @@ export type KeyStatus = z.infer<typeof KeyStatusSchema>;
 export const KeyRoleSchema = z.enum(["signing", "encryption"]);
 export type KeyRole = z.infer<typeof KeyRoleSchema>;
 
+// A key-window timestamp uses INK's strict RFC 3339 profile, not Zod's
+// z.string().datetime(), which in this Zod version rejects the numeric `±HH:MM`
+// offsets the profile accepts. Keeping this aligned with the verifier's parser
+// is what makes the grammar the same everywhere.
+const inkTimestamp = z
+  .string()
+  .refine(isInkTimestamp, { message: "must be a strict RFC 3339 timestamp" });
+
 export const KeyEntrySchema = z.object({
   keyId: z.string().min(1),
   algorithm: z.enum(["Ed25519", "X25519"]),
   publicKeyMultibase: z.string().startsWith("z"),
   status: KeyStatusSchema,
-  validFrom: z.string().datetime(),
-  validUntil: z.string().datetime().optional(),
-  revokedAt: z.string().datetime().optional(),
+  validFrom: inkTimestamp,
+  validUntil: inkTimestamp.optional(),
+  revokedAt: inkTimestamp.optional(),
   revokeReason: z.string().optional(),
 });
 

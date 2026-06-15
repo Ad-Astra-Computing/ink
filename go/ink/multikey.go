@@ -1,7 +1,5 @@
 package ink
 
-import "time"
-
 const maxCandidateKeys = 20
 
 // CandidateKey is one key a signature may verify against, with its rotation
@@ -22,28 +20,25 @@ type MultiKeyResult struct {
 	KeyStatus string
 }
 
-// keyValidAtTime applies the validity window. A non-empty revokedAt skips the
-// key; validFrom/validUntil must bracket the message time inclusively, and a
-// present-but-unparseable bound fails closed. The reference treats revokedAt as
-// "revoked" when it is a non-empty, parseable timestamp of at most 64 chars, so
-// an empty-string revokedAt is not revoked in either implementation. The one
-// residual divergence is a non-empty but unparseable revokedAt: here Go fails
-// closed (skips the key) while the reference, requiring a parseable value, does
-// not skip it. The conformance vectors do not set such a value; the stricter
-// Go behavior is intentional pending a reference decision on the edge.
-func keyValidAtTime(k CandidateKey, msgTime time.Time) bool {
+// keyValidAtTime applies the validity window, all timestamps parsed with the
+// strict RFC 3339 / millisecond grammar shared across implementations. A
+// non-empty revokedAt skips the key; validFrom/validUntil must bracket the
+// message time inclusively, and a present-but-malformed or lenient bound fails
+// closed. (The empty-string vs absent revokedAt distinction is tracked
+// separately; this window check only parses the bound timestamps.)
+func keyValidAtTime(k CandidateKey, msgMs int64) bool {
 	if k.RevokedAt != "" {
 		return false
 	}
 	if k.ValidFrom != "" {
-		vf, err := time.Parse(time.RFC3339Nano, k.ValidFrom)
-		if err != nil || msgTime.Before(vf) {
+		vf, ok := ParseInkTimestampMs(k.ValidFrom)
+		if !ok || msgMs < vf {
 			return false
 		}
 	}
 	if k.ValidUntil != "" {
-		vu, err := time.Parse(time.RFC3339Nano, k.ValidUntil)
-		if err != nil || msgTime.After(vu) {
+		vu, ok := ParseInkTimestampMs(k.ValidUntil)
+		if !ok || msgMs > vu {
 			return false
 		}
 	}
@@ -58,11 +53,8 @@ func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []Candid
 	if len(keys) == 0 || !signatureRe.MatchString(signature) {
 		return MultiKeyResult{}
 	}
-	if n := utf16Len(in.Timestamp); n == 0 || n > 64 {
-		return MultiKeyResult{}
-	}
-	msgTime, err := time.Parse(time.RFC3339Nano, in.Timestamp)
-	if err != nil {
+	msgMs, ok := ParseInkTimestampMs(in.Timestamp)
+	if !ok {
 		return MultiKeyResult{}
 	}
 	if len(keys) > maxCandidateKeys {
@@ -74,7 +66,7 @@ func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []Candid
 			if k.KeyID != hintKeyID || (k.Status != "active" && k.Status != "retired") {
 				continue
 			}
-			if keyValidAtTime(k, msgTime) && VerifyInkSignature(in, signature, k.PublicKey) {
+			if keyValidAtTime(k, msgMs) && VerifyInkSignature(in, signature, k.PublicKey) {
 				return MultiKeyResult{Verified: true, KeyID: k.KeyID, KeyStatus: k.Status}
 			}
 			break
@@ -83,7 +75,7 @@ func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []Candid
 
 	for _, status := range []string{"active", "retired"} {
 		for _, k := range keys {
-			if k.Status != status || !keyValidAtTime(k, msgTime) {
+			if k.Status != status || !keyValidAtTime(k, msgMs) {
 				continue
 			}
 			if hintKeyID != "" && k.KeyID == hintKeyID {

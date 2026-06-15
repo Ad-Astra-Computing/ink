@@ -409,4 +409,117 @@ vectorFile("replay-freshness", [
   },
 ]);
 
+// ── timestamp-validity ───────────────────────────────────────────────────
+// INK timestamps (message timestamp, key validFrom/validUntil) use one strict
+// RFC 3339 grammar and millisecond precision across implementations. A value is
+// accepted only as a full date-time with a `T` and a `Z` or numeric offset; the
+// parsed instant is whole milliseconds. epochMs is computed with the engine's
+// Date.parse as an independent oracle, so both implementations must agree with
+// it. A lenient form (date-only, no zone, space-separated, lowercase `t`) or an
+// out-of-range value is rejected.
+vectorFile("timestamp-validity", [
+  {
+    caseId: "utc-millis-accepts",
+    description: "A full RFC 3339 UTC date-time with millisecond precision is accepted and parses to whole milliseconds.",
+    input: { timestamp: "2026-06-11T00:00:00.000Z" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00.000Z") },
+  },
+  {
+    caseId: "numeric-offset-accepts",
+    description: "A date-time with a numeric +HH:MM offset is accepted and normalized to the same instant.",
+    input: { timestamp: "2026-06-11T02:00:00+02:00" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T02:00:00+02:00") },
+  },
+  {
+    caseId: "no-fraction-accepts",
+    description: "A date-time without fractional seconds is accepted.",
+    input: { timestamp: "2026-06-11T00:00:00Z" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00Z") },
+  },
+  {
+    caseId: "sub-millisecond-truncates",
+    description: "Sub-millisecond precision is truncated to whole milliseconds, so an implementation comparing at nanoseconds would diverge here.",
+    input: { timestamp: "2026-06-11T00:00:00.123456Z" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00.123456Z") },
+  },
+  {
+    caseId: "leap-day-accepts",
+    description: "February 29 in a leap year is a valid date and is accepted.",
+    input: { timestamp: "2024-02-29T00:00:00Z" },
+    expect: { result: "accept", epochMs: Date.parse("2024-02-29T00:00:00Z") },
+  },
+  {
+    caseId: "early-year-accepts",
+    description: "A four-digit year below 0100 is the literal year, so an implementation that mapped 0..99 to 1900..1999 would diverge here.",
+    input: { timestamp: "0099-01-01T00:00:00Z" },
+    expect: { result: "accept", epochMs: Date.parse("0099-01-01T00:00:00Z") },
+  },
+  {
+    caseId: "pre-epoch-sub-millisecond-floors",
+    description: "A pre-epoch instant with sub-millisecond precision floors to the containing millisecond (negative), so a truncate-toward-zero implementation would diverge.",
+    input: { timestamp: "1969-12-31T23:59:59.9999Z" },
+    expect: { result: "accept", epochMs: Date.parse("1969-12-31T23:59:59.9999Z") },
+  },
+  {
+    caseId: "non-leap-feb-29-rejects",
+    description: "February 29 in a non-leap year is out of range and is rejected; a parser that normalizes it to March 1 would diverge.",
+    input: { timestamp: "2026-02-29T00:00:00Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "day-out-of-range-rejects",
+    description: "A day past the end of the month (June 31) is rejected rather than rolled into the next month.",
+    input: { timestamp: "2026-06-31T00:00:00Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "hour-24-rejects",
+    description: "Hour 24 is out of range and is rejected rather than rolled into the next day.",
+    input: { timestamp: "2026-06-11T24:00:00Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "comma-fraction-rejects",
+    description: "A comma fractional-second separator is rejected; the grammar requires a dot, even though some parsers accept a comma.",
+    input: { timestamp: "2026-06-11T00:00:00,123Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "date-only-rejects",
+    description: "A date with no time component is not a full RFC 3339 date-time and is rejected.",
+    input: { timestamp: "2026-06-11" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "missing-zone-rejects",
+    description: "A date-time without a zone designator is rejected; the instant would be ambiguous.",
+    input: { timestamp: "2026-06-11T00:00:00" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "space-separated-rejects",
+    description: "A space instead of the RFC 3339 `T` separator is rejected even though some lenient parsers accept it.",
+    input: { timestamp: "2026-06-11 00:00:00Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lowercase-t-rejects",
+    description: "A lowercase `t` separator is rejected; the grammar requires an uppercase `T`.",
+    input: { timestamp: "2026-06-11t00:00:00Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "out-of-range-month-rejects",
+    description: "A syntactically shaped but out-of-range date (month 13) is rejected.",
+    input: { timestamp: "2026-13-11T00:00:00Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "empty-rejects",
+    description: "An empty string is not a timestamp.",
+    input: { timestamp: "" },
+    expect: { result: "reject" },
+  },
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);
