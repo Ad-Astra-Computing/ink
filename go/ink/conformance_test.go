@@ -27,6 +27,7 @@ type conformanceCase struct {
 		KeyStatus          string `json:"keyStatus"`
 		KeyID              string `json:"keyId"`
 		EpochMs            *int64 `json:"epochMs"`
+		CanonicalString    string `json:"canonicalString"`
 	} `json:"expect"`
 }
 
@@ -88,6 +89,36 @@ func TestJCSStringSafety(t *testing.T) {
 		}
 		if got != c.Expect.Result {
 			t.Errorf("%s: got %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
+func TestJCSNumber(t *testing.T) {
+	vf := loadVectors(t, "jcs-number")
+	for _, c := range vf.Cases {
+		var bodyRaw string
+		if err := json.Unmarshal(c.Input["bodyRaw"], &bodyRaw); err != nil {
+			t.Fatalf("%s: bad bodyRaw: %v", c.CaseID, err)
+		}
+		parsed, parseErr := ParseSignedBody([]byte(bodyRaw))
+		canonical := ""
+		var canonErr error
+		if parseErr == nil {
+			canonical, canonErr = canonicalizeJSON(parsed)
+		}
+		rejected := parseErr != nil || canonErr != nil
+		if c.Expect.Result == "reject" {
+			if !rejected {
+				t.Errorf("%s: expected reject, got %q", c.CaseID, canonical)
+			}
+			continue
+		}
+		if rejected {
+			t.Errorf("%s: expected accept, got error (parse=%v canon=%v)", c.CaseID, parseErr, canonErr)
+			continue
+		}
+		if c.Expect.CanonicalString != "" && canonical != c.Expect.CanonicalString {
+			t.Errorf("%s: canonical = %q, want %q", c.CaseID, canonical, c.Expect.CanonicalString)
 		}
 	}
 }

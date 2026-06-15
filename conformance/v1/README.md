@@ -42,9 +42,12 @@ additive field then.
 - **signature-base** — a signature over the canonical signature base verifies;
   reordering JSON members of the signed body does not change the canonical bytes;
   altering a signed field or the key fails verification.
-- **jcs-number** — numbers whose shortest form is exponential are rejected even
-  when they are otherwise valid, so the signed bytes stay agnostic to which
-  canonicalizer produced them.
+- **jcs-number** — a signed-body number must be a safe integer (`|v| <= 2^53-1`,
+  not negative zero); an accepted body pins the exact canonical bytes. A safe
+  integer, including one written with an exponent (`1e2` to `100`), is accepted;
+  a fraction, an above-safe magnitude, a negative zero, and the integer just past
+  `2^53` are rejected, so the signed bytes stay agnostic to which canonicalizer
+  produced them. See [`../../specs/ink-jcs-number-profile.md`](../../specs/ink-jcs-number-profile.md).
 - **key-rotation** — a signature is verified against a key set under the
   authority rule: an active key verifies; a retired key verifies only while its
   validity window contains the message timestamp; a revoked key, an expired key,

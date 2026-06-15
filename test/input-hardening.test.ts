@@ -17,27 +17,28 @@ function validEnvelope(payload: Record<string, unknown>) {
 }
 
 describe("JCS number safety", () => {
-  it("accepts the numbers INK payloads actually carry", () => {
-    for (const n of [0, 1, -1, 42, 1.5, -5, 1000, Number.MAX_SAFE_INTEGER, -123.25]) {
+  it("accepts the safe integers INK payloads actually carry", () => {
+    for (const n of [0, 1, -1, 42, -5, 1000, Number.MAX_SAFE_INTEGER, Number.MIN_SAFE_INTEGER]) {
       expect(isJcsSafeNumber(n), `${n}`).toBe(true);
     }
   });
 
-  it("rejects numbers that don't canonicalize unambiguously", () => {
-    for (const n of [1e21, 1e-7, -0, Infinity, -Infinity, NaN, 1e30]) {
+  it("rejects anything that is not a safe integer", () => {
+    for (const n of [1.5, -123.25, 1e20, 1e21, 1e-7, -0, Infinity, -Infinity, NaN, 1e30]) {
       expect(isJcsSafeNumber(n), `${n}`).toBe(false);
     }
   });
 
-  it("locks the exact boundary between safe and unsafe forms", () => {
-    // String(1e20) = "100000000000000000000" (no exponent) → safe;
-    // String(1e21) = "1e+21" → unsafe. Likewise 1e-6 vs 1e-7.
-    expect(isJcsSafeNumber(1e20)).toBe(true);
-    expect(isJcsSafeNumber(1e21)).toBe(false);
-    expect(isJcsSafeNumber(1e-6)).toBe(true);
-    expect(isJcsSafeNumber(1e-7)).toBe(false);
+  it("locks the exact safe-integer boundary", () => {
+    // Only integers in |v| <= 2^53-1 are safe. A fraction, or an integer-valued
+    // magnitude above the safe range (1e20 has no exact double), is rejected.
     expect(isJcsSafeNumber(Number.MAX_SAFE_INTEGER)).toBe(true);
+    expect(isJcsSafeNumber(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
     expect(isJcsSafeNumber(Number.MIN_SAFE_INTEGER)).toBe(true);
+    expect(isJcsSafeNumber(Number.MIN_SAFE_INTEGER - 1)).toBe(false);
+    expect(isJcsSafeNumber(1.5)).toBe(false);
+    expect(isJcsSafeNumber(1e20)).toBe(false);
+    expect(isJcsSafeNumber(-0)).toBe(false);
   });
 
   it("rejects a JCS-unsafe number nested inside arrays and objects", async () => {
@@ -62,9 +63,9 @@ describe("JCS number safety", () => {
     expect(await verifyMessage(message, kp.publicKey)).toBe(false);
   });
 
-  it("normal numbers round-trip through sign and verify", async () => {
+  it("safe-integer numbers round-trip through sign and verify", async () => {
     const kp = await generateKeypair();
-    const unsigned = { protocol: "ink/0.2", count: 42, ratio: 1.5, zero: 0 };
+    const unsigned = { protocol: "ink/0.2", count: 42, negative: -7, zero: 0 };
     const sig = await signMessage(unsigned, kp.privateKey);
     expect(await verifyMessage({ ...unsigned, signature: sig }, kp.publicKey)).toBe(true);
   });
