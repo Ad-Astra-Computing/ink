@@ -28,6 +28,7 @@ type conformanceCase struct {
 		KeyID              string `json:"keyId"`
 		EpochMs            *int64 `json:"epochMs"`
 		CanonicalString    string `json:"canonicalString"`
+		LeafHash           string `json:"leafHash"`
 	} `json:"expect"`
 }
 
@@ -198,6 +199,32 @@ func TestMerkleCheckpoint(t *testing.T) {
 			if got := FormatCheckpoint(parsed); got != c.Expect.CanonicalString {
 				t.Errorf("%s: canonical = %q, want %q", c.CaseID, got, c.Expect.CanonicalString)
 			}
+		}
+	}
+}
+
+func TestMerkleLeaf(t *testing.T) {
+	vf := loadVectors(t, "merkle-leaf")
+	for _, c := range vf.Cases {
+		var eventRaw string
+		if err := json.Unmarshal(c.Input["eventRaw"], &eventRaw); err != nil {
+			t.Fatalf("%s: bad eventRaw: %v", c.CaseID, err)
+		}
+		want := c.Expect.Result == "accept"
+		parsed, err := ParseSignedBody([]byte(eventRaw))
+		if err != nil {
+			if want {
+				t.Errorf("%s: ParseSignedBody rejected an accept vector: %v", c.CaseID, err)
+			}
+			continue
+		}
+		got, ok := ComputeAuditMerkleLeafHash(parsed)
+		if ok != want {
+			t.Errorf("%s: ComputeAuditMerkleLeafHash ok = %v, want %v", c.CaseID, ok, want)
+			continue
+		}
+		if ok && got != c.Expect.LeafHash {
+			t.Errorf("%s: leafHash = %q, want %q", c.CaseID, got, c.Expect.LeafHash)
 		}
 	}
 }

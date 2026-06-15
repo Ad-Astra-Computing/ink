@@ -92,6 +92,13 @@ additive field then.
   non-hex root hash, and an oversized body all reject, so a parser differential
   cannot let a malformed checkpoint through one implementation. See
   [`../../specs/ink-merkle-checkpoint.md`](../../specs/ink-merkle-checkpoint.md).
+- **merkle-leaf** — the RFC 6962 leaf hash a witness commits for one audit
+  event: `SHA-256(0x00 || JCS(event-without-agentSignature))`. An accepted event
+  pins the exact digest; reordering members or attaching an `agentSignature`
+  does not change it, while a non-object, a lone surrogate, and an
+  unsafe-integer number reject, so the leaf path enforces the same signed-body
+  profile as signing. See
+  [`../../specs/ink-merkle-leaf.md`](../../specs/ink-merkle-leaf.md).
 
 ## String length and ordering
 

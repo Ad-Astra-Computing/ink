@@ -13,6 +13,7 @@ import {
   verifyConsistencyProof,
   parseCheckpoint,
   formatCheckpoint,
+  computeAuditMerkleLeafHash,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -27,10 +28,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string };
+  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string };
+type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -116,6 +117,15 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       if (!parsed) return { result: "reject" };
       return { result: "accept", canonicalString: formatCheckpoint(parsed) };
     }
+    case "merkle-leaf": {
+      try {
+        if (containsLoneSurrogateEscape(input.eventRaw as string)) return { result: "reject" };
+        const parsed = JSON.parse(input.eventRaw as string);
+        return { result: "accept", leafHash: await computeAuditMerkleLeafHash(parsed) };
+      } catch {
+        return { result: "reject" };
+      }
+    }
     default:
       throw new Error(`unknown conformance category: ${category}`);
   }
@@ -148,6 +158,9 @@ describe("ink/1 conformance vectors", () => {
           }
           if (c.expect.canonicalString !== undefined) {
             expect(actual.canonicalString, c.caseId).toBe(c.expect.canonicalString);
+          }
+          if (c.expect.leafHash !== undefined) {
+            expect(actual.leafHash, c.caseId).toBe(c.expect.leafHash);
           }
         });
       }
