@@ -21,6 +21,8 @@ shared vectors:
   nonce de-duplication.
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
   active, then retired; revoked and out-of-window keys skipped).
+- **Merkle inclusion** (`merkle.go`) — the RFC 6962 inclusion-proof walk that a
+  witness receipt's `(leafIndex, treeSize, rootHash)` is checked against.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
@@ -57,6 +59,19 @@ which scans the raw JSON for an unpaired surrogate escape before unmarshaling;
 `VerifyInkSignature` takes an already-parsed body and cannot recover a dropped
 surrogate on its own. The `jcs-string-safety` vectors pin the scanner. See
 [`../specs/ink-signed-string-safety.md`](../specs/ink-signed-string-safety.md).
+
+Merkle inclusion proofs walk identically in both implementations:
+`VerifyInclusionProof`'s sibling order is top-down, internal nodes are hashed
+`SHA-256(0x01 || left || right)`, and a proof that is too short or padded with an
+unused entry is rejected rather than silently matched. A `treeSize` past the JS
+safe-integer range (`2^53 - 1`) is rejected before the walk, matching the
+reference, so neither side splits on a value the other cannot represent exactly.
+The `merkle-inclusion` vectors pin every leaf position plus the rejection edges.
+See [`../specs/ink-merkle-inclusion.md`](../specs/ink-merkle-inclusion.md).
+
+This package targets 64-bit platforms: it uses native `int` for `treeSize` and
+`leafIndex` and a `2^53 - 1` integer bound that does not fit a 32-bit `int`, so
+the safe-integer edge is deterministic only where `int` is 64 bits wide.
 
 ## Known divergences pending a spec decision
 

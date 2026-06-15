@@ -57,6 +57,24 @@ additive field then.
   (5 minutes old to 30 seconds ahead of the receiver clock) and only if its
   nonce has not been seen; a stale or future timestamp, a duplicate nonce, and a
   malformed nonce all reject.
+- **timestamp-validity** — INK timestamps use one strict RFC 3339 date-time
+  grammar at millisecond precision; a full UTC or numeric-offset value is accepted
+  and pins its epoch milliseconds, while a date-only, zoneless, space-separated,
+  lowercase-`t`, comma-fraction, or out-of-range value rejects. See
+  [`../../specs/ink-timestamp-grammar.md`](../../specs/ink-timestamp-grammar.md).
+- **jcs-string-safety** — a signed body must not carry a `\uXXXX` escape for an
+  unpaired UTF-16 surrogate in any member name or value; the scan runs on the raw
+  JSON text before parsing, because a parser that rewrites a lone surrogate to
+  U+FFFD would sign different bytes. See
+  [`../../specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md).
+- **merkle-inclusion** — an RFC 6962 inclusion-proof walk: a leaf hash and a
+  top-down list of sibling hashes recompute the claimed Merkle root, with internal
+  nodes hashed `SHA-256(0x01 || left || right)`. Every leaf position in a
+  power-of-two and a non-power-of-two tree accepts; a tampered root, an
+  out-of-range index, a proof that is too short, one padded with an unused entry,
+  a treeSize past the JavaScript safe-integer range, and a malformed element all
+  reject, so a mis-ordered or under-checked walker diverges. See
+  [`../../specs/ink-merkle-inclusion.md`](../../specs/ink-merkle-inclusion.md).
 
 ## String length and ordering
 

@@ -618,14 +618,34 @@ async function recomputeRoot(
   return hashPair(proof[proofIdx]!, rightResult);
 }
 
-async function verifyInclusionProof(
+/**
+ * Verify an RFC 6962 §2.1.1 inclusion proof: that `leafHash` sits at `leafIndex`
+ * in a tree of `treeSize` leaves whose Merkle root is `expectedRootHash`. The
+ * `proof` is the ordered list of sibling hashes, top-down (the sibling nearest
+ * the root first, the sibling adjacent to the leaf last). Internal nodes are
+ * hashed `SHA-256(0x01 || left || right)`. Returns false (never throws) for an
+ * out-of-range index, a malformed proof element, a proof that is too short, or
+ * one padded with unused entries. See `specs/ink-merkle-inclusion.md`.
+ *
+ * This is a low-level primitive: it attests only that `leafHash` walks to
+ * `expectedRootHash`. It does NOT authenticate the witness signature, bind the
+ * leaf hash to a specific audit event, or check the root against a signed
+ * checkpoint. Use `verifyInclusionReceipt` for full receipt verification; reach
+ * for this only when the surrounding authenticity checks are already done.
+ */
+export async function verifyInclusionProof(
   leafHash: string,
   proof: string[],
   leafIndex: number,
   treeSize: number,
   expectedRootHash: string,
 ): Promise<boolean> {
-  if (leafIndex < 0 || leafIndex >= treeSize) return false;
+  if (!isMerkleHashHex(leafHash) || !isMerkleHashHex(expectedRootHash)) return false;
+  if (!Array.isArray(proof)) return false;
+  if (proof.length > MAX_PROOF_LENGTH) return false;
+  if (!proof.every(isMerkleHashHex)) return false;
+  if (!Number.isSafeInteger(treeSize) || treeSize < 1) return false;
+  if (!Number.isSafeInteger(leafIndex) || leafIndex < 0 || leafIndex >= treeSize) return false;
   try {
     const computed = await recomputeRoot(leafHash, proof, 0, leafIndex, 0, treeSize);
     return computed === expectedRootHash;

@@ -1,0 +1,239 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "merkle-inclusion",
+  "cases": [
+    {
+      "caseId": "single-leaf-accepts",
+      "description": "In a one-leaf tree the leaf is its own root and the proof is empty.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [],
+        "leafIndex": 0,
+        "treeSize": 1,
+        "rootHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "pow2-index0-accepts",
+      "description": "Leaf 0 of a four-leaf (power-of-two) tree verifies against the root.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "be5345833d9b5d708532d382d72f6943eb7b9105ef0173ce210e8d783e0594ca"
+        ],
+        "leafIndex": 0,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "pow2-index1-accepts",
+      "description": "Leaf 1 of a four-leaf tree verifies; its sibling order differs from leaf 0.",
+      "input": {
+        "leafHash": "be5345833d9b5d708532d382d72f6943eb7b9105ef0173ce210e8d783e0594ca",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596"
+        ],
+        "leafIndex": 1,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "pow2-index2-accepts",
+      "description": "Leaf 2 of a four-leaf tree sits in the right subtree and verifies.",
+      "input": {
+        "leafHash": "9c567ec028281333aede8fb728d430eb0b49775e674a63c3ea54e34ce11e935e",
+        "inclusionProof": [
+          "a1da499a4b91ea98285ee1857cb3c68211c0f353fc2bd43b284e6c87fbdad09a",
+          "bfdee99fc880b5ba818aae4f4393ec524b3b53f815161985af646f5b52bc45ac"
+        ],
+        "leafIndex": 2,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "pow2-index3-accepts",
+      "description": "Leaf 3, the last leaf of a four-leaf tree, verifies.",
+      "input": {
+        "leafHash": "bfdee99fc880b5ba818aae4f4393ec524b3b53f815161985af646f5b52bc45ac",
+        "inclusionProof": [
+          "a1da499a4b91ea98285ee1857cb3c68211c0f353fc2bd43b284e6c87fbdad09a",
+          "9c567ec028281333aede8fb728d430eb0b49775e674a63c3ea54e34ce11e935e"
+        ],
+        "leafIndex": 3,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "nonpow2-index0-accepts",
+      "description": "Leaf 0 of a five-leaf tree, where the split is 4|1, verifies; an implementation that split 2|3 would diverge.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "c456c6cede15b83e98639e77b34e72de6d11a128dd5244d97c2131c042d79044",
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "be5345833d9b5d708532d382d72f6943eb7b9105ef0173ce210e8d783e0594ca"
+        ],
+        "leafIndex": 0,
+        "treeSize": 5,
+        "rootHash": "a69d4924b29e18bf954c4103b5abddc1c0fe7d744044c137bbcfbf6e2b392910"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "nonpow2-index3-accepts",
+      "description": "Leaf 3 of a five-leaf tree is the last leaf of the left subtree and verifies.",
+      "input": {
+        "leafHash": "bfdee99fc880b5ba818aae4f4393ec524b3b53f815161985af646f5b52bc45ac",
+        "inclusionProof": [
+          "c456c6cede15b83e98639e77b34e72de6d11a128dd5244d97c2131c042d79044",
+          "a1da499a4b91ea98285ee1857cb3c68211c0f353fc2bd43b284e6c87fbdad09a",
+          "9c567ec028281333aede8fb728d430eb0b49775e674a63c3ea54e34ce11e935e"
+        ],
+        "leafIndex": 3,
+        "treeSize": 5,
+        "rootHash": "a69d4924b29e18bf954c4103b5abddc1c0fe7d744044c137bbcfbf6e2b392910"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "nonpow2-index4-accepts",
+      "description": "Leaf 4 of a five-leaf tree is the lone leaf of the right subtree and verifies with a shorter proof.",
+      "input": {
+        "leafHash": "c456c6cede15b83e98639e77b34e72de6d11a128dd5244d97c2131c042d79044",
+        "inclusionProof": [
+          "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+        ],
+        "leafIndex": 4,
+        "treeSize": 5,
+        "rootHash": "a69d4924b29e18bf954c4103b5abddc1c0fe7d744044c137bbcfbf6e2b392910"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "tampered-root-rejects",
+      "description": "A valid proof against a root with one flipped hex digit does not reconstruct that root.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "be5345833d9b5d708532d382d72f6943eb7b9105ef0173ce210e8d783e0594ca"
+        ],
+        "leafIndex": 0,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b10"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "index-out-of-range-rejects",
+      "description": "A leafIndex equal to treeSize is out of range and is rejected before any walk.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "be5345833d9b5d708532d382d72f6943eb7b9105ef0173ce210e8d783e0594ca"
+        ],
+        "leafIndex": 4,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-too-short-rejects",
+      "description": "A proof one entry shorter than the tree depth cannot reach the root and is rejected, not silently equated to the leaf hash.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8"
+        ],
+        "leafIndex": 0,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-extra-entry-rejects",
+      "description": "A valid proof padded with one unused entry is rejected; a verifier that stops once it reaches the leaf would wrongly accept it.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "be5345833d9b5d708532d382d72f6943eb7b9105ef0173ce210e8d783e0594ca",
+          "c456c6cede15b83e98639e77b34e72de6d11a128dd5244d97c2131c042d79044"
+        ],
+        "leafIndex": 0,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "malformed-proof-element-rejects",
+      "description": "A proof element that is not 64 lowercase hex characters is rejected.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [
+          "d7e2373bdc18f7623af3713fa2e84336c3fa2a18e245c539b6a1544d56b812b8",
+          "zz"
+        ],
+        "leafIndex": 0,
+        "treeSize": 4,
+        "rootHash": "d8ae14fbc1acf7f3828ce3e3ddb059821f31ca05732ecb3f0214c97041af4b1e"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "treesize-above-safe-integer-rejects",
+      "description": "A treeSize of 2^53 is past the ECMAScript safe-integer range, where a JSON number loses precision; both implementations reject it before walking rather than splitting on a value one of them cannot represent exactly.",
+      "input": {
+        "leafHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596",
+        "inclusionProof": [],
+        "leafIndex": 0,
+        "treeSize": 9007199254740992,
+        "rootHash": "413d26d603ca86b447ee3e0ca9ac075a412cf0b6d38976743d8a4c58d7a08596"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

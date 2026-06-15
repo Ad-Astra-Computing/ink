@@ -123,6 +123,35 @@ func TestJCSNumber(t *testing.T) {
 	}
 }
 
+func TestMerkleInclusion(t *testing.T) {
+	vf := loadVectors(t, "merkle-inclusion")
+	for _, c := range vf.Cases {
+		var leafHash, rootHash string
+		var proof []string
+		var leafIndex, treeSize int
+		if err := json.Unmarshal(c.Input["leafHash"], &leafHash); err != nil {
+			t.Fatalf("%s: bad leafHash: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["rootHash"], &rootHash); err != nil {
+			t.Fatalf("%s: bad rootHash: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["inclusionProof"], &proof); err != nil {
+			t.Fatalf("%s: bad inclusionProof: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["leafIndex"], &leafIndex); err != nil {
+			t.Fatalf("%s: bad leafIndex: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["treeSize"], &treeSize); err != nil {
+			t.Fatalf("%s: bad treeSize: %v", c.CaseID, err)
+		}
+		ok := VerifyInclusionProof(leafHash, proof, leafIndex, treeSize, rootHash)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: VerifyInclusionProof = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
 func TestPrincipalNormalization(t *testing.T) {
 	vf := loadVectors(t, "principal-normalization")
 	for _, c := range vf.Cases {
