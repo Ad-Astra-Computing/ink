@@ -4,6 +4,55 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.6.0, cross-implementation conformance contract
+
+This release turns INK's wire behavior into a contract held by two independent
+implementations rather than described by one. A new Go implementation runs a
+shared conformance vector corpus alongside the TypeScript reference, so an
+accept or reject decision is pinned by agreement between implementations reached
+from different code. The release also tightens timestamp, key-window, string,
+and number validation, and exports several verifier primitives. It is published
+on the `next` dist-tag; the API is additive, with the validation tightenings
+noted below.
+
+### Additions
+
+- A second, independent implementation in Go and a shared conformance vector
+  corpus covering principal normalization, the signature base, JCS numbers and
+  strings, key rotation, replay and freshness, the timestamp grammar, and the
+  Merkle inclusion, consistency, checkpoint, and audit-leaf-hash rules. Both
+  implementations make the same decision on every vector, so the spec is not
+  accidentally shaped by one language.
+- `parseInkTimestampMs`, `isInkTimestamp`, and `MAX_TIMESTAMP_LENGTH` for the
+  strict RFC 3339 timestamp grammar.
+- `containsLoneSurrogateEscape` and `hasUnpairedSurrogate` for detecting a lone
+  UTF-16 surrogate in a signed string before it is parsed.
+- `verifyInclusionProof(leafHash, proof, leafIndex, treeSize, rootHash)` as a
+  low-level RFC 6962 inclusion-proof primitive. It attests only that a leaf
+  walks to a root; use `verifyInclusionReceipt` for full receipt verification.
+- Protocol specs for the timestamp grammar, key-rotation presence, signed-string
+  safety, the JCS number profile, and the Merkle inclusion, consistency,
+  checkpoint, and leaf-hash rules.
+
+### Potentially breaking validation tightenings
+
+These reject inputs that `0.5.0` accepted. Legitimate signer and receiver
+traffic is unaffected; the rejected inputs are malformed or outside the
+documented profile.
+
+- A timestamp must be a strict RFC 3339 date-time at millisecond precision, with
+  a `T` separator and a `Z` or numeric offset. Date-only, zoneless,
+  space-separated, and other lenient forms are rejected.
+- A present `validFrom`, `validUntil`, or `revokedAt` on a key now constrains
+  that key even when empty, null, or non-string, rather than being ignored; a
+  present but unparseable `revokedAt` fails closed and treats the key as revoked.
+- A signed body that carries a `\uXXXX` escape for an unpaired UTF-16 surrogate
+  is rejected at sign and verify, because a parser that rewrote it to U+FFFD
+  would commit different bytes.
+- A signed body number must be a safe integer (absolute value at most `2^53-1`,
+  not negative zero); a fraction, an out-of-range magnitude, and a non-finite
+  value are rejected so the canonical bytes are identical across implementations.
+
 ## 0.5.0, transparency-log consistency proofs
 
 This release adds RFC 6962 consistency-proof verification, so a verifier can

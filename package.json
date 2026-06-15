@@ -1,6 +1,6 @@
 {
   "name": "@adastracomputing/ink",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Library and specification for the INK (Inter-agent Networking Kernel) protocol",
   "license": "MIT OR Apache-2.0",
   "author": "Ad Astra Computing Inc.",
