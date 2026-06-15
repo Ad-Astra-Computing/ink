@@ -25,6 +25,8 @@ shared vectors:
   witness receipt's `(leafIndex, treeSize, rootHash)` is checked against.
 - **Merkle consistency** (`consistency.go`) — the RFC 6962 consistency-proof walk
   that confirms a later checkpoint is an append-only extension of an earlier one.
+- **Checkpoint grammar** (`checkpoint.go`) — the C2SP tlog-checkpoint body parser
+  that turns a witness checkpoint into `(origin, treeSize, rootHash)`.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
@@ -79,6 +81,15 @@ rejection match the reference, and a size past the safe-integer range rejects
 before the walk. The `merkle-consistency` vectors pin the prefix matrix plus the
 rejection edges. See
 [`../specs/ink-merkle-consistency.md`](../specs/ink-merkle-consistency.md).
+
+Checkpoint bodies parse identically in both implementations: `ParseCheckpoint`
+accepts the three-line C2SP grammar (origin, decimal tree size, 64-hex root hash,
+trailing newline), measures its line and body caps in UTF-16 code units to match
+the reference on a non-ASCII origin, rejects a tree size past the safe-integer
+range, and `FormatCheckpoint` reproduces the canonical bytes. The
+`merkle-checkpoint` vectors pin the accept set, the canonical form, and the
+rejection edges. See
+[`../specs/ink-merkle-checkpoint.md`](../specs/ink-merkle-checkpoint.md).
 
 This package targets 64-bit platforms: it uses native `int` for `treeSize`,
 `leafIndex`, and the consistency `first`/`second` sizes, and a `2^53 - 1` integer
