@@ -23,25 +23,22 @@ func CheckReplay(messageTimestamp, receiverClock, nonce string, previouslySeenNo
 	if len(previouslySeenNonces) > 10000 {
 		return false
 	}
-	if n := utf16Len(messageTimestamp); n == 0 || n > 64 {
+	// Both timestamps use the strict RFC 3339 / millisecond grammar shared
+	// across implementations, so a lenient or oversized value the reference
+	// rejects is rejected here too and drift is measured in milliseconds.
+	msgMs, ok := ParseInkTimestampMs(messageTimestamp)
+	if !ok {
 		return false
 	}
-	if n := utf16Len(receiverClock); n == 0 || n > 64 {
+	recvMs, ok := ParseInkTimestampMs(receiverClock)
+	if !ok {
 		return false
 	}
-	msgTime, err := time.Parse(time.RFC3339Nano, messageTimestamp)
-	if err != nil {
+	driftMs := msgMs - recvMs
+	if driftMs > maxFutureTimestamp.Milliseconds() {
 		return false
 	}
-	recvTime, err := time.Parse(time.RFC3339Nano, receiverClock)
-	if err != nil {
-		return false
-	}
-	drift := msgTime.Sub(recvTime)
-	if drift > maxFutureTimestamp {
-		return false
-	}
-	if -drift > maxTimestampAge {
+	if -driftMs > maxTimestampAge.Milliseconds() {
 		return false
 	}
 	for _, seen := range previouslySeenNonces {

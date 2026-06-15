@@ -26,6 +26,7 @@ type conformanceCase struct {
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
 		KeyStatus          string `json:"keyStatus"`
 		KeyID              string `json:"keyId"`
+		EpochMs            *int64 `json:"epochMs"`
 	} `json:"expect"`
 }
 
@@ -47,6 +48,30 @@ func loadVectors(t *testing.T, category string) vectorFile {
 		t.Fatalf("%s: no cases", path)
 	}
 	return vf
+}
+
+func TestTimestampValidity(t *testing.T) {
+	vf := loadVectors(t, "timestamp-validity")
+	for _, c := range vf.Cases {
+		var ts string
+		if err := json.Unmarshal(c.Input["timestamp"], &ts); err != nil {
+			t.Fatalf("%s: bad timestamp: %v", c.CaseID, err)
+		}
+		ms, ok := ParseInkTimestampMs(ts)
+		if c.Expect.Result == "reject" {
+			if ok {
+				t.Errorf("%s: expected reject, got accept (ms=%d)", c.CaseID, ms)
+			}
+			continue
+		}
+		if !ok {
+			t.Errorf("%s: expected accept, got reject", c.CaseID)
+			continue
+		}
+		if c.Expect.EpochMs != nil && ms != *c.Expect.EpochMs {
+			t.Errorf("%s: epochMs = %d, want %d", c.CaseID, ms, *c.Expect.EpochMs)
+		}
+	}
 }
 
 func TestPrincipalNormalization(t *testing.T) {

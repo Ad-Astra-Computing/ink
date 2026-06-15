@@ -1,4 +1,5 @@
 import { verifyInkSignature, type InkSignInput, MAX_TIMESTAMP_AGE_MS, MAX_FUTURE_TIMESTAMP_MS } from "../crypto/ink.js";
+import { parseInkTimestampMs } from "../crypto/timestamp.js";
 import { extractPublicKeyFromAgentId, canonicalAgentPrincipal } from "../crypto/keys.js";
 import { verifyInkSignatureWithKeys } from "../crypto/multi-key-verify.js";
 import type { CandidateKey, KeyStatus } from "../models/key-entry.js";
@@ -112,18 +113,13 @@ export async function verifyInkAuth(opts: {
   if (typeof timestamp !== "string" || timestamp.length === 0) {
     return { valid: false, error: "missing_timestamp" };
   }
-  // Cap length BEFORE handing to Date.parse. Real ISO 8601 timestamps
-  // are ≤ ~30 chars; we cap at 64 (matches buildSignatureBase). Without
-  // this, an unauthenticated request with a multi-megabyte timestamp
-  // string burns CPU inside the engine's Date parser before the
-  // signature ever runs.
-  if (timestamp.length > 64) {
-    return { valid: false, error: "invalid_timestamp" };
-  }
-
-  // Timestamp freshness check (§3.5)
-  const msgTime = new Date(timestamp).getTime();
-  if (isNaN(msgTime)) {
+  // Parse with the strict RFC 3339 / millisecond grammar shared across
+  // implementations: a date-only, zone-less, space-separated, or otherwise
+  // lenient value another implementation rejects is rejected here too. The
+  // 64-char cap inside the parser bounds work before the date parser runs, so
+  // a multi-megabyte timestamp cannot burn CPU ahead of the signature check.
+  const msgTime = parseInkTimestampMs(timestamp);
+  if (msgTime === null) {
     return { valid: false, error: "invalid_timestamp" };
   }
   const now = Date.now();

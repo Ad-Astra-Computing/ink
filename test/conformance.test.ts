@@ -7,6 +7,7 @@ import {
   verifyInkSignatureWithKeys,
   validateMessage,
   checkReplay,
+  parseInkTimestampMs,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -21,10 +22,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string };
+  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number };
 }
 
-type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string };
+type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -74,6 +75,11 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       const r = checkReplay(input.replay as Parameters<typeof checkReplay>[0]);
       return { result: r.accepted ? "accept" : "reject" };
     }
+    case "timestamp-validity": {
+      const ms = parseInkTimestampMs(input.timestamp);
+      if (ms === null) return { result: "reject" };
+      return { result: "accept", epochMs: ms };
+    }
     default:
       throw new Error(`unknown conformance category: ${category}`);
   }
@@ -100,6 +106,9 @@ describe("ink/1 conformance vectors", () => {
           }
           if (c.expect.keyId !== undefined) {
             expect(actual.keyId, c.caseId).toBe(c.expect.keyId);
+          }
+          if (c.expect.epochMs !== undefined) {
+            expect(actual.epochMs, c.caseId).toBe(c.expect.epochMs);
           }
         });
       }

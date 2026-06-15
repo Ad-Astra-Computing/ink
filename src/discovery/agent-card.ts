@@ -2,6 +2,7 @@ import type { AgentCard } from "../models/agent-card.js";
 import { AgentCardSchema } from "../models/agent-card.js";
 import type { CandidateKey } from "../models/key-entry.js";
 import { decodePublicKeyMultibase } from "../crypto/keys.js";
+import { isInkTimestamp } from "../crypto/timestamp.js";
 
 /** Same cap used by multi-key verification — applied early to bound the
  * cost of the base58 decode loop on poisoned cards with thousands of entries. */
@@ -440,14 +441,10 @@ export function extractCandidateKeys(card: AgentCard): CandidateKey[] {
       // here means downstream consumers never see a degraded key.
       const accept = (x: unknown): boolean => {
         if (x === undefined) return true;
-        // 64-char cap mirrors every other timestamp gate in INK and
-        // keeps Date.parse cost bounded for adversarial cards.
-        return (
-          typeof x === "string" &&
-          x.length > 0 &&
-          x.length <= 64 &&
-          Number.isFinite(Date.parse(x))
-        );
+        // INK's strict RFC 3339 profile, the same grammar the verifier
+        // applies, so a card window field is read identically everywhere
+        // (the parser also caps length and rejects an empty string).
+        return typeof x === "string" && isInkTimestamp(x);
       };
       if (!accept(entry.validFrom) || !accept(entry.validUntil) || !accept(entry.revokedAt)) {
         continue;

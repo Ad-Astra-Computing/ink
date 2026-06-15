@@ -33,23 +33,24 @@ not be a small-order point, both enforced before the cofactorless equation. Go's
 bare `crypto/ed25519.Verify` accepts both, so the verifier adds an explicit
 public-key check.
 
+Timestamps follow INK's strict RFC 3339 profile in both implementations: a full
+date-time with a `T` and a `Z` or numeric offset, calendar-range validated, with
+the instant floored to whole milliseconds. The shared `timestamp-validity`
+vectors pin the grammar and precision. See
+[`../specs/ink-timestamp-grammar.md`](../specs/ink-timestamp-grammar.md).
+
 ## Known divergences pending a spec decision
 
-These are edges the shared conformance vectors do not yet cover, where Go is the
-stricter side. They are recorded so the 1.0 spec can mandate the strict form and
-both implementations converge by specification rather than by matching the more
-permissive JavaScript runtime:
+These are edges the shared conformance vectors do not yet cover. They are
+recorded so the 1.0 spec can mandate one behavior and both implementations
+converge by specification:
 
-- **Timestamp parsing.** Go requires `RFC3339Nano`; JavaScript `Date.parse`
-  accepts a broader set (date-only, missing zone, space instead of `T`). Go also
-  compares at nanosecond precision while `Date` truncates to milliseconds, so a
-  freshness-window boundary with more than three fractional digits can differ.
-  Well-formed RFC 3339 timestamps with millisecond precision (what INK emits)
-  agree on both sides.
-- **`revokedAt`.** Go treats any non-empty `revokedAt` as a revocation (fail
-  closed); the reference treats only a non-empty, parseable, ≤64-char timestamp
-  as one, so a malformed value such as `"junk"` skips the key in Go but not in
-  the reference.
+- **Empty-string vs absent key-window fields.** A present empty-string
+  `validFrom` / `validUntil` / `revokedAt` is indistinguishable from absent in
+  Go's plain `string` fields, so Go treats it as "no window"; the reference
+  treats a present empty `revokedAt` as a revocation. Resolving this needs
+  presence tracking (a pointer or wrapper) plus conformance vectors for the
+  present-empty case.
 - **Lone UTF-16 surrogates in signed strings.** JavaScript can carry a lone
   surrogate through `JSON.parse`/`stringify`; Go's `encoding/json` replaces it
   with U+FFFD, so a signed string containing one would canonicalize differently.

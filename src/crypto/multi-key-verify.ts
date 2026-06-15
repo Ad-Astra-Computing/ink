@@ -1,4 +1,5 @@
 import { verifyInkSignature, type InkSignInput } from "./ink.js";
+import { parseInkTimestampMs } from "./timestamp.js";
 import type { CandidateKey, KeyStatus } from "../models/key-entry.js";
 
 export interface MultiKeyVerifyResult {
@@ -33,8 +34,8 @@ const MAX_CANDIDATE_KEYS = 20;
  *     "no window = open" rule. The matching boundary check lives in
  *     extractCandidateKeys; this guard catches custom resolveKeySet
  *     implementations that bypass that boundary.
- *   - Malformed timestamp strings (Date.parse returns NaN) also fail
- *     closed for the same reason.
+ *   - Window strings that are not strict RFC 3339 timestamps (parseInkTimestampMs
+ *     returns null) also fail closed for the same reason.
  */
 function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
   // Any field that is PRESENT but not a non-empty parseable datetime
@@ -43,12 +44,6 @@ function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
   // is a misuse — refusing it stops a custom resolveKeySet that maps a
   // DB NULL to "" (or to literal null) from looking like "no window".
   const isPresent = (x: unknown): boolean => x !== undefined;
-  // Cap length BEFORE Date.parse — a multi-megabyte string would
-  // otherwise burn CPU in the date parser before the parse failure.
-  // 64 chars matches the cap used everywhere else in INK (ISO 8601
-  // with subsecond + timezone fits in ~30; 64 leaves headroom).
-  const isValidDatetimeString = (x: unknown): x is string =>
-    typeof x === "string" && x.length > 0 && x.length <= 64 && Number.isFinite(Date.parse(x));
 
   if (isPresent(key.revokedAt)) {
     // revokedAt present at all is a "do not verify" signal regardless
@@ -56,13 +51,18 @@ function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
     // revokedAt is still revoked.
     return false;
   }
+  // Window bounds are parsed with the strict RFC 3339 / millisecond grammar
+  // shared across implementations, so a present-but-malformed or lenient
+  // (date-only, no-zone) bound fails closed and is read identically everywhere.
   if (isPresent(key.validFrom)) {
-    if (!isValidDatetimeString(key.validFrom)) return false;
-    if (messageMs < Date.parse(key.validFrom)) return false;
+    const from = parseInkTimestampMs(key.validFrom);
+    if (from === null) return false;
+    if (messageMs < from) return false;
   }
   if (isPresent(key.validUntil)) {
-    if (!isValidDatetimeString(key.validUntil)) return false;
-    if (messageMs > Date.parse(key.validUntil)) return false;
+    const until = parseInkTimestampMs(key.validUntil);
+    if (until === null) return false;
+    if (messageMs > until) return false;
   }
   return true;
 }
@@ -102,15 +102,11 @@ export async function verifyInkSignatureWithKeys(
   }
 
   // Parse the message timestamp once so window checks are O(1) per key.
-  // verifyInkAuth caps timestamp length upstream, but this helper is
-  // exported, so guard locally too: a non-string, empty, oversized, or
-  // non-parseable timestamp all fail closed. The 64-char cap stops a
-  // multi-megabyte string from reaching Date.parse.
-  if (typeof input.timestamp !== "string" || input.timestamp.length === 0 || input.timestamp.length > 64) {
-    return { verified: false };
-  }
-  const messageMs = Date.parse(input.timestamp);
-  if (!Number.isFinite(messageMs)) {
+  // parseInkTimestampMs caps length and applies the strict RFC 3339 grammar, so
+  // a non-string, empty, oversized, or non-conforming timestamp all fail closed
+  // here even though verifyInkAuth already guards upstream.
+  const messageMs = parseInkTimestampMs(input.timestamp);
+  if (messageMs === null) {
     return { verified: false };
   }
 
