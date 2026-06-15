@@ -20,7 +20,8 @@
         "merkle-inclusion",
         "merkle-consistency",
         "merkle-checkpoint",
-        "merkle-leaf"
+        "merkle-leaf",
+        "inclusion-receipt"
       ]
     },
     "cases": {

@@ -14,6 +14,7 @@ import {
   parseCheckpoint,
   formatCheckpoint,
   computeAuditMerkleLeafHash,
+  verifyInclusionReceipt,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -125,6 +126,23 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       } catch {
         return { result: "reject" };
       }
+    }
+    case "inclusion-receipt": {
+      const { receipt, witnessPublicKeyHex, event, eventHash, laterCheckpoint } = input as {
+        receipt: Parameters<typeof verifyInclusionReceipt>[0]["receipt"];
+        witnessPublicKeyHex: string;
+        event?: Record<string, unknown>;
+        eventHash?: string;
+        laterCheckpoint?: { treeSize: number; rootHash: string };
+      };
+      const r = await verifyInclusionReceipt({
+        receipt,
+        witnessPublicKey: hexToBytes(witnessPublicKeyHex),
+        event,
+        eventHash,
+        laterCheckpoint,
+      });
+      return { result: r.valid ? "accept" : "reject" };
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);

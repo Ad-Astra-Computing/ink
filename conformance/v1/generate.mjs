@@ -18,6 +18,7 @@ import {
   parseCheckpoint,
   formatCheckpoint,
   computeAuditMerkleLeafHash,
+  jcsCanonicalize,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -1142,6 +1143,93 @@ vectorFile("merkle-leaf", [
   leafReject("excessive-depth-rejects", "An event nested past the depth bound (32) is rejected before canonicalization, in both implementations, so neither commits a leaf the other refuses.", (() => { let v = "1"; for (let i = 0; i < 40; i++) v = `{"a":${v}}`; return v; })()),
   leafReject("excessive-node-count-rejects", "An event with more nodes than the bound (10000) is rejected before canonicalization, bounding the work a hostile event can force.", `{"a":[${Array.from({ length: 10001 }, () => "0").join(",")}]}`),
   leafReject("oversized-canonical-body-rejects", "An event whose canonical body exceeds the 1 MiB cap is rejected after canonicalization, so a Go witness cannot commit a leaf the reference refuses to hash.", `{"d":"${"x".repeat(1048569)}"}`),
+]);
+
+// ── inclusion-receipt ─────────────────────────────────────────────────────
+// End-to-end verification of a witness inclusion receipt (INK Auditability §7):
+// structural validation, the witness Ed25519 service signature over
+// "ink/audit-inclusion/v1\n" + JCS({eventId, leafIndex, treeSize, rootHash,
+// timestamp}), an optional leaf-to-root proof walk bound to the named event,
+// and an optional later-checkpoint anti-rollback and fork cross-check. The
+// vectors pin the accept set and every rejection edge across the four steps so a
+// verifier that skips or mis-orders one of them diverges. See
+// specs/ink-inclusion-receipt.md.
+const rcptTs = "2026-06-15T12:00:00.000Z";
+const rcptEvents = [0, 1, 2, 3].map((i) => ({ id: `evt-${i}`, type: "connection_request", seq: i }));
+const rcptLeaves = await Promise.all(rcptEvents.map((e) => computeAuditMerkleLeafHash(e)));
+const rcptRoot = await merkleRoot(rcptLeaves);
+const rcptIdx = 1;
+const rcptProof = await inclusionProof(rcptIdx, rcptLeaves);
+const otherWitnessSeed = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-v1-other-witness")));
+const otherWitnessHex = bytesToHex(await ed.getPublicKeyAsync(otherWitnessSeed));
+
+async function signReceiptCore(core) {
+  const sigBase = `ink/audit-inclusion/v1\n` + jcsCanonicalize(core);
+  const sig = await ed.signAsync(enc.encode(sigBase), seed);
+  return Buffer.from(sig).toString("base64url");
+}
+async function makeReceipt(overrides = {}) {
+  const base = { eventId: rcptEvents[rcptIdx].id, leafIndex: rcptIdx, treeSize: 4, rootHash: rcptRoot, timestamp: rcptTs };
+  const core = { ...base, ...overrides };
+  const serviceSignature = await signReceiptCore(core);
+  return { ...core, inclusionProof: rcptProof, serviceSignature };
+}
+// A receipt whose signature is valid for the unmodified core; structural and
+// tamper mutations are applied AFTER signing so the signature no longer matches.
+const validReceipt = await makeReceipt();
+function rcptAccept(caseId, description, input) {
+  return { caseId, description, input, expect: { result: "accept" } };
+}
+function rcptReject(caseId, description, input) {
+  return { caseId, description, input, expect: { result: "reject" } };
+}
+const wpk = { witnessPublicKeyHex: publicKeyHex };
+
+vectorFile("inclusion-receipt", [
+  rcptAccept("valid-signature-only-accepts", "A structurally valid receipt with a valid witness signature verifies when no event or checkpoint is supplied; the proof and checkpoint steps are skipped.", { receipt: validReceipt, ...wpk }),
+  // structural rejections
+  rcptReject("receipt-not-object-rejects", "A receipt that is not an object is rejected.", { receipt: "not-a-receipt", ...wpk }),
+  rcptReject("empty-event-id-rejects", "An empty eventId is rejected.", { receipt: { ...validReceipt, eventId: "" }, ...wpk }),
+  rcptReject("negative-leaf-index-rejects", "A negative leafIndex is rejected.", { receipt: { ...validReceipt, leafIndex: -1 }, ...wpk }),
+  rcptReject("zero-tree-size-rejects", "A treeSize below 1 is rejected; a receipt commits to at least its own leaf.", { receipt: { ...validReceipt, treeSize: 0 }, ...wpk }),
+  rcptReject("leaf-index-ge-tree-size-rejects", "A leafIndex not less than treeSize is rejected.", { receipt: { ...validReceipt, leafIndex: 4, treeSize: 4 }, ...wpk }),
+  rcptReject("uppercase-root-hash-rejects", "A non-lowercase-hex rootHash is rejected.", { receipt: { ...validReceipt, rootHash: rcptRoot.toUpperCase() }, ...wpk }),
+  rcptReject("short-root-hash-rejects", "A rootHash that is not 64 hex characters is rejected.", { receipt: { ...validReceipt, rootHash: rcptRoot.slice(0, 63) }, ...wpk }),
+  rcptReject("proof-not-array-rejects", "An inclusionProof that is not an array is rejected.", { receipt: { ...validReceipt, inclusionProof: "nope" }, ...wpk }),
+  rcptReject("proof-too-long-rejects", "An inclusionProof past the 64-entry cap is rejected before any walk.", { receipt: { ...validReceipt, inclusionProof: Array(65).fill(rcptRoot) }, ...wpk }),
+  rcptReject("proof-bad-element-rejects", "An inclusionProof entry that is not 64 lowercase hex is rejected.", { receipt: { ...validReceipt, inclusionProof: ["not-a-hash"] }, ...wpk }),
+  rcptReject("empty-timestamp-rejects", "An empty timestamp is rejected.", { receipt: { ...validReceipt, timestamp: "" }, ...wpk }),
+  rcptReject("empty-signature-rejects", "An empty serviceSignature is rejected.", { receipt: { ...validReceipt, serviceSignature: "" }, ...wpk }),
+  // signature rejections (structure stays valid; the signed core is tampered after signing)
+  rcptReject("tampered-root-hash-rejects", "Changing rootHash after signing breaks the witness signature.", { receipt: { ...validReceipt, rootHash: rcptLeaves[0] }, ...wpk }),
+  rcptReject("tampered-leaf-index-rejects", "Changing leafIndex after signing breaks the witness signature.", { receipt: { ...validReceipt, leafIndex: 2 }, ...wpk }),
+  rcptReject("tampered-tree-size-rejects", "Changing treeSize after signing breaks the witness signature.", { receipt: { ...validReceipt, treeSize: 8 }, ...wpk }),
+  rcptReject("tampered-event-id-rejects", "Changing eventId after signing breaks the witness signature.", { receipt: { ...validReceipt, eventId: "evt-9" }, ...wpk }),
+  rcptReject("tampered-timestamp-rejects", "Changing timestamp after signing breaks the witness signature.", { receipt: { ...validReceipt, timestamp: "2026-06-15T13:00:00.000Z" }, ...wpk }),
+  rcptReject("wrong-witness-key-rejects", "A valid signature checked against a different witness key is rejected.", { receipt: validReceipt, witnessPublicKeyHex: otherWitnessHex }),
+  rcptReject("malformed-signature-rejects", "A serviceSignature that decodes to the wrong length is rejected.", { receipt: { ...validReceipt, serviceSignature: "AAAA" }, ...wpk }),
+  // proof-walk step (an event or eventHash is supplied; inclusionProof is not signed, so a tampered proof keeps the signature valid and isolates the walk)
+  rcptAccept("event-bound-proof-accepts", "Supplying the named event recomputes its leaf hash, binds event.id to the receipt, and walks the proof up to rootHash.", { receipt: validReceipt, ...wpk, event: rcptEvents[rcptIdx] }),
+  rcptReject("event-id-mismatch-rejects", "An event whose id differs from the receipt's eventId is rejected, even if its leaf would otherwise be in the tree.", { receipt: validReceipt, ...wpk, event: { ...rcptEvents[rcptIdx], id: "evt-9" } }),
+  rcptReject("event-leaf-not-at-index-rejects", "An event whose id matches but whose body hashes to a different leaf does not walk to rootHash and is rejected.", { receipt: validReceipt, ...wpk, event: { ...rcptEvents[rcptIdx], seq: 99 } }),
+  rcptReject("event-missing-id-rejects", "An event without a string id cannot be bound to the receipt and is rejected.", { receipt: validReceipt, ...wpk, event: { type: "connection_request", seq: 1 } }),
+  rcptAccept("event-hash-legacy-accepts", "A pre-computed leaf hash that sits at leafIndex walks to rootHash and verifies, the lower-assurance unbound path.", { receipt: validReceipt, ...wpk, eventHash: rcptLeaves[rcptIdx] }),
+  rcptReject("event-hash-bad-format-rejects", "An eventHash that is not 64 lowercase hex is rejected.", { receipt: validReceipt, ...wpk, eventHash: "not-a-hash" }),
+  rcptReject("event-hash-not-in-tree-rejects", "A well-formed eventHash that is not the leaf at leafIndex does not walk to rootHash and is rejected.", { receipt: validReceipt, ...wpk, eventHash: rcptLeaves[0] }),
+  rcptReject("tampered-proof-rejects", "With the event supplied, a proof whose sibling is replaced does not reconstruct rootHash and is rejected; the witness signature stays valid because the proof is not signed.", { receipt: { ...validReceipt, inclusionProof: [rcptLeaves[0], ...rcptProof.slice(1)] }, ...wpk, event: rcptEvents[rcptIdx] }),
+  // later-checkpoint cross-check
+  rcptAccept("checkpoint-newer-accepts", "A later checkpoint whose tree is larger is consistent with the receipt; the tree only grew.", { receipt: validReceipt, ...wpk, laterCheckpoint: { treeSize: 8, rootHash: rcptRoot } }),
+  rcptAccept("checkpoint-equal-same-root-accepts", "A later checkpoint at the same size with the same root is consistent.", { receipt: validReceipt, ...wpk, laterCheckpoint: { treeSize: 4, rootHash: rcptRoot } }),
+  rcptReject("checkpoint-rollback-rejects", "A later checkpoint whose tree is smaller than the receipt's means the witness rewound the log and is rejected.", { receipt: validReceipt, ...wpk, laterCheckpoint: { treeSize: 2, rootHash: rcptRoot } }),
+  rcptReject("checkpoint-fork-rejects", "A later checkpoint at the same size with a different root is a fork and is rejected.", { receipt: validReceipt, ...wpk, laterCheckpoint: { treeSize: 4, rootHash: rcptLeaves[0] } }),
+  rcptReject("checkpoint-bad-root-rejects", "A later checkpoint whose rootHash is not 64 lowercase hex is rejected.", { receipt: validReceipt, ...wpk, laterCheckpoint: { treeSize: 8, rootHash: "not-a-hash" } }),
+  rcptReject("checkpoint-negative-size-rejects", "A later checkpoint with a negative tree size is rejected.", { receipt: validReceipt, ...wpk, laterCheckpoint: { treeSize: -1, rootHash: rcptRoot } }),
+  rcptAccept("full-receipt-accepts", "A receipt that passes structure, signature, the event-bound proof walk, and a newer-checkpoint cross-check all at once verifies.", { receipt: validReceipt, ...wpk, event: rcptEvents[rcptIdx], laterCheckpoint: { treeSize: 8, rootHash: rcptRoot } }),
+  // signed-string and number-spelling parity (parser-differential guards)
+  rcptReject("surrogate-in-event-id-rejects", "A lone UTF-16 surrogate in the signed eventId is rejected before the signature step, because a parser that rewrote it to U+FFFD would verify different bytes.", { receipt: { ...validReceipt, eventId: "\ud800" }, ...wpk }),
+  rcptReject("surrogate-in-event-rejects", "A lone UTF-16 surrogate in the supplied event is rejected before the leaf is hashed, the same signed-string rule the leaf-hash path enforces.", { receipt: validReceipt, ...wpk, event: { id: rcptEvents[rcptIdx].id, note: "\ud800" } }),
+  rcptReject("non-integer-leaf-index-rejects", "A fractional leafIndex is not an integer and is rejected; an integer-valued number of any spelling would be accepted.", { receipt: { ...validReceipt, leafIndex: 1.5 }, ...wpk }),
+  rcptReject("null-event-rejects", "A present but null event is rejected at the proof step rather than throwing; a verifier must fail closed on a malformed event.", { receipt: validReceipt, ...wpk, event: null }),
 ]);
 
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);
