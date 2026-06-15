@@ -9,6 +9,7 @@ import {
   checkReplay,
   parseInkTimestampMs,
   containsLoneSurrogateEscape,
+  verifyInclusionProof,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -84,6 +85,17 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "jcs-string-safety": {
       const reject = containsLoneSurrogateEscape(input.bodyRaw as string);
       return { result: reject ? "reject" : "accept" };
+    }
+    case "merkle-inclusion": {
+      const { leafHash, inclusionProof, leafIndex, treeSize, rootHash } = input as {
+        leafHash: string;
+        inclusionProof: string[];
+        leafIndex: number;
+        treeSize: number;
+        rootHash: string;
+      };
+      const ok = await verifyInclusionProof(leafHash, inclusionProof, leafIndex, treeSize, rootHash);
+      return { result: ok ? "accept" : "reject" };
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);

@@ -14,6 +14,7 @@ import {
   canonicalAgentPrincipal,
   signInkMessage,
   bytesToHex,
+  hexToBytes,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -729,6 +730,168 @@ vectorFile("jcs-string-safety", [
     caseId: "lone-surrogate-in-array-rejects",
     description: "A lone surrogate in a nested array element is rejected.",
     input: { bodyRaw: `{"a":["x","${sLoneLo}"]}` },
+    expect: { result: "reject" },
+  },
+]);
+
+// ── merkle-inclusion ─────────────────────────────────────────────────────
+// RFC 6962 §2.1.1 inclusion-proof walk. A verifier recomputes the Merkle root
+// from a leaf hash and an ordered list of sibling hashes and accepts only when
+// it equals the claimed root. Internal nodes are SHA-256(0x01 || left || right);
+// proof elements are ordered top-down (sibling nearest the root first). The
+// vectors pin every leaf position in a power-of-two and a non-power-of-two tree
+// plus the rejection cases (tampered root, out-of-range index, short proof,
+// padded proof, malformed element) where a mis-ordered or under-checked walker
+// would diverge. See specs/ink-merkle-inclusion.md.
+function largestPowerOf2LessThan(n) {
+  if (n <= 1) return 0;
+  let p = 1;
+  while (p * 2 < n) p *= 2;
+  return p;
+}
+async function sha256Hex(bytes) {
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+}
+async function merkleLeafHash(label) {
+  const data = enc.encode(label);
+  const buf = new Uint8Array(1 + data.length);
+  buf[0] = 0x00;
+  buf.set(data, 1);
+  return sha256Hex(buf);
+}
+async function merkleNodeHash(lHex, rHex) {
+  const l = hexToBytes(lHex);
+  const r = hexToBytes(rHex);
+  const buf = new Uint8Array(1 + l.length + r.length);
+  buf[0] = 0x01;
+  buf.set(l, 1);
+  buf.set(r, 1 + l.length);
+  return sha256Hex(buf);
+}
+async function merkleRoot(leaves) {
+  if (leaves.length === 1) return leaves[0];
+  const k = largestPowerOf2LessThan(leaves.length);
+  return merkleNodeHash(await merkleRoot(leaves.slice(0, k)), await merkleRoot(leaves.slice(k)));
+}
+// Build the inclusion proof top-down: the sibling at the level just below the
+// root comes first, the sibling adjacent to the leaf last — the order the
+// reference walker consumes.
+async function inclusionProof(m, leaves) {
+  if (leaves.length === 1) return [];
+  const k = largestPowerOf2LessThan(leaves.length);
+  if (m < k) {
+    return [await merkleRoot(leaves.slice(k)), ...(await inclusionProof(m, leaves.slice(0, k)))];
+  }
+  return [await merkleRoot(leaves.slice(0, k)), ...(await inclusionProof(m - k, leaves.slice(k)))];
+}
+async function inclusionInput(leaves, root, m) {
+  return {
+    leafHash: leaves[m],
+    inclusionProof: await inclusionProof(m, leaves),
+    leafIndex: m,
+    treeSize: leaves.length,
+    rootHash: root,
+  };
+}
+function flipLastHex(h) {
+  const last = h[h.length - 1];
+  const repl = last === "0" ? "1" : "0";
+  return h.slice(0, -1) + repl;
+}
+
+const mLeaves = [];
+for (let i = 0; i < 5; i++) mLeaves.push(await merkleLeafHash(`ink-conformance-merkle-leaf-${i}`));
+const t1 = mLeaves.slice(0, 1);
+const t1Root = await merkleRoot(t1);
+const t4 = mLeaves.slice(0, 4);
+const t4Root = await merkleRoot(t4);
+const t5 = mLeaves.slice(0, 5);
+const t5Root = await merkleRoot(t5);
+const t4Proof0 = await inclusionProof(0, t4);
+
+vectorFile("merkle-inclusion", [
+  {
+    caseId: "single-leaf-accepts",
+    description: "In a one-leaf tree the leaf is its own root and the proof is empty.",
+    input: await inclusionInput(t1, t1Root, 0),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "pow2-index0-accepts",
+    description: "Leaf 0 of a four-leaf (power-of-two) tree verifies against the root.",
+    input: await inclusionInput(t4, t4Root, 0),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "pow2-index1-accepts",
+    description: "Leaf 1 of a four-leaf tree verifies; its sibling order differs from leaf 0.",
+    input: await inclusionInput(t4, t4Root, 1),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "pow2-index2-accepts",
+    description: "Leaf 2 of a four-leaf tree sits in the right subtree and verifies.",
+    input: await inclusionInput(t4, t4Root, 2),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "pow2-index3-accepts",
+    description: "Leaf 3, the last leaf of a four-leaf tree, verifies.",
+    input: await inclusionInput(t4, t4Root, 3),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonpow2-index0-accepts",
+    description: "Leaf 0 of a five-leaf tree, where the split is 4|1, verifies; an implementation that split 2|3 would diverge.",
+    input: await inclusionInput(t5, t5Root, 0),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonpow2-index3-accepts",
+    description: "Leaf 3 of a five-leaf tree is the last leaf of the left subtree and verifies.",
+    input: await inclusionInput(t5, t5Root, 3),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonpow2-index4-accepts",
+    description: "Leaf 4 of a five-leaf tree is the lone leaf of the right subtree and verifies with a shorter proof.",
+    input: await inclusionInput(t5, t5Root, 4),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "tampered-root-rejects",
+    description: "A valid proof against a root with one flipped hex digit does not reconstruct that root.",
+    input: { ...(await inclusionInput(t4, t4Root, 0)), rootHash: flipLastHex(t4Root) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "index-out-of-range-rejects",
+    description: "A leafIndex equal to treeSize is out of range and is rejected before any walk.",
+    input: { ...(await inclusionInput(t4, t4Root, 0)), leafIndex: 4 },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "proof-too-short-rejects",
+    description: "A proof one entry shorter than the tree depth cannot reach the root and is rejected, not silently equated to the leaf hash.",
+    input: { ...(await inclusionInput(t4, t4Root, 0)), inclusionProof: t4Proof0.slice(0, t4Proof0.length - 1) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "proof-extra-entry-rejects",
+    description: "A valid proof padded with one unused entry is rejected; a verifier that stops once it reaches the leaf would wrongly accept it.",
+    input: { ...(await inclusionInput(t4, t4Root, 0)), inclusionProof: [...t4Proof0, mLeaves[4]] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-proof-element-rejects",
+    description: "A proof element that is not 64 lowercase hex characters is rejected.",
+    input: { ...(await inclusionInput(t4, t4Root, 0)), inclusionProof: [t4Proof0[0], "zz"] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "treesize-above-safe-integer-rejects",
+    description: "A treeSize of 2^53 is past the ECMAScript safe-integer range, where a JSON number loses precision; both implementations reject it before walking rather than splitting on a value one of them cannot represent exactly.",
+    input: { leafHash: mLeaves[0], inclusionProof: [], leafIndex: 0, treeSize: 9007199254740992, rootHash: mLeaves[0] },
     expect: { result: "reject" },
   },
 ]);
