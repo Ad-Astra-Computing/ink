@@ -17,6 +17,7 @@ import {
   hexToBytes,
   parseCheckpoint,
   formatCheckpoint,
+  computeAuditMerkleLeafHash,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -1103,6 +1104,44 @@ vectorFile("merkle-checkpoint", [
   cpReject("oversized-body-rejects", "A body past the size cap is rejected before it is split, bounding parser work on a hostile blob.", "a".repeat(1025)),
   cpAccept("utf16-boundary-origin-accepts", "An origin of 256 two-byte characters is exactly 256 UTF-16 code units and accepts; an implementation that measured the line cap in bytes (512) would wrongly reject it.", `${"é".repeat(256)}\n5\n${cpRoot}\n`),
   cpReject("astral-origin-over-utf16-cap-rejects", "An origin of 200 astral-plane characters is 400 UTF-16 code units, past the 256-unit line cap, and rejects; an implementation that measured the cap in Unicode scalar values (200) would wrongly accept it.", `${String.fromCodePoint(0x1d400).repeat(200)}\n5\n${cpRoot}\n`),
+]);
+
+// ── merkle-leaf ──────────────────────────────────────────────────────────
+// RFC 6962 leaf hash for an INK audit event (Auditability §7.3):
+//   SHA-256(0x00 || JCS(event-without-agentSignature)).
+// This is the value a witness commits to its transparency log and the value an
+// inclusion proof walks up from. The leaf strips agentSignature before
+// canonicalizing, so it does not change when the agent signature is attached,
+// and it carries the 0x00 leaf-domain prefix that distinguishes a leaf from an
+// internal node (0x01 || left || right). The accept vectors pin the exact
+// digest for representative events; member order and a present agentSignature
+// do not change it. The reject vectors are inputs the signed-body contract
+// already forbids: a non-object, a lone surrogate, and an unsafe-integer
+// number, so the leaf path enforces the same profile as signing. See
+// specs/ink-merkle-leaf.md.
+async function leafAccept(caseId, description, eventRaw) {
+  const leafHash = await computeAuditMerkleLeafHash(JSON.parse(eventRaw));
+  return { caseId, description, input: { eventRaw }, expect: { result: "accept", leafHash } };
+}
+function leafReject(caseId, description, eventRaw) {
+  return { caseId, description, input: { eventRaw }, expect: { result: "reject" } };
+}
+
+vectorFile("merkle-leaf", [
+  await leafAccept("minimal-event-accepts", "A minimal audit event hashes to its leaf digest under SHA-256(0x00 || JCS(event)).", `{"id":"evt-1","type":"connection_request"}`),
+  await leafAccept("member-order-irrelevant-accepts", "The same event with its members in a different source order canonicalizes identically, so it pins the same leaf digest as minimal-event-accepts.", `{"type":"connection_request","id":"evt-1"}`),
+  await leafAccept("strips-agent-signature-accepts", "agentSignature is removed before canonicalizing, so attaching it does not change the leaf; this pins the same digest as minimal-event-accepts.", `{"id":"evt-1","type":"connection_request","agentSignature":"z3kmY29udGVudA"}`),
+  await leafAccept("nested-and-number-accepts", "A nested object, an array, and a safe-integer number canonicalize and pin the leaf digest.", `{"id":"evt-2","payload":{"items":["a","b"],"count":42},"ts":"2026-06-15T00:00:00.000Z"}`),
+  await leafAccept("unicode-value-accepts", "A non-ASCII string value is canonicalized with minimal JCS escaping and pins the leaf digest, exercising UTF-16 member handling.", `{"id":"evt-3","note":"café 日本語"}`),
+  await leafAccept("empty-object-accepts", "An empty object is a valid event and hashes SHA-256(0x00 || \"{}\").", `{}`),
+  leafReject("array-not-object-rejects", "A JSON array is not an audit event object and is rejected.", `[1,2,3]`),
+  leafReject("string-not-object-rejects", "A JSON string is not an audit event object and is rejected.", `"hello"`),
+  leafReject("null-not-object-rejects", "JSON null is not an audit event object and is rejected.", `null`),
+  leafReject("lone-surrogate-value-rejects", "A lone UTF-16 surrogate escape in a value is rejected before hashing, because a parser that rewrote it to U+FFFD would commit different bytes.", `{"id":"\\ud800"}`),
+  leafReject("unsafe-integer-number-rejects", "A number past the safe-integer range (2^53) is rejected, so the leaf path enforces the same number profile as signing.", `{"n":9007199254740992}`),
+  leafReject("excessive-depth-rejects", "An event nested past the depth bound (32) is rejected before canonicalization, in both implementations, so neither commits a leaf the other refuses.", (() => { let v = "1"; for (let i = 0; i < 40; i++) v = `{"a":${v}}`; return v; })()),
+  leafReject("excessive-node-count-rejects", "An event with more nodes than the bound (10000) is rejected before canonicalization, bounding the work a hostile event can force.", `{"a":[${Array.from({ length: 10001 }, () => "0").join(",")}]}`),
+  leafReject("oversized-canonical-body-rejects", "An event whose canonical body exceeds the 1 MiB cap is rejected after canonicalization, so a Go witness cannot commit a leaf the reference refuses to hash.", `{"d":"${"x".repeat(1048569)}"}`),
 ]);
 
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

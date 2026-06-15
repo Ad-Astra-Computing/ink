@@ -27,6 +27,8 @@ shared vectors:
   that confirms a later checkpoint is an append-only extension of an earlier one.
 - **Checkpoint grammar** (`checkpoint.go`) — the C2SP tlog-checkpoint body parser
   that turns a witness checkpoint into `(origin, treeSize, rootHash)`.
+- **Audit leaf hash** (`auditleaf.go`) — the RFC 6962 leaf hash a witness commits
+  for one audit event, `SHA-256(0x00 || JCS(event-without-agentSignature))`.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
@@ -90,6 +92,16 @@ range, and `FormatCheckpoint` reproduces the canonical bytes. The
 `merkle-checkpoint` vectors pin the accept set, the canonical form, and the
 rejection edges. See
 [`../specs/ink-merkle-checkpoint.md`](../specs/ink-merkle-checkpoint.md).
+
+Audit events hash to a leaf identically in both implementations:
+`ComputeAuditMerkleLeafHash` strips `agentSignature`, canonicalizes the rest
+with the same JCS profile, and returns `SHA-256(0x00 || canonical)`, so the leaf
+a witness logs is independent of the agent signature and carries the `0x00`
+leaf-domain prefix that an inclusion proof walks up from. It takes the value
+parsed by `ParseSignedBody`, so a lone surrogate is already rejected, and an
+unsafe-integer number fails closed. The `merkle-leaf` vectors pin the digest,
+the agentSignature stripping, and the rejection edges. See
+[`../specs/ink-merkle-leaf.md`](../specs/ink-merkle-leaf.md).
 
 This package targets 64-bit platforms: it uses native `int` for `treeSize`,
 `leafIndex`, and the consistency `first`/`second` sizes, and a `2^53 - 1` integer

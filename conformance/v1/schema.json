@@ -19,7 +19,8 @@
         "jcs-string-safety",
         "merkle-inclusion",
         "merkle-consistency",
-        "merkle-checkpoint"
+        "merkle-checkpoint",
+        "merkle-leaf"
       ]
     },
     "cases": {
@@ -43,7 +44,8 @@
               "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] },
               "keyId": { "type": "string" },
               "epochMs": { "type": "integer" },
-              "canonicalString": { "type": "string" }
+              "canonicalString": { "type": "string" },
+              "leafHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
             }
           }
         }
