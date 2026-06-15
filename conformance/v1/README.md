@@ -75,6 +75,15 @@ additive field then.
   a treeSize past the JavaScript safe-integer range, and a malformed element all
   reject, so a mis-ordered or under-checked walker diverges. See
   [`../../specs/ink-merkle-inclusion.md`](../../specs/ink-merkle-inclusion.md).
+- **merkle-consistency** — an RFC 6962 consistency proof: that the tree of
+  `first` leaves is an append-only prefix of the tree of `second` leaves, the
+  check that detects a forked (split-view) log rather than one that merely grew.
+  A boundary matrix of prefixes accepts (power-of-two and non-power-of-two first
+  sizes, the equal-size case, the empty prefix); a tampered first or second root,
+  a wrong, short, or padded proof, `first > second`, an equal-size root mismatch,
+  a non-empty root for `first = 0`, a malformed node, and a size past the
+  safe-integer range all reject. See
+  [`../../specs/ink-merkle-consistency.md`](../../specs/ink-merkle-consistency.md).
 
 ## String length and ordering
 

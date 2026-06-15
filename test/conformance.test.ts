@@ -10,6 +10,7 @@ import {
   parseInkTimestampMs,
   containsLoneSurrogateEscape,
   verifyInclusionProof,
+  verifyConsistencyProof,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -95,6 +96,17 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         rootHash: string;
       };
       const ok = await verifyInclusionProof(leafHash, inclusionProof, leafIndex, treeSize, rootHash);
+      return { result: ok ? "accept" : "reject" };
+    }
+    case "merkle-consistency": {
+      const { first, firstRoot, second, secondRoot, proof } = input as {
+        first: number;
+        firstRoot: string;
+        second: number;
+        secondRoot: string;
+        proof: string[];
+      };
+      const ok = await verifyConsistencyProof(first, firstRoot, second, secondRoot, proof);
       return { result: ok ? "accept" : "reject" };
     }
     default:
