@@ -187,35 +187,73 @@ vectorFile("signature-base", [
 ]);
 
 // ── jcs-number ─────────────────────────────────────────────────────────────
-function envelope(payload) {
-  return {
-    protocol: "ink/0.1",
-    id: "44444444-4444-4444-8444-444444444444",
-    correlationId: "55555555-5555-4555-8555-555555555555",
-    createdAt: "2026-06-11T00:00:00.000Z",
-    from: `tulpa:${mb}`,
-    to: `tulpa:${mb}`,
-    intent: "ask_response",
-    payload,
-    // validateMessage checks envelope shape, including that signature is a
-    // present string; it does not verify the signature cryptographically (that
-    // is the signature-base category). A placeholder keeps the envelope valid.
-    signature: "A".repeat(86),
-    timestamp: "2026-06-11T00:00:00.000Z",
-    nonce: "66666666-6666-4666-8666-666666666666",
-  };
-}
+// Signed-body numbers are restricted to the safe-integer profile: a value with
+// no fractional part in |v| <= 2^53-1, not negative zero. A safe integer prints
+// as a plain base-10 decimal that is byte-identical across ECMAScript and Go.
+// The vector is the raw JSON body text; each runner parses it, canonicalizes the
+// decoded value, and on accept pins the exact canonical string. The profile is
+// on the decoded value, not the source token, so 1e2 canonicalizes to "100".
+// bodyRaw (a string) lets a vector express -0, which JSON serialization of a
+// parsed object would otherwise collapse to 0.
 vectorFile("jcs-number", [
   {
-    caseId: "ordinary-integer-accepts",
-    description: "An ordinary integer in a numeric payload field is accepted.",
-    input: { envelope: envelope({ answer: "ok", choiceIndex: 3 }) },
-    expect: { result: "accept" },
+    caseId: "zero-accepts",
+    description: "Zero is a safe integer and canonicalizes to 0.",
+    input: { bodyRaw: `{"n":0}` },
+    expect: { result: "accept", canonicalString: `{"n":0}` },
   },
   {
-    caseId: "exponential-number-rejects",
-    description: "A value whose shortest form uses exponential notation is rejected as not JCS-safe even though it is a valid integer, so the signed bytes stay canonicalizer-agnostic.",
-    input: { envelope: envelope({ answer: "ok", choiceIndex: 1e21 }) },
+    caseId: "positive-integer-accepts",
+    description: "A small positive integer canonicalizes to its plain decimal.",
+    input: { bodyRaw: `{"n":42}` },
+    expect: { result: "accept", canonicalString: `{"n":42}` },
+  },
+  {
+    caseId: "negative-integer-accepts",
+    description: "A negative integer keeps its sign.",
+    input: { bodyRaw: `{"n":-7}` },
+    expect: { result: "accept", canonicalString: `{"n":-7}` },
+  },
+  {
+    caseId: "max-safe-integer-accepts",
+    description: "2^53-1 is the largest exactly representable integer and is accepted.",
+    input: { bodyRaw: `{"n":9007199254740991}` },
+    expect: { result: "accept", canonicalString: `{"n":9007199254740991}` },
+  },
+  {
+    caseId: "exponential-source-integer-accepts",
+    description: "An integer written in exponential notation decodes to its value and canonicalizes as a plain decimal, so the profile is on the value not the token.",
+    input: { bodyRaw: `{"n":1e2}` },
+    expect: { result: "accept", canonicalString: `{"n":100}` },
+  },
+  {
+    caseId: "fraction-rejects",
+    description: "A value with a fractional part is rejected; fractional canonicalization is where serializers disagree.",
+    input: { bodyRaw: `{"n":3.14}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "exponential-magnitude-rejects",
+    description: "A magnitude large enough to serialize in exponential notation is rejected even though it is an integer value.",
+    input: { bodyRaw: `{"n":1e21}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "negative-zero-rejects",
+    description: "Negative zero is rejected because it serializes as 0, losing the sign.",
+    input: { bodyRaw: `{"n":-0}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "above-safe-integer-rejects",
+    description: "2^53 exceeds the safe-integer range and is rejected.",
+    input: { bodyRaw: `{"n":9007199254740992}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "far-above-safe-integer-rejects",
+    description: "A value above the safe-integer range that does not round-trip exactly is rejected.",
+    input: { bodyRaw: `{"n":9007199254740993}` },
     expect: { result: "reject" },
   },
 ]);

@@ -5,7 +5,7 @@ import {
   canonicalAgentPrincipal,
   verifyInkSignature,
   verifyInkSignatureWithKeys,
-  validateMessage,
+  jcsCanonicalize,
   checkReplay,
   parseInkTimestampMs,
   containsLoneSurrogateEscape,
@@ -23,10 +23,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number };
+  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number };
+type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -48,8 +48,8 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     }
     case "jcs-number": {
       try {
-        validateMessage(input.envelope);
-        return { result: "accept" };
+        const parsed = JSON.parse(input.bodyRaw as string);
+        return { result: "accept", canonicalString: jcsCanonicalize(parsed) };
       } catch {
         return { result: "reject" };
       }
@@ -114,6 +114,9 @@ describe("ink/1 conformance vectors", () => {
           }
           if (c.expect.epochMs !== undefined) {
             expect(actual.epochMs, c.caseId).toBe(c.expect.epochMs);
+          }
+          if (c.expect.canonicalString !== undefined) {
+            expect(actual.canonicalString, c.caseId).toBe(c.expect.canonicalString);
           }
         });
       }

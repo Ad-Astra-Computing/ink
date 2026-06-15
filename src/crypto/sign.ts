@@ -14,19 +14,20 @@ const MAX_MESSAGE_CHARS = 1_200_000;
 const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
 
 /**
- * A number is safe for canonical JSON only if every conforming canonicalizer
- * serializes it identically. We reject non-finite values (not valid JSON),
- * negative zero (serializes as `0`, losing the sign), and any value whose
- * shortest decimal uses exponential notation (`1e21`, `1e-7`) — exponential
- * forms are exactly where JSON serializers and strict RFC 8785 disagree.
- * Rejecting them keeps the signed-byte representation unambiguous across
- * implementations (the reference and a future second implementation), without
- * affecting the small integers and plain decimals INK payloads actually carry.
+ * A number is safe for a signed INK body only if every conforming canonicalizer
+ * serializes it to identical bytes. INK restricts signed-body numbers to safe
+ * integers: a value with no fractional part in the range that round-trips
+ * exactly through an IEEE-754 double (|v| <= 2^53 - 1). A safe integer prints as
+ * a plain base-10 decimal in both ECMAScript `String(n)` and Go
+ * `strconv.FormatInt`, so the bytes agree across implementations. Fractions and
+ * magnitudes that serialize with exponential notation are exactly where JSON
+ * serializers and strict RFC 8785 number formatting disagree, so they are
+ * rejected; negative zero is rejected because it serializes as `0`, losing the
+ * sign. The profile is on the decoded value, not the JSON token, so `1e2` (which
+ * decodes to `100`) is accepted and canonicalizes to `100`.
  */
 export function isJcsSafeNumber(n: number): boolean {
-  if (!Number.isFinite(n)) return false;
-  if (Object.is(n, -0)) return false;
-  return !/[eE]/.test(String(n));
+  return Number.isSafeInteger(n) && !Object.is(n, -0);
 }
 
 /**

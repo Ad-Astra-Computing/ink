@@ -82,17 +82,23 @@ func TestScalarNewlineRejected(t *testing.T) {
 	}
 }
 
-// Numbers in a signed body are out of scope for v1 and fail closed rather than
-// producing a possibly divergent serialization.
-func TestNumberInBodyFailsClosed(t *testing.T) {
-	in := InkSignInput{
-		Method:       "POST",
-		Path:         "/x",
-		RecipientDid: "tulpa:z",
-		Body:         map[string]interface{}{"n": float64(1)},
-		Timestamp:    "2026-06-11T00:00:00.000Z",
+// A safe integer in a signed body canonicalizes to a plain decimal; a value
+// with a fractional part is not in the safe-integer profile and fails closed
+// rather than producing a possibly divergent serialization.
+func TestSignedBodyNumberProfile(t *testing.T) {
+	base := func(body interface{}) InkSignInput {
+		return InkSignInput{
+			Method:       "POST",
+			Path:         "/x",
+			RecipientDid: "tulpa:z",
+			Body:         body,
+			Timestamp:    "2026-06-11T00:00:00.000Z",
+		}
 	}
-	if _, err := BuildSignatureBase(in); err == nil {
-		t.Errorf("expected error for a number in the signed body")
+	if _, err := BuildSignatureBase(base(map[string]interface{}{"n": float64(1)})); err != nil {
+		t.Errorf("safe integer should be accepted, got error: %v", err)
+	}
+	if _, err := BuildSignatureBase(base(map[string]interface{}{"n": float64(1.5)})); err == nil {
+		t.Errorf("a fractional number should fail closed")
 	}
 }

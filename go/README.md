@@ -22,10 +22,14 @@ shared vectors:
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
   active, then retired; revoked and out-of-window keys skipped).
 
-The JCS number profile is out of scope for this version: a number in a signed
-body fails closed, and the conformance signed envelopes contain none. Faithful
-cross-implementation number canonicalization needs ECMAScript number
-formatting and is tracked as future work.
+Signed-body numbers follow INK's safe-integer profile in both implementations: a
+number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
+canonicalized as a plain base-10 integer that equals ECMAScript `String(v)`
+byte-for-byte. A fraction, an out-of-range magnitude, a negative zero, or a
+non-finite value fails closed rather than producing a possibly divergent
+exponential serialization. The `jcs-number` vectors pin the accept set and the
+exact canonical bytes. See
+[`../specs/ink-jcs-number-profile.md`](../specs/ink-jcs-number-profile.md).
 
 Ed25519 verification matches the reference's strict mode (`@noble/ed25519` with
 `zip215:false`): the public key must be canonically encoded (`y < p`) and must
@@ -60,9 +64,6 @@ These are edges the shared conformance vectors do not yet cover. They are
 recorded so the 1.0 spec can mandate one behavior and both implementations
 converge by specification:
 
-- **Signed-body numbers.** The JCS number profile is out of scope for this
-  version (a number in a signed body fails closed in Go); the planned rule is a
-  safe-integer profile pinned by shared vectors.
 - **Raw UTF-8 validity.** `encoding/json` replaces invalid UTF-8 with U+FFFD,
   the same parser-loss class as lone surrogates; a receiver should require valid
   UTF-8 before parsing. Tracked at the same boundary as the surrogate check.
