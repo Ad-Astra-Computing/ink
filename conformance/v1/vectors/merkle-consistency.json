@@ -1,0 +1,326 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "merkle-consistency",
+  "cases": [
+    {
+      "caseId": "one-to-two-accepts",
+      "description": "A 1-leaf tree is a prefix of a 2-leaf tree; the single-node proof reconstructs both roots.",
+      "input": {
+        "first": 1,
+        "firstRoot": "bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795",
+        "second": 2,
+        "secondRoot": "f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec",
+        "proof": [
+          "7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "two-to-three-accepts",
+      "description": "A 2-leaf prefix of a 3-leaf tree, where the second tree splits 2|1.",
+      "input": {
+        "first": 2,
+        "firstRoot": "f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec",
+        "second": 3,
+        "secondRoot": "e5351495fb5e80512f7ac2e341f7d3648df1df590815dc4141f2ef9154bdafc3",
+        "proof": [
+          "7dea21c33a2d202fb1c0620495ba9f37696f6519155ce7d9ce9b270006eedd63"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "three-to-four-accepts",
+      "description": "A 3-leaf prefix of a 4-leaf tree; the rightmost path differs between the trees.",
+      "input": {
+        "first": 3,
+        "firstRoot": "e5351495fb5e80512f7ac2e341f7d3648df1df590815dc4141f2ef9154bdafc3",
+        "second": 4,
+        "secondRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "proof": [
+          "7dea21c33a2d202fb1c0620495ba9f37696f6519155ce7d9ce9b270006eedd63",
+          "8c660eec8b3ef3d512acf5240c5e1b52e3b79f2a9978950437aa9d14e7baa454",
+          "f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "four-to-eight-accepts",
+      "description": "A 4-leaf (power-of-two) prefix of an 8-leaf tree; firstRoot is a left subtree of secondRoot.",
+      "input": {
+        "first": 4,
+        "firstRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "cae99edf2d5576c83f33f569e8d48686c142aea8549640303f3c9a14949e67b1"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "five-to-eight-accepts",
+      "description": "A 5-leaf prefix of an 8-leaf tree, a non-power-of-two first size with a multi-node proof.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a0f",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "b3707b2a2ba0da8e43b0d81d0c00ce8c70781df6460a547d5824237708945f56",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "seven-to-eight-accepts",
+      "description": "A 7-leaf prefix of an 8-leaf tree; only the last leaf is new.",
+      "input": {
+        "first": 7,
+        "firstRoot": "df107d9fdfaa4ae0795f3fd1764ec678c02399947448b8b7937a684404173edf",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "3bde0a49b6054cda76079d6c4e34663317595759372f4eba60e1c4472259574b",
+          "8729518f6eeadc50b1f27f537b82c66368a3f02bb1a72b9d241ea7e63a74b9f0",
+          "a769070ff2564e89bea34bf24fe385ae51d321b24156f5f7bcd0230e0b66b11b",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "one-to-eight-accepts",
+      "description": "A 1-leaf prefix of an 8-leaf tree, the deepest single-leaf proof in the matrix.",
+      "input": {
+        "first": 1,
+        "firstRoot": "bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29",
+          "9b92d2dcf82290f84aa3eb28183ab7fb237d2f30371108cd534ca3934f738858",
+          "cae99edf2d5576c83f33f569e8d48686c142aea8549640303f3c9a14949e67b1"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "equal-size-accepts",
+      "description": "A tree is consistent with itself: equal sizes, equal roots, and an empty proof.",
+      "input": {
+        "first": 4,
+        "firstRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "second": 4,
+        "secondRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "proof": []
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "empty-prefix-accepts",
+      "description": "The empty tree is a prefix of every tree; first = 0 with the fixed empty-tree root and an empty proof.",
+      "input": {
+        "first": 0,
+        "firstRoot": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "second": 4,
+        "secondRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "proof": []
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "tampered-second-root-rejects",
+      "description": "The same proof against a second root with one flipped hex digit does not reconstruct that root.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a0f",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef7552684520680",
+        "proof": [
+          "b3707b2a2ba0da8e43b0d81d0c00ce8c70781df6460a547d5824237708945f56",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-first-root-rejects",
+      "description": "A first root with one flipped hex digit is not the prefix the proof reconstructs.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a00",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "b3707b2a2ba0da8e43b0d81d0c00ce8c70781df6460a547d5824237708945f56",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-proof-element-rejects",
+      "description": "Flipping a hex digit in the first proof node breaks both reconstructions.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a0f",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "b3707b2a2ba0da8e43b0d81d0c00ce8c70781df6460a547d5824237708945f50",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-too-short-rejects",
+      "description": "A proof one node shorter than the walk requires is exhausted before reaching the roots.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a0f",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "b3707b2a2ba0da8e43b0d81d0c00ce8c70781df6460a547d5824237708945f56",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-extra-entry-rejects",
+      "description": "A valid proof padded with one unused node is rejected; every element must be consumed.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a0f",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "b3707b2a2ba0da8e43b0d81d0c00ce8c70781df6460a547d5824237708945f56",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+          "bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "first-greater-than-second-rejects",
+      "description": "A first size larger than the second cannot be a prefix and is rejected before any walk.",
+      "input": {
+        "first": 8,
+        "firstRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "second": 4,
+        "secondRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "proof": []
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "equal-size-root-mismatch-rejects",
+      "description": "Equal sizes with differing roots is a fork, not consistency, even with an empty proof.",
+      "input": {
+        "first": 4,
+        "firstRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "second": 4,
+        "secondRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eab0",
+        "proof": []
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-prefix-wrong-root-rejects",
+      "description": "first = 0 must carry the fixed empty-tree root; any other firstRoot is rejected.",
+      "input": {
+        "first": 0,
+        "firstRoot": "e5351495fb5e80512f7ac2e341f7d3648df1df590815dc4141f2ef9154bdafc3",
+        "second": 4,
+        "secondRoot": "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc",
+        "proof": []
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "malformed-proof-element-rejects",
+      "description": "A proof node that is not 64 lowercase hex characters is rejected.",
+      "input": {
+        "first": 5,
+        "firstRoot": "2e86afda7f6334315d1af085bf28309c94471b6da24bcc43bd28317d942b0a0f",
+        "second": 8,
+        "secondRoot": "c4191863e8b84f33d822297987700c3f953a354245ed7e3a8ef755268452068d",
+        "proof": [
+          "zz",
+          "faddd7e9c90f4647184f8d4fcfe13bff3a7142efef52d6451393f3001fa3befc",
+          "b2e9598b882f178645a454753be23352bd8cfce03cc7f30e75d158357e18f651",
+          "b9facecb4e365de0f8aa5f8ee315242d96433534c4ba4cff6f85127e8631eabc"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "second-above-safe-integer-rejects",
+      "description": "A second size of 2^53 is past the ECMAScript safe-integer range; both implementations reject it before walking rather than splitting on a value one cannot represent exactly.",
+      "input": {
+        "first": 1,
+        "firstRoot": "bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795",
+        "second": 9007199254740992,
+        "secondRoot": "7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29",
+        "proof": []
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

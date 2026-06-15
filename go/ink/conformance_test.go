@@ -152,6 +152,35 @@ func TestMerkleInclusion(t *testing.T) {
 	}
 }
 
+func TestMerkleConsistency(t *testing.T) {
+	vf := loadVectors(t, "merkle-consistency")
+	for _, c := range vf.Cases {
+		var firstRoot, secondRoot string
+		var proof []string
+		var first, second int
+		if err := json.Unmarshal(c.Input["firstRoot"], &firstRoot); err != nil {
+			t.Fatalf("%s: bad firstRoot: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["secondRoot"], &secondRoot); err != nil {
+			t.Fatalf("%s: bad secondRoot: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["proof"], &proof); err != nil {
+			t.Fatalf("%s: bad proof: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["first"], &first); err != nil {
+			t.Fatalf("%s: bad first: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["second"], &second); err != nil {
+			t.Fatalf("%s: bad second: %v", c.CaseID, err)
+		}
+		ok := VerifyConsistencyProof(first, firstRoot, second, secondRoot, proof)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: VerifyConsistencyProof = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
 func TestPrincipalNormalization(t *testing.T) {
 	vf := loadVectors(t, "principal-normalization")
 	for _, c := range vf.Cases {

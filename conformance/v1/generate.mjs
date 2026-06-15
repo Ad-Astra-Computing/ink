@@ -896,4 +896,167 @@ vectorFile("merkle-inclusion", [
   },
 ]);
 
+// ── merkle-consistency ───────────────────────────────────────────────────
+// RFC 6962 §2.1.2 consistency-proof walk. A verifier checks that the tree of
+// `first` leaves (root `firstRoot`) is a prefix of the tree of `second` leaves
+// (root `secondRoot`): proof that the log only ever appended and never forked
+// its history (a split view), which the `second >= first` size check alone
+// cannot detect. The proof is the ordered list of node hashes that reconstruct
+// both roots. The vectors pin a boundary matrix of accepted prefixes plus the
+// rejection cases (tampered roots, wrong/short/padded proof, first > second, a
+// size mismatch, a non-empty root for first = 0, a malformed element, a size
+// past the safe-integer range). The leaf and node hashing match the inclusion
+// walk, so the two share tree shape. See specs/ink-merkle-consistency.md.
+const CONSISTENCY_EMPTY_ROOT = await sha256Hex(new Uint8Array(0));
+async function consistencyMth(leaves, start, size) {
+  if (size === 0) return CONSISTENCY_EMPTY_ROOT;
+  if (size === 1) return leaves[start];
+  const k = largestPowerOf2LessThan(size);
+  return merkleNodeHash(await consistencyMth(leaves, start, k), await consistencyMth(leaves, start + k, size - k));
+}
+// Recursive RFC 6962 SUBPROOF(m, D[start:start+size], b), independent of the
+// imperative production verifier so agreement is meaningful.
+async function consistencySubproof(leaves, m, start, size, b) {
+  if (m === size) return b ? [] : [await consistencyMth(leaves, start, size)];
+  const k = largestPowerOf2LessThan(size);
+  if (m <= k) {
+    return [...(await consistencySubproof(leaves, m, start, k, b)), await consistencyMth(leaves, start + k, size - k)];
+  }
+  return [...(await consistencySubproof(leaves, m - k, start + k, size - k, false)), await consistencyMth(leaves, start, k)];
+}
+async function consistencyProof(leaves, m, n) {
+  if (m === 0 || m === n) return [];
+  return consistencySubproof(leaves, m, 0, n, true);
+}
+async function consistencyInput(leaves, first, second) {
+  return {
+    first,
+    firstRoot: await consistencyMth(leaves, 0, first),
+    second,
+    secondRoot: await consistencyMth(leaves, 0, second),
+    proof: await consistencyProof(leaves, first, second),
+  };
+}
+
+const cLeaves = [];
+for (let i = 0; i < 8; i++) cLeaves.push(await merkleLeafHash(`ink-conformance-consistency-leaf-${i}`));
+const cBase = await consistencyInput(cLeaves, 5, 8);
+
+vectorFile("merkle-consistency", [
+  {
+    caseId: "one-to-two-accepts",
+    description: "A 1-leaf tree is a prefix of a 2-leaf tree; the single-node proof reconstructs both roots.",
+    input: await consistencyInput(cLeaves, 1, 2),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "two-to-three-accepts",
+    description: "A 2-leaf prefix of a 3-leaf tree, where the second tree splits 2|1.",
+    input: await consistencyInput(cLeaves, 2, 3),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "three-to-four-accepts",
+    description: "A 3-leaf prefix of a 4-leaf tree; the rightmost path differs between the trees.",
+    input: await consistencyInput(cLeaves, 3, 4),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "four-to-eight-accepts",
+    description: "A 4-leaf (power-of-two) prefix of an 8-leaf tree; firstRoot is a left subtree of secondRoot.",
+    input: await consistencyInput(cLeaves, 4, 8),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "five-to-eight-accepts",
+    description: "A 5-leaf prefix of an 8-leaf tree, a non-power-of-two first size with a multi-node proof.",
+    input: cBase,
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "seven-to-eight-accepts",
+    description: "A 7-leaf prefix of an 8-leaf tree; only the last leaf is new.",
+    input: await consistencyInput(cLeaves, 7, 8),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "one-to-eight-accepts",
+    description: "A 1-leaf prefix of an 8-leaf tree, the deepest single-leaf proof in the matrix.",
+    input: await consistencyInput(cLeaves, 1, 8),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "equal-size-accepts",
+    description: "A tree is consistent with itself: equal sizes, equal roots, and an empty proof.",
+    input: await consistencyInput(cLeaves, 4, 4),
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "empty-prefix-accepts",
+    description: "The empty tree is a prefix of every tree; first = 0 with the fixed empty-tree root and an empty proof.",
+    input: { first: 0, firstRoot: CONSISTENCY_EMPTY_ROOT, second: 4, secondRoot: await consistencyMth(cLeaves, 0, 4), proof: [] },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "tampered-second-root-rejects",
+    description: "The same proof against a second root with one flipped hex digit does not reconstruct that root.",
+    input: { ...cBase, secondRoot: flipLastHex(cBase.secondRoot) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "tampered-first-root-rejects",
+    description: "A first root with one flipped hex digit is not the prefix the proof reconstructs.",
+    input: { ...cBase, firstRoot: flipLastHex(cBase.firstRoot) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "wrong-proof-element-rejects",
+    description: "Flipping a hex digit in the first proof node breaks both reconstructions.",
+    input: { ...cBase, proof: [flipLastHex(cBase.proof[0]), ...cBase.proof.slice(1)] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "proof-too-short-rejects",
+    description: "A proof one node shorter than the walk requires is exhausted before reaching the roots.",
+    input: { ...cBase, proof: cBase.proof.slice(0, cBase.proof.length - 1) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "proof-extra-entry-rejects",
+    description: "A valid proof padded with one unused node is rejected; every element must be consumed.",
+    input: { ...cBase, proof: [...cBase.proof, cLeaves[0]] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "first-greater-than-second-rejects",
+    description: "A first size larger than the second cannot be a prefix and is rejected before any walk.",
+    input: { first: 8, firstRoot: await consistencyMth(cLeaves, 0, 8), second: 4, secondRoot: await consistencyMth(cLeaves, 0, 4), proof: [] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "equal-size-root-mismatch-rejects",
+    description: "Equal sizes with differing roots is a fork, not consistency, even with an empty proof.",
+    input: { first: 4, firstRoot: await consistencyMth(cLeaves, 0, 4), second: 4, secondRoot: flipLastHex(await consistencyMth(cLeaves, 0, 4)), proof: [] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "empty-prefix-wrong-root-rejects",
+    description: "first = 0 must carry the fixed empty-tree root; any other firstRoot is rejected.",
+    input: { first: 0, firstRoot: await consistencyMth(cLeaves, 0, 3), second: 4, secondRoot: await consistencyMth(cLeaves, 0, 4), proof: [] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-proof-element-rejects",
+    description: "A proof node that is not 64 lowercase hex characters is rejected.",
+    input: { ...cBase, proof: ["zz", ...cBase.proof.slice(1)] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "second-above-safe-integer-rejects",
+    description: "A second size of 2^53 is past the ECMAScript safe-integer range; both implementations reject it before walking rather than splitting on a value one cannot represent exactly.",
+    input: { first: 1, firstRoot: cLeaves[0], second: 9007199254740992, secondRoot: cLeaves[1], proof: [] },
+    expect: { result: "reject" },
+  },
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

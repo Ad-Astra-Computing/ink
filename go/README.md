@@ -23,6 +23,8 @@ shared vectors:
   active, then retired; revoked and out-of-window keys skipped).
 - **Merkle inclusion** (`merkle.go`) — the RFC 6962 inclusion-proof walk that a
   witness receipt's `(leafIndex, treeSize, rootHash)` is checked against.
+- **Merkle consistency** (`consistency.go`) — the RFC 6962 consistency-proof walk
+  that confirms a later checkpoint is an append-only extension of an earlier one.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
@@ -69,9 +71,19 @@ reference, so neither side splits on a value the other cannot represent exactly.
 The `merkle-inclusion` vectors pin every leaf position plus the rejection edges.
 See [`../specs/ink-merkle-inclusion.md`](../specs/ink-merkle-inclusion.md).
 
-This package targets 64-bit platforms: it uses native `int` for `treeSize` and
-`leafIndex` and a `2^53 - 1` integer bound that does not fit a 32-bit `int`, so
-the safe-integer edge is deterministic only where `int` is 64 bits wide.
+Merkle consistency proofs walk identically in both implementations:
+`VerifyConsistencyProof` confirms the tree of `first` leaves is an append-only
+prefix of the tree of `second` leaves, the check that detects a forked log a size
+comparison cannot. The shift logic, `0x01` node prefix, and short/extra-node
+rejection match the reference, and a size past the safe-integer range rejects
+before the walk. The `merkle-consistency` vectors pin the prefix matrix plus the
+rejection edges. See
+[`../specs/ink-merkle-consistency.md`](../specs/ink-merkle-consistency.md).
+
+This package targets 64-bit platforms: it uses native `int` for `treeSize`,
+`leafIndex`, and the consistency `first`/`second` sizes, and a `2^53 - 1` integer
+bound that does not fit a 32-bit `int`, so the safe-integer edge is deterministic
+only where `int` is 64 bits wide.
 
 ## Known divergences pending a spec decision
 
