@@ -4,7 +4,7 @@
 
 An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.1.2` and `0.2.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.4.0` and `0.6.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
 
 `ink/0.2` is the recommended target for new receiver implementations. It is a backward-compatible minor over `ink/0.1`, changing only the body-signature domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. `ink/0.1` remains fully supported: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
@@ -108,6 +108,12 @@ Verification helpers added in `0.4.0`:
 Added in `0.5.0`:
 
 - `verifyConsistencyProof(first, firstRoot, second, secondRoot, proof)` verifies an RFC 6962 consistency proof that the tree of `first` leaves is an append-only prefix of the tree of `second` leaves, so a witness that forks its history rather than only appending is detected. The witness serves these proofs at `GET /ink/v1/consistency?first=N&second=M`, and the `verify-inclusion` CLI checks one against the current checkpoint when `--origin` is passed.
+
+Added in `0.6.0`:
+
+- A second, independent implementation in Go (`go/`) runs a shared conformance vector corpus (`conformance/v1/`) alongside this TypeScript reference, so the wire behavior is pinned by agreement between implementations rather than by one codebase. The corpus covers principal normalization, the signature base, JCS numbers and strings, key rotation, replay and freshness, the timestamp grammar, and the Merkle inclusion, consistency, checkpoint, and audit-leaf-hash rules.
+- `parseInkTimestampMs`, `isInkTimestamp`, and `MAX_TIMESTAMP_LENGTH` expose the strict RFC 3339 timestamp grammar; `containsLoneSurrogateEscape` and `hasUnpairedSurrogate` detect a lone UTF-16 surrogate in a signed string before it is parsed; and `verifyInclusionProof(leafHash, proof, leafIndex, treeSize, rootHash)` is the low-level RFC 6962 inclusion-proof primitive `verifyInclusionReceipt` builds on.
+- Several validation tightenings reject inputs `0.5.0` accepted: non-strict timestamps, present-but-empty key-window fields, lone UTF-16 surrogates in signed strings, and non-safe-integer signed-body numbers. See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 
 ## Agent-assisted implementation
 
