@@ -46,16 +46,26 @@ present. The `key-rotation` vectors pin the present-empty, present-null, and
 non-string cases. See
 [`../specs/ink-key-rotation-spec.md`](../specs/ink-key-rotation-spec.md) §6.5.
 
+Lone UTF-16 surrogates in signed strings are banned in both implementations,
+because `encoding/json` would rewrite a lone surrogate to U+FFFD and canonicalize
+different bytes. A receiver MUST parse a signed body through `ParseSignedBody`,
+which scans the raw JSON for an unpaired surrogate escape before unmarshaling;
+`VerifyInkSignature` takes an already-parsed body and cannot recover a dropped
+surrogate on its own. The `jcs-string-safety` vectors pin the scanner. See
+[`../specs/ink-signed-string-safety.md`](../specs/ink-signed-string-safety.md).
+
 ## Known divergences pending a spec decision
 
 These are edges the shared conformance vectors do not yet cover. They are
 recorded so the 1.0 spec can mandate one behavior and both implementations
 converge by specification:
 
-- **Lone UTF-16 surrogates in signed strings.** JavaScript can carry a lone
-  surrogate through `JSON.parse`/`stringify`; Go's `encoding/json` replaces it
-  with U+FFFD, so a signed string containing one would canonicalize differently.
-  The intended resolution is to ban lone surrogates in signed strings.
+- **Signed-body numbers.** The JCS number profile is out of scope for this
+  version (a number in a signed body fails closed in Go); the planned rule is a
+  safe-integer profile pinned by shared vectors.
+- **Raw UTF-8 validity.** `encoding/json` replaces invalid UTF-8 with U+FFFD,
+  the same parser-loss class as lone surrogates; a receiver should require valid
+  UTF-8 before parsing. Tracked at the same boundary as the surrogate check.
 
 ## Running the conformance suite
 

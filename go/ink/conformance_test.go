@@ -74,6 +74,24 @@ func TestTimestampValidity(t *testing.T) {
 	}
 }
 
+func TestJCSStringSafety(t *testing.T) {
+	vf := loadVectors(t, "jcs-string-safety")
+	for _, c := range vf.Cases {
+		var bodyRaw string
+		if err := json.Unmarshal(c.Input["bodyRaw"], &bodyRaw); err != nil {
+			t.Fatalf("%s: bad bodyRaw: %v", c.CaseID, err)
+		}
+		reject := ContainsLoneSurrogateEscape([]byte(bodyRaw))
+		got := "accept"
+		if reject {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: got %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
 func TestPrincipalNormalization(t *testing.T) {
 	vf := loadVectors(t, "principal-normalization")
 	for _, c := range vf.Cases {

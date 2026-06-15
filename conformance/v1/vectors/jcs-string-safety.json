@@ -1,0 +1,106 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "jcs-string-safety",
+  "cases": [
+    {
+      "caseId": "plain-string-accepts",
+      "description": "An ordinary string with no surrogate escapes is accepted.",
+      "input": {
+        "bodyRaw": "{\"note\":\"hello\"}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "valid-surrogate-pair-accepts",
+      "description": "A valid high+low surrogate pair (an astral code point) is accepted.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\uD83D\\uDE00\"}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "literal-escaped-backslash-u-accepts",
+      "description": "An escaped backslash followed by uD800 is the literal text, not a Unicode escape, so it is accepted.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\\\uD800\"}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "bmp-escape-accepts",
+      "description": "A non-surrogate Unicode escape is accepted.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\u0041\"}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "lone-high-surrogate-rejects",
+      "description": "A lone high surrogate escape is rejected; a parser that rewrote it to U+FFFD would sign different bytes.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\uD800\"}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "lone-low-surrogate-rejects",
+      "description": "A lone low surrogate escape with no preceding high is rejected.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\uDC00\"}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "lowercase-lone-surrogate-rejects",
+      "description": "Lowercase hex does not change the rule; a lone surrogate is rejected.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\ud800\"}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "high-split-from-low-rejects",
+      "description": "A high surrogate not immediately followed by a low surrogate escape is rejected, even when a low appears later.",
+      "input": {
+        "bodyRaw": "{\"note\":\"\\uD800x\\uDC00\"}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "lone-surrogate-in-key-rejects",
+      "description": "A lone surrogate in an object member name is rejected, not just in a value.",
+      "input": {
+        "bodyRaw": "{\"\\uD800\":\"v\"}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "lone-surrogate-in-array-rejects",
+      "description": "A lone surrogate in a nested array element is rejected.",
+      "input": {
+        "bodyRaw": "{\"a\":[\"x\",\"\\uDC00\"]}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}
