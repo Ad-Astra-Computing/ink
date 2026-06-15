@@ -15,6 +15,8 @@ import {
   signInkMessage,
   bytesToHex,
   hexToBytes,
+  parseCheckpoint,
+  formatCheckpoint,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -1057,6 +1059,50 @@ vectorFile("merkle-consistency", [
     input: { first: 1, firstRoot: cLeaves[0], second: 9007199254740992, secondRoot: cLeaves[1], proof: [] },
     expect: { result: "reject" },
   },
+]);
+
+// ── merkle-checkpoint ────────────────────────────────────────────────────
+// C2SP tlog-checkpoint body grammar (INK Auditability §7.7). A checkpoint body
+// is three lines plus a trailing newline: origin, decimal tree size, and a
+// 64-hex root hash. A verifier parses this before checking the witness
+// signature; a parser differential, where one implementation accepts a body
+// another rejects, would let a forged or malformed checkpoint through one side.
+// The vectors pin the accept set (with the canonical re-serialization) and the
+// rejection edges (line count, trailing junk, empty origin, a non-decimal or
+// out-of-range tree size, and a malformed root hash). See
+// specs/ink-merkle-checkpoint.md.
+const cpRoot = await sha256Hex(enc.encode("ink-conformance-checkpoint-root"));
+function cpAccept(caseId, description, body) {
+  const parsed = parseCheckpoint(body);
+  if (!parsed) throw new Error(`cpAccept given a body that does not parse: ${caseId}`);
+  return { caseId, description, input: { body }, expect: { result: "accept", canonicalString: formatCheckpoint(parsed) } };
+}
+function cpReject(caseId, description, body) {
+  return { caseId, description, input: { body }, expect: { result: "reject" } };
+}
+
+vectorFile("merkle-checkpoint", [
+  cpAccept("valid-accepts", "A well-formed origin, tree size, and root hash parse, and the body is already canonical.", `example.com/ink-log\n5\n${cpRoot}\n`),
+  cpAccept("tree-size-zero-accepts", "A fresh log with tree size 0 is a valid checkpoint.", `example.com/ink-log\n0\n${cpRoot}\n`),
+  cpAccept("max-safe-integer-tree-size-accepts", "A tree size at the safe-integer ceiling (2^53-1) parses.", `example.com/ink-log\n9007199254740991\n${cpRoot}\n`),
+  cpAccept("leading-zero-tree-size-normalizes", "A tree size written with a leading zero parses and re-serializes without it, so the canonical form is agnostic to the input padding.", `example.com/ink-log\n05\n${cpRoot}\n`),
+  cpReject("empty-body-rejects", "An empty body is not a checkpoint.", ""),
+  cpReject("missing-trailing-newline-rejects", "Without the trailing newline the body has only three parts and is rejected.", `example.com/ink-log\n5\n${cpRoot}`),
+  cpReject("extra-trailing-line-rejects", "An extra blank line past the trailing newline is rejected, not silently ignored.", `example.com/ink-log\n5\n${cpRoot}\n\n`),
+  cpReject("trailing-junk-rejects", "Any non-empty content after the final newline is rejected.", `example.com/ink-log\n5\n${cpRoot}\nx`),
+  cpReject("empty-origin-rejects", "The origin line is the domain separator and must be non-empty.", `\n5\n${cpRoot}\n`),
+  cpReject("non-numeric-tree-size-rejects", "A tree size that is not a decimal integer is rejected.", `example.com/ink-log\nabc\n${cpRoot}\n`),
+  cpReject("negative-tree-size-rejects", "A leading minus sign is not a decimal-digit tree size.", `example.com/ink-log\n-5\n${cpRoot}\n`),
+  cpReject("leading-plus-tree-size-rejects", "A leading plus sign is not a decimal-digit tree size.", `example.com/ink-log\n+5\n${cpRoot}\n`),
+  cpReject("tree-size-above-safe-integer-rejects", "A tree size of 2^53 is past the safe-integer range and is rejected.", `example.com/ink-log\n9007199254740992\n${cpRoot}\n`),
+  cpReject("uppercase-root-hash-rejects", "The root hash must be lowercase hex; an uppercase digit is rejected.", `example.com/ink-log\n5\n${cpRoot.toUpperCase()}\n`),
+  cpReject("short-root-hash-rejects", "A root hash of 63 hex characters is rejected.", `example.com/ink-log\n5\n${cpRoot.slice(0, 63)}\n`),
+  cpReject("long-root-hash-rejects", "A root hash of 65 hex characters is rejected.", `example.com/ink-log\n5\n${cpRoot}a\n`),
+  cpReject("non-hex-root-hash-rejects", "A root hash with a non-hex character is rejected.", `example.com/ink-log\n5\n${"z".repeat(64)}\n`),
+  cpReject("trailing-cr-root-hash-rejects", "A carriage return left on the root-hash line by CRLF splitting makes it not 64 hex characters.", `example.com/ink-log\n5\n${cpRoot}\r\n`),
+  cpReject("oversized-body-rejects", "A body past the size cap is rejected before it is split, bounding parser work on a hostile blob.", "a".repeat(1025)),
+  cpAccept("utf16-boundary-origin-accepts", "An origin of 256 two-byte characters is exactly 256 UTF-16 code units and accepts; an implementation that measured the line cap in bytes (512) would wrongly reject it.", `${"é".repeat(256)}\n5\n${cpRoot}\n`),
+  cpReject("astral-origin-over-utf16-cap-rejects", "An origin of 200 astral-plane characters is 400 UTF-16 code units, past the 256-unit line cap, and rejects; an implementation that measured the cap in Unicode scalar values (200) would wrongly accept it.", `${String.fromCodePoint(0x1d400).repeat(200)}\n5\n${cpRoot}\n`),
 ]);
 
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

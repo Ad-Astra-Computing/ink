@@ -181,6 +181,27 @@ func TestMerkleConsistency(t *testing.T) {
 	}
 }
 
+func TestMerkleCheckpoint(t *testing.T) {
+	vf := loadVectors(t, "merkle-checkpoint")
+	for _, c := range vf.Cases {
+		var body string
+		if err := json.Unmarshal(c.Input["body"], &body); err != nil {
+			t.Fatalf("%s: bad body: %v", c.CaseID, err)
+		}
+		parsed, ok := ParseCheckpoint(body)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: ParseCheckpoint ok = %v, want %v", c.CaseID, ok, want)
+			continue
+		}
+		if ok && c.Expect.CanonicalString != "" {
+			if got := FormatCheckpoint(parsed); got != c.Expect.CanonicalString {
+				t.Errorf("%s: canonical = %q, want %q", c.CaseID, got, c.Expect.CanonicalString)
+			}
+		}
+	}
+}
+
 func TestPrincipalNormalization(t *testing.T) {
 	vf := loadVectors(t, "principal-normalization")
 	for _, c := range vf.Cases {

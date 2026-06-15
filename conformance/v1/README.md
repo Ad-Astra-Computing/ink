@@ -84,6 +84,14 @@ additive field then.
   a non-empty root for `first = 0`, a malformed node, and a size past the
   safe-integer range all reject. See
   [`../../specs/ink-merkle-consistency.md`](../../specs/ink-merkle-consistency.md).
+- **merkle-checkpoint** — the C2SP tlog-checkpoint body grammar a witness
+  publishes its log head as: three lines (origin, decimal tree size, 64-hex root
+  hash) plus a trailing newline. An accepted body pins its canonical
+  re-serialization; a missing or extra newline, trailing junk, an empty origin, a
+  non-decimal, signed, or out-of-range tree size, a mis-cased, short, long, or
+  non-hex root hash, and an oversized body all reject, so a parser differential
+  cannot let a malformed checkpoint through one implementation. See
+  [`../../specs/ink-merkle-checkpoint.md`](../../specs/ink-merkle-checkpoint.md).
 
 ## String length and ordering
 

@@ -9,7 +9,18 @@
     "format": { "const": "ink.conformance.v1" },
     "category": {
       "type": "string",
-      "enum": ["principal-normalization", "signature-base", "jcs-number", "key-rotation", "replay-freshness"]
+      "enum": [
+        "principal-normalization",
+        "signature-base",
+        "jcs-number",
+        "key-rotation",
+        "replay-freshness",
+        "timestamp-validity",
+        "jcs-string-safety",
+        "merkle-inclusion",
+        "merkle-consistency",
+        "merkle-checkpoint"
+      ]
     },
     "cases": {
       "type": "array",
@@ -30,7 +41,9 @@
               "result": { "type": "string", "enum": ["accept", "reject"] },
               "canonicalPrincipal": { "type": "string" },
               "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] },
-              "keyId": { "type": "string" }
+              "keyId": { "type": "string" },
+              "epochMs": { "type": "integer" },
+              "canonicalString": { "type": "string" }
             }
           }
         }

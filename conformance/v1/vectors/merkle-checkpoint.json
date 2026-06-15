@@ -1,0 +1,221 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "merkle-checkpoint",
+  "cases": [
+    {
+      "caseId": "valid-accepts",
+      "description": "A well-formed origin, tree size, and root hash parse, and the body is already canonical.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      }
+    },
+    {
+      "caseId": "tree-size-zero-accepts",
+      "description": "A fresh log with tree size 0 is a valid checkpoint.",
+      "input": {
+        "body": "example.com/ink-log\n0\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "example.com/ink-log\n0\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      }
+    },
+    {
+      "caseId": "max-safe-integer-tree-size-accepts",
+      "description": "A tree size at the safe-integer ceiling (2^53-1) parses.",
+      "input": {
+        "body": "example.com/ink-log\n9007199254740991\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "example.com/ink-log\n9007199254740991\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      }
+    },
+    {
+      "caseId": "leading-zero-tree-size-normalizes",
+      "description": "A tree size written with a leading zero parses and re-serializes without it, so the canonical form is agnostic to the input padding.",
+      "input": {
+        "body": "example.com/ink-log\n05\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      }
+    },
+    {
+      "caseId": "empty-body-rejects",
+      "description": "An empty body is not a checkpoint.",
+      "input": {
+        "body": ""
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-trailing-newline-rejects",
+      "description": "Without the trailing newline the body has only three parts and is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "extra-trailing-line-rejects",
+      "description": "An extra blank line past the trailing newline is rejected, not silently ignored.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "trailing-junk-rejects",
+      "description": "Any non-empty content after the final newline is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\nx"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-origin-rejects",
+      "description": "The origin line is the domain separator and must be non-empty.",
+      "input": {
+        "body": "\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-numeric-tree-size-rejects",
+      "description": "A tree size that is not a decimal integer is rejected.",
+      "input": {
+        "body": "example.com/ink-log\nabc\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "negative-tree-size-rejects",
+      "description": "A leading minus sign is not a decimal-digit tree size.",
+      "input": {
+        "body": "example.com/ink-log\n-5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "leading-plus-tree-size-rejects",
+      "description": "A leading plus sign is not a decimal-digit tree size.",
+      "input": {
+        "body": "example.com/ink-log\n+5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tree-size-above-safe-integer-rejects",
+      "description": "A tree size of 2^53 is past the safe-integer range and is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n9007199254740992\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "uppercase-root-hash-rejects",
+      "description": "The root hash must be lowercase hex; an uppercase digit is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6B7AFABB949CF3B283BB350A4DACECDC109CF7DCD3824156511958CDDFB61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "short-root-hash-rejects",
+      "description": "A root hash of 63 hex characters is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb6127\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "long-root-hash-rejects",
+      "description": "A root hash of 65 hex characters is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271a\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-hex-root-hash-rejects",
+      "description": "A root hash with a non-hex character is rejected.",
+      "input": {
+        "body": "example.com/ink-log\n5\nzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "trailing-cr-root-hash-rejects",
+      "description": "A carriage return left on the root-hash line by CRLF splitting makes it not 64 hex characters.",
+      "input": {
+        "body": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\r\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-body-rejects",
+      "description": "A body past the size cap is rejected before it is split, bounding parser work on a hostile blob.",
+      "input": {
+        "body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "utf16-boundary-origin-accepts",
+      "description": "An origin of 256 two-byte characters is exactly 256 UTF-16 code units and accepts; an implementation that measured the line cap in bytes (512) would wrongly reject it.",
+      "input": {
+        "body": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      }
+    },
+    {
+      "caseId": "astral-origin-over-utf16-cap-rejects",
+      "description": "An origin of 200 astral-plane characters is 400 UTF-16 code units, past the 256-unit line cap, and rejects; an implementation that measured the cap in Unicode scalar values (200) would wrongly accept it.",
+      "input": {
+        "body": "𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

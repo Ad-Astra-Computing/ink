@@ -11,6 +11,8 @@ import {
   containsLoneSurrogateEscape,
   verifyInclusionProof,
   verifyConsistencyProof,
+  parseCheckpoint,
+  formatCheckpoint,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -108,6 +110,11 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       };
       const ok = await verifyConsistencyProof(first, firstRoot, second, secondRoot, proof);
       return { result: ok ? "accept" : "reject" };
+    }
+    case "merkle-checkpoint": {
+      const parsed = parseCheckpoint(input.body as string);
+      if (!parsed) return { result: "reject" };
+      return { result: "accept", canonicalString: formatCheckpoint(parsed) };
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);
