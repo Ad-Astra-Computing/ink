@@ -359,6 +359,104 @@ vectorFile("key-rotation", [
     input: { signInput, signature, keys: [{ keyId: "weird", publicKeyHex, status: "Active" }] },
     expect: { result: "reject" },
   },
+  // Key-window presence is semantic: a window field that is present at all
+  // constrains the key, even when its value is empty, null, or not a string.
+  // A present revokedAt of any value marks the key unusable; a present
+  // validFrom/validUntil that is not a strict RFC 3339 timestamp fails closed.
+  // An absent field is unconstrained. A malformed window invalidates only that
+  // candidate key, not the whole verify call.
+  {
+    caseId: "no-window-accepts",
+    description: "A key with no window fields at all is unconstrained and verifies.",
+    input: { signInput, signature, keys: [keyEntry("active")] },
+    expect: { result: "accept", keyStatus: "active", keyId: "signer-active" },
+  },
+  {
+    caseId: "empty-revoked-at-skips-key",
+    description: "A present empty-string revokedAt is present, so the key is treated as revoked and skipped; an implementation that read empty as absent would accept it.",
+    input: { signInput, signature, keys: [keyEntry("active", { revokedAt: "" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "null-revoked-at-skips-key",
+    description: "A present null revokedAt is present, so the key is treated as revoked and skipped.",
+    input: { signInput, signature, keys: [keyEntry("active", { revokedAt: null })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "empty-valid-from-rejects",
+    description: "A present empty-string validFrom is not a valid timestamp, so the key fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validFrom: "" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "null-valid-until-rejects",
+    description: "A present null validUntil is not a valid timestamp, so the key fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validUntil: null })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-string-valid-from-rejects",
+    description: "A present non-string validFrom (a number) is not a valid timestamp, so the key fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validFrom: 0 })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-string-valid-until-rejects",
+    description: "A present non-string validUntil (an object) is not a valid timestamp, so the key fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validUntil: {} })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-valid-from-string-rejects",
+    description: "A present validFrom that is a string but not a strict RFC 3339 timestamp fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validFrom: "not-a-date" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-window-key-falls-through-to-valid",
+    description: "A key with a malformed window is skipped, not fatal, so verification still succeeds via a second usable key.",
+    input: {
+      signInput,
+      signature,
+      keys: [
+        { keyId: "malformed", publicKeyHex, status: "active", revokedAt: "" },
+        { keyId: "good", publicKeyHex, status: "active" },
+      ],
+    },
+    expect: { result: "accept", keyStatus: "active", keyId: "good" },
+  },
+  {
+    caseId: "empty-valid-until-rejects",
+    description: "A present empty-string validUntil is not a valid timestamp, so the key fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validUntil: "" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-valid-until-string-rejects",
+    description: "A present validUntil that is a string but not a strict RFC 3339 timestamp fails closed.",
+    input: { signInput, signature, keys: [keyEntry("active", { validUntil: "not-a-date" })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-string-revoked-at-skips-key",
+    description: "A present non-string revokedAt is still present, so the key is treated as revoked and skipped.",
+    input: { signInput, signature, keys: [keyEntry("active", { revokedAt: false })] },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "malformed-valid-from-key-falls-through-to-valid",
+    description: "A key with a malformed validFrom is skipped, not fatal, so verification still succeeds via a second usable key.",
+    input: {
+      signInput,
+      signature,
+      keys: [
+        { keyId: "bad-window", publicKeyHex, status: "active", validFrom: "" },
+        { keyId: "good", publicKeyHex, status: "active" },
+      ],
+    },
+    expect: { result: "accept", keyStatus: "active", keyId: "good" },
+  },
 ]);
 
 // ── replay-freshness ───────────────────────────────────────────────────────

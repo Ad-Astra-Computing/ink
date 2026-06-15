@@ -183,6 +183,28 @@ Recommended verification order:
 3. retired signing keys
 4. reject if no valid candidate verifies
 
+## 6.5 Window Field Presence
+
+The window fields `validFrom`, `validUntil`, and `revokedAt` are optional, but
+their **presence is semantic**: a field that appears in a key entry at all
+constrains the key, even when its value is empty, `null`, or not a string. This
+removes any ambiguity between "no constraint" and "a constraint the producer
+failed to express", which an attacker could otherwise exploit to make a revoked
+or out-of-window key look usable.
+
+For each candidate key, a receiver MUST apply:
+
+- **Absent** field: no constraint from that field.
+- **`revokedAt` present** with any value: the key is unusable.
+- **`validFrom` / `validUntil` present**: the value MUST be a strict RFC 3339
+  timestamp (see [INK Timestamp Grammar](./ink-timestamp-grammar.md)). A present
+  value that is empty, `null`, non-string, or not a strict timestamp makes the
+  key unusable.
+
+A malformed window invalidates **only that candidate key**: verification skips
+it and continues with the remaining keys, so one bad historical entry cannot
+prevent a usable key from verifying.
+
 ---
 
 ## 7. Encryption Verification Rules
