@@ -1,5 +1,6 @@
 import * as ed from "@noble/ed25519";
 import canonicalize from "canonicalize";
+import { hasUnpairedSurrogate } from "./surrogate.js";
 
 /** Same bounds used by the ink.ts verify paths. Kept in sync so a peer
  * cannot pick the "softer" sign.ts path to bypass the cap. */
@@ -121,6 +122,12 @@ export async function signMessage(
   if (!isWithinBounds(unsigned)) {
     throw new Error("Message exceeds maximum allowed complexity");
   }
+  // Refuse to sign over a lone UTF-16 surrogate: it would serialize as a
+  // \uXXXX escape an independent verifier rejects (and which Go's JSON parser
+  // would silently rewrite to U+FFFD), so the signature would not be portable.
+  if (hasUnpairedSurrogate(unsigned)) {
+    throw new Error("Message contains an unpaired UTF-16 surrogate");
+  }
   const canonical = canonicalize(unsigned);
   if (canonical === undefined) {
     throw new Error("Failed to canonicalize message");
@@ -165,6 +172,12 @@ export async function verifyMessage(
   // signature verification. Mirrors the guard in verifyInkSignature so
   // a peer can't pick whichever entrypoint is softer.
   if (!isWithinBounds(unsigned)) {
+    return false;
+  }
+  // Defense in depth alongside the receiver's raw-body scan: a parsed body
+  // carrying a lone UTF-16 surrogate is not portable across implementations,
+  // so it never verifies.
+  if (hasUnpairedSurrogate(unsigned)) {
     return false;
   }
   const canonical = canonicalize(unsigned);

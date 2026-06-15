@@ -8,6 +8,7 @@ import {
   validateMessage,
   checkReplay,
   parseInkTimestampMs,
+  containsLoneSurrogateEscape,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -79,6 +80,10 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       const ms = parseInkTimestampMs(input.timestamp);
       if (ms === null) return { result: "reject" };
       return { result: "accept", epochMs: ms };
+    }
+    case "jcs-string-safety": {
+      const reject = containsLoneSurrogateEscape(input.bodyRaw as string);
+      return { result: reject ? "reject" : "accept" };
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);

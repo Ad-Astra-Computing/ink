@@ -620,4 +620,79 @@ vectorFile("timestamp-validity", [
   },
 ]);
 
+// ── jcs-string-safety ────────────────────────────────────────────────────
+// A signed body MUST NOT contain a \uXXXX escape for an unpaired UTF-16
+// surrogate in any string member name or value. The check runs on the raw JSON
+// text before parsing, because a parser (notably Go's encoding/json) silently
+// rewrites a lone surrogate to U+FFFD, which would sign different bytes than an
+// implementation that preserves it. bodyRaw is the raw JSON text. A backslash
+// const keeps a literal escape out of the generator source.
+const bs = "\\";
+const sHi = bs + "uD83D";
+const sLo = bs + "uDE00";
+const sLoneHi = bs + "uD800";
+const sLoneLo = bs + "uDC00";
+vectorFile("jcs-string-safety", [
+  {
+    caseId: "plain-string-accepts",
+    description: "An ordinary string with no surrogate escapes is accepted.",
+    input: { bodyRaw: `{"note":"hello"}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "valid-surrogate-pair-accepts",
+    description: "A valid high+low surrogate pair (an astral code point) is accepted.",
+    input: { bodyRaw: `{"note":"${sHi}${sLo}"}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "literal-escaped-backslash-u-accepts",
+    description: "An escaped backslash followed by uD800 is the literal text, not a Unicode escape, so it is accepted.",
+    input: { bodyRaw: `{"note":"${bs}${bs}uD800"}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "bmp-escape-accepts",
+    description: "A non-surrogate Unicode escape is accepted.",
+    input: { bodyRaw: `{"note":"${bs}u0041"}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "lone-high-surrogate-rejects",
+    description: "A lone high surrogate escape is rejected; a parser that rewrote it to U+FFFD would sign different bytes.",
+    input: { bodyRaw: `{"note":"${sLoneHi}"}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lone-low-surrogate-rejects",
+    description: "A lone low surrogate escape with no preceding high is rejected.",
+    input: { bodyRaw: `{"note":"${sLoneLo}"}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lowercase-lone-surrogate-rejects",
+    description: "Lowercase hex does not change the rule; a lone surrogate is rejected.",
+    input: { bodyRaw: `{"note":"${bs}ud800"}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "high-split-from-low-rejects",
+    description: "A high surrogate not immediately followed by a low surrogate escape is rejected, even when a low appears later.",
+    input: { bodyRaw: `{"note":"${sLoneHi}x${sLoneLo}"}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lone-surrogate-in-key-rejects",
+    description: "A lone surrogate in an object member name is rejected, not just in a value.",
+    input: { bodyRaw: `{"${sLoneHi}":"v"}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lone-surrogate-in-array-rejects",
+    description: "A lone surrogate in a nested array element is rejected.",
+    input: { bodyRaw: `{"a":["x","${sLoneLo}"]}` },
+    expect: { result: "reject" },
+  },
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

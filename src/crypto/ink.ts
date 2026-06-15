@@ -3,6 +3,7 @@ import { x25519 } from "@noble/curves/ed25519.js";
 import canonicalize from "canonicalize";
 import { isJcsSafeNumber } from "./sign.js";
 import { parseInkTimestampMs } from "./timestamp.js";
+import { hasUnpairedSurrogate } from "./surrogate.js";
 
 // ── Encoding helpers ──
 
@@ -76,6 +77,15 @@ function bytesToHex(bytes: Uint8Array): string {
 function jcsCanonicalize(obj: unknown): string {
   if (!isWithinCanonicalizeBounds(obj)) {
     throw new Error("Input exceeds maximum allowed complexity");
+  }
+  // No signed or AAD-bound JCS object may carry a lone UTF-16 surrogate: it is
+  // not portable across implementations (a parser like Go's encoding/json
+  // rewrites it to U+FFFD, producing different canonical bytes). Centralized
+  // here so every canonicalization path, request auth, audit events, and ECIES
+  // AAD, is covered. A receiver should additionally scan the raw request body
+  // before parsing, since a parsed body has already lost the original surrogate.
+  if (hasUnpairedSurrogate(obj)) {
+    throw new Error("Input contains an unpaired UTF-16 surrogate");
   }
   const result = canonicalize(obj);
   if (result === undefined) throw new Error("Failed to canonicalize");
