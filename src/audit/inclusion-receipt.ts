@@ -107,9 +107,12 @@ export async function verifyInclusionReceipt(opts: {
     rootHash: receipt.rootHash,
     timestamp: receipt.timestamp,
   };
-  const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
   let sigValid = false;
   try {
+    // jcsCanonicalize is inside the try: it throws on a signed field carrying a
+    // lone UTF-16 surrogate, and a malformed receipt must fail closed as an
+    // invalid signature, not throw out of the verifier.
+    const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
     const sig = base64urlDecode(receipt.serviceSignature);
     sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
   } catch (e) {
@@ -131,8 +134,8 @@ export async function verifyInclusionReceipt(opts: {
   // to receipt.eventId, so the proof attests the named event's inclusion.
   let leafHash: string | undefined;
   if (event !== undefined) {
-    if (typeof event.id !== "string") {
-      steps.push({ name: "proof", pass: false, detail: "event.id is missing or not a string" });
+    if (event === null || typeof event !== "object" || Array.isArray(event) || typeof event.id !== "string") {
+      steps.push({ name: "proof", pass: false, detail: "event must be an object with a string id" });
       return { valid: false, steps };
     }
     if (event.id !== receipt.eventId) {

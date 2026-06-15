@@ -29,6 +29,9 @@ shared vectors:
   that turns a witness checkpoint into `(origin, treeSize, rootHash)`.
 - **Audit leaf hash** (`auditleaf.go`) — the RFC 6962 leaf hash a witness commits
   for one audit event, `SHA-256(0x00 || JCS(event-without-agentSignature))`.
+- **Inclusion receipt** (`receipt.go`) — end-to-end verification of a witness
+  inclusion receipt: structure, the witness Ed25519 service signature, an
+  optional event-bound proof walk, and an optional later-checkpoint cross-check.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
@@ -102,6 +105,16 @@ parsed by `ParseSignedBody`, so a lone surrogate is already rejected, and an
 unsafe-integer number fails closed. The `merkle-leaf` vectors pin the digest,
 the agentSignature stripping, and the rejection edges. See
 [`../specs/ink-merkle-leaf.md`](../specs/ink-merkle-leaf.md).
+
+Inclusion receipts verify identically in both implementations:
+`VerifyInclusionReceipt` validates the receipt shape, the witness Ed25519 service
+signature over `"ink/audit-inclusion/v1\n"` plus the JCS of the committed fields,
+and, when supplied, the event-bound proof walk and the later-checkpoint
+anti-rollback and fork cross-check, in that order. The `inclusionProof` is not
+signed, so a tampered proof is caught by the walk rather than by the signature.
+The `inclusion-receipt` vectors pin the accept set and every rejection edge
+across the four steps. See
+[`../specs/ink-inclusion-receipt.md`](../specs/ink-inclusion-receipt.md).
 
 This package targets 64-bit platforms: it uses native `int` for `treeSize`,
 `leafIndex`, and the consistency `first`/`second` sizes, and a `2^53 - 1` integer

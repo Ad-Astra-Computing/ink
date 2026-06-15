@@ -99,6 +99,16 @@ additive field then.
   unsafe-integer number reject, so the leaf path enforces the same signed-body
   profile as signing. See
   [`../../specs/ink-merkle-leaf.md`](../../specs/ink-merkle-leaf.md).
+- **inclusion-receipt** — end-to-end verification of a witness inclusion receipt:
+  structural validation, the witness Ed25519 service signature over
+  `"ink/audit-inclusion/v1\n"` plus the JCS of the committed fields, an optional
+  event-bound leaf-to-root proof walk, and an optional later-checkpoint
+  anti-rollback and fork cross-check. A signature-only receipt accepts; the
+  structural edges, a tamper of any signed field, a wrong key or malformed
+  signature, an event-id mismatch or out-of-tree leaf, a tampered proof, and a
+  rolled-back or forked checkpoint all reject, so a verifier that skips or
+  mis-orders a step diverges. See
+  [`../../specs/ink-inclusion-receipt.md`](../../specs/ink-inclusion-receipt.md).
 
 ## String length and ordering
 

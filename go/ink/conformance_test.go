@@ -229,6 +229,77 @@ func TestMerkleLeaf(t *testing.T) {
 	}
 }
 
+func TestInclusionReceipt(t *testing.T) {
+	vf := loadVectors(t, "inclusion-receipt")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+
+		var pubHex string
+		if err := json.Unmarshal(c.Input["witnessPublicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad witnessPublicKeyHex: %v", c.CaseID, err)
+		}
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: witnessPublicKeyHex not hex: %v", c.CaseID, err)
+		}
+
+		// The receipt is parsed at the receiver boundary: a lone surrogate, a
+		// non-object, or an out-of-spec numeric field is a reject, matching the
+		// reference's structural and signed-string checks.
+		receipt, ok := ParseInclusionReceipt(c.Input["receipt"])
+		if !ok {
+			if want {
+				t.Errorf("%s: receipt failed to parse but vector expects accept", c.CaseID)
+			}
+			continue
+		}
+
+		var opts ReceiptVerifyOptions
+		// The event runs through ParseSignedBody so a lone surrogate is rejected
+		// before hashing, the same as any signed body. A malformed event is a
+		// reject, not a harness error.
+		if raw, present := c.Input["event"]; present {
+			body, err := ParseSignedBody(raw)
+			if err != nil {
+				if want {
+					t.Errorf("%s: event failed to parse but vector expects accept: %v", c.CaseID, err)
+				}
+				continue
+			}
+			m, isObj := body.(map[string]interface{})
+			if !isObj {
+				if want {
+					t.Errorf("%s: event is not an object but vector expects accept", c.CaseID)
+				}
+				continue
+			}
+			opts.Event = m
+		}
+		if raw, present := c.Input["eventHash"]; present {
+			if err := json.Unmarshal(raw, &opts.EventHash); err != nil {
+				if want {
+					t.Errorf("%s: eventHash malformed but vector expects accept: %v", c.CaseID, err)
+				}
+				continue
+			}
+		}
+		if raw, present := c.Input["laterCheckpoint"]; present {
+			cp, cpOK := ParseCheckpointRef(raw)
+			if !cpOK {
+				if want {
+					t.Errorf("%s: laterCheckpoint malformed but vector expects accept", c.CaseID)
+				}
+				continue
+			}
+			opts.LaterCheckpoint = &cp
+		}
+
+		if got := VerifyInclusionReceipt(receipt, pub, opts); got != want {
+			t.Errorf("%s: VerifyInclusionReceipt = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
 func TestPrincipalNormalization(t *testing.T) {
 	vf := loadVectors(t, "principal-normalization")
 	for _, c := range vf.Cases {

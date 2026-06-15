@@ -95,7 +95,7 @@ describe("verifyInclusionReceipt event binding", () => {
     const noId = { ...EVENT, id: 42 } as unknown as Record<string, unknown>;
     const r = await verifyInclusionReceipt({ receipt, witnessPublicKey: kp.publicKey, event: noId });
     expect(r.valid).toBe(false);
-    expect(r.steps.find((s) => s.name === "proof")?.detail).toMatch(/missing or not a string/);
+    expect(r.steps.find((s) => s.name === "proof")?.detail).toMatch(/object with a string id/);
   });
 
   it("still supports the legacy eventHash path", async () => {

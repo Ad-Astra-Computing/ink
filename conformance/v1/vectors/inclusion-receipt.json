@@ -1,0 +1,977 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "inclusion-receipt",
+  "cases": [
+    {
+      "caseId": "valid-signature-only-accepts",
+      "description": "A structurally valid receipt with a valid witness signature verifies when no event or checkpoint is supplied; the proof and checkpoint steps are skipped.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "receipt-not-object-rejects",
+      "description": "A receipt that is not an object is rejected.",
+      "input": {
+        "receipt": "not-a-receipt",
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-event-id-rejects",
+      "description": "An empty eventId is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "negative-leaf-index-rejects",
+      "description": "A negative leafIndex is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": -1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "zero-tree-size-rejects",
+      "description": "A treeSize below 1 is rejected; a receipt commits to at least its own leaf.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 0,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "leaf-index-ge-tree-size-rejects",
+      "description": "A leafIndex not less than treeSize is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 4,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "uppercase-root-hash-rejects",
+      "description": "A non-lowercase-hex rootHash is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "AF29B338FE8FB49E6DFCCFB826B605D9FC4DB9FB6B1B5F65D4B8717AF8CDE32F",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "short-root-hash-rejects",
+      "description": "A rootHash that is not 64 hex characters is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-not-array-rejects",
+      "description": "An inclusionProof that is not an array is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": "nope",
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-too-long-rejects",
+      "description": "An inclusionProof past the 64-entry cap is rejected before any walk.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+            "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-bad-element-rejects",
+      "description": "An inclusionProof entry that is not 64 lowercase hex is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "not-a-hash"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-timestamp-rejects",
+      "description": "An empty timestamp is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-signature-rejects",
+      "description": "An empty serviceSignature is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": ""
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-root-hash-rejects",
+      "description": "Changing rootHash after signing breaks the witness signature.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-leaf-index-rejects",
+      "description": "Changing leafIndex after signing breaks the witness signature.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 2,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-tree-size-rejects",
+      "description": "Changing treeSize after signing breaks the witness signature.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 8,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-event-id-rejects",
+      "description": "Changing eventId after signing breaks the witness signature.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-9",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-timestamp-rejects",
+      "description": "Changing timestamp after signing breaks the witness signature.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T13:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-witness-key-rejects",
+      "description": "A valid signature checked against a different witness key is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "8dd3649d02ecde7b08636d86b15a923bc2ac3d301e82b58c18241661aeec4a2b"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "malformed-signature-rejects",
+      "description": "A serviceSignature that decodes to the wrong length is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "AAAA"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "event-bound-proof-accepts",
+      "description": "Supplying the named event recomputes its leaf hash, binds event.id to the receipt, and walks the proof up to rootHash.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "id": "evt-1",
+          "type": "connection_request",
+          "seq": 1
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "event-id-mismatch-rejects",
+      "description": "An event whose id differs from the receipt's eventId is rejected, even if its leaf would otherwise be in the tree.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "id": "evt-9",
+          "type": "connection_request",
+          "seq": 1
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "event-leaf-not-at-index-rejects",
+      "description": "An event whose id matches but whose body hashes to a different leaf does not walk to rootHash and is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "id": "evt-1",
+          "type": "connection_request",
+          "seq": 99
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "event-missing-id-rejects",
+      "description": "An event without a string id cannot be bound to the receipt and is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "type": "connection_request",
+          "seq": 1
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "event-hash-legacy-accepts",
+      "description": "A pre-computed leaf hash that sits at leafIndex walks to rootHash and verifies, the lower-assurance unbound path.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "eventHash": "87fea3c66325bce7bba686849db7a1339ca5bef65bbc4fbe1ba04f38e4fb62bf"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "event-hash-bad-format-rejects",
+      "description": "An eventHash that is not 64 lowercase hex is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "eventHash": "not-a-hash"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "event-hash-not-in-tree-rejects",
+      "description": "A well-formed eventHash that is not the leaf at leafIndex does not walk to rootHash and is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "eventHash": "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-proof-rejects",
+      "description": "With the event supplied, a proof whose sibling is replaced does not reconstruct rootHash and is rejected; the witness signature stays valid because the proof is not signed.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "id": "evt-1",
+          "type": "connection_request",
+          "seq": 1
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "checkpoint-newer-accepts",
+      "description": "A later checkpoint whose tree is larger is consistent with the receipt; the tree only grew.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "laterCheckpoint": {
+          "treeSize": 8,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "checkpoint-equal-same-root-accepts",
+      "description": "A later checkpoint at the same size with the same root is consistent.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "laterCheckpoint": {
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "checkpoint-rollback-rejects",
+      "description": "A later checkpoint whose tree is smaller than the receipt's means the witness rewound the log and is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "laterCheckpoint": {
+          "treeSize": 2,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "checkpoint-fork-rejects",
+      "description": "A later checkpoint at the same size with a different root is a fork and is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "laterCheckpoint": {
+          "treeSize": 4,
+          "rootHash": "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "checkpoint-bad-root-rejects",
+      "description": "A later checkpoint whose rootHash is not 64 lowercase hex is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "laterCheckpoint": {
+          "treeSize": 8,
+          "rootHash": "not-a-hash"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "checkpoint-negative-size-rejects",
+      "description": "A later checkpoint with a negative tree size is rejected.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "laterCheckpoint": {
+          "treeSize": -1,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "full-receipt-accepts",
+      "description": "A receipt that passes structure, signature, the event-bound proof walk, and a newer-checkpoint cross-check all at once verifies.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "id": "evt-1",
+          "type": "connection_request",
+          "seq": 1
+        },
+        "laterCheckpoint": {
+          "treeSize": 8,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "surrogate-in-event-id-rejects",
+      "description": "A lone UTF-16 surrogate in the signed eventId is rejected before the signature step, because a parser that rewrote it to U+FFFD would verify different bytes.",
+      "input": {
+        "receipt": {
+          "eventId": "\ud800",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "surrogate-in-event-rejects",
+      "description": "A lone UTF-16 surrogate in the supplied event is rejected before the leaf is hashed, the same signed-string rule the leaf-hash path enforces.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": {
+          "id": "evt-1",
+          "note": "\ud800"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-integer-leaf-index-rejects",
+      "description": "A fractional leafIndex is not an integer and is rejected; an integer-valued number of any spelling would be accepted.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1.5,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "null-event-rejects",
+      "description": "A present but null event is rejected at the proof step rather than throwing; a verifier must fail closed on a malformed event.",
+      "input": {
+        "receipt": {
+          "eventId": "evt-1",
+          "leafIndex": 1,
+          "treeSize": 4,
+          "rootHash": "af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "inclusionProof": [
+            "03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749",
+            "1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"
+          ],
+          "serviceSignature": "_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"
+        },
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "event": null
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}
