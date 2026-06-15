@@ -169,12 +169,12 @@ func TestKeyRotation(t *testing.T) {
 			Signature string `json:"signature"`
 			HintKeyID string `json:"hintKeyId"`
 			Keys      []struct {
-				KeyID        string `json:"keyId"`
-				PublicKeyHex string `json:"publicKeyHex"`
-				Status       string `json:"status"`
-				ValidFrom    string `json:"validFrom"`
-				ValidUntil   string `json:"validUntil"`
-				RevokedAt    string `json:"revokedAt"`
+				KeyID        string            `json:"keyId"`
+				PublicKeyHex string            `json:"publicKeyHex"`
+				Status       string            `json:"status"`
+				ValidFrom    OptionalTimestamp `json:"validFrom"`
+				ValidUntil   OptionalTimestamp `json:"validUntil"`
+				RevokedAt    OptionalTimestamp `json:"revokedAt"`
 			} `json:"keys"`
 		}
 		if err := json.Unmarshal(mustJSON(t, c.Input, "signInput"), &in.SignInput); err != nil {

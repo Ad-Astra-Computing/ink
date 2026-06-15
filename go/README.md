@@ -39,18 +39,19 @@ the instant floored to whole milliseconds. The shared `timestamp-validity`
 vectors pin the grammar and precision. See
 [`../specs/ink-timestamp-grammar.md`](../specs/ink-timestamp-grammar.md).
 
+Key-window presence is semantic in both implementations: a present `validFrom`,
+`validUntil`, or `revokedAt` constrains the key even when empty, `null`, or
+non-string, via the `OptionalTimestamp` type that distinguishes absent from
+present. The `key-rotation` vectors pin the present-empty, present-null, and
+non-string cases. See
+[`../specs/ink-key-rotation-spec.md`](../specs/ink-key-rotation-spec.md) §6.5.
+
 ## Known divergences pending a spec decision
 
 These are edges the shared conformance vectors do not yet cover. They are
 recorded so the 1.0 spec can mandate one behavior and both implementations
 converge by specification:
 
-- **Empty-string vs absent key-window fields.** A present empty-string
-  `validFrom` / `validUntil` / `revokedAt` is indistinguishable from absent in
-  Go's plain `string` fields, so Go treats it as "no window"; the reference
-  treats a present empty `revokedAt` as a revocation. Resolving this needs
-  presence tracking (a pointer or wrapper) plus conformance vectors for the
-  present-empty case.
 - **Lone UTF-16 surrogates in signed strings.** JavaScript can carry a lone
   surrogate through `JSON.parse`/`stringify`; Go's `encoding/json` replaces it
   with U+FFFD, so a signed string containing one would canonicalize differently.
