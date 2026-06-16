@@ -4,6 +4,46 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.7.0, discovery conformance and a packaged vector corpus
+
+This release extends the cross-implementation conformance contract to the
+discovery and handshake surface and ships the corpus as a packaged, indexed
+artifact. The Agent Card, connection request and response, handshake messages,
+and the composite audit-query-response verifier are now pinned by shared vectors
+that the TypeScript reference and the Go implementation both run. A
+machine-readable manifest indexes every category so a second implementation can
+enumerate the corpus and detect drift from a single file, and the corpus ships
+in the npm tarball. Agent Card endpoint fields move to a pinned, parser-
+independent URL grammar. It is published on the `next` dist-tag.
+
+### Additions
+
+- Conformance vector categories for the Agent Card, the connection request and
+  response payloads, the challenge, rejection, and resolution handshake
+  messages, and the composite audit-query-response verifier. Both
+  implementations make the same accept or reject decision on every vector.
+- `conformance/v1/manifest.json`, a machine-readable index of the corpus with
+  each category's vector file, spec, summary, case count, and the SHA-256 of the
+  vector bytes. The `conformance/` tree ships in the package and is resolvable as
+  a subpath export.
+- `isInkEndpointUrl(value)` exposes the Agent Card endpoint URL grammar so a
+  caller can validate an endpoint with the same rule the schema applies.
+
+### Potentially breaking validation tightenings
+
+These reject inputs that `0.6.0` accepted. A well-formed Agent Card that already
+advertised a plain `https` inbox endpoint is unaffected.
+
+- Agent Card `endpoint`, `inboxEndpoint`, and `thirdPartyAudit` endpoint fields
+  are validated against a narrow, deterministic URL grammar instead of a broad
+  URL check. An endpoint must be an `https` URL with a host and no userinfo or
+  fragment, at most 2048 bytes, free of control characters and whitespace, with
+  well-formed percent escapes and a port in range when present. Endpoints using
+  another scheme, a fragment, embedded credentials, or a malformed escape are
+  now rejected. The grammar is validated by explicit string rules in both
+  implementations rather than a runtime URL parser, so the decision is identical
+  across them.
+
 ## 0.6.0, cross-implementation conformance contract
 
 This release turns INK's wire behavior into a contract held by two independent
