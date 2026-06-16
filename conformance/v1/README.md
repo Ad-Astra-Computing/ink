@@ -126,6 +126,13 @@ additive field then.
   required field, an oversized string or array, an out-of-range or offset
   timestamp, and a malformed backoff hint all reject. See
   [`../../specs/ink-handshake-message.md`](../../specs/ink-handshake-message.md).
+- **connection-payload** — schema validation for the connection_request and
+  connection_response payloads, which are strict (an unknown key rejects) and
+  embed a profile snapshot and availability config. A valid request and response
+  accept; an unknown kind, an unknown key at any level, an unknown enum, a
+  missing required field, an oversized string or array, and a type-confused field
+  all reject. See
+  [`../../specs/ink-connection-payload.md`](../../specs/ink-connection-payload.md).
 
 ## String length and ordering
 

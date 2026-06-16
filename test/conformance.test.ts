@@ -20,6 +20,8 @@ import {
   InkChallengeSchema,
   InkRejectionSchema,
   InkResolutionSchema,
+  ConnectionRequestPayloadSchema,
+  ConnectionResponsePayloadSchema,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -141,6 +143,14 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         t === "network.tulpa.resolution" ? InkResolutionSchema : null;
       if (schema === null) return { result: "reject" };
       return { result: schema.safeParse(message).success ? "accept" : "reject" };
+    }
+    case "connection-payload": {
+      const { kind, payload } = input as { kind: string; payload: unknown };
+      const schema =
+        kind === "connection_request" ? ConnectionRequestPayloadSchema :
+        kind === "connection_response" ? ConnectionResponsePayloadSchema : null;
+      if (schema === null) return { result: "reject" };
+      return { result: schema.safeParse(payload).success ? "accept" : "reject" };
     }
     case "audit-query-response": {
       const { response, witnessPublicKeyHex, expectedRequester, expectedMessageId, expectedServiceDid, laterCheckpoint, agentKeysHex } = input as {

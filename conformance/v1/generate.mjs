@@ -1403,4 +1403,52 @@ vectorFile("handshake-message", [
   hsReject("backoff-seconds-unsafe-integer-rejects", "A retryAfterSeconds past the safe-integer range (2^53) is rejected, matching the reference's integer bound.", { ...hsRejection, backoffHint: { retryAfterSeconds: 9007199254740992 } }),
 ]);
 
+// ── connection-payload ────────────────────────────────────────────────────
+// Schema validation for the INK connection handshake payloads
+// (connection_request, connection_response). Unlike the challenge/rejection/
+// resolution messages these schemas are .strict() (an unknown key rejects, not
+// strips), and they embed a profile snapshot which embeds an availability
+// config, both also .strict(). An independent validator must accept and reject
+// the same payloads. See specs/ink-connection-payload.md.
+const cpProfile = { headline: "Staff engineer", skills: ["go", "typescript"], interests: ["agents"], openTo: ["roles", "advising"], availability: { timezone: "America/Los_Angeles", meetingHours: "9-5 PT weekdays" } };
+const cpRequest = { method: "discovery", context: "met at the conference", profileSnapshot: cpProfile };
+const cpResponse = { status: "accepted", profileSnapshot: cpProfile, note: "glad to connect" };
+function connAccept(caseId, description, kind, payload) {
+  return { caseId, description, input: { kind, payload }, expect: { result: "accept" } };
+}
+function connReject(caseId, description, kind, payload) {
+  return { caseId, description, input: { kind, payload }, expect: { result: "reject" } };
+}
+
+vectorFile("connection-payload", [
+  connAccept("request-valid-accepts", "A well-formed connection_request with a full profile snapshot validates.", "connection_request", cpRequest),
+  connAccept("request-minimal-profile-accepts", "A request whose profile omits the optional availability validates.", "connection_request", { method: "qr", context: "scanned code", profileSnapshot: { headline: "h", skills: [], interests: [], openTo: [] } }),
+  connAccept("response-valid-accepts", "A well-formed connection_response validates.", "connection_response", cpResponse),
+  connAccept("response-minimal-accepts", "A response with only a status validates; profileSnapshot and note are optional.", "connection_response", { status: "declined" }),
+  // unknown kind
+  connReject("unknown-kind-rejects", "An unknown payload kind is rejected.", "connection_unknown", cpRequest),
+  // strict: unknown keys
+  connReject("request-unknown-key-rejects", "An unknown top-level key is rejected because the schema is strict.", "connection_request", { ...cpRequest, extra: 1 }),
+  connReject("profile-unknown-key-rejects", "An unknown key in the profile snapshot is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, bogus: true } }),
+  connReject("availability-unknown-key-rejects", "An unknown key in the availability config is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, availability: { timezone: "UTC", bogus: 1 } } }),
+  connReject("response-unknown-key-rejects", "An unknown top-level key in the response is rejected.", "connection_response", { ...cpResponse, extra: "x" }),
+  // enums
+  connReject("bad-method-rejects", "An unknown connection method is rejected.", "connection_request", { ...cpRequest, method: "telepathy" }),
+  connReject("bad-status-rejects", "An unknown response status is rejected.", "connection_response", { ...cpResponse, status: "maybe" }),
+  // required fields
+  connReject("missing-context-rejects", "A request without context is rejected.", "connection_request", (() => { const { context: _c, ...rest } = cpRequest; return rest; })()),
+  connReject("missing-profile-rejects", "A request without a profile snapshot is rejected.", "connection_request", (() => { const { profileSnapshot: _p, ...rest } = cpRequest; return rest; })()),
+  connReject("missing-status-rejects", "A response without a status is rejected.", "connection_response", { profileSnapshot: cpProfile }),
+  connReject("profile-missing-headline-rejects", "A profile snapshot missing the required headline is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { skills: [], interests: [], openTo: [] } }),
+  // caps
+  connReject("oversized-context-rejects", "A request context past 2000 characters is rejected.", "connection_request", { ...cpRequest, context: "x".repeat(2001) }),
+  connReject("oversized-note-rejects", "A response note past 1000 characters is rejected.", "connection_response", { ...cpResponse, note: "x".repeat(1001) }),
+  connReject("too-many-skills-rejects", "A profile with more than 50 skills is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, skills: Array(51).fill("s") } }),
+  connReject("oversized-skill-rejects", "A profile skill past 100 characters is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, skills: ["x".repeat(101)] } }),
+  connReject("oversized-timezone-rejects", "An availability timezone past 64 characters is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, availability: { timezone: "x".repeat(65) } } }),
+  // type confusion
+  connReject("non-string-context-rejects", "A non-string context is rejected.", "connection_request", { ...cpRequest, context: 42 }),
+  connReject("non-array-skills-rejects", "A non-array skills value is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, skills: "go" } }),
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);
