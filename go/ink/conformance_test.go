@@ -229,6 +229,23 @@ func TestMerkleLeaf(t *testing.T) {
 	}
 }
 
+func TestHandshakeMessage(t *testing.T) {
+	vf := loadVectors(t, "handshake-message")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+		var message map[string]interface{}
+		if err := json.Unmarshal(c.Input["message"], &message); err != nil {
+			if want {
+				t.Errorf("%s: message is not an object but vector expects accept", c.CaseID)
+			}
+			continue
+		}
+		if got := ValidateHandshakeMessage(message); got != want {
+			t.Errorf("%s: ValidateHandshakeMessage = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
 func TestAuditQueryResponse(t *testing.T) {
 	vf := loadVectors(t, "audit-query-response")
 	for _, c := range vf.Cases {

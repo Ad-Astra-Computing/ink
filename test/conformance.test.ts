@@ -17,6 +17,9 @@ import {
   verifyInclusionReceipt,
   verifyAuditQueryResponse,
   verifyAuditEventSignature,
+  InkChallengeSchema,
+  InkRejectionSchema,
+  InkResolutionSchema,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -128,6 +131,16 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       } catch {
         return { result: "reject" };
       }
+    }
+    case "handshake-message": {
+      const message = input.message as { type?: unknown };
+      const t = typeof message?.type === "string" ? message.type : "";
+      const schema =
+        t === "network.tulpa.challenge" ? InkChallengeSchema :
+        t === "network.tulpa.rejection" ? InkRejectionSchema :
+        t === "network.tulpa.resolution" ? InkResolutionSchema : null;
+      if (schema === null) return { result: "reject" };
+      return { result: schema.safeParse(message).success ? "accept" : "reject" };
     }
     case "audit-query-response": {
       const { response, witnessPublicKeyHex, expectedRequester, expectedMessageId, expectedServiceDid, laterCheckpoint, agentKeysHex } = input as {
