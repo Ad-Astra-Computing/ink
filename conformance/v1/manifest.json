@@ -1,0 +1,134 @@
+{
+  "format": "ink.conformance.manifest.v1",
+  "corpus": "ink.conformance.v1",
+  "categories": [
+    {
+      "id": "agent-card",
+      "vector": "vectors/agent-card.json",
+      "spec": "specs/ink-agent-card.md",
+      "summary": "Agent Card validation and the pinned INK endpoint URL grammar.",
+      "caseCount": 35,
+      "sha256": "6211da549af87ba2d2843de50c2f4d851f9252ccb5e454661ff679de1316e354"
+    },
+    {
+      "id": "audit-query-response",
+      "vector": "vectors/audit-query-response.json",
+      "spec": "specs/ink-audit-query-response.md",
+      "summary": "Composite audit-query-response verification.",
+      "caseCount": 25,
+      "sha256": "e83a8469213e25264c1517dc47bbbbab01caddc450da032113b2b9d543a6f22d"
+    },
+    {
+      "id": "connection-payload",
+      "vector": "vectors/connection-payload.json",
+      "spec": "specs/ink-connection-payload.md",
+      "summary": "Connection request and response payload validation.",
+      "caseCount": 22,
+      "sha256": "b921d25e41b5060ef6b832c695375f60b58d7c8418b2172568f058d631549cc6"
+    },
+    {
+      "id": "handshake-message",
+      "vector": "vectors/handshake-message.json",
+      "spec": "specs/ink-handshake-message.md",
+      "summary": "Challenge, rejection, and resolution message validation.",
+      "caseCount": 26,
+      "sha256": "3b374fd9727ad62c53f3656bc611c6328b06184f0968eb209726a83fb6565f42"
+    },
+    {
+      "id": "inclusion-receipt",
+      "vector": "vectors/inclusion-receipt.json",
+      "spec": "specs/ink-inclusion-receipt.md",
+      "summary": "Composite inclusion-receipt verification.",
+      "caseCount": 39,
+      "sha256": "e8f41905b2b482ac82cac2262f92f99b14045ffe8060c69a94de29e99b431e2f"
+    },
+    {
+      "id": "jcs-number",
+      "vector": "vectors/jcs-number.json",
+      "spec": "specs/ink-jcs-number-profile.md",
+      "summary": "RFC 8785 JCS canonicalization and the safe-integer number profile.",
+      "caseCount": 10,
+      "sha256": "fb5e1a0e126c661155ddcbdb69be8d9e3d39655723e8baa6cade19dca3eae6a3"
+    },
+    {
+      "id": "jcs-string-safety",
+      "vector": "vectors/jcs-string-safety.json",
+      "spec": "specs/ink-signed-string-safety.md",
+      "summary": "Lone UTF-16 surrogate rejection in signed strings.",
+      "caseCount": 10,
+      "sha256": "37efc17ff3886a5af903b707d05df80b65fdf9adc618605113d23fae7ba6d8c0"
+    },
+    {
+      "id": "key-rotation",
+      "vector": "vectors/key-rotation.json",
+      "spec": "specs/ink-key-rotation-spec.md",
+      "summary": "Key-window verification across active, retired, and revoked keys.",
+      "caseCount": 28,
+      "sha256": "f3bcc4390817352bd3fe97bef911d49939f131fe8ccdd2315da3bd242403a316"
+    },
+    {
+      "id": "merkle-checkpoint",
+      "vector": "vectors/merkle-checkpoint.json",
+      "spec": "specs/ink-merkle-checkpoint.md",
+      "summary": "C2SP tlog-checkpoint parsing and canonical formatting.",
+      "caseCount": 21,
+      "sha256": "b5c794415ded843ea9d135e176ebe30d8252dbf7b1ca55697d325e9cbb5e55ef"
+    },
+    {
+      "id": "merkle-consistency",
+      "vector": "vectors/merkle-consistency.json",
+      "spec": "specs/ink-merkle-consistency.md",
+      "summary": "RFC 6962 consistency-proof verification.",
+      "caseCount": 19,
+      "sha256": "5a5d6d911e216880f8f426b589f49bf18e6ea8b9421d999a7d996015c63411fd"
+    },
+    {
+      "id": "merkle-inclusion",
+      "vector": "vectors/merkle-inclusion.json",
+      "spec": "specs/ink-merkle-inclusion.md",
+      "summary": "RFC 6962 inclusion-proof verification.",
+      "caseCount": 14,
+      "sha256": "b532bf6cd32e4af6cdbf0ed754db45ccd3f046829d6ed31f05ccd96a3321f950"
+    },
+    {
+      "id": "merkle-leaf",
+      "vector": "vectors/merkle-leaf.json",
+      "spec": "specs/ink-merkle-leaf.md",
+      "summary": "Audit-event Merkle leaf-hash computation.",
+      "caseCount": 14,
+      "sha256": "ca9962be54fdcf894d52f58125ae2792502db9ba29803990206e701142f74eaa"
+    },
+    {
+      "id": "principal-normalization",
+      "vector": "vectors/principal-normalization.json",
+      "spec": "specs/ink-authorization-chain.md",
+      "summary": "Agent principal canonicalization (tulpa:/ink:/key: prefixes).",
+      "caseCount": 6,
+      "sha256": "59b20f44b3cd6099413c7c5e15e5a08e62de9f1e4dec97ecbdf485c705bc34eb"
+    },
+    {
+      "id": "replay-freshness",
+      "vector": "vectors/replay-freshness.json",
+      "spec": "specs/ink-timestamp-grammar.md",
+      "summary": "Timestamp window and nonce replay rejection.",
+      "caseCount": 6,
+      "sha256": "441e4494b1f76c62880540921a687866d435850cc4b4ce3effd808a184684961"
+    },
+    {
+      "id": "signature-base",
+      "vector": "vectors/signature-base.json",
+      "spec": "specs/ink-jcs-number-profile.md",
+      "summary": "Ed25519 verification over the canonical signature base.",
+      "caseCount": 8,
+      "sha256": "e38e8a6ac7578321dc83343f7271f19afbebcfb3bd12a798fed2c9c15608ec12"
+    },
+    {
+      "id": "timestamp-validity",
+      "vector": "vectors/timestamp-validity.json",
+      "spec": "specs/ink-timestamp-grammar.md",
+      "summary": "Strict INK timestamp grammar and epoch-millisecond parsing.",
+      "caseCount": 17,
+      "sha256": "164e52d9d7d71e12c07353f38192aa76ca77d2da2d2800fab1e0fb21ee1a9aec"
+    }
+  ]
+}

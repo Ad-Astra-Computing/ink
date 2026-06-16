@@ -20,6 +20,7 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./conformance/*": "./conformance/*",
     "./package.json": "./package.json"
   },
   "sideEffects": false,
@@ -35,6 +36,7 @@
     "specs/",
     "docs/",
     "test-vectors/",
+    "conformance/",
     "LICENSE-MIT",
     "LICENSE-APACHE",
     "README.md",

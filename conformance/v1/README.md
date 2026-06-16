@@ -10,11 +10,18 @@ corpus is mostly negative and adversarial cases.
 
 ## Layout
 
+- `manifest.json` is the machine-readable index of the corpus: one entry per
+  category with its vector file, spec, summary, case count, and the SHA-256 of
+  the vector bytes. A second implementation reads it to enumerate the corpus and
+  to detect drift. It is `{ "format": "ink.conformance.manifest.v1", "corpus":
+  "ink.conformance.v1", "categories": [...] }`.
 - `schema.json` is the JSON Schema for a vector file.
 - `vectors/*.json` are the vector files, one per category. Each file is
   `{ "format": "ink.conformance.v1", "category": "...", "cases": [...] }`.
-- `generate.mjs` regenerates the vectors deterministically (a fixed test seed
-  drives a single Ed25519 key), so re-running produces byte-identical output.
+- `generate.mjs` regenerates the vectors and the manifest deterministically (a
+  fixed test seed drives a single Ed25519 key), so re-running produces
+  byte-identical output. Counts and hashes in the manifest are derived from the
+  same bytes, never hand-maintained.
 
 ## A case
 
