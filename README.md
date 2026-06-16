@@ -4,7 +4,7 @@
 
 An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.4.0` and `0.6.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.4.0` and `0.7.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
 
 `ink/0.2` is the recommended target for new receiver implementations. It is a backward-compatible minor over `ink/0.1`, changing only the body-signature domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. `ink/0.1` remains fully supported: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
@@ -114,6 +114,11 @@ Added in `0.6.0`:
 - A second, independent implementation in Go (`go/`) runs a shared conformance vector corpus (`conformance/v1/`) alongside this TypeScript reference, so the wire behavior is pinned by agreement between implementations rather than by one codebase. The corpus covers principal normalization, the signature base, JCS numbers and strings, key rotation, replay and freshness, the timestamp grammar, and the Merkle inclusion, consistency, checkpoint, and audit-leaf-hash rules.
 - `parseInkTimestampMs`, `isInkTimestamp`, and `MAX_TIMESTAMP_LENGTH` expose the strict RFC 3339 timestamp grammar; `containsLoneSurrogateEscape` and `hasUnpairedSurrogate` detect a lone UTF-16 surrogate in a signed string before it is parsed; and `verifyInclusionProof(leafHash, proof, leafIndex, treeSize, rootHash)` is the low-level RFC 6962 inclusion-proof primitive `verifyInclusionReceipt` builds on.
 - Several validation tightenings reject inputs `0.5.0` accepted: non-strict timestamps, present-but-empty key-window fields, lone UTF-16 surrogates in signed strings, and non-safe-integer signed-body numbers. See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
+Added in `0.7.0`:
+
+- Conformance vectors extend to the discovery and handshake surface: the Agent Card, the connection request and response payloads, the challenge, rejection, and resolution handshake messages, and the composite audit-query-response verifier are pinned by shared vectors both implementations run. `conformance/v1/manifest.json` indexes the corpus and ships in the package as a resolvable subpath.
+- `isInkEndpointUrl(value)` exposes the Agent Card endpoint URL grammar. Agent Card endpoint fields now validate against this narrow `https`-only grammar rather than a broad URL check, so endpoints with another scheme, a fragment, embedded credentials, or a malformed percent escape are rejected. See [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Agent-assisted implementation
 
