@@ -7,6 +7,7 @@
 //
 //   node conformance/v1/generate.mjs   # writes vectors/*.json next to this file
 import { writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import * as ed from "@noble/ed25519";
 import {
@@ -32,9 +33,54 @@ const mb = encodePublicKeyMultibase(publicKey);
 const publicKeyHex = bytesToHex(publicKey);
 const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 
+// Per-category metadata for the manifest: the normative spec each category
+// pins, and a one-line summary. Adding a category requires an entry here, so a
+// new vector file without a manifest description fails generation (and the
+// drift tests) rather than shipping undocumented.
+const CATEGORY_META = {
+  "principal-normalization": { spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
+  "signature-base": { spec: "specs/ink-jcs-number-profile.md", summary: "Ed25519 verification over the canonical signature base." },
+  "jcs-number": { spec: "specs/ink-jcs-number-profile.md", summary: "RFC 8785 JCS canonicalization and the safe-integer number profile." },
+  "key-rotation": { spec: "specs/ink-key-rotation-spec.md", summary: "Key-window verification across active, retired, and revoked keys." },
+  "replay-freshness": { spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
+  "timestamp-validity": { spec: "specs/ink-timestamp-grammar.md", summary: "Strict INK timestamp grammar and epoch-millisecond parsing." },
+  "jcs-string-safety": { spec: "specs/ink-signed-string-safety.md", summary: "Lone UTF-16 surrogate rejection in signed strings." },
+  "merkle-inclusion": { spec: "specs/ink-merkle-inclusion.md", summary: "RFC 6962 inclusion-proof verification." },
+  "merkle-consistency": { spec: "specs/ink-merkle-consistency.md", summary: "RFC 6962 consistency-proof verification." },
+  "merkle-checkpoint": { spec: "specs/ink-merkle-checkpoint.md", summary: "C2SP tlog-checkpoint parsing and canonical formatting." },
+  "merkle-leaf": { spec: "specs/ink-merkle-leaf.md", summary: "Audit-event Merkle leaf-hash computation." },
+  "inclusion-receipt": { spec: "specs/ink-inclusion-receipt.md", summary: "Composite inclusion-receipt verification." },
+  "audit-query-response": { spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
+  "handshake-message": { spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
+  "connection-payload": { spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
+  "agent-card": { spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
+};
+
+// Each vectorFile() call records the bytes it wrote so the manifest can pin a
+// SHA-256 over the exact corpus file, deterministically, from this one run.
+const writtenVectors = [];
+
 function vectorFile(category, cases) {
   const doc = { format: "ink.conformance.v1", category, cases };
-  writeFileSync(`${here}vectors/${category}.json`, JSON.stringify(doc, null, 2) + "\n");
+  const bytes = JSON.stringify(doc, null, 2) + "\n";
+  writeFileSync(`${here}vectors/${category}.json`, bytes);
+  writtenVectors.push({ category, caseCount: cases.length, sha256: createHash("sha256").update(bytes).digest("hex") });
+}
+
+// Emit the machine-readable manifest: the stable index a second implementation
+// reads to enumerate the corpus and detect drift. Counts and hashes are derived
+// from the same bytes just written, never hand-maintained.
+function writeManifest() {
+  const categories = writtenVectors
+    .slice()
+    .sort((a, b) => (a.category < b.category ? -1 : a.category > b.category ? 1 : 0))
+    .map(({ category, caseCount, sha256 }) => {
+      const meta = CATEGORY_META[category];
+      if (!meta) throw new Error(`conformance manifest: no CATEGORY_META entry for ${category}`);
+      return { id: category, vector: `vectors/${category}.json`, spec: meta.spec, summary: meta.summary, caseCount, sha256 };
+    });
+  const manifest = { format: "ink.conformance.manifest.v1", corpus: "ink.conformance.v1", categories };
+  writeFileSync(`${here}manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
 }
 
 // ── principal-normalization ────────────────────────────────────────────────
@@ -1542,4 +1588,6 @@ vectorFile("agent-card", [
   acReject("bad-governance-depth-rejects", "A non-positive maxAcceptedDelegationDepth is rejected.", { ...acCard, governance: { maxAcceptedDelegationDepth: -1 } }),
 ]);
 
-console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);
+writeManifest();
+
+console.log(`Wrote conformance/v1/vectors + manifest for principal (key ${mb.slice(0, 12)}...).`);
