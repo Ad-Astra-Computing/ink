@@ -136,6 +136,7 @@ export type {
 
 // Agent Card schema (the canonical .well-known/ink/agent.json document)
 export { AgentCardSchema } from "./models/agent-card.js";
+export { isInkEndpointUrl } from "./models/endpoint-url.js";
 
 // Envelope validation: full Zod-backed parse of the canonical
 // MessageEnvelope shape. Adopters building receivers need this to
