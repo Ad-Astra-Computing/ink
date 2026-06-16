@@ -19,6 +19,8 @@ import {
   formatCheckpoint,
   computeAuditMerkleLeafHash,
   jcsCanonicalize,
+  signAuditEvent,
+  signAuditQueryResponse,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -1230,6 +1232,121 @@ vectorFile("inclusion-receipt", [
   rcptReject("surrogate-in-event-rejects", "A lone UTF-16 surrogate in the supplied event is rejected before the leaf is hashed, the same signed-string rule the leaf-hash path enforces.", { receipt: validReceipt, ...wpk, event: { id: rcptEvents[rcptIdx].id, note: "\ud800" } }),
   rcptReject("non-integer-leaf-index-rejects", "A fractional leafIndex is not an integer and is rejected; an integer-valued number of any spelling would be accepted.", { receipt: { ...validReceipt, leafIndex: 1.5 }, ...wpk }),
   rcptReject("null-event-rejects", "A present but null event is rejected at the proof step rather than throwing; a verifier must fail closed on a malformed event.", { receipt: validReceipt, ...wpk, event: null }),
+]);
+
+// ── audit-query-response ──────────────────────────────────────────────────
+// End-to-end verification of a witness audit-query response (INK Auditability
+// §7.3): structure, the requester/messageId bindings, the witness envelope
+// Ed25519 signature over "ink/audit-query-response/v1\n" + JCS(response minus
+// serviceSignature), the per-event scope rule, the events-to-proofs one-to-one
+// mapping, every Merkle proof walk, the required per-event agent signature, and
+// an optional later-checkpoint cross-check. Events are signed by an agent key;
+// the response envelope is signed by the witness key. The vectors pin the
+// accept set and every rejection edge. See specs/ink-audit-query-response.md.
+const aqWitnessHex = publicKeyHex;
+const aqAgentSeed = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-v1-agent-a")));
+const aqAgentHex = bytesToHex(await ed.getPublicKeyAsync(aqAgentSeed));
+const aqWrongAgentSeed = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-v1-agent-wrong")));
+const aqRequester = "did:web:agent-a.example";
+const aqCounterparty = "did:web:agent-b.example";
+const aqServiceDid = "did:web:witness.example";
+const aqMessageId = "msg-001";
+const aqTs = "2026-06-15T12:00:00.000Z";
+
+async function aqMakeEvent(i, signer = aqAgentSeed) {
+  const ev = { id: `evt-${i}`, type: "connection_request", messageId: aqMessageId, agentId: aqRequester, counterpartyId: aqCounterparty, seq: i };
+  ev.agentSignature = await signAuditEvent(ev, signer);
+  return ev;
+}
+const aqEvents = await Promise.all([0, 1, 2].map((i) => aqMakeEvent(i)));
+const aqLeaves = await Promise.all(aqEvents.map((e) => computeAuditMerkleLeafHash(e)));
+const aqRoot = await merkleRoot(aqLeaves);
+const aqProofs = await Promise.all(aqEvents.map(async (e, i) => ({ eventId: e.id, leafIndex: i, inclusionProof: await inclusionProof(i, aqLeaves) })));
+const aqBasePayload = {
+  protocol: "ink/0.1",
+  type: "network.tulpa.audit_query_response",
+  serviceDid: aqServiceDid,
+  messageId: aqMessageId,
+  requester: aqRequester,
+  events: aqEvents,
+  proofs: aqProofs,
+  treeSize: 3,
+  rootHash: aqRoot,
+  timestamp: aqTs,
+};
+async function aqRawSign(payload) {
+  const sigBase = `ink/audit-query-response/v1\n` + jcsCanonicalize(payload);
+  const sig = await ed.signAsync(enc.encode(sigBase), seed);
+  return Buffer.from(sig).toString("base64url");
+}
+// Witness-signs the payload (with overrides applied) so the envelope signature
+// is valid over the exact content, isolating the step under test.
+async function aqSigned(overrides = {}) {
+  const payload = { ...aqBasePayload, ...overrides };
+  return { ...payload, serviceSignature: await aqRawSign(payload) };
+}
+const aqValid = await aqSigned();
+const aqEmptyResponse = await aqSigned({ events: [], proofs: [], treeSize: 0, rootHash: CONSISTENCY_EMPTY_ROOT });
+const aqKeys = { [aqRequester]: aqAgentHex };
+// Base input fields shared by most cases.
+const aqBase = { witnessPublicKeyHex: aqWitnessHex, expectedRequester: aqRequester, expectedMessageId: aqMessageId, agentKeysHex: aqKeys };
+function aqAccept(caseId, description, input) {
+  return { caseId, description, input, expect: { result: "accept" } };
+}
+function aqReject(caseId, description, input) {
+  return { caseId, description, input, expect: { result: "reject" } };
+}
+
+// An event whose agentSignature is by the wrong agent key (valid envelope, fails the agent-sig step).
+const aqEventsWrongSig = await Promise.all([0, 1, 2].map((i) => aqMakeEvent(i, aqWrongAgentSeed)));
+// Note the leaves are unchanged (agentSignature is stripped before hashing), so the proofs still walk.
+const aqWrongSigResponse = await aqSigned({ events: aqEventsWrongSig });
+// An out-of-scope event (messageId mismatch), with the leaves/proofs recomputed so only the scope step fails.
+const aqScopeEvent = { id: "evt-x", type: "connection_request", messageId: "other-msg", agentId: aqRequester, counterpartyId: aqCounterparty, seq: 0 };
+aqScopeEvent.agentSignature = await signAuditEvent(aqScopeEvent, aqAgentSeed);
+const aqScopeLeaf = await computeAuditMerkleLeafHash(aqScopeEvent);
+const aqScopeResponse = await aqSigned({ events: [aqScopeEvent], proofs: [{ eventId: "evt-x", leafIndex: 0, inclusionProof: [] }], treeSize: 1, rootHash: aqScopeLeaf });
+// An in-scope-by-messageId event whose parties exclude the requester, so only
+// the requester-party scope branch fails (envelope messageId still matches).
+const aqNonPartyEvent = { id: "evt-np", type: "connection_request", messageId: aqMessageId, agentId: aqCounterparty, counterpartyId: "did:web:agent-c.example", seq: 0 };
+aqNonPartyEvent.agentSignature = await signAuditEvent(aqNonPartyEvent, aqAgentSeed);
+const aqNonPartyLeaf = await computeAuditMerkleLeafHash(aqNonPartyEvent);
+const aqNonPartyResponse = await aqSigned({ events: [aqNonPartyEvent], proofs: [{ eventId: "evt-np", leafIndex: 0, inclusionProof: [] }], treeSize: 1, rootHash: aqNonPartyLeaf });
+
+vectorFile("audit-query-response", [
+  aqAccept("valid-accepts", "A well-formed, witness-signed response with in-scope, agent-signed events and valid Merkle proofs verifies.", { ...aqBase, response: aqValid }),
+  aqAccept("empty-tree-accepts", "A fresh witness response with tree size 0, no events or proofs, and the empty-tree root verifies.", { ...aqBase, response: aqEmptyResponse }),
+  // structure
+  aqReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...aqBase, response: { ...aqValid, protocol: "ink/0.2" } }),
+  aqReject("wrong-type-rejects", "A type other than the audit-query response type is rejected.", { ...aqBase, response: { ...aqValid, type: "network.tulpa.message" } }),
+  aqReject("empty-message-id-rejects", "An empty messageId is rejected.", { ...aqBase, response: { ...aqValid, messageId: "" } }),
+  aqReject("bad-root-hash-rejects", "A rootHash that is not 64 lowercase hex is rejected.", { ...aqBase, response: { ...aqValid, rootHash: "not-a-hash" } }),
+  aqReject("empty-tree-with-events-rejects", "A tree size of 0 with non-empty events is a fabricated state and is rejected.", { ...aqBase, response: { ...aqValid, treeSize: 0 } }),
+  aqReject("proof-leaf-index-out-of-range-rejects", "A proof leafIndex not less than treeSize is rejected.", { ...aqBase, response: { ...aqValid, proofs: [{ eventId: "evt-0", leafIndex: 3, inclusionProof: aqProofs[0].inclusionProof }, aqProofs[1], aqProofs[2]] } }),
+  // binding
+  aqReject("message-id-binding-mismatch-rejects", "A response whose messageId does not match the one the verifier asked about is rejected.", { ...aqBase, response: aqValid, expectedMessageId: "other-msg" }),
+  aqReject("requester-binding-mismatch-rejects", "A response signed for a different requester is rejected (prevents cross-requester replay).", { ...aqBase, response: aqValid, expectedRequester: "did:web:eve.example" }),
+  aqReject("service-did-binding-mismatch-rejects", "A response from an unexpected witness DID is rejected when the verifier pins serviceDid.", { ...aqBase, response: aqValid, expectedServiceDid: "did:web:other-witness.example" }),
+  // signature
+  aqReject("tampered-root-hash-rejects", "Changing rootHash after signing breaks the witness envelope signature.", { ...aqBase, response: { ...aqValid, rootHash: aqLeaves[0] } }),
+  aqReject("wrong-witness-key-rejects", "A valid response checked against a different witness key is rejected.", { ...aqBase, response: aqValid, witnessPublicKeyHex: aqAgentHex }),
+  // scope
+  aqReject("event-message-id-scope-rejects", "An event whose messageId differs from the envelope is out of scope and is rejected.", { ...aqBase, response: aqScopeResponse }),
+  aqReject("requester-not-party-rejects", "An event in scope by messageId but whose agentId and counterpartyId both exclude the requester is rejected at the scope step.", { ...aqBase, response: aqNonPartyResponse }),
+  // proofs one-to-one
+  aqReject("events-proofs-length-mismatch-rejects", "A response with more events than proofs is rejected.", { ...aqBase, response: await aqSigned({ proofs: [aqProofs[0], aqProofs[1]] }) }),
+  aqReject("duplicate-event-id-rejects", "A duplicate event id is rejected.", { ...aqBase, response: await aqSigned({ events: [aqEvents[0], aqEvents[0], aqEvents[2]] }) }),
+  aqReject("duplicate-proof-rejects", "Two proofs for the same eventId are rejected.", { ...aqBase, response: await aqSigned({ proofs: [aqProofs[0], aqProofs[0], aqProofs[2]] }) }),
+  aqReject("proof-unknown-event-id-rejects", "A proof referencing an eventId not present in events is rejected.", { ...aqBase, response: await aqSigned({ proofs: [{ eventId: "evt-9", leafIndex: 0, inclusionProof: aqProofs[0].inclusionProof }, aqProofs[1], aqProofs[2]] }) }),
+  // proof walk
+  aqReject("tampered-proof-rejects", "A proof whose sibling is replaced does not reconstruct rootHash and is rejected.", { ...aqBase, response: await aqSigned({ proofs: [{ eventId: "evt-0", leafIndex: 0, inclusionProof: [aqLeaves[1]] }, aqProofs[1], aqProofs[2]] }) }),
+  // agent signature
+  aqReject("wrong-agent-signature-rejects", "An event whose agentSignature is by a different key fails the required per-event provenance check, even though the witness envelope and Merkle proofs are valid.", { ...aqBase, response: aqWrongSigResponse }),
+  aqReject("unresolvable-agent-key-rejects", "An event whose agentId has no resolvable key fails the per-event provenance check.", { ...aqBase, response: aqValid, agentKeysHex: {} }),
+  // checkpoint cross-check
+  aqAccept("checkpoint-newer-accepts", "A later checkpoint with a larger tree is consistent with the response.", { ...aqBase, response: aqValid, laterCheckpoint: { treeSize: 8, rootHash: aqRoot } }),
+  aqReject("checkpoint-rollback-rejects", "A later checkpoint with a smaller tree means the witness rewound the log and is rejected.", { ...aqBase, response: aqValid, laterCheckpoint: { treeSize: 1, rootHash: aqRoot } }),
+  aqReject("checkpoint-fork-rejects", "A later checkpoint at the same size with a different root is a fork and is rejected.", { ...aqBase, response: aqValid, laterCheckpoint: { treeSize: 3, rootHash: aqLeaves[0] } }),
 ]);
 
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);
