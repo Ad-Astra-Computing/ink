@@ -32,6 +32,10 @@ shared vectors:
 - **Inclusion receipt** (`receipt.go`) — end-to-end verification of a witness
   inclusion receipt: structure, the witness Ed25519 service signature, an
   optional event-bound proof walk, and an optional later-checkpoint cross-check.
+- **Audit-query response** (`auditquery.go`, `auditevent.go`) — end-to-end
+  verification of a witness audit-query response: structure, bindings, the
+  witness envelope signature, per-event scope, events-to-proofs mapping, the
+  Merkle proof walks, and the required per-event agent signature.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is
@@ -115,6 +119,17 @@ signed, so a tampered proof is caught by the walk rather than by the signature.
 The `inclusion-receipt` vectors pin the accept set and every rejection edge
 across the four steps. See
 [`../specs/ink-inclusion-receipt.md`](../specs/ink-inclusion-receipt.md).
+
+Audit-query responses verify identically in both implementations:
+`VerifyInkAuditQueryResponse` checks structure, the requester and messageId
+bindings, the witness envelope Ed25519 signature over
+`"ink/audit-query-response/v1\n"` plus the JCS of the response without its
+signature, the per-event scope rule, the events-to-proofs one-to-one mapping,
+every Merkle proof walk, and a required per-event agent signature
+(`VerifyAuditEventSignature` over `"ink/audit-event\n"` plus the JCS of the event
+without its agentSignature), then an optional later-checkpoint cross-check. The
+`audit-query-response` vectors pin the accept set and every rejection edge. See
+[`../specs/ink-audit-query-response.md`](../specs/ink-audit-query-response.md).
 
 This package targets 64-bit platforms: it uses native `int` for `treeSize`,
 `leafIndex`, and the consistency `first`/`second` sizes, and a `2^53 - 1` integer

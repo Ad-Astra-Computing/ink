@@ -15,6 +15,8 @@ import {
   formatCheckpoint,
   computeAuditMerkleLeafHash,
   verifyInclusionReceipt,
+  verifyAuditQueryResponse,
+  verifyAuditEventSignature,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -126,6 +128,33 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       } catch {
         return { result: "reject" };
       }
+    }
+    case "audit-query-response": {
+      const { response, witnessPublicKeyHex, expectedRequester, expectedMessageId, expectedServiceDid, laterCheckpoint, agentKeysHex } = input as {
+        response: Parameters<typeof verifyAuditQueryResponse>[0]["response"];
+        witnessPublicKeyHex: string;
+        expectedRequester: string;
+        expectedMessageId: string;
+        expectedServiceDid?: string;
+        laterCheckpoint?: { treeSize: number; rootHash: string };
+        agentKeysHex: Record<string, string>;
+      };
+      const r = await verifyAuditQueryResponse({
+        response,
+        witnessPublicKey: hexToBytes(witnessPublicKeyHex),
+        expectedRequester,
+        expectedMessageId,
+        expectedServiceDid,
+        laterCheckpoint,
+        verifyEventSignature: async (event) => {
+          const agentId = (event as { agentId?: unknown }).agentId;
+          if (typeof agentId !== "string") return false;
+          const keyHex = agentKeysHex[agentId];
+          if (typeof keyHex !== "string") return false;
+          return verifyAuditEventSignature(event, hexToBytes(keyHex));
+        },
+      });
+      return { result: r.valid ? "accept" : "reject" };
     }
     case "inclusion-receipt": {
       const { receipt, witnessPublicKeyHex, event, eventHash, laterCheckpoint } = input as {

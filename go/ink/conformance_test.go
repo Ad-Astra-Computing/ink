@@ -229,6 +229,75 @@ func TestMerkleLeaf(t *testing.T) {
 	}
 }
 
+func TestAuditQueryResponse(t *testing.T) {
+	vf := loadVectors(t, "audit-query-response")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+
+		var pubHex, expReq, expMsg string
+		if err := json.Unmarshal(c.Input["witnessPublicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad witnessPublicKeyHex: %v", c.CaseID, err)
+		}
+		_ = json.Unmarshal(c.Input["expectedRequester"], &expReq)
+		_ = json.Unmarshal(c.Input["expectedMessageId"], &expMsg)
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: witnessPublicKeyHex not hex: %v", c.CaseID, err)
+		}
+
+		opts := AuditQueryVerifyOptions{ExpectedRequester: expReq, ExpectedMessageID: expMsg}
+		if raw, ok := c.Input["expectedServiceDid"]; ok {
+			_ = json.Unmarshal(raw, &opts.ExpectedServiceDid)
+		}
+		agentKeys := map[string]string{}
+		if raw, ok := c.Input["agentKeysHex"]; ok {
+			_ = json.Unmarshal(raw, &agentKeys)
+		}
+		opts.VerifyEventSignature = func(event map[string]interface{}) bool {
+			agentID, _ := event["agentId"].(string)
+			keyHex, ok := agentKeys[agentID]
+			if !ok {
+				return false
+			}
+			key, err := hex.DecodeString(keyHex)
+			if err != nil {
+				return false
+			}
+			return VerifyAuditEventSignature(event, key)
+		}
+		if raw, ok := c.Input["laterCheckpoint"]; ok {
+			cp, cpOK := ParseCheckpointRef(raw)
+			if !cpOK {
+				if want {
+					t.Errorf("%s: laterCheckpoint malformed but vector expects accept", c.CaseID)
+				}
+				continue
+			}
+			opts.LaterCheckpoint = &cp
+		}
+
+		// The response is the witness signed body; parse it surrogate-safe.
+		body, err := ParseSignedBody(c.Input["response"])
+		if err != nil {
+			if want {
+				t.Errorf("%s: response failed to parse but vector expects accept: %v", c.CaseID, err)
+			}
+			continue
+		}
+		resp, isObj := body.(map[string]interface{})
+		if !isObj {
+			if want {
+				t.Errorf("%s: response is not an object but vector expects accept", c.CaseID)
+			}
+			continue
+		}
+
+		if got := VerifyInkAuditQueryResponse(resp, pub, opts); got != want {
+			t.Errorf("%s: VerifyInkAuditQueryResponse = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
 func TestInclusionReceipt(t *testing.T) {
 	vf := loadVectors(t, "inclusion-receipt")
 	for _, c := range vf.Cases {

@@ -1,0 +1,1885 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "audit-query-response",
+  "cases": [
+    {
+      "caseId": "valid-accepts",
+      "description": "A well-formed, witness-signed response with in-scope, agent-signed events and valid Merkle proofs verifies.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "empty-tree-accepts",
+      "description": "A fresh witness response with tree size 0, no events or proofs, and the empty-tree root verifies.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [],
+          "proofs": [],
+          "treeSize": 0,
+          "rootHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "oXz7zSKagA5T02bd9BW0JTNvI_2dZS1N0Nxor7I8PSauoDYXnZ5xOH7wR_8XPyAFuaCpRI471RIjvNguZ3HBCQ"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "wrong-protocol-rejects",
+      "description": "A protocol other than ink/0.1 is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.2",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-type-rejects",
+      "description": "A type other than the audit-query response type is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.message",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-message-id-rejects",
+      "description": "An empty messageId is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-root-hash-rejects",
+      "description": "A rootHash that is not 64 lowercase hex is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "not-a-hash",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-tree-with-events-rejects",
+      "description": "A tree size of 0 with non-empty events is a fabricated state and is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 0,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-leaf-index-out-of-range-rejects",
+      "description": "A proof leafIndex not less than treeSize is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 3,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "message-id-binding-mismatch-rejects",
+      "description": "A response whose messageId does not match the one the verifier asked about is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "other-msg",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "requester-binding-mismatch-rejects",
+      "description": "A response signed for a different requester is rejected (prevents cross-requester replay).",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:eve.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "service-did-binding-mismatch-rejects",
+      "description": "A response from an unexpected witness DID is rejected when the verifier pins serviceDid.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        },
+        "expectedServiceDid": "did:web:other-witness.example"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-root-hash-rejects",
+      "description": "Changing rootHash after signing breaks the witness envelope signature.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-witness-key-rejects",
+      "description": "A valid response checked against a different witness key is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "event-message-id-scope-rejects",
+      "description": "An event whose messageId differs from the envelope is out of scope and is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-x",
+              "type": "connection_request",
+              "messageId": "other-msg",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "YlgcIz7fLd9htWPx1TfEvsrZNEr8XXJYEQ6HfJB4M59WOgUiYNgGE_rpGUkLDSYYbwE5P7v9AE2Z6lyGiMWJAQ"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-x",
+              "leafIndex": 0,
+              "inclusionProof": []
+            }
+          ],
+          "treeSize": 1,
+          "rootHash": "02b72e68b725e4e70ad459b921ecb2ff70ba6540a50deea5cc58ba582699c44b",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "wuRfLyhfH0i5RxPSYVxLjg5ikb4UcOevUw1W-f-qoOBAIr0R9SqJHLQbnjwvSyAp_1-7br7vVnEWWi6oNaprBg"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "requester-not-party-rejects",
+      "description": "An event in scope by messageId but whose agentId and counterpartyId both exclude the requester is rejected at the scope step.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-np",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-b.example",
+              "counterpartyId": "did:web:agent-c.example",
+              "seq": 0,
+              "agentSignature": "9xl-t6BZM8gUzk9Cs9doIE_z9xbtgREF-BuHPGib8AutjWG7GltNXD9pJfDeo_eDaMFGJamqpXxAdXgjNLyLCg"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-np",
+              "leafIndex": 0,
+              "inclusionProof": []
+            }
+          ],
+          "treeSize": 1,
+          "rootHash": "8a1fb3ebd01e18fc2bc1b3585369db5af9a7a7cbb4b4c702e5727deb1335c97c",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "KDUDeuH8c-eAOz8lTVAsR9vI0Ju5wXU4mHPnLb2QCLKeBkvMQ8TRSmSXfF1L2PGAvOajattY3TbUHoQiSJz9BA"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "events-proofs-length-mismatch-rejects",
+      "description": "A response with more events than proofs is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "yJvC6yYuOI-Oj3Xh798wQEJoGBsRoLv9m0ZFSsaesTA5wSgUTOFbrD-1TdHqvUFR5cA0zAUuMH0XfuCSjC5aCg"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "duplicate-event-id-rejects",
+      "description": "A duplicate event id is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "KhxbOXJ7z_2d-UoOU74C7ET0Hnw0Bt0bhSwwYKLRKCPjp7HVMu56KGMNXvx-RF8xhwMp9pIYE9TFF5CR3lQOCw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "duplicate-proof-rejects",
+      "description": "Two proofs for the same eventId are rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "n-wWPsu64gj6xqfuFRj_lJV6taLLNlgEQh_WuhYG2BxifZUBQN21PlqCfMB5cvxYKj_8meY2rdnToL04SlyIDw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "proof-unknown-event-id-rejects",
+      "description": "A proof referencing an eventId not present in events is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-9",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "v2qRHTaIHPTK7uMleMZPhDBRMmahadLHRZB-cSPGsLeFu3NOetD-8t2fGAMEqjEPDhc3dkGSkPzoaCfHeKeVBg"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-proof-rejects",
+      "description": "A proof whose sibling is replaced does not reconstruct rootHash and is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "1C-I63kP-E3re7o_gLygBqziWNTlqHBxjy36B3lp-iDDSBjcw-zeDubQaOXsqOViKHmKpQLzmBrd_d-mhxH6CA"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-agent-signature-rejects",
+      "description": "An event whose agentSignature is by a different key fails the required per-event provenance check, even though the witness envelope and Merkle proofs are valid.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "YwXZTfy14Yer_-4G3y9t7_gc-1aH4BWPE8Lbp6ubXZP81RXMJeAHKN5LKhYoBslXohiK9GPtsy3hK5Ytj2ZyBQ"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "9FrJxbpm3khEGDWI2ykvFhIi7hdcqlUUJYRJ4h36NlDxkCwNWPvZ0Zv2QahW7YezlbZ5PX7D1OGmqvgEojOuCg"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "T-jj11251l5ioJMwk1kCDW9zlIntQlZziAziulO08s_DCBDyrwhgoZbTv_O8GftDcqXYXLce9vSXMQYXx9i6DA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "YXOw5Vq-gE8uyY-XTSMn8fBD8qXOuFhV_fuAchN-gYbXDwddjbCrdsNLcIWygzw3M1OiWsdFBREh1sqYJ-ZTBA"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "unresolvable-agent-key-rejects",
+      "description": "An event whose agentId has no resolvable key fails the per-event provenance check.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {},
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "checkpoint-newer-accepts",
+      "description": "A later checkpoint with a larger tree is consistent with the response.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        },
+        "laterCheckpoint": {
+          "treeSize": 8,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "checkpoint-rollback-rejects",
+      "description": "A later checkpoint with a smaller tree means the witness rewound the log and is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        },
+        "laterCheckpoint": {
+          "treeSize": 1,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "checkpoint-fork-rejects",
+      "description": "A later checkpoint at the same size with a different root is a fork and is rejected.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        },
+        "laterCheckpoint": {
+          "treeSize": 3,
+          "rootHash": "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

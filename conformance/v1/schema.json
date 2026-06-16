@@ -21,7 +21,8 @@
         "merkle-consistency",
         "merkle-checkpoint",
         "merkle-leaf",
-        "inclusion-receipt"
+        "inclusion-receipt",
+        "audit-query-response"
       ]
     },
     "cases": {

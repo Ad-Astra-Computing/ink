@@ -109,6 +109,15 @@ additive field then.
   rolled-back or forked checkpoint all reject, so a verifier that skips or
   mis-orders a step diverges. See
   [`../../specs/ink-inclusion-receipt.md`](../../specs/ink-inclusion-receipt.md).
+- **audit-query-response** — end-to-end verification of a witness audit-query
+  response: structure, the requester and messageId bindings, the witness envelope
+  Ed25519 signature, the per-event scope rule, the events-to-proofs one-to-one
+  mapping, every Merkle proof walk, the required per-event agent signature, and an
+  optional later-checkpoint cross-check. A valid and empty-tree response accept;
+  the structural edges, binding mismatches, a signature tamper or wrong key, scope
+  violations, mapping violations, a tampered proof, a wrong-key or unresolvable
+  agent signature, and a rolled-back or forked checkpoint all reject. See
+  [`../../specs/ink-audit-query-response.md`](../../specs/ink-audit-query-response.md).
 
 ## String length and ordering
 
