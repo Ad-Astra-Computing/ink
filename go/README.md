@@ -42,6 +42,10 @@ shared vectors:
 - **Connection payloads** (`connection.go`) — strict schema validation for the
   connection_request and connection_response payloads and their embedded profile
   snapshot and availability config, rejecting unknown keys at every level.
+- **Agent Card** (`agentcard.go`) — schema validation for the
+  `.well-known/ink/agent.json` discovery document: the pinned endpoint URL
+  grammar, nested capabilities/keys/governance, enums, and the
+  inboxEndpoint-equals-endpoint invariant.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is

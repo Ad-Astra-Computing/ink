@@ -1451,4 +1451,91 @@ vectorFile("connection-payload", [
   connReject("non-array-skills-rejects", "A non-array skills value is rejected.", "connection_request", { ...cpRequest, profileSnapshot: { ...cpProfile, skills: "go" } }),
 ]);
 
+// ── agent-card ────────────────────────────────────────────────────────────
+// Schema validation for the canonical .well-known/ink/agent.json document
+// (AgentCardSchema). Pins the protocol literal, field caps, enum fields, the
+// embedded profile snapshot / key entries / capabilities / governance, the
+// pinned INK endpoint URL grammar (https, no userinfo/fragment), and the
+// superRefine invariant that inboxEndpoint must equal endpoint when both are
+// present. See specs/ink-agent-card.md.
+const acTs = "2026-06-16T00:00:00.000Z";
+const acKey = { keyId: "k1", algorithm: "Ed25519", publicKeyMultibase: mb, status: "active", validFrom: acTs };
+const acCard = {
+  protocol: "ink/0.1",
+  agentId: "did:web:a.example",
+  handle: "alice",
+  displayName: "Alice",
+  endpoint: "https://a.example/ink/inbox",
+  publicKeyMultibase: mb,
+  capabilities: { intentsAccepted: ["ask", "ping"], intentsSent: ["ask"] },
+  availability: { timezone: "America/Los_Angeles" },
+};
+const acFullCard = {
+  ...acCard,
+  inboxEndpoint: "https://a.example/ink/inbox",
+  ownerDid: "did:web:owner.example",
+  profileSnapshot: { headline: "Engineer", skills: ["go"], interests: ["ai"], openTo: ["roles"] },
+  capabilities: {
+    intentsAccepted: ["ask", "ping", "connection_request"],
+    intentsSent: ["ask"],
+    receipts: { send: true, dispositions: ["received", "acted"] },
+    auditExchange: true,
+    thirdPartyAudit: { services: [{ endpoint: "https://audit.example/submit", did: "did:web:audit.example", publicKey: "zAudit" }], submitPolicy: "high_value" },
+  },
+  keys: { signing: [acKey], encryption: [{ ...acKey, keyId: "k2", algorithm: "X25519" }] },
+  currentSigningKeyId: "k1",
+  keySetVersion: 3,
+  supportedProtocolVersions: ["ink/0.1", "ink/0.2"],
+  visibility: "public",
+  governance: { maxAcceptedDelegationDepth: 2, supportedTransports: ["ink_http"], handshakeBudget: { maxIntentsPerMinute: 30 } },
+};
+function acAccept(caseId, description, card) {
+  return { caseId, description, input: { card }, expect: { result: "accept" } };
+}
+function acReject(caseId, description, card) {
+  return { caseId, description, input: { card }, expect: { result: "reject" } };
+}
+
+vectorFile("agent-card", [
+  acAccept("minimal-card-accepts", "A card with only the required fields validates.", acCard),
+  acAccept("full-card-accepts", "A card exercising the optional fields (profile, keys, capabilities, governance, matching inboxEndpoint) validates.", acFullCard),
+  // protocol / required fields
+  acReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...acCard, protocol: "ink/0.2" }),
+  acReject("missing-agent-id-rejects", "A card without agentId is rejected.", (() => { const { agentId: _a, ...rest } = acCard; return rest; })()),
+  acReject("missing-handle-rejects", "A card without a handle is rejected.", (() => { const { handle: _h, ...rest } = acCard; return rest; })()),
+  acReject("missing-capabilities-rejects", "A card without capabilities is rejected.", (() => { const { capabilities: _c, ...rest } = acCard; return rest; })()),
+  acReject("missing-availability-rejects", "A card without availability is rejected.", (() => { const { availability: _a, ...rest } = acCard; return rest; })()),
+  // endpoint URL grammar (former z.url()-accepted values now reject)
+  acReject("endpoint-javascript-rejects", "A javascript: endpoint is rejected by the pinned URL grammar.", { ...acCard, endpoint: "javascript:alert(1)" }),
+  acReject("endpoint-mailto-rejects", "A mailto: endpoint is rejected.", { ...acCard, endpoint: "mailto:a@example.com" }),
+  acReject("endpoint-ftp-rejects", "An ftp: endpoint is rejected.", { ...acCard, endpoint: "ftp://a.example" }),
+  acReject("endpoint-http-rejects", "An http (non-https) endpoint is rejected.", { ...acCard, endpoint: "http://a.example" }),
+  acReject("endpoint-trailing-newline-rejects", "An endpoint with a trailing newline is rejected.", { ...acCard, endpoint: "https://a.example\n" }),
+  acReject("endpoint-userinfo-rejects", "An endpoint with userinfo is rejected.", { ...acCard, endpoint: "https://user@a.example" }),
+  acReject("endpoint-fragment-rejects", "An endpoint with a fragment is rejected.", { ...acCard, endpoint: "https://a.example/x#f" }),
+  acReject("endpoint-no-host-rejects", "An endpoint with no host is rejected.", { ...acCard, endpoint: "https://" }),
+  acReject("endpoint-scheme-relative-rejects", "A scheme-relative endpoint is rejected.", { ...acCard, endpoint: "//a.example" }),
+  acReject("endpoint-no-scheme-rejects", "An endpoint with no scheme is rejected.", { ...acCard, endpoint: "a.example" }),
+  acReject("endpoint-bad-port-rejects", "An endpoint with an out-of-range port is rejected.", { ...acCard, endpoint: "https://a.example:99999/x" }),
+  // superRefine
+  acReject("inbox-endpoint-mismatch-rejects", "An inboxEndpoint that differs from endpoint is rejected.", { ...acCard, inboxEndpoint: "https://b.example/ink/inbox" }),
+  // publicKeyMultibase
+  acReject("public-key-no-z-prefix-rejects", "A publicKeyMultibase not starting with z is rejected.", { ...acCard, publicKeyMultibase: "Qm123" }),
+  acReject("public-key-over-cap-rejects", "A publicKeyMultibase past 128 characters is rejected.", { ...acCard, publicKeyMultibase: "z" + "a".repeat(128) }),
+  // capabilities
+  acReject("bad-intent-enum-rejects", "An unknown intent type in capabilities is rejected.", { ...acCard, capabilities: { intentsAccepted: ["teleport"], intentsSent: [] } }),
+  acReject("too-many-intents-rejects", "An intentsAccepted array past 32 entries is rejected.", { ...acCard, capabilities: { intentsAccepted: Array(33).fill("ask"), intentsSent: [] } }),
+  acReject("bad-third-party-audit-endpoint-rejects", "A third-party audit service with a non-https endpoint is rejected.", { ...acCard, capabilities: { ...acCard.capabilities, thirdPartyAudit: { services: [{ endpoint: "http://audit.example", did: "did:web:audit.example", publicKey: "zX" }], submitPolicy: "all" } } }),
+  // availability
+  acReject("missing-timezone-rejects", "An availability without a timezone is rejected.", { ...acCard, availability: { meetingHours: "9-5" } }),
+  // keys
+  acReject("key-bad-timestamp-rejects", "A key entry with a non-strict validFrom timestamp is rejected.", { ...acCard, keys: { signing: [{ ...acKey, validFrom: "2026-06-16" }], encryption: [] } }),
+  acReject("key-bad-algorithm-rejects", "A key entry with an unknown algorithm is rejected.", { ...acCard, keys: { signing: [{ ...acKey, algorithm: "RSA" }], encryption: [] } }),
+  acReject("key-missing-id-rejects", "A key entry with an empty keyId is rejected.", { ...acCard, keys: { signing: [{ ...acKey, keyId: "" }], encryption: [] } }),
+  // numbers / enums
+  acReject("bad-key-set-version-rejects", "A non-positive keySetVersion is rejected.", { ...acCard, keySetVersion: 0 }),
+  acReject("bad-visibility-rejects", "An unknown visibility is rejected.", { ...acCard, visibility: "secret" }),
+  acReject("bad-governance-depth-rejects", "A non-positive maxAcceptedDelegationDepth is rejected.", { ...acCard, governance: { maxAcceptedDelegationDepth: -1 } }),
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

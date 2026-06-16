@@ -133,6 +133,16 @@ additive field then.
   missing required field, an oversized string or array, and a type-confused field
   all reject. See
   [`../../specs/ink-connection-payload.md`](../../specs/ink-connection-payload.md).
+- **agent-card** — schema validation for the `.well-known/ink/agent.json`
+  discovery document, including a pinned endpoint URL grammar (https, no
+  userinfo, no fragment, no control/whitespace) used for all endpoint fields, the
+  nested capabilities, key entries, and governance, and the invariant that
+  inboxEndpoint equals endpoint when both are present. A minimal and a full card
+  accept; a wrong protocol, a missing required field, a non-grammar endpoint
+  (javascript:/mailto:/ftp:/http:/userinfo/fragment/no-host/bad-port), an
+  inboxEndpoint mismatch, a bad publicKeyMultibase, an unknown or over-cap enum,
+  and a malformed key entry all reject. See
+  [`../../specs/ink-agent-card.md`](../../specs/ink-agent-card.md).
 
 ## String length and ordering
 

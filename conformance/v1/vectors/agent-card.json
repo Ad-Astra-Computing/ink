@@ -1,0 +1,1038 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "agent-card",
+  "cases": [
+    {
+      "caseId": "minimal-card-accepts",
+      "description": "A card with only the required fields validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "full-card-accepts",
+      "description": "A card exercising the optional fields (profile, keys, capabilities, governance, matching inboxEndpoint) validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping",
+              "connection_request"
+            ],
+            "intentsSent": [
+              "ask"
+            ],
+            "receipts": {
+              "send": true,
+              "dispositions": [
+                "received",
+                "acted"
+              ]
+            },
+            "auditExchange": true,
+            "thirdPartyAudit": {
+              "services": [
+                {
+                  "endpoint": "https://audit.example/submit",
+                  "did": "did:web:audit.example",
+                  "publicKey": "zAudit"
+                }
+              ],
+              "submitPolicy": "high_value"
+            }
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "inboxEndpoint": "https://a.example/ink/inbox",
+          "ownerDid": "did:web:owner.example",
+          "profileSnapshot": {
+            "headline": "Engineer",
+            "skills": [
+              "go"
+            ],
+            "interests": [
+              "ai"
+            ],
+            "openTo": [
+              "roles"
+            ]
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": [
+              {
+                "keyId": "k2",
+                "algorithm": "X25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ]
+          },
+          "currentSigningKeyId": "k1",
+          "keySetVersion": 3,
+          "supportedProtocolVersions": [
+            "ink/0.1",
+            "ink/0.2"
+          ],
+          "visibility": "public",
+          "governance": {
+            "maxAcceptedDelegationDepth": 2,
+            "supportedTransports": [
+              "ink_http"
+            ],
+            "handshakeBudget": {
+              "maxIntentsPerMinute": 30
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "wrong-protocol-rejects",
+      "description": "A protocol other than ink/0.1 is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.2",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-agent-id-rejects",
+      "description": "A card without agentId is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-handle-rejects",
+      "description": "A card without a handle is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-capabilities-rejects",
+      "description": "A card without capabilities is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-availability-rejects",
+      "description": "A card without availability is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-javascript-rejects",
+      "description": "A javascript: endpoint is rejected by the pinned URL grammar.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "javascript:alert(1)",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-mailto-rejects",
+      "description": "A mailto: endpoint is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "mailto:a@example.com",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-ftp-rejects",
+      "description": "An ftp: endpoint is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "ftp://a.example",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-http-rejects",
+      "description": "An http (non-https) endpoint is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "http://a.example",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-trailing-newline-rejects",
+      "description": "An endpoint with a trailing newline is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example\n",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-userinfo-rejects",
+      "description": "An endpoint with userinfo is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://user@a.example",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-fragment-rejects",
+      "description": "An endpoint with a fragment is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/x#f",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-no-host-rejects",
+      "description": "An endpoint with no host is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-scheme-relative-rejects",
+      "description": "A scheme-relative endpoint is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "//a.example",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-no-scheme-rejects",
+      "description": "An endpoint with no scheme is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "a.example",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-bad-port-rejects",
+      "description": "An endpoint with an out-of-range port is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example:99999/x",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "inbox-endpoint-mismatch-rejects",
+      "description": "An inboxEndpoint that differs from endpoint is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "inboxEndpoint": "https://b.example/ink/inbox"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "public-key-no-z-prefix-rejects",
+      "description": "A publicKeyMultibase not starting with z is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "Qm123",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "public-key-over-cap-rejects",
+      "description": "A publicKeyMultibase past 128 characters is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "zaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-intent-enum-rejects",
+      "description": "An unknown intent type in capabilities is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "teleport"
+            ],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "too-many-intents-rejects",
+      "description": "An intentsAccepted array past 32 entries is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask",
+              "ask"
+            ],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-third-party-audit-endpoint-rejects",
+      "description": "A third-party audit service with a non-https endpoint is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ],
+            "thirdPartyAudit": {
+              "services": [
+                {
+                  "endpoint": "http://audit.example",
+                  "did": "did:web:audit.example",
+                  "publicKey": "zX"
+                }
+              ],
+              "submitPolicy": "all"
+            }
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-timezone-rejects",
+      "description": "An availability without a timezone is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "meetingHours": "9-5"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-bad-timestamp-rejects",
+      "description": "A key entry with a non-strict validFrom timestamp is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16"
+              }
+            ],
+            "encryption": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-bad-algorithm-rejects",
+      "description": "A key entry with an unknown algorithm is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "RSA",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-missing-id-rejects",
+      "description": "A key entry with an empty keyId is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-key-set-version-rejects",
+      "description": "A non-positive keySetVersion is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keySetVersion": 0
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-visibility-rejects",
+      "description": "An unknown visibility is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "secret"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-governance-depth-rejects",
+      "description": "A non-positive maxAcceptedDelegationDepth is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "governance": {
+            "maxAcceptedDelegationDepth": -1
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

@@ -24,7 +24,8 @@
         "inclusion-receipt",
         "audit-query-response",
         "handshake-message",
-        "connection-payload"
+        "connection-payload",
+        "agent-card"
       ]
     },
     "cases": {
