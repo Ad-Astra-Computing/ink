@@ -2,15 +2,42 @@ package ink
 
 import (
 	"math"
-	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 )
 
-// isInkEndpointUrl mirrors the reference predicate in src/models/endpoint-url.ts:
-// a non-empty string of at most 2048 UTF-8 bytes, no ASCII control or whitespace,
-// scheme https (lowercase), a non-empty host, no userinfo, an optional 1..65535
-// port, optional path and query, and no fragment.
+var (
+	endpointRegNameRe = regexp.MustCompile(`^[A-Za-z0-9.-]+$`)
+	endpointIPv6Re    = regexp.MustCompile(`^[0-9A-Fa-f:.]+$`)
+	endpointDigitsRe  = regexp.MustCompile(`^[0-9]+$`)
+)
+
+func isHexByte(b byte) bool {
+	return (b >= '0' && b <= '9') || (b >= 'a' && b <= 'f') || (b >= 'A' && b <= 'F')
+}
+
+// validPercentEscapes requires every '%' to be followed by two hex digits.
+func validPercentEscapes(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] == '%' {
+			if i+2 >= len(s) || !isHexByte(s[i+1]) || !isHexByte(s[i+2]) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// isInkEndpointUrl mirrors the reference predicate in src/models/endpoint-url.ts.
+// The grammar is validated by explicit string rules, NOT a runtime URL parser
+// (new URL / net/url disagree on backslashes, percent escapes, percent-encoded
+// hosts, and IPv6 zone ids), so both implementations run identical logic: a
+// non-empty string of at most 2048 UTF-8 bytes, no ASCII control or whitespace,
+// no backslash, well-formed percent escapes, scheme https (lowercase), a host
+// (reg-name/IPv4 of [A-Za-z0-9.-] or a bracketed IPv6 of [0-9A-Fa-f:.]), no
+// userinfo or percent-encoding in the authority, an optional 1..65535 port, an
+// optional path and query, and no fragment.
 func isInkEndpointUrl(value string) bool {
 	if value == "" || len(value) > 2048 {
 		return false
@@ -20,48 +47,54 @@ func isInkEndpointUrl(value string) bool {
 			return false
 		}
 	}
-	if !strings.HasPrefix(value, "https://") {
+	if strings.Contains(value, "\\") || !validPercentEscapes(value) {
 		return false
 	}
-	if strings.Contains(value, "#") {
+	if !strings.HasPrefix(value, "https://") || strings.Contains(value, "#") {
 		return false
 	}
 	authority := value[len("https://"):]
 	if i := strings.IndexAny(authority, "/?"); i != -1 {
 		authority = authority[:i]
 	}
-	if authority == "" || strings.Contains(authority, "@") {
+	if authority == "" || strings.Contains(authority, "@") || strings.Contains(authority, "%") {
 		return false
 	}
-	hostPort := authority
+	var host, port string
+	hasPort := false
 	if strings.HasPrefix(authority, "[") {
-		if j := strings.Index(authority, "]"); j != -1 {
-			hostPort = authority[j+1:]
+		end := strings.Index(authority, "]")
+		if end == -1 {
+			return false
 		}
-	}
-	if c := strings.Index(hostPort, ":"); c != -1 {
-		port := hostPort[c+1:]
-		n, err := strconv.Atoi(port)
-		if err != nil || !isAllDigits(port) || n < 1 || n > 65535 {
+		host = authority[1:end]
+		after := authority[end+1:]
+		if after != "" {
+			if !strings.HasPrefix(after, ":") {
+				return false
+			}
+			port, hasPort = after[1:], true
+		}
+		if host == "" || !endpointIPv6Re.MatchString(host) {
+			return false
+		}
+	} else {
+		colon := strings.Index(authority, ":")
+		if colon == -1 {
+			host = authority
+		} else {
+			host, port, hasPort = authority[:colon], authority[colon+1:], true
+		}
+		if host == "" || !endpointRegNameRe.MatchString(host) {
 			return false
 		}
 	}
-	u, err := url.Parse(value)
-	if err != nil {
-		return false
-	}
-	if u.Scheme != "https" || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
-		return false
-	}
-	return true
-}
-
-func isAllDigits(s string) bool {
-	if s == "" {
-		return false
-	}
-	for _, r := range s {
-		if r < '0' || r > '9' {
+	if hasPort {
+		if !endpointDigitsRe.MatchString(port) {
+			return false
+		}
+		n, err := strconv.Atoi(port)
+		if err != nil || n < 1 || n > 65535 {
 			return false
 		}
 	}

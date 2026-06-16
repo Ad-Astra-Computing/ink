@@ -580,6 +580,122 @@
       }
     },
     {
+      "caseId": "endpoint-backslash-rejects",
+      "description": "A backslash in the endpoint is rejected; a permissive parser would normalize it to a slash, diverging across implementations.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example\\inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-malformed-percent-rejects",
+      "description": "An endpoint with a malformed percent escape is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/%zz",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-percent-host-rejects",
+      "description": "An endpoint with a percent-encoded host is rejected; a permissive parser would decode it.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://%41.com/",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "endpoint-ipv6-zone-rejects",
+      "description": "An endpoint with an IPv6 zone id is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://[fe80::1%25eth0]/",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
       "caseId": "inbox-endpoint-mismatch-rejects",
       "description": "An inboxEndpoint that differs from endpoint is rejected.",
       "input": {

@@ -1517,6 +1517,10 @@ vectorFile("agent-card", [
   acReject("endpoint-scheme-relative-rejects", "A scheme-relative endpoint is rejected.", { ...acCard, endpoint: "//a.example" }),
   acReject("endpoint-no-scheme-rejects", "An endpoint with no scheme is rejected.", { ...acCard, endpoint: "a.example" }),
   acReject("endpoint-bad-port-rejects", "An endpoint with an out-of-range port is rejected.", { ...acCard, endpoint: "https://a.example:99999/x" }),
+  acReject("endpoint-backslash-rejects", "A backslash in the endpoint is rejected; a permissive parser would normalize it to a slash, diverging across implementations.", { ...acCard, endpoint: "https://a.example\\inbox" }),
+  acReject("endpoint-malformed-percent-rejects", "An endpoint with a malformed percent escape is rejected.", { ...acCard, endpoint: "https://a.example/%zz" }),
+  acReject("endpoint-percent-host-rejects", "An endpoint with a percent-encoded host is rejected; a permissive parser would decode it.", { ...acCard, endpoint: "https://%41.com/" }),
+  acReject("endpoint-ipv6-zone-rejects", "An endpoint with an IPv6 zone id is rejected.", { ...acCard, endpoint: "https://[fe80::1%25eth0]/" }),
   // superRefine
   acReject("inbox-endpoint-mismatch-rejects", "An inboxEndpoint that differs from endpoint is rejected.", { ...acCard, inboxEndpoint: "https://b.example/ink/inbox" }),
   // publicKeyMultibase
