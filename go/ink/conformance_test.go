@@ -229,6 +229,23 @@ func TestMerkleLeaf(t *testing.T) {
 	}
 }
 
+func TestAgentCard(t *testing.T) {
+	vf := loadVectors(t, "agent-card")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+		var card map[string]interface{}
+		if err := json.Unmarshal(c.Input["card"], &card); err != nil {
+			if want {
+				t.Errorf("%s: card is not an object but vector expects accept", c.CaseID)
+			}
+			continue
+		}
+		if got := ValidateAgentCard(card); got != want {
+			t.Errorf("%s: ValidateAgentCard = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
 func TestConnectionPayload(t *testing.T) {
 	vf := loadVectors(t, "connection-payload")
 	for _, c := range vf.Cases {

@@ -4,9 +4,15 @@ import { InkReceiptDispositionSchema } from "./ink-audit.js";
 import { ProfileSnapshotSchema } from "./profile.js";
 import { KeyEntrySchema } from "./key-entry.js";
 import { InkTransportSchema, AgentCardVisibilitySchema } from "./ink-handshake.js";
+import { isInkEndpointUrl } from "./endpoint-url.js";
+
+// Endpoint fields use the pinned INK endpoint grammar (https, no userinfo, no
+// fragment, <=2048 UTF-8 bytes, no control/whitespace) rather than the broad
+// z.string().url(); see endpoint-url.ts.
+const endpointUrl = z.string().refine(isInkEndpointUrl, { message: "Invalid INK endpoint URL" });
 
 export const ThirdPartyAuditServiceSchema = z.object({
-  endpoint: z.string().max(2048).url(),
+  endpoint: endpointUrl,
   did: z.string().max(512),
   publicKey: z.string().max(256),
 });
@@ -29,8 +35,8 @@ export const AgentCardSchema = z.object({
    * MAY emit `inboxEndpoint` alongside it. The runtime helper
    * `resolveAgentInbox(card)` returns whichever value is present.
    */
-  endpoint: z.string().max(2048).url(),
-  inboxEndpoint: z.string().max(2048).url().optional(),
+  endpoint: endpointUrl,
+  inboxEndpoint: endpointUrl.optional(),
   publicKeyMultibase: z.string().startsWith("z").max(128),
   // (other fields below; the `inboxEndpoint === endpoint` invariant
   // is enforced by the .superRefine() at the bottom of this schema.)

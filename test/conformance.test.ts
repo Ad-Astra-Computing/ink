@@ -22,6 +22,7 @@ import {
   InkResolutionSchema,
   ConnectionRequestPayloadSchema,
   ConnectionResponsePayloadSchema,
+  AgentCardSchema,
   hexToBytes,
 } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -151,6 +152,9 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         kind === "connection_response" ? ConnectionResponsePayloadSchema : null;
       if (schema === null) return { result: "reject" };
       return { result: schema.safeParse(payload).success ? "accept" : "reject" };
+    }
+    case "agent-card": {
+      return { result: AgentCardSchema.safeParse(input.card).success ? "accept" : "reject" };
     }
     case "audit-query-response": {
       const { response, witnessPublicKeyHex, expectedRequester, expectedMessageId, expectedServiceDid, laterCheckpoint, agentKeysHex } = input as {
