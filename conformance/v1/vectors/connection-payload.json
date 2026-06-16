@@ -1,0 +1,692 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "connection-payload",
+  "cases": [
+    {
+      "caseId": "request-valid-accepts",
+      "description": "A well-formed connection_request with a full profile snapshot validates.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "request-minimal-profile-accepts",
+      "description": "A request whose profile omits the optional availability validates.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "qr",
+          "context": "scanned code",
+          "profileSnapshot": {
+            "headline": "h",
+            "skills": [],
+            "interests": [],
+            "openTo": []
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "response-valid-accepts",
+      "description": "A well-formed connection_response validates.",
+      "input": {
+        "kind": "connection_response",
+        "payload": {
+          "status": "accepted",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          },
+          "note": "glad to connect"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "response-minimal-accepts",
+      "description": "A response with only a status validates; profileSnapshot and note are optional.",
+      "input": {
+        "kind": "connection_response",
+        "payload": {
+          "status": "declined"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "unknown-kind-rejects",
+      "description": "An unknown payload kind is rejected.",
+      "input": {
+        "kind": "connection_unknown",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-unknown-key-rejects",
+      "description": "An unknown top-level key is rejected because the schema is strict.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          },
+          "extra": 1
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "profile-unknown-key-rejects",
+      "description": "An unknown key in the profile snapshot is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            },
+            "bogus": true
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "availability-unknown-key-rejects",
+      "description": "An unknown key in the availability config is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "UTC",
+              "bogus": 1
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-unknown-key-rejects",
+      "description": "An unknown top-level key in the response is rejected.",
+      "input": {
+        "kind": "connection_response",
+        "payload": {
+          "status": "accepted",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          },
+          "note": "glad to connect",
+          "extra": "x"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-method-rejects",
+      "description": "An unknown connection method is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "telepathy",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-status-rejects",
+      "description": "An unknown response status is rejected.",
+      "input": {
+        "kind": "connection_response",
+        "payload": {
+          "status": "maybe",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          },
+          "note": "glad to connect"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-context-rejects",
+      "description": "A request without context is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-profile-rejects",
+      "description": "A request without a profile snapshot is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-status-rejects",
+      "description": "A response without a status is rejected.",
+      "input": {
+        "kind": "connection_response",
+        "payload": {
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "profile-missing-headline-rejects",
+      "description": "A profile snapshot missing the required headline is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "skills": [],
+            "interests": [],
+            "openTo": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-context-rejects",
+      "description": "A request context past 2000 characters is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-note-rejects",
+      "description": "A response note past 1000 characters is rejected.",
+      "input": {
+        "kind": "connection_response",
+        "payload": {
+          "status": "accepted",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          },
+          "note": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "too-many-skills-rejects",
+      "description": "A profile with more than 50 skills is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s",
+              "s"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-skill-rejects",
+      "description": "A profile skill past 100 characters is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-timezone-rejects",
+      "description": "An availability timezone past 64 characters is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-string-context-rejects",
+      "description": "A non-string context is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": 42,
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": [
+              "go",
+              "typescript"
+            ],
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-array-skills-rejects",
+      "description": "A non-array skills value is rejected.",
+      "input": {
+        "kind": "connection_request",
+        "payload": {
+          "method": "discovery",
+          "context": "met at the conference",
+          "profileSnapshot": {
+            "headline": "Staff engineer",
+            "skills": "go",
+            "interests": [
+              "agents"
+            ],
+            "openTo": [
+              "roles",
+              "advising"
+            ],
+            "availability": {
+              "timezone": "America/Los_Angeles",
+              "meetingHours": "9-5 PT weekdays"
+            }
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

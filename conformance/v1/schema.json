@@ -23,7 +23,8 @@
         "merkle-leaf",
         "inclusion-receipt",
         "audit-query-response",
-        "handshake-message"
+        "handshake-message",
+        "connection-payload"
       ]
     },
     "cases": {

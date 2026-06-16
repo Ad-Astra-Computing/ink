@@ -39,6 +39,9 @@ shared vectors:
 - **Handshake messages** (`handshake.go`) — schema validation for the challenge,
   rejection, and resolution handshake messages: literals, enums, UTF-16 caps,
   array bounds, and the handshake timestamp grammar.
+- **Connection payloads** (`connection.go`) — strict schema validation for the
+  connection_request and connection_response payloads and their embedded profile
+  snapshot and availability config, rejecting unknown keys at every level.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is

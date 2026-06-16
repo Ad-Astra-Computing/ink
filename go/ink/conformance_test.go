@@ -229,6 +229,27 @@ func TestMerkleLeaf(t *testing.T) {
 	}
 }
 
+func TestConnectionPayload(t *testing.T) {
+	vf := loadVectors(t, "connection-payload")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+		var kind string
+		if err := json.Unmarshal(c.Input["kind"], &kind); err != nil {
+			t.Fatalf("%s: bad kind: %v", c.CaseID, err)
+		}
+		var payload map[string]interface{}
+		if err := json.Unmarshal(c.Input["payload"], &payload); err != nil {
+			if want {
+				t.Errorf("%s: payload is not an object but vector expects accept", c.CaseID)
+			}
+			continue
+		}
+		if got := ValidateConnectionPayload(kind, payload); got != want {
+			t.Errorf("%s: ValidateConnectionPayload = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
 func TestHandshakeMessage(t *testing.T) {
 	vf := loadVectors(t, "handshake-message")
 	for _, c := range vf.Cases {
