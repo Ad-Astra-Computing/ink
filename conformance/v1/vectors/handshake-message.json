@@ -1,0 +1,513 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "handshake-message",
+  "cases": [
+    {
+      "caseId": "challenge-valid-accepts",
+      "description": "A well-formed challenge message validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "rejection-valid-accepts",
+      "description": "A well-formed rejection message validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "resolution-valid-accepts",
+      "description": "A well-formed resolution message validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "intent-1",
+          "outcome": "accepted",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "challenge-with-optional-arrays-accepts",
+      "description": "A challenge with optional field/window/context arrays within their caps validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "fields": [
+            "a",
+            "b"
+          ],
+          "availableWindows": [
+            "w1"
+          ],
+          "contextFields": [
+            "c1"
+          ]
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "rejection-with-backoff-accepts",
+      "description": "A rejection with a backoff hint validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "detail": "too busy",
+          "backoffHint": {
+            "retryAfterSeconds": 30,
+            "backoffClass": "sender"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "resolution-with-details-accepts",
+      "description": "A resolution with details and a counterparty DID validates; details passes through extra keys.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "intent-1",
+          "outcome": "accepted",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "details": {
+            "scheduledAt": "2026-06-17",
+            "duration": "30m",
+            "note": "extra"
+          },
+          "counterpartyDid": "did:web:b.example"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "wrong-protocol-rejects",
+      "description": "A protocol other than ink/0.1 is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.2",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-type-rejects",
+      "description": "A type not matching any handshake message is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.message",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-type-rejects",
+      "description": "A message with no type is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-challenge-type-rejects",
+      "description": "An unknown challengeType is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "bogus",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-rejection-reason-rejects",
+      "description": "An unknown rejection reason is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "bogus",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-resolution-outcome-rejects",
+      "description": "An unknown resolution outcome is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "intent-1",
+          "outcome": "bogus",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-nonce-rejects",
+      "description": "A missing nonce is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-intent-ref-rejects",
+      "description": "A missing intentRef is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-timestamp-rejects",
+      "description": "A missing timestamp is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-string-intent-ref-rejects",
+      "description": "A non-string intentRef is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": 42,
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-intent-ref-rejects",
+      "description": "An intentRef past 256 characters is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-detail-rejects",
+      "description": "A rejection detail past 500 characters is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "detail": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "too-many-fields-rejects",
+      "description": "A challenge fields array past 32 entries is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "fields": [
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a",
+            "a"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "oversized-field-element-rejects",
+      "description": "A challenge fields element past 256 characters is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "fields": [
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "timestamp-offset-rejects",
+      "description": "A numeric-offset timestamp is rejected by the handshake datetime grammar (Z only).",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00+00:00"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "timestamp-no-zone-rejects",
+      "description": "A timestamp with no zone is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "timestamp-out-of-range-rejects",
+      "description": "A timestamp with an out-of-range month is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-13-16T12:00:00Z"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-backoff-seconds-rejects",
+      "description": "A non-positive retryAfterSeconds in the backoff hint is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "backoffHint": {
+            "retryAfterSeconds": -5
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bad-backoff-class-rejects",
+      "description": "An unknown backoffClass is rejected.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "backoffHint": {
+            "backoffClass": "bogus"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "backoff-seconds-unsafe-integer-rejects",
+      "description": "A retryAfterSeconds past the safe-integer range (2^53) is rejected, matching the reference's integer bound.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "backoffHint": {
+            "retryAfterSeconds": 9007199254740992
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

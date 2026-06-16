@@ -1349,4 +1349,58 @@ vectorFile("audit-query-response", [
   aqReject("checkpoint-fork-rejects", "A later checkpoint at the same size with a different root is a fork and is rejected.", { ...aqBase, response: aqValid, laterCheckpoint: { treeSize: 3, rootHash: aqLeaves[0] } }),
 ]);
 
+// ── handshake-message ─────────────────────────────────────────────────────
+// Schema validation for the three INK handshake messages (INK Containment):
+// network.tulpa.challenge, .rejection, and .resolution. Each pins the protocol
+// and type literals, the enum fields, the string-length caps (in UTF-16 code
+// units, matching the reference's Zod .max()), the optional array caps, and the
+// handshake timestamp grammar (z.string().datetime(): a UTC date-time with a
+// literal Z, no numeric offset). An independent validator must accept and
+// reject the same messages. See specs/ink-handshake-message.md.
+const hsTs = "2026-06-16T12:00:00.000Z";
+const hsChallenge = { protocol: "ink/0.1", type: "network.tulpa.challenge", intentRef: "intent-1", challengeType: "availability_query", nonce: "n1", timestamp: hsTs };
+const hsRejection = { protocol: "ink/0.1", type: "network.tulpa.rejection", intentRef: "intent-1", reason: "capacity", nonce: "n1", timestamp: hsTs };
+const hsResolution = { protocol: "ink/0.1", type: "network.tulpa.resolution", intentRef: "intent-1", outcome: "accepted", nonce: "n1", timestamp: hsTs };
+function hsAccept(caseId, description, message) {
+  return { caseId, description, input: { message }, expect: { result: "accept" } };
+}
+function hsReject(caseId, description, message) {
+  return { caseId, description, input: { message }, expect: { result: "reject" } };
+}
+
+vectorFile("handshake-message", [
+  hsAccept("challenge-valid-accepts", "A well-formed challenge message validates.", hsChallenge),
+  hsAccept("rejection-valid-accepts", "A well-formed rejection message validates.", hsRejection),
+  hsAccept("resolution-valid-accepts", "A well-formed resolution message validates.", hsResolution),
+  hsAccept("challenge-with-optional-arrays-accepts", "A challenge with optional field/window/context arrays within their caps validates.", { ...hsChallenge, fields: ["a", "b"], availableWindows: ["w1"], contextFields: ["c1"] }),
+  hsAccept("rejection-with-backoff-accepts", "A rejection with a backoff hint validates.", { ...hsRejection, detail: "too busy", backoffHint: { retryAfterSeconds: 30, backoffClass: "sender" } }),
+  hsAccept("resolution-with-details-accepts", "A resolution with details and a counterparty DID validates; details passes through extra keys.", { ...hsResolution, details: { scheduledAt: "2026-06-17", duration: "30m", note: "extra" }, counterpartyDid: "did:web:b.example" }),
+  // protocol / type
+  hsReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...hsChallenge, protocol: "ink/0.2" }),
+  hsReject("wrong-type-rejects", "A type not matching any handshake message is rejected.", { ...hsChallenge, type: "network.tulpa.message" }),
+  hsReject("missing-type-rejects", "A message with no type is rejected.", (() => { const { type: _t, ...rest } = hsChallenge; return rest; })()),
+  // enums
+  hsReject("bad-challenge-type-rejects", "An unknown challengeType is rejected.", { ...hsChallenge, challengeType: "bogus" }),
+  hsReject("bad-rejection-reason-rejects", "An unknown rejection reason is rejected.", { ...hsRejection, reason: "bogus" }),
+  hsReject("bad-resolution-outcome-rejects", "An unknown resolution outcome is rejected.", { ...hsResolution, outcome: "bogus" }),
+  // required fields
+  hsReject("missing-nonce-rejects", "A missing nonce is rejected.", (() => { const { nonce: _n, ...rest } = hsRejection; return rest; })()),
+  hsReject("missing-intent-ref-rejects", "A missing intentRef is rejected.", (() => { const { intentRef: _i, ...rest } = hsRejection; return rest; })()),
+  hsReject("missing-timestamp-rejects", "A missing timestamp is rejected.", (() => { const { timestamp: _ts, ...rest } = hsRejection; return rest; })()),
+  hsReject("non-string-intent-ref-rejects", "A non-string intentRef is rejected.", { ...hsRejection, intentRef: 42 }),
+  // caps
+  hsReject("oversized-intent-ref-rejects", "An intentRef past 256 characters is rejected.", { ...hsRejection, intentRef: "x".repeat(257) }),
+  hsReject("oversized-detail-rejects", "A rejection detail past 500 characters is rejected.", { ...hsRejection, detail: "x".repeat(501) }),
+  hsReject("too-many-fields-rejects", "A challenge fields array past 32 entries is rejected.", { ...hsChallenge, fields: Array(33).fill("a") }),
+  hsReject("oversized-field-element-rejects", "A challenge fields element past 256 characters is rejected.", { ...hsChallenge, fields: ["x".repeat(257)] }),
+  // timestamp grammar
+  hsReject("timestamp-offset-rejects", "A numeric-offset timestamp is rejected by the handshake datetime grammar (Z only).", { ...hsRejection, timestamp: "2026-06-16T12:00:00+00:00" }),
+  hsReject("timestamp-no-zone-rejects", "A timestamp with no zone is rejected.", { ...hsRejection, timestamp: "2026-06-16T12:00:00" }),
+  hsReject("timestamp-out-of-range-rejects", "A timestamp with an out-of-range month is rejected.", { ...hsRejection, timestamp: "2026-13-16T12:00:00Z" }),
+  // nested backoff hint
+  hsReject("bad-backoff-seconds-rejects", "A non-positive retryAfterSeconds in the backoff hint is rejected.", { ...hsRejection, backoffHint: { retryAfterSeconds: -5 } }),
+  hsReject("bad-backoff-class-rejects", "An unknown backoffClass is rejected.", { ...hsRejection, backoffHint: { backoffClass: "bogus" } }),
+  hsReject("backoff-seconds-unsafe-integer-rejects", "A retryAfterSeconds past the safe-integer range (2^53) is rejected, matching the reference's integer bound.", { ...hsRejection, backoffHint: { retryAfterSeconds: 9007199254740992 } }),
+]);
+
 console.log(`Wrote conformance/v1/vectors for principal (key ${mb.slice(0, 12)}...).`);

@@ -36,6 +36,9 @@ shared vectors:
   verification of a witness audit-query response: structure, bindings, the
   witness envelope signature, per-event scope, events-to-proofs mapping, the
   Merkle proof walks, and the required per-event agent signature.
+- **Handshake messages** (`handshake.go`) — schema validation for the challenge,
+  rejection, and resolution handshake messages: literals, enums, UTF-16 caps,
+  array bounds, and the handshake timestamp grammar.
 
 Signed-body numbers follow INK's safe-integer profile in both implementations: a
 number must be an integer in `|v| <= 2^53-1` and not negative zero, and is

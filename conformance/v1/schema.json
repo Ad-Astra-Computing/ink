@@ -22,7 +22,8 @@
         "merkle-checkpoint",
         "merkle-leaf",
         "inclusion-receipt",
-        "audit-query-response"
+        "audit-query-response",
+        "handshake-message"
       ]
     },
     "cases": {

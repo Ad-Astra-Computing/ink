@@ -118,6 +118,14 @@ additive field then.
   violations, mapping violations, a tampered proof, a wrong-key or unresolvable
   agent signature, and a rolled-back or forked checkpoint all reject. See
   [`../../specs/ink-audit-query-response.md`](../../specs/ink-audit-query-response.md).
+- **handshake-message** — schema validation for the three INK handshake messages
+  (challenge, rejection, resolution): the protocol and type literals, the enum
+  fields, the UTF-16 string and array caps, and the handshake timestamp grammar
+  (a UTC date-time with a literal Z, no offset). A valid message of each type
+  accepts; a wrong protocol or type, an unknown enum, a missing or non-string
+  required field, an oversized string or array, an out-of-range or offset
+  timestamp, and a malformed backoff hint all reject. See
+  [`../../specs/ink-handshake-message.md`](../../specs/ink-handshake-message.md).
 
 ## String length and ordering
 
