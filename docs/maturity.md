@@ -14,8 +14,11 @@
   agent-card fetch, and DoS-amplification surfaces. Internal review is
   not a substitute for a third-party audit, treat the security
   posture accordingly.
-- Interop vectors (`../test-vectors/`) are authoritative for the current wire
-  version but may be added to or revised between patch releases. Mismatched
+- The cross-implementation conformance corpus (`../conformance/v1/`, indexed by
+  `../conformance/v1/manifest.json`) is the authoritative contract for the
+  current wire version: the TypeScript reference and the independent Go
+  implementation make the same accept or reject decision on every vector. The
+  corpus may be added to or revised between patch releases. Mismatched
   implementations should report discrepancies as issues.
 - The protocol is in use by one production integrator (Tulpa). That is
   one data point, not a guarantee of robustness at scale.
@@ -80,7 +83,7 @@ be a real incident:
 1. Read [`threat-model.md`](./threat-model.md). Make sure your use case
    falls inside the in-scope protections and you accept the out-of-scope
    limits.
-2. Run `../test-vectors/*` against your implementation.
+2. Run the `../conformance/v1/` manifest categories against your implementation.
 3. Fuzz your envelope parser. The library's tests are
    not a substitute.
 4. Pen-test the rotation and revocation flows specifically. The
