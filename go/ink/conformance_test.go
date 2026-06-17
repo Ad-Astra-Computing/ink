@@ -270,6 +270,24 @@ func TestAgentCardFetch(t *testing.T) {
 	}
 }
 
+func TestPrivateHostname(t *testing.T) {
+	vf := loadVectors(t, "private-hostname")
+	for _, c := range vf.Cases {
+		var hostname string
+		if err := json.Unmarshal(c.Input["hostname"], &hostname); err != nil {
+			t.Fatalf("%s: bad hostname: %v", c.CaseID, err)
+		}
+		// accept = public/safe (IsPrivateHostname false); reject = private/unsafe.
+		got := "accept"
+		if IsPrivateHostname(hostname) {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s (%q): got %s, want %s", c.CaseID, hostname, got, c.Expect.Result)
+		}
+	}
+}
+
 func TestConnectionPayload(t *testing.T) {
 	vf := loadVectors(t, "connection-payload")
 	for _, c := range vf.Cases {

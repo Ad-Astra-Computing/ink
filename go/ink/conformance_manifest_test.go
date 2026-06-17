@@ -51,6 +51,7 @@ var goVerifiedCategories = []string{
 	"merkle-inclusion",
 	"merkle-leaf",
 	"principal-normalization",
+	"private-hostname",
 	"replay-freshness",
 	"signature-base",
 	"timestamp-validity",

@@ -24,6 +24,7 @@ import {
   ConnectionResponsePayloadSchema,
   AgentCardSchema,
   evaluateAgentCardFetch,
+  isPrivateHostname,
   hexToBytes,
 } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
@@ -160,6 +161,10 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     }
     case "agent-card-fetch": {
       return { result: evaluateAgentCardFetch(input as unknown as AgentCardFetchInput).accepted ? "accept" : "reject" };
+    }
+    case "private-hostname": {
+      // accept = public/safe (isPrivateHostname false); reject = private/unsafe.
+      return { result: isPrivateHostname(input.hostname as string) ? "reject" : "accept" };
     }
     case "audit-query-response": {
       const { response, witnessPublicKeyHex, expectedRequester, expectedMessageId, expectedServiceDid, laterCheckpoint, agentKeysHex } = input as {

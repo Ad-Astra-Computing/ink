@@ -158,6 +158,14 @@ additive field then.
   bind to the requested agentId. The request-side SSRF gate and card-content
   host checks are out of scope. See
   [`../../specs/ink-agent-card-discovery-fetch.md`](../../specs/ink-agent-card-discovery-fetch.md).
+- **private-hostname** — the SSRF host-safety gate over a hostname string:
+  accept means a public destination, reject means loopback, private, link-local,
+  IANA special-use, or a malformed IP-shaped name (an over-range octet, a
+  malformed IPv6 literal, or an IPv6 zone id all fail closed). Covers IPv4 and
+  IPv6 special-use blocks, IPv4-mapped and 6to4 embedded addresses, bracketed
+  and bare literals, and FQDN/case normalization. Hostname strings only; URL
+  parsing is out of scope. See
+  [`../../specs/ink-private-hostname.md`](../../specs/ink-private-hostname.md).
 
 ## String length and ordering
 

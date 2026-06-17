@@ -72,7 +72,7 @@ export function isPrivateHostname(hostname: string): boolean {
   // IPv4-mapped IPv6 in dotted form (::ffff:1.2.3.4) — checked before
   // general IPv6 so the v4 octet checks apply.
   const v4m = bare.match(/^::ffff:(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (v4m) return isPrivateIPv4(Number(v4m[1]), Number(v4m[2]), Number(v4m[3]), Number(v4m[4]));
+  if (v4m) return dottedV4Unsafe(Number(v4m[1]), Number(v4m[2]), Number(v4m[3]), Number(v4m[4]));
   // General IPv6 literal: parse and apply v6 special-use ranges. We use a
   // real expansion (not string prefix matches) so that, e.g., a 5-group
   // hex address with `fc` in the high byte of the *last* segment doesn't
@@ -91,10 +91,18 @@ export function isPrivateHostname(hostname: string): boolean {
   }
   // Dotted-quad IPv4 (decimal only — common encodings)
   const dq = bare.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (dq) return isPrivateIPv4(Number(dq[1]), Number(dq[2]), Number(dq[3]), Number(dq[4]));
+  if (dq) return dottedV4Unsafe(Number(dq[1]), Number(dq[2]), Number(dq[3]), Number(dq[4]));
   // Single-segment numeric forms (e.g. "2130706433") are suspicious — reject.
   if (/^\d+$/.test(bare)) return true;
   return false;
+}
+
+/** A dotted IPv4 hostname is unsafe to fetch if any octet is out of range (a
+ *  malformed IP-shaped name — fail closed rather than treat 8.8.8.999 as a
+ *  public host) or if the address is in a private/special-use block. */
+function dottedV4Unsafe(a: number, b: number, c: number, d: number): boolean {
+  if (a > 255 || b > 255 || c > 255 || d > 255) return true;
+  return isPrivateIPv4(a, b, c, d);
 }
 
 /** Classify an IPv6 address (8 16-bit groups) against the IANA special-use
@@ -163,17 +171,19 @@ function isPrivateIPv6Groups(g: number[]): boolean {
 /** Expand an IPv6 address with optional `::` into 8 16-bit groups.
  *  Returns null on malformed input. */
 function expandIPv6(addr: string): number[] | null {
-  // Reject scope IDs (zone identifiers) — strip them off for our purposes.
-  const noScope = addr.split("%")[0]!;
-  const dcIdx = noScope.indexOf("::");
+  // Reject any zone/scope id (`fe80::1%eth0`). Stripping it would let a public
+  // literal with a zone suffix bypass the gate; a zoned address is also not a
+  // routable public destination. Fail closed.
+  if (addr.includes("%")) return null;
+  const dcIdx = addr.indexOf("::");
   let leftStr: string;
   let rightStr: string;
   if (dcIdx === -1) {
-    leftStr = noScope;
+    leftStr = addr;
     rightStr = "";
   } else {
-    leftStr = noScope.slice(0, dcIdx);
-    rightStr = noScope.slice(dcIdx + 2);
+    leftStr = addr.slice(0, dcIdx);
+    rightStr = addr.slice(dcIdx + 2);
     if (leftStr.includes("::") || rightStr.includes("::")) return null;
   }
   const leftParts = leftStr ? leftStr.split(":") : [];
