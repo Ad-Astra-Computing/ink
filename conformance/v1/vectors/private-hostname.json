@@ -1,0 +1,586 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "private-hostname",
+  "cases": [
+    {
+      "caseId": "public-dns",
+      "description": "A public DNS name is accepted.",
+      "input": {
+        "hostname": "example.com"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "public-dns-uppercase",
+      "description": "Case is normalized before classification.",
+      "input": {
+        "hostname": "EXAMPLE.COM"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "public-dns-trailing-dot",
+      "description": "A trailing FQDN dot is stripped; the name stays public.",
+      "input": {
+        "hostname": "example.com."
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "public-ipv4",
+      "description": "A public IPv4 literal is accepted.",
+      "input": {
+        "hostname": "8.8.8.8"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "public-ipv6",
+      "description": "A public IPv6 literal is accepted.",
+      "input": {
+        "hostname": "2606:4700:4700::1111"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "public-ipv6-bracketed",
+      "description": "A bracketed public IPv6 literal is accepted.",
+      "input": {
+        "hostname": "[2606:4700:4700::1111]"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "ipv4-mapped-dotted-public",
+      "description": "An IPv4-mapped IPv6 of a public v4 is accepted.",
+      "input": {
+        "hostname": "::ffff:8.8.8.8"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "ipv4-mapped-hex-public",
+      "description": "An IPv4-mapped IPv6 (hex form) of a public v4 is accepted.",
+      "input": {
+        "hostname": "::ffff:0808:0808"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "sixtofour-public",
+      "description": "A 6to4 address embedding a public v4 is accepted.",
+      "input": {
+        "hostname": "2002:0808:0808::1"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "localhost",
+      "description": "localhost is rejected.",
+      "input": {
+        "hostname": "localhost"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "localhost-subdomain",
+      "description": "A .localhost subdomain is rejected.",
+      "input": {
+        "hostname": "a.localhost"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "localhost-trailing-dot-uppercase",
+      "description": "A .localhost name is rejected after case and trailing-dot normalization.",
+      "input": {
+        "hostname": "A.LOCALHOST."
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-after-strip",
+      "description": "A name that is empty after stripping trailing dots is rejected.",
+      "input": {
+        "hostname": "."
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "dots-only",
+      "description": "A dots-only name is rejected.",
+      "input": {
+        "hostname": "..."
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-private-10",
+      "description": "10.0.0.0/8 is rejected.",
+      "input": {
+        "hostname": "10.0.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-loopback",
+      "description": "127.0.0.0/8 loopback is rejected.",
+      "input": {
+        "hostname": "127.0.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-metadata",
+      "description": "169.254.0.0/16 (cloud metadata) is rejected.",
+      "input": {
+        "hostname": "169.254.169.254"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-private-172",
+      "description": "172.16.0.0/12 is rejected.",
+      "input": {
+        "hostname": "172.16.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-private-192",
+      "description": "192.168.0.0/16 is rejected.",
+      "input": {
+        "hostname": "192.168.1.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-cgnat",
+      "description": "100.64.0.0/10 CGNAT is rejected.",
+      "input": {
+        "hostname": "100.64.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-testnet",
+      "description": "192.0.2.0/24 TEST-NET-1 is rejected.",
+      "input": {
+        "hostname": "192.0.2.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-benchmarking",
+      "description": "198.18.0.0/15 benchmarking is rejected.",
+      "input": {
+        "hostname": "198.18.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-multicast",
+      "description": "224.0.0.0/4 multicast is rejected.",
+      "input": {
+        "hostname": "224.0.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-broadcast",
+      "description": "The broadcast address is rejected.",
+      "input": {
+        "hostname": "255.255.255.255"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-leading-zero-private",
+      "description": "A leading-zero decimal form of a private v4 is rejected.",
+      "input": {
+        "hostname": "010.000.000.001"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-octet-256",
+      "description": "An octet over 255 is a malformed IP-shaped name; fail closed.",
+      "input": {
+        "hostname": "256.1.1.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-octet-999",
+      "description": "An over-range last octet fails closed instead of reading as public.",
+      "input": {
+        "hostname": "8.8.8.999"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-all-999",
+      "description": "All-over-range octets fail closed.",
+      "input": {
+        "hostname": "999.999.999.999"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-single-integer",
+      "description": "A single-integer IPv4 form is rejected.",
+      "input": {
+        "hostname": "2130706433"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-unspecified",
+      "description": "The unspecified address is rejected.",
+      "input": {
+        "hostname": "::"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-loopback",
+      "description": "::1 loopback is rejected.",
+      "input": {
+        "hostname": "::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-loopback-bracketed",
+      "description": "Bracketed ::1 is rejected.",
+      "input": {
+        "hostname": "[::1]"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-link-local",
+      "description": "fe80::/10 link-local is rejected.",
+      "input": {
+        "hostname": "fe80::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-ula-fc",
+      "description": "fc00::/7 ULA is rejected.",
+      "input": {
+        "hostname": "fc00::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-ula-fd",
+      "description": "fd00::/7 ULA (fd) is rejected.",
+      "input": {
+        "hostname": "fd00::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-multicast",
+      "description": "ff00::/8 multicast is rejected.",
+      "input": {
+        "hostname": "ff00::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-doc",
+      "description": "2001:db8::/32 documentation is rejected.",
+      "input": {
+        "hostname": "2001:db8::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-teredo",
+      "description": "2001::/32 Teredo is rejected.",
+      "input": {
+        "hostname": "2001::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-bmwg",
+      "description": "2001:2::/48 BMWG is rejected.",
+      "input": {
+        "hostname": "2001:2::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-orchid",
+      "description": "2001:10::/28 ORCHID is rejected.",
+      "input": {
+        "hostname": "2001:10::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-orchidv2",
+      "description": "2001:20::/28 ORCHIDv2 is rejected.",
+      "input": {
+        "hostname": "2001:20::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-nat64",
+      "description": "64:ff9b::/96 NAT64 is rejected.",
+      "input": {
+        "hostname": "64:ff9b::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-nat64-local",
+      "description": "64:ff9b:1::/48 is rejected.",
+      "input": {
+        "hostname": "64:ff9b:1::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-discard",
+      "description": "100::/64 discard is rejected.",
+      "input": {
+        "hostname": "100::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-dummy",
+      "description": "100:0:0:1::/64 is rejected.",
+      "input": {
+        "hostname": "100:0:0:1::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-bmwg-v6",
+      "description": "3fff::/20 v6 benchmarking is rejected.",
+      "input": {
+        "hostname": "3fff::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-srv6",
+      "description": "5f00::/16 SRv6 is rejected.",
+      "input": {
+        "hostname": "5f00::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-mapped-dotted-loopback",
+      "description": "An IPv4-mapped IPv6 of a loopback v4 is rejected.",
+      "input": {
+        "hostname": "::ffff:127.0.0.1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv4-mapped-hex-loopback",
+      "description": "An IPv4-mapped IPv6 (hex form) of loopback is rejected.",
+      "input": {
+        "hostname": "::ffff:7f00:1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "sixtofour-private",
+      "description": "A 6to4 address embedding a private v4 (10.0.0.1) is rejected.",
+      "input": {
+        "hostname": "2002:0a00:0001::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-double-collapse",
+      "description": "Two `::` groups are malformed; fail closed.",
+      "input": {
+        "hostname": "1::2::3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-too-few-groups",
+      "description": "Seven groups without `::` is malformed; fail closed.",
+      "input": {
+        "hostname": "1:2:3:4:5:6:7"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-too-many-groups",
+      "description": "Nine groups is malformed; fail closed.",
+      "input": {
+        "hostname": "1:2:3:4:5:6:7:8:9"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-bad-hex",
+      "description": "A non-hex group is malformed; fail closed.",
+      "input": {
+        "hostname": "gggg::1"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-leading-colon",
+      "description": "A leading single colon is malformed; fail closed.",
+      "input": {
+        "hostname": ":1:2:3:4:5:6:7"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-trailing-colon",
+      "description": "A trailing single colon is malformed; fail closed.",
+      "input": {
+        "hostname": "1:2:3:4:5:6:7:"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-zone-private",
+      "description": "A zoned link-local address is rejected.",
+      "input": {
+        "hostname": "fe80::1%eth0"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ipv6-zone-public",
+      "description": "A zone id on a public literal is rejected, not stripped.",
+      "input": {
+        "hostname": "2606:4700:4700::1111%eth0"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

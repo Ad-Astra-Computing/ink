@@ -55,6 +55,7 @@ const CATEGORY_META = {
   "connection-payload": { spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
   "agent-card": { spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
   "agent-card-fetch": { spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
+  "private-hostname": { spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -1634,6 +1635,81 @@ vectorFile("agent-card-fetch", [
   fReject("body-array-rejects", "A JSON array body rejects.", fetchInput({ bodyRaw: "[]" })),
   // identity binding
   fReject("identity-mismatch-rejects", "A valid card whose agentId differs from the requested id rejects.", fetchInput({ requestedAgentId: "did:web:other.example" })),
+]);
+
+// ── private-hostname ───────────────────────────────────────────────────────
+// The SSRF host-safety gate: is a hostname public (accept) or
+// private/special/malformed-IP-shaped (reject)? Hostname strings only; URL
+// parsing, schemes, and userinfo are out of scope. See
+// specs/ink-private-hostname.md.
+const phAccept = (caseId, hostname, description) => ({ caseId, description, input: { hostname }, expect: { result: "accept" } });
+const phReject = (caseId, hostname, description) => ({ caseId, description, input: { hostname }, expect: { result: "reject" } });
+vectorFile("private-hostname", [
+  // Public names.
+  phAccept("public-dns", "example.com", "A public DNS name is accepted."),
+  phAccept("public-dns-uppercase", "EXAMPLE.COM", "Case is normalized before classification."),
+  phAccept("public-dns-trailing-dot", "example.com.", "A trailing FQDN dot is stripped; the name stays public."),
+  phAccept("public-ipv4", "8.8.8.8", "A public IPv4 literal is accepted."),
+  phAccept("public-ipv6", "2606:4700:4700::1111", "A public IPv6 literal is accepted."),
+  phAccept("public-ipv6-bracketed", "[2606:4700:4700::1111]", "A bracketed public IPv6 literal is accepted."),
+  phAccept("ipv4-mapped-dotted-public", "::ffff:8.8.8.8", "An IPv4-mapped IPv6 of a public v4 is accepted."),
+  phAccept("ipv4-mapped-hex-public", "::ffff:0808:0808", "An IPv4-mapped IPv6 (hex form) of a public v4 is accepted."),
+  phAccept("sixtofour-public", "2002:0808:0808::1", "A 6to4 address embedding a public v4 is accepted."),
+  // Localhost names.
+  phReject("localhost", "localhost", "localhost is rejected."),
+  phReject("localhost-subdomain", "a.localhost", "A .localhost subdomain is rejected."),
+  phReject("localhost-trailing-dot-uppercase", "A.LOCALHOST.", "A .localhost name is rejected after case and trailing-dot normalization."),
+  phReject("empty-after-strip", ".", "A name that is empty after stripping trailing dots is rejected."),
+  phReject("dots-only", "...", "A dots-only name is rejected."),
+  // Private/special IPv4.
+  phReject("ipv4-private-10", "10.0.0.1", "10.0.0.0/8 is rejected."),
+  phReject("ipv4-loopback", "127.0.0.1", "127.0.0.0/8 loopback is rejected."),
+  phReject("ipv4-metadata", "169.254.169.254", "169.254.0.0/16 (cloud metadata) is rejected."),
+  phReject("ipv4-private-172", "172.16.0.1", "172.16.0.0/12 is rejected."),
+  phReject("ipv4-private-192", "192.168.1.1", "192.168.0.0/16 is rejected."),
+  phReject("ipv4-cgnat", "100.64.0.1", "100.64.0.0/10 CGNAT is rejected."),
+  phReject("ipv4-testnet", "192.0.2.1", "192.0.2.0/24 TEST-NET-1 is rejected."),
+  phReject("ipv4-benchmarking", "198.18.0.1", "198.18.0.0/15 benchmarking is rejected."),
+  phReject("ipv4-multicast", "224.0.0.1", "224.0.0.0/4 multicast is rejected."),
+  phReject("ipv4-broadcast", "255.255.255.255", "The broadcast address is rejected."),
+  phReject("ipv4-leading-zero-private", "010.000.000.001", "A leading-zero decimal form of a private v4 is rejected."),
+  // Malformed IP-shaped (fail closed).
+  phReject("ipv4-octet-256", "256.1.1.1", "An octet over 255 is a malformed IP-shaped name; fail closed."),
+  phReject("ipv4-octet-999", "8.8.8.999", "An over-range last octet fails closed instead of reading as public."),
+  phReject("ipv4-all-999", "999.999.999.999", "All-over-range octets fail closed."),
+  phReject("ipv4-single-integer", "2130706433", "A single-integer IPv4 form is rejected."),
+  // Private/special IPv6.
+  phReject("ipv6-unspecified", "::", "The unspecified address is rejected."),
+  phReject("ipv6-loopback", "::1", "::1 loopback is rejected."),
+  phReject("ipv6-loopback-bracketed", "[::1]", "Bracketed ::1 is rejected."),
+  phReject("ipv6-link-local", "fe80::1", "fe80::/10 link-local is rejected."),
+  phReject("ipv6-ula-fc", "fc00::1", "fc00::/7 ULA is rejected."),
+  phReject("ipv6-ula-fd", "fd00::1", "fd00::/7 ULA (fd) is rejected."),
+  phReject("ipv6-multicast", "ff00::1", "ff00::/8 multicast is rejected."),
+  phReject("ipv6-doc", "2001:db8::1", "2001:db8::/32 documentation is rejected."),
+  phReject("ipv6-teredo", "2001::1", "2001::/32 Teredo is rejected."),
+  phReject("ipv6-bmwg", "2001:2::1", "2001:2::/48 BMWG is rejected."),
+  phReject("ipv6-orchid", "2001:10::1", "2001:10::/28 ORCHID is rejected."),
+  phReject("ipv6-orchidv2", "2001:20::1", "2001:20::/28 ORCHIDv2 is rejected."),
+  phReject("ipv6-nat64", "64:ff9b::1", "64:ff9b::/96 NAT64 is rejected."),
+  phReject("ipv6-nat64-local", "64:ff9b:1::1", "64:ff9b:1::/48 is rejected."),
+  phReject("ipv6-discard", "100::1", "100::/64 discard is rejected."),
+  phReject("ipv6-dummy", "100:0:0:1::1", "100:0:0:1::/64 is rejected."),
+  phReject("ipv6-bmwg-v6", "3fff::1", "3fff::/20 v6 benchmarking is rejected."),
+  phReject("ipv6-srv6", "5f00::1", "5f00::/16 SRv6 is rejected."),
+  phReject("ipv4-mapped-dotted-loopback", "::ffff:127.0.0.1", "An IPv4-mapped IPv6 of a loopback v4 is rejected."),
+  phReject("ipv4-mapped-hex-loopback", "::ffff:7f00:1", "An IPv4-mapped IPv6 (hex form) of loopback is rejected."),
+  phReject("sixtofour-private", "2002:0a00:0001::1", "A 6to4 address embedding a private v4 (10.0.0.1) is rejected."),
+  // Malformed IPv6 (fail closed).
+  phReject("ipv6-double-collapse", "1::2::3", "Two `::` groups are malformed; fail closed."),
+  phReject("ipv6-too-few-groups", "1:2:3:4:5:6:7", "Seven groups without `::` is malformed; fail closed."),
+  phReject("ipv6-too-many-groups", "1:2:3:4:5:6:7:8:9", "Nine groups is malformed; fail closed."),
+  phReject("ipv6-bad-hex", "gggg::1", "A non-hex group is malformed; fail closed."),
+  phReject("ipv6-leading-colon", ":1:2:3:4:5:6:7", "A leading single colon is malformed; fail closed."),
+  phReject("ipv6-trailing-colon", "1:2:3:4:5:6:7:", "A trailing single colon is malformed; fail closed."),
+  // Zone / scope ids (fail closed).
+  phReject("ipv6-zone-private", "fe80::1%eth0", "A zoned link-local address is rejected."),
+  phReject("ipv6-zone-public", "2606:4700:4700::1111%eth0", "A zone id on a public literal is rejected, not stripped."),
 ]);
 
 writeManifest();

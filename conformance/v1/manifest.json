@@ -115,6 +115,14 @@
       "sha256": "59b20f44b3cd6099413c7c5e15e5a08e62de9f1e4dec97ecbdf485c705bc34eb"
     },
     {
+      "id": "private-hostname",
+      "vector": "vectors/private-hostname.json",
+      "spec": "specs/ink-private-hostname.md",
+      "summary": "SSRF host-safety gate: classify a hostname as public or private/special/malformed.",
+      "caseCount": 58,
+      "sha256": "625f2a89e705b6194cd8d1cd0bbb1cbd256f2d81564d5520f5e2b387172f334e"
+    },
+    {
       "id": "replay-freshness",
       "vector": "vectors/replay-freshness.json",
       "spec": "specs/ink-timestamp-grammar.md",
