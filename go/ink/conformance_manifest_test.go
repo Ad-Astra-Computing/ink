@@ -38,6 +38,7 @@ type conformanceManifest struct {
 // what the per-category tests in conformance_test.go provide).
 var goVerifiedCategories = []string{
 	"agent-card",
+	"agent-card-fetch",
 	"audit-query-response",
 	"connection-payload",
 	"handshake-message",

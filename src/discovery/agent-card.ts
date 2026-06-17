@@ -1,5 +1,5 @@
 import type { AgentCard } from "../models/agent-card.js";
-import { AgentCardSchema } from "../models/agent-card.js";
+import { evaluateAgentCardFetch, contentLengthExceedsCap, MAX_AGENT_CARD_BYTES } from "./agent-card-fetch.js";
 import type { CandidateKey } from "../models/key-entry.js";
 import { decodePublicKeyMultibase } from "../crypto/keys.js";
 import { isInkTimestamp } from "../crypto/timestamp.js";
@@ -332,35 +332,28 @@ export async function fetchAgentCard(
       // is treated as an SSRF attempt.
       redirect: "manual",
     });
-    if (!res.ok) return null;
-    // Cap card body size with a STREAM-READ. res.text() would buffer the
-    // entire body before any check fires; a chunked response without
-    // Content-Length could exhaust memory pre-validation.
-    const MAX_CARD_BYTES = 64 * 1024;
-    const lenHeader = parseInt(res.headers.get("Content-Length") ?? "0", 10);
-    if (!isNaN(lenHeader) && lenHeader > MAX_CARD_BYTES) return null;
-    const text = await readResponseBodyWithCap(res, MAX_CARD_BYTES);
+    // Fail closed on an over-cap declared length BEFORE doing any stream work,
+    // so a huge Content-Length can't make us read until the cap aborts. The
+    // evaluator re-checks this; the early guard is the fetch-path optimisation.
+    if (contentLengthExceedsCap(res.headers.get("Content-Length"))) return null;
+    // Cap card body size with a STREAM-READ before the contract check.
+    // res.text() would buffer the entire body first; a chunked response
+    // without Content-Length could exhaust memory pre-validation.
+    const text = await readResponseBodyWithCap(res, MAX_AGENT_CARD_BYTES);
     if (text === null) return null;
-    let parsed: unknown;
-    try { parsed = JSON.parse(text); } catch { return null; }
-    // Validate the card shape AT RUNTIME via Zod, not just by a TS cast.
-    // Without this, attacker-controlled fields like `card.endpoint` could
-    // carry http:// or private-IP URLs that SSRF-careless callers would
-    // pass straight into fetch. The schema also enforces required fields
-    // (protocol, agentId, publicKeyMultibase, capabilities, etc.).
-    const parseResult = AgentCardSchema.safeParse(parsed);
-    if (!parseResult.success) return null;
-    const card = parseResult.data;
-    // Defense-in-depth (schema would also catch these via z.literal):
-    if (card.protocol !== "ink/0.1" || !card.agentId || !card.publicKeyMultibase) {
-      return null;
-    }
-    // Identity binding: reject cards whose agentId does not match the requested agentId.
-    // Without this check a compromised registry could return a different agent's card,
-    // allowing key-confusion attacks.
-    if (card.agentId !== agentId) {
-      return null;
-    }
+    // The response contract (status 200, application/json, size cap, JSON
+    // parse, AgentCardSchema, protocol literal, identity binding) is the pinned
+    // agent-card-fetch conformance decision, shared with the second
+    // implementation so retrieval cannot diverge across runtimes.
+    const evaluated = evaluateAgentCardFetch({
+      status: res.status,
+      contentType: res.headers.get("Content-Type"),
+      contentLength: res.headers.get("Content-Length"),
+      bodyRaw: text,
+      requestedAgentId: agentId,
+    });
+    if (!evaluated.accepted || !evaluated.card) return null;
+    const card = evaluated.card;
     // Endpoint hardening: any URL field inside the card that a downstream
     // caller might pass to fetch must pass the same SSRF gate as baseUrl
     // (https-only, no userinfo, no literal private/loopback/IANA-special).

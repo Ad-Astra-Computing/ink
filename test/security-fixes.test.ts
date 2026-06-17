@@ -352,14 +352,18 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
           intentsSent: [],
           thirdPartyAudit: {
             services: [
-              { endpoint: "http://169.254.169.254/", did: "did:web:x", publicKey: "z6" },
+              // https so it passes the Agent Card endpoint URL grammar, but a
+              // private host so the downstream-endpoint SSRF check rejects it.
+              { endpoint: "https://169.254.169.254/", did: "did:web:x", publicKey: "z6" },
             ],
             submitPolicy: "all",
           },
         },
         availability: { timezone: "UTC" },
       };
-      globalThis.fetch = (async () => new Response(JSON.stringify(evil), { status: 200 })) as typeof fetch;
+      // application/json so the response passes the discovery content-type gate
+      // and the request reaches the endpoint-host SSRF check under test.
+      globalThis.fetch = (async () => new Response(JSON.stringify(evil), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
       expect(await fetchAgentCard("tulpa:zVictim2", "https://example.com")).toBeNull();
     } finally {
       globalThis.fetch = orig;
@@ -375,12 +379,14 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
         agentId: "tulpa:zVictim",
         handle: "victim",
         displayName: "Victim",
-        endpoint: "http://169.254.169.254/latest/meta-data/",
+        endpoint: "https://169.254.169.254/latest/meta-data/",
         publicKeyMultibase: "z6MkbootstrapKey1234567890123456789012345678",
         capabilities: { intentsAccepted: [], intentsSent: [] },
         availability: { timezone: "UTC" },
       };
-      globalThis.fetch = (async () => new Response(JSON.stringify(evil), { status: 200 })) as typeof fetch;
+      // application/json so the response passes the discovery content-type gate
+      // and the request reaches the endpoint-host SSRF check under test.
+      globalThis.fetch = (async () => new Response(JSON.stringify(evil), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
       expect(await fetchAgentCard("tulpa:zVictim", "https://example.com")).toBeNull();
     } finally {
       globalThis.fetch = orig;

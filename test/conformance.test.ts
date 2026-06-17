@@ -23,8 +23,10 @@ import {
   ConnectionRequestPayloadSchema,
   ConnectionResponsePayloadSchema,
   AgentCardSchema,
+  evaluateAgentCardFetch,
   hexToBytes,
 } from "../src/index.js";
+import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
 
 // Runs the versioned ink/1 conformance vectors against this reference
@@ -155,6 +157,9 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     }
     case "agent-card": {
       return { result: AgentCardSchema.safeParse(input.card).success ? "accept" : "reject" };
+    }
+    case "agent-card-fetch": {
+      return { result: evaluateAgentCardFetch(input as unknown as AgentCardFetchInput).accepted ? "accept" : "reject" };
     }
     case "audit-query-response": {
       const { response, witnessPublicKeyHex, expectedRequester, expectedMessageId, expectedServiceDid, laterCheckpoint, agentKeysHex } = input as {

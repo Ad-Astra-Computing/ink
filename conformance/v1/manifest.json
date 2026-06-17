@@ -11,6 +11,14 @@
       "sha256": "6211da549af87ba2d2843de50c2f4d851f9252ccb5e454661ff679de1316e354"
     },
     {
+      "id": "agent-card-fetch",
+      "vector": "vectors/agent-card-fetch.json",
+      "spec": "specs/ink-agent-card-discovery-fetch.md",
+      "summary": "Agent Card discovery response contract (status, content type, size caps, identity binding).",
+      "caseCount": 29,
+      "sha256": "b7ec6296addb3f27a25c04a652d363d20032a5a8da722d09dc7f65d60cbd5302"
+    },
+    {
       "id": "audit-query-response",
       "vector": "vectors/audit-query-response.json",
       "spec": "specs/ink-audit-query-response.md",
