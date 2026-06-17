@@ -150,6 +150,14 @@ additive field then.
   inboxEndpoint mismatch, a bad publicKeyMultibase, an unknown or over-cap enum,
   and a malformed key entry all reject. See
   [`../../specs/ink-agent-card.md`](../../specs/ink-agent-card.md).
+- **agent-card-fetch** — the discovery response-handling contract over synthetic
+  response metadata (status, Content-Type, Content-Length, body, requested
+  agentId): status must be 200, Content-Type must be application/json with at
+  most a utf-8 charset, the body is capped at 64 KiB by declared and actual
+  size, and the parsed card must satisfy the schema, carry protocol ink/0.1, and
+  bind to the requested agentId. The request-side SSRF gate and card-content
+  host checks are out of scope. See
+  [`../../specs/ink-agent-card-discovery-fetch.md`](../../specs/ink-agent-card-discovery-fetch.md).
 
 ## String length and ordering
 

@@ -51,6 +51,8 @@ export {
   extractCandidateKeys,
   resolveBaseUrl,
 } from "./discovery/agent-card.js";
+export { evaluateAgentCardFetch, MAX_AGENT_CARD_BYTES } from "./discovery/agent-card-fetch.js";
+export type { AgentCardFetchInput, AgentCardFetchResult } from "./discovery/agent-card-fetch.js";
 
 // Middleware: transport-level INK auth
 export { verifyInkAuth, type NonceStore } from "./middleware/ink-auth.js";

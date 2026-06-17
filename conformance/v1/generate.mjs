@@ -54,6 +54,7 @@ const CATEGORY_META = {
   "handshake-message": { spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
   "connection-payload": { spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
   "agent-card": { spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
+  "agent-card-fetch": { spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -1586,6 +1587,53 @@ vectorFile("agent-card", [
   acReject("bad-key-set-version-rejects", "A non-positive keySetVersion is rejected.", { ...acCard, keySetVersion: 0 }),
   acReject("bad-visibility-rejects", "An unknown visibility is rejected.", { ...acCard, visibility: "secret" }),
   acReject("bad-governance-depth-rejects", "A non-positive maxAcceptedDelegationDepth is rejected.", { ...acCard, governance: { maxAcceptedDelegationDepth: -1 } }),
+]);
+
+// ── agent-card-fetch ───────────────────────────────────────────────────────
+// The discovery RESPONSE-handling contract: given synthetic response metadata
+// (status, Content-Type, Content-Length, body, requested agentId), does the
+// response yield a valid Agent Card bound to the requested id? See
+// specs/ink-agent-card-discovery-fetch.md.
+const fetchBody = JSON.stringify(acCard);
+const fetchReqId = acCard.agentId;
+const fetchInput = (over = {}) => ({ status: 200, contentType: "application/json", contentLength: null, bodyRaw: fetchBody, requestedAgentId: fetchReqId, ...over });
+const fAccept = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
+const fReject = (caseId, description, input) => ({ caseId, description, input, expect: { result: "reject" } });
+vectorFile("agent-card-fetch", [
+  fAccept("ok-application-json", "200 application/json with a valid bound card accepts.", fetchInput()),
+  fAccept("ok-charset-utf8", "A utf-8 charset parameter is accepted.", fetchInput({ contentType: "application/json; charset=utf-8" })),
+  fAccept("ok-charset-uppercase", "Charset comparison is case-insensitive.", fetchInput({ contentType: "application/json; charset=UTF-8" })),
+  fAccept("ok-charset-quoted", "A quoted utf-8 charset is accepted.", fetchInput({ contentType: 'application/json; charset="utf-8"' })),
+  fAccept("ok-content-type-ows", "Optional whitespace around the media type and params is tolerated.", fetchInput({ contentType: " application/json ; charset=utf-8 " })),
+  fAccept("ok-content-length-within-cap", "A Content-Length within the cap accepts.", fetchInput({ contentLength: String(Buffer.byteLength(fetchBody, "utf8")) })),
+  fAccept("ok-content-length-noncanonical-ignored", "A non-numeric Content-Length is ignored, not fatal.", fetchInput({ contentLength: "not-a-number" })),
+  // status
+  fReject("status-201-rejects", "A non-200 2xx status rejects; discovery is a fixed 200 GET.", fetchInput({ status: 201 })),
+  fReject("status-204-rejects", "204 No Content rejects.", fetchInput({ status: 204 })),
+  fReject("status-301-rejects", "A redirect status rejects.", fetchInput({ status: 301 })),
+  fReject("status-404-rejects", "404 rejects.", fetchInput({ status: 404 })),
+  fReject("status-500-rejects", "500 rejects.", fetchInput({ status: 500 })),
+  // content-type
+  fReject("content-type-missing-rejects", "An absent Content-Type rejects.", fetchInput({ contentType: null })),
+  fReject("content-type-empty-rejects", "An empty Content-Type rejects.", fetchInput({ contentType: "" })),
+  fReject("content-type-text-plain-rejects", "text/plain rejects.", fetchInput({ contentType: "text/plain" })),
+  fReject("content-type-text-html-rejects", "text/html rejects.", fetchInput({ contentType: "text/html" })),
+  fReject("content-type-ldjson-rejects", "application/ld+json rejects; only application/json is accepted.", fetchInput({ contentType: "application/ld+json" })),
+  fReject("content-type-octet-stream-rejects", "application/octet-stream rejects.", fetchInput({ contentType: "application/octet-stream" })),
+  fReject("content-type-comma-rejects", "A combined or duplicated Content-Type (comma) rejects as ambiguous.", fetchInput({ contentType: "application/json, text/html" })),
+  fReject("content-type-bad-charset-rejects", "A non-utf-8 charset rejects.", fetchInput({ contentType: "application/json; charset=iso-8859-1" })),
+  // size caps
+  fReject("content-length-over-cap-rejects", "A Content-Length over the 64 KiB cap rejects before the body is trusted.", fetchInput({ contentLength: String(64 * 1024 + 1) })),
+  fReject("content-length-int64-overflow-rejects", "A Content-Length larger than a 64-bit integer still classifies as over the cap (digit-string comparison, no parse).", fetchInput({ contentLength: "9223372036854775808" })),
+  fReject("content-length-astronomical-rejects", "An astronomically large Content-Length rejects.", fetchInput({ contentLength: "1" + "0".repeat(100) })),
+  fReject("body-over-cap-rejects", "A body whose actual UTF-8 size exceeds the 64 KiB cap rejects.", fetchInput({ bodyRaw: "x".repeat(64 * 1024 + 1) })),
+  fReject("body-over-cap-multibyte-rejects", "A multibyte body over the cap rejects; the cap is UTF-8 bytes, not code units, identically in both implementations.", fetchInput({ bodyRaw: "€".repeat(21846) })),
+  // body content
+  fReject("body-not-json-rejects", "A non-JSON body rejects.", fetchInput({ bodyRaw: "{not json" })),
+  fReject("body-json-not-card-rejects", "Well-formed JSON that is not an Agent Card rejects.", fetchInput({ bodyRaw: JSON.stringify({ hello: "world" }) })),
+  fReject("body-array-rejects", "A JSON array body rejects.", fetchInput({ bodyRaw: "[]" })),
+  // identity binding
+  fReject("identity-mismatch-rejects", "A valid card whose agentId differs from the requested id rejects.", fetchInput({ requestedAgentId: "did:web:other.example" })),
 ]);
 
 writeManifest();

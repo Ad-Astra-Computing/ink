@@ -246,6 +246,30 @@ func TestAgentCard(t *testing.T) {
 	}
 }
 
+func TestAgentCardFetch(t *testing.T) {
+	vf := loadVectors(t, "agent-card-fetch")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+		var status int
+		if err := json.Unmarshal(c.Input["status"], &status); err != nil {
+			t.Fatalf("%s: bad status: %v", c.CaseID, err)
+		}
+		var contentType, contentLength *string
+		if raw, ok := c.Input["contentType"]; ok {
+			_ = json.Unmarshal(raw, &contentType)
+		}
+		if raw, ok := c.Input["contentLength"]; ok {
+			_ = json.Unmarshal(raw, &contentLength)
+		}
+		var bodyRaw, reqID string
+		_ = json.Unmarshal(c.Input["bodyRaw"], &bodyRaw)
+		_ = json.Unmarshal(c.Input["requestedAgentId"], &reqID)
+		if got := EvaluateAgentCardFetch(status, contentType, contentLength, bodyRaw, reqID); got != want {
+			t.Errorf("%s: EvaluateAgentCardFetch = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
 func TestConnectionPayload(t *testing.T) {
 	vf := loadVectors(t, "connection-payload")
 	for _, c := range vf.Cases {
