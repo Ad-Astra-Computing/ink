@@ -1,0 +1,27 @@
+{
+  "name": "@adastracomputing/ink-reference-sender-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable INK sender built solely on the @adastracomputing/ink public surface. Signs an envelope, discovers the recipient inbox, and POSTs it with an INK Authorization header.",
+  "type": "module",
+  "main": "src/index.ts",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "ink-send": "bin/ink-send.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "send": "node bin/ink-send.mjs"
+  },
+  "dependencies": {
+    "@adastracomputing/ink": "^0.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.9"
+  }
+}
