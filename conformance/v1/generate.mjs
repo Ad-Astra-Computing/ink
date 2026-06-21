@@ -40,27 +40,35 @@ const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 // pins, and a one-line summary. Adding a category requires an entry here, so a
 // new vector file without a manifest description fails generation (and the
 // drift tests) rather than shipping undocumented.
+// The `profile` pins each category to the conformance profile that requires it,
+// the machine-readable half of the 1.0 base-profile freeze (see
+// specs/ink-conformance-profile.md): `base` is the floor every conforming INK
+// implementation MUST satisfy; `encryption`, `audit`, `witness`, and
+// `containment` are capability-gated and required only when the implementation
+// advertises that capability. The base set is frozen by drift tripwires in
+// test/conformance-profile.test.ts and go/ink/conformance_manifest_test.go.
+const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment"]);
 const CATEGORY_META = {
-  "principal-normalization": { spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
-  "signature-base": { spec: "specs/ink-jcs-number-profile.md", summary: "Ed25519 verification over the canonical signature base." },
-  "jcs-number": { spec: "specs/ink-jcs-number-profile.md", summary: "RFC 8785 JCS canonicalization and the safe-integer number profile." },
-  "key-rotation": { spec: "specs/ink-key-rotation-spec.md", summary: "Key-window verification across active, retired, and revoked keys." },
-  "replay-freshness": { spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
-  "timestamp-validity": { spec: "specs/ink-timestamp-grammar.md", summary: "Strict INK timestamp grammar and epoch-millisecond parsing." },
-  "jcs-string-safety": { spec: "specs/ink-signed-string-safety.md", summary: "Lone UTF-16 surrogate rejection in signed strings." },
-  "merkle-inclusion": { spec: "specs/ink-merkle-inclusion.md", summary: "RFC 6962 inclusion-proof verification." },
-  "merkle-consistency": { spec: "specs/ink-merkle-consistency.md", summary: "RFC 6962 consistency-proof verification." },
-  "merkle-checkpoint": { spec: "specs/ink-merkle-checkpoint.md", summary: "C2SP tlog-checkpoint parsing and canonical formatting." },
-  "merkle-leaf": { spec: "specs/ink-merkle-leaf.md", summary: "Audit-event Merkle leaf-hash computation." },
-  "inclusion-receipt": { spec: "specs/ink-inclusion-receipt.md", summary: "Composite inclusion-receipt verification." },
-  "audit-query-response": { spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
-  "handshake-message": { spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
-  "connection-payload": { spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
-  "agent-card": { spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
-  "agent-card-fetch": { spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
-  "private-hostname": { spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
-  "payload-encryption": { spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
-  "first-contact-transcript": { spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
+  "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
+  "signature-base": { profile: "base", spec: "specs/ink-jcs-number-profile.md", summary: "Ed25519 verification over the canonical signature base." },
+  "jcs-number": { profile: "base", spec: "specs/ink-jcs-number-profile.md", summary: "RFC 8785 JCS canonicalization and the safe-integer number profile." },
+  "key-rotation": { profile: "base", spec: "specs/ink-key-rotation-spec.md", summary: "Key-window verification across active, retired, and revoked keys." },
+  "replay-freshness": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
+  "timestamp-validity": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Strict INK timestamp grammar and epoch-millisecond parsing." },
+  "jcs-string-safety": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Lone UTF-16 surrogate rejection in signed strings." },
+  "merkle-inclusion": { profile: "witness", spec: "specs/ink-merkle-inclusion.md", summary: "RFC 6962 inclusion-proof verification." },
+  "merkle-consistency": { profile: "witness", spec: "specs/ink-merkle-consistency.md", summary: "RFC 6962 consistency-proof verification." },
+  "merkle-checkpoint": { profile: "witness", spec: "specs/ink-merkle-checkpoint.md", summary: "C2SP tlog-checkpoint parsing and canonical formatting." },
+  "merkle-leaf": { profile: "audit", spec: "specs/ink-merkle-leaf.md", summary: "Audit-event Merkle leaf-hash computation." },
+  "inclusion-receipt": { profile: "audit", spec: "specs/ink-inclusion-receipt.md", summary: "Composite inclusion-receipt verification." },
+  "audit-query-response": { profile: "audit", spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
+  "handshake-message": { profile: "containment", spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
+  "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
+  "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
+  "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
+  "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
+  "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
+  "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -84,7 +92,8 @@ function writeManifest() {
     .map(({ category, caseCount, sha256 }) => {
       const meta = CATEGORY_META[category];
       if (!meta) throw new Error(`conformance manifest: no CATEGORY_META entry for ${category}`);
-      return { id: category, vector: `vectors/${category}.json`, spec: meta.spec, summary: meta.summary, caseCount, sha256 };
+      if (!KNOWN_PROFILES.has(meta.profile)) throw new Error(`conformance manifest: category ${category} has unknown profile ${JSON.stringify(meta.profile)}`);
+      return { id: category, vector: `vectors/${category}.json`, profile: meta.profile, spec: meta.spec, summary: meta.summary, caseCount, sha256 };
     });
   const manifest = { format: "ink.conformance.manifest.v1", corpus: "ink.conformance.v1", categories };
   writeFileSync(`${here}manifest.json`, JSON.stringify(manifest, null, 2) + "\n");

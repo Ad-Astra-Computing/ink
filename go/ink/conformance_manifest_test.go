@@ -18,10 +18,39 @@ const manifestPath = "../../conformance/v1/manifest.json"
 type manifestCategory struct {
 	ID        string `json:"id"`
 	Vector    string `json:"vector"`
+	Profile   string `json:"profile"`
 	Spec      string `json:"spec"`
 	Summary   string `json:"summary"`
 	CaseCount int    `json:"caseCount"`
 	SHA256    string `json:"sha256"`
+}
+
+// goProfileCategories freezes the full conformance profile partition: every
+// category mapped to the profile that requires it (see
+// specs/ink-conformance-profile.md). It is the second-implementation half of
+// the freeze in test/conformance-profile.test.ts; moving a category between
+// profiles, or adding one without classifying it, must be a deliberate edit in
+// both places, not a silent drift. The `base` set is the floor every conforming
+// INK implementation MUST satisfy.
+var goProfileCategories = map[string][]string{
+	"base": {
+		"agent-card",
+		"agent-card-fetch",
+		"connection-payload",
+		"first-contact-transcript",
+		"jcs-number",
+		"jcs-string-safety",
+		"key-rotation",
+		"principal-normalization",
+		"private-hostname",
+		"replay-freshness",
+		"signature-base",
+		"timestamp-validity",
+	},
+	"encryption":  {"payload-encryption"},
+	"audit":       {"audit-query-response", "inclusion-receipt", "merkle-leaf"},
+	"witness":     {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
+	"containment": {"handshake-message"},
 }
 
 type conformanceManifest struct {
@@ -168,6 +197,33 @@ func TestManifestMatchesGoCategories(t *testing.T) {
 	for i := range manifestIDs {
 		if manifestIDs[i] != verified[i] {
 			t.Errorf("category mismatch at %d: manifest %q, go %q", i, manifestIDs[i], verified[i])
+		}
+	}
+}
+
+func TestManifestProfilesFrozen(t *testing.T) {
+	m := loadManifest(t)
+	got := map[string][]string{}
+	for _, c := range m.Categories {
+		if _, ok := goProfileCategories[c.Profile]; !ok {
+			t.Errorf("%s: unknown profile %q", c.ID, c.Profile)
+			continue
+		}
+		got[c.Profile] = append(got[c.Profile], c.ID)
+	}
+	for profile, wantIDs := range goProfileCategories {
+		want := append([]string(nil), wantIDs...)
+		sort.Strings(want)
+		have := append([]string(nil), got[profile]...)
+		sort.Strings(have)
+		if len(have) != len(want) {
+			t.Errorf("%s profile count: manifest %d, frozen %d", profile, len(have), len(want))
+			continue
+		}
+		for i := range want {
+			if have[i] != want[i] {
+				t.Errorf("%s profile mismatch at %d: manifest %q, frozen %q", profile, i, have[i], want[i])
+			}
 		}
 	}
 }

@@ -8,6 +8,8 @@
 
 This checklist lets an independent implementer verify INK conformance without reading Tulpa source code. Each requirement maps to a spec section, test vector family and implementation status.
 
+For the normative cross-implementation floor keyed to the `conformance/v1` corpus, see [`ink-conformance-profile.md`](ink-conformance-profile.md): it freezes which conformance categories a base sender and base receiver MUST satisfy versus the capability-gated profiles. This checklist is the broader, Tulpa-specific implementation matrix; the profile document is authoritative for what the corpus requires of any conforming implementation.
+
 ---
 
 ## How to Read This Document
@@ -69,6 +71,8 @@ This checklist lets an independent implementer verify INK conformance without re
 
 ## 4. Encryption
 
+> Capability-gated: the `encryption` conformance profile. Required only when the implementation sends or accepts encrypted payloads; see [ink-conformance-profile.md](ink-conformance-profile.md). Not part of the base profile.
+
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
@@ -92,6 +96,8 @@ This checklist lets an independent implementer verify INK conformance without re
 ---
 
 ## 6. Handshake
+
+> Containment-gated: the `containment` conformance profile (signed challenge, rejection, and resolution messages). Required only when the implementation advertises the containment and governance extension; see [ink-conformance-profile.md](ink-conformance-profile.md). Not part of the base profile.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
@@ -241,6 +247,8 @@ This checklist lets an independent implementer verify INK conformance without re
 
 ## 14. Interoperability Profiles
 
+> The normative cross-implementation profile freeze keyed to the `conformance/v1` corpus is [ink-conformance-profile.md](ink-conformance-profile.md). Under that freeze the signed handshake messages (section 6) are containment-gated and encryption (section 4) is capability-gated, not part of the base sender or receiver floor. The role groupings below are the Tulpa implementation's view; where they list handshake or encryption as a minimum, treat those as capability-gated per the freeze.
+
 An implementation MAY conform to one or more of these profiles:
 
 ### 14.1 Sender-Only
@@ -251,13 +259,13 @@ Can send INK messages and verify responses but does not accept inbound messages.
 
 ### 14.2 Receiver-Only
 
-Minimum requirements: S1–S8, R1–R5, M1–M4, D1–D3, H1–H6, ER1–ER9
+Minimum requirements: S1–S8, R1–R5, M1–M4, D1–D3, ER1–ER9. The signed handshake messages (H1–H6) and encryption (E1–E6) are capability-gated, not part of the base receiver floor.
 
 Can receive and verify INK messages but does not initiate.
 
 ### 14.3 Full Peer
 
-All required items from sections 1–6 and 10–12.
+All required items from sections 1–3, 5, 10–12, plus encryption (section 4) and handshake (section 6) when the matching capability is advertised.
 
 ### 14.4 Audit-Capable Peer
 
