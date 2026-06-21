@@ -166,6 +166,15 @@ additive field then.
   and bare literals, and FQDN/case normalization. Hostname strings only; URL
   parsing is out of scope. See
   [`../../specs/ink-private-hostname.md`](../../specs/ink-private-hostname.md).
+- **payload-encryption** — ECIES payload decryption (§3.4): X25519 key
+  agreement, HKDF-SHA256, and AES-256-GCM with the outer envelope bound as AAD.
+  A valid envelope decrypts to exact plaintext bytes; an optional recipient-DID
+  binding to the inner `to` accepts or rejects; and a tamper of any AAD-bound
+  field (`protocol`, `type`, `from`, `ephemeralKey`, `nonce`, `timestamp`,
+  `messageNonce`), a ciphertext-or-tag tamper, the wrong recipient key, a
+  malformed or wrong-length ephemeral key or nonce, an all-zero (low-order)
+  shared secret, and an inner/outer `from` mismatch all reject. See
+  [`../../specs/ink-payload-encryption.md`](../../specs/ink-payload-encryption.md).
 
 ## String length and ordering
 

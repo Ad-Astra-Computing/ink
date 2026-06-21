@@ -619,6 +619,52 @@ func TestKeyRotation(t *testing.T) {
 	}
 }
 
+func TestPayloadEncryption(t *testing.T) {
+	vf := loadVectors(t, "payload-encryption")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+
+		var envelope map[string]any
+		if err := json.Unmarshal(mustJSON(t, c.Input, "envelope"), &envelope); err != nil {
+			if want {
+				t.Errorf("%s: envelope is not an object but vector expects accept: %v", c.CaseID, err)
+			}
+			continue
+		}
+		var privHex string
+		if err := json.Unmarshal(c.Input["recipientPrivateKeyHex"], &privHex); err != nil {
+			t.Fatalf("%s: bad recipientPrivateKeyHex: %v", c.CaseID, err)
+		}
+		var recipientDid *string
+		if raw, ok := c.Input["recipientDid"]; ok {
+			var s string
+			if err := json.Unmarshal(raw, &s); err == nil {
+				recipientDid = &s
+			}
+		}
+
+		got, err := DecryptInkPayload(envelope, privHex, recipientDid)
+		if (err == nil) != want {
+			t.Errorf("%s: DecryptInkPayload accepted=%v, want %v (err=%v)", c.CaseID, err == nil, want, err)
+			continue
+		}
+		if !want {
+			continue
+		}
+		// An accept case pins the exact decrypted plaintext as canonical
+		// bytes (the same canonicalString the TS reference compares), so a
+		// verifier that decrypts to different bytes diverges.
+		gotCanon, gerr := canonicalizeJSON(got)
+		if gerr != nil {
+			t.Errorf("%s: canonicalize failed: %v", c.CaseID, gerr)
+			continue
+		}
+		if c.Expect.CanonicalString != "" && gotCanon != c.Expect.CanonicalString {
+			t.Errorf("%s: plaintext canonical = %s, want %s", c.CaseID, gotCanon, c.Expect.CanonicalString)
+		}
+	}
+}
+
 func mustJSON(t *testing.T, m map[string]json.RawMessage, key string) json.RawMessage {
 	t.Helper()
 	v, ok := m[key]

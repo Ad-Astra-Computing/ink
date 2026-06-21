@@ -107,6 +107,14 @@
       "sha256": "ca9962be54fdcf894d52f58125ae2792502db9ba29803990206e701142f74eaa"
     },
     {
+      "id": "payload-encryption",
+      "vector": "vectors/payload-encryption.json",
+      "spec": "specs/ink-payload-encryption.md",
+      "summary": "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope.",
+      "caseCount": 20,
+      "sha256": "3e051026c622dcc9d8fb7b000fe953a8c8700e183b79a758357e9552f8dd3d1b"
+    },
+    {
       "id": "principal-normalization",
       "vector": "vectors/principal-normalization.json",
       "spec": "specs/ink-authorization-chain.md",
