@@ -175,6 +175,17 @@ additive field then.
   malformed or wrong-length ephemeral key or nonce, an all-zero (low-order)
   shared secret, and an inner/outer `from` mismatch all reject. See
   [`../../specs/ink-payload-encryption.md`](../../specs/ink-payload-encryption.md).
+- **first-contact-transcript** — a complete stranger first-contact flow composed
+  from the pinned primitives: discover the receiver's Agent Card, select a
+  protocol version from `supportedProtocolVersions`, verify the signed
+  `connection_request` under the freshness/replay rule, and verify the accepted
+  `connection_response`. A valid exchange accepts and pins the selected version;
+  a failed card fetch, no version overlap, a request emitted under an
+  unadvertised version, a bad request or response signature, an invalid payload,
+  an intent or transport-timestamp mismatch, a replayed nonce, a stale message,
+  a non-accepted status, and a response under a different version all reject, so
+  an implementation that skips or reorders a step diverges. See
+  [`../../specs/ink-first-contact-transcript.md`](../../specs/ink-first-contact-transcript.md).
 
 ## String length and ordering
 

@@ -1,0 +1,1504 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "first-contact-transcript",
+  "cases": [
+    {
+      "caseId": "valid-first-contact",
+      "description": "A complete card-fetch, version-select, signed request, and accepted response verifies.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "ink/0.1"
+      }
+    },
+    {
+      "caseId": "valid-negotiated-v02",
+      "description": "When both sides support ink/0.2, the higher preferred common version is selected and pinned.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\",\"ink/0.2\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.2",
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.2",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "cR3l9HXZ0PnXY0Ez78OHTmaod-4QxdVt-qvaou9MbOukj9ZQQCwytnc9-K5-TC5yYapdNmDNKxczEgNRdHdIAQ",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.2",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "BxVe7r35ri9nFeu7agElOdGFcHzMahaC7pB5nY9GC0-oX6_QxITMeYh_-9i-2o-5AiiaOa6gaZdhQeaGTy-EBg",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "ink/0.2"
+      }
+    },
+    {
+      "caseId": "card-fetch-non-200",
+      "description": "A non-200 discovery response fails the fetch step and rejects the transcript.",
+      "input": {
+        "cardFetch": {
+          "status": 404,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "card-fetch-agentid-mismatch",
+      "description": "A card whose agentId does not equal the requested agentId fails the identity binding.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:other.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "no-version-overlap",
+      "description": "When the card and client share no protocol version, selection fails and the transcript rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.9\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1",
+          "ink/0.2"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-unadvertised-version",
+      "description": "A request emitted under a version the card does not advertise rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.2",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "cR3l9HXZ0PnXY0Ez78OHTmaod-4QxdVt-qvaou9MbOukj9ZQQCwytnc9-K5-TC5yYapdNmDNKxczEgNRdHdIAQ",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-bad-signature",
+      "description": "A tampered request signature fails verification.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "ArzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-payload-missing-context",
+      "description": "A request payload missing the required context fails the connection_request schema.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "PHDSS-pc7P4iaQIrcZptPCeyy47_oaF21NJ_CQht7NgBuA6KYdigfHJPZBjV74zsApfavxLfVeRH6yztOob6Cw",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-intent-mismatch",
+      "description": "A request envelope whose intent is not connection_request rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_response",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "QluiKhA_RoETjgYQ1JCgj-lL3p4lQ2GojGSA4AmHsOXkEokUh9SoLrZiH5H1N6ErVXhQmHeU2PCr1Im_Bx3EAw",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-timestamp-binding-mismatch",
+      "description": "A transport timestamp that disagrees with the request envelope timestamp rejects (§3.3 binding).",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:01.000Z"
+          },
+          "signature": "Q2HmDW1nOoIZq4Iw_2ZXLxrNO5smEJEq24y0qDHaaQDgJB90Hf1Fj4Hy0JQXRSU2-TXLaq3lUiaOcAvrTmhrBQ",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "replayed-request-nonce",
+      "description": "A request nonce already in the receiver's seen set is a replay and rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [
+          "firstcontactreqnonce00000001"
+        ],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "stale-request-timestamp",
+      "description": "A request older than the freshness window against the receiver clock rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T01:00:00.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-bad-signature",
+      "description": "A tampered response signature fails verification.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Ayqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-status-declined",
+      "description": "A connection_response whose status is not accepted rejects the first-contact transcript.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "declined"
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "F8jyD0gkQo9FbhARe37EiYi5jtPHQtbhYY_UrJx_7fqNHVjNzMYt2AIJH9_uLnVbdKWiqnxXQ_4iX4FoWTWXAw",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-payload-unknown-key",
+      "description": "A connection_response payload with an unknown key fails the strict schema.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "extra": "x"
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "nXUvFLjjawy7WEd6DVqEnxyoHeq8uiuTRQXfnBJte9SMVZmWSFC2LSOCsMakeMmTJPyAi8TlRZSfMO8Dq3UnAA",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-protocol-mismatch",
+      "description": "A response emitted under a different version than the selected one rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\",\"ink/0.2\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1",
+          "ink/0.2"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.2",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "BxVe7r35ri9nFeu7agElOdGFcHzMahaC7pB5nY9GC0-oX6_QxITMeYh_-9i-2o-5AiiaOa6gaZdhQeaGTy-EBg",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-intent-mismatch",
+      "description": "A response envelope whose intent is not connection_response rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_request",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "XyJCQ1YcyRUzw2GRFqTFB4KwEBQSTsN-YjQuWEXHItRDcpdutXRba90s29XGpr2s7egsi5EDHbM-L10Bja_xAA",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-timestamp-binding-mismatch",
+      "description": "A transport timestamp that disagrees with the response envelope timestamp rejects (§3.3 binding).",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:03.000Z"
+          },
+          "signature": "r8amoqS4ZsAUZHmMO1vjfUJJe6NcU8c1Ukwsp96Qcvw1YVklmOQ1wRJeseolipiSkVa9PeIvco9RPEISUZuZAQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "future-request-timestamp",
+      "description": "A request timestamp beyond the future skew against the receiver clock rejects.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2025-12-31T23:59:00.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "card-omits-versions-defaults-v01",
+      "description": "A card without supportedProtocolVersions defaults to ink/0.1 and the ink/0.1 flow accepts.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"}}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "ink/0.1"
+      }
+    },
+    {
+      "caseId": "card-empty-versions-defaults-v01",
+      "description": "A card advertising an empty version list defaults to ink/0.1 and accepts.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "ink/0.1"
+      }
+    }
+  ]
+}
