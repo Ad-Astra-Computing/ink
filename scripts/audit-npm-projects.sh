@@ -17,6 +17,7 @@ projects=(
   "examples/foreign-sender-receiver"
   "examples/reference-receiver"
   "examples/reference-sender"
+  "examples/docker-receiver"
 )
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

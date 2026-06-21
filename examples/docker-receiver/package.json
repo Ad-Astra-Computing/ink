@@ -1,0 +1,24 @@
+{
+  "name": "@adastracomputing/ink-docker-receiver-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The INK reference receiver, bundled with esbuild and run under Node behind a node:http adapter so it runs anywhere a container does. No Cloudflare runtime required.",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node server.mjs",
+    "keygen": "node keygen.mjs",
+    "demo": "node agent-demo.mjs",
+    "test": "node build.mjs && vitest run"
+  },
+  "dependencies": {
+    "@adastracomputing/ink": "^0.7.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1",
+    "vitest": "^4.1.9"
+  }
+}

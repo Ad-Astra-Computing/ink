@@ -1,0 +1,31 @@
+# Two INK agents talking over the wire, fully local, no Cloudflare.
+#
+#   cp .env.example .env   # then fill in the keygen output (npm run keygen)
+#   docker compose up --build
+#
+# The `receiver` service runs the bundled reference receiver. The `sender`
+# service is a one-shot agent that discovers the receiver's agent card, signs a
+# ping, POSTs it, prints the acknowledgement, and exits.
+
+services:
+  receiver:
+    build:
+      context: ..
+      dockerfile: docker-receiver/Dockerfile
+    environment:
+      PORT: "8787"
+      INK_RECEIVER_SIGNING_SEED: "${INK_RECEIVER_SIGNING_SEED:?run npm run keygen and put the values in .env}"
+      INK_RECEIVER_PUBLIC_KEY_MULTIBASE: "${INK_RECEIVER_PUBLIC_KEY_MULTIBASE:?set in .env}"
+      INK_RECEIVER_HOST: "${INK_RECEIVER_HOST:-ink-receiver.example}"
+    ports:
+      - "8787:8787"
+
+  sender:
+    build:
+      context: ..
+      dockerfile: docker-receiver/Dockerfile
+    depends_on:
+      - receiver
+    environment:
+      RECEIVER_URL: "http://receiver:8787"
+    command: ["node", "dist/agent-demo.mjs", "hello from the sender agent"]
