@@ -50,6 +50,7 @@ var goVerifiedCategories = []string{
 	"merkle-consistency",
 	"merkle-inclusion",
 	"merkle-leaf",
+	"payload-encryption",
 	"principal-normalization",
 	"private-hostname",
 	"replay-freshness",

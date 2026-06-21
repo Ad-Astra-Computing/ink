@@ -10,6 +10,7 @@ import { writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import * as ed from "@noble/ed25519";
+import { x25519 } from "@noble/curves/ed25519.js";
 import {
   encodePublicKeyMultibase,
   canonicalAgentPrincipal,
@@ -22,6 +23,8 @@ import {
   jcsCanonicalize,
   signAuditEvent,
   signAuditQueryResponse,
+  encryptInkPayload,
+  base64urlEncode,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -56,6 +59,7 @@ const CATEGORY_META = {
   "agent-card": { spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
   "agent-card-fetch": { spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
   "private-hostname": { spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
+  "payload-encryption": { spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -1711,6 +1715,184 @@ vectorFile("private-hostname", [
   phReject("ipv6-zone-private", "fe80::1%eth0", "A zoned link-local address is rejected."),
   phReject("ipv6-zone-public", "2606:4700:4700::1111%eth0", "A zone id on a public literal is rejected, not stripped."),
 ]);
+
+// ── payload-encryption ──────────────────────────────────────────────────────
+// Deterministic ECIES vectors: a fixed recipient X25519 key, a fixed ephemeral
+// key, and a fixed AES-GCM nonce make `encryptInkPayload` produce one stable
+// envelope that both implementations must decrypt to the same plaintext (and
+// reject every tampered/malformed variant of).
+{
+  const recipientPriv = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-encryption-recipient")),
+  );
+  const recipientPubHex = bytesToHex(x25519.getPublicKey(recipientPriv));
+  const recipientPrivHex = bytesToHex(recipientPriv);
+  const otherPriv = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-encryption-other-recipient")),
+  );
+  const otherPrivHex = bytesToHex(otherPriv);
+  const otherPubB64 = base64urlEncode(x25519.getPublicKey(otherPriv));
+  const ephPriv = new Uint8Array(
+    await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-encryption-ephemeral")),
+  );
+  const aesNonce = new Uint8Array(
+    (await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-encryption-nonce"))).slice(0, 12),
+  );
+
+  const sender = "did:web:sender.example.com";
+  const recipientDid = "did:web:recipient.example.com";
+  const ts = "2026-01-01T00:00:00.000Z";
+  const msgNonce = "01HENCRYPTNONCE0000000000AA";
+  const plaintext = { protocol: "ink/0.1", from: sender, to: recipientDid, intent: "ping", payload: { note: "hello" } };
+  const opts = { ephemeralPrivateKey: ephPriv, aesNonce };
+  const { envelope } = await encryptInkPayload(plaintext, sender, recipientPubHex, ts, msgNonce, opts);
+  const canonicalPlaintext = jcsCanonicalize(plaintext);
+
+  // Same recipient + ephemeral, but the inner `from` deliberately disagrees
+  // with the outer `from`, so a conformant decrypter rejects on the
+  // inner/outer consistency check (not the AAD).
+  const innerMismatchPlain = { protocol: "ink/0.1", from: "did:web:other.example.com", to: recipientDid, intent: "ping" };
+  const { envelope: innerMismatchEnv } = await encryptInkPayload(
+    innerMismatchPlain, sender, recipientPubHex, ts, msgNonce, opts,
+  );
+
+  const clone = () => JSON.parse(JSON.stringify(envelope));
+  const tamper = (field, value) => { const e = clone(); e[field] = value; return e; };
+  // Flip the FIRST base64url char of the ciphertext to break the GCM tag. The
+  // leading char carries the high 6 bits of byte 0, so the change is always
+  // significant (a trailing char in an unpadded encoding can carry unused low
+  // bits whose flip leaves the decoded bytes unchanged).
+  const flippedCipher = (() => {
+    const ct = envelope.ciphertext;
+    return (ct[0] === "A" ? "B" : "A") + ct.slice(1);
+  })();
+
+  const acc = (canonicalString) => ({ result: "accept", canonicalString });
+  const rej = { result: "reject" };
+
+  vectorFile("payload-encryption", [
+    {
+      caseId: "valid-decrypt",
+      description: "A well-formed envelope decrypts to the exact plaintext bytes.",
+      input: { envelope, recipientPrivateKeyHex: recipientPrivHex },
+      expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "valid-decrypt-recipient-bound",
+      description: "Decrypt with a recipientDid that matches the inner `to` accepts.",
+      input: { envelope, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
+      expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "unknown-outer-field-ignored",
+      description: "An unknown outer field is ignored and not AAD-bound; the envelope still decrypts.",
+      input: { envelope: tamper("extra", "ignored"), recipientPrivateKeyHex: recipientPrivHex },
+      expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "recipient-binding-mismatch",
+      description: "A recipientDid that does not match the inner `to` rejects.",
+      input: { envelope, recipientPrivateKeyHex: recipientPrivHex, recipientDid: "did:web:wrong.example.com" },
+      expect: rej,
+    },
+    {
+      caseId: "inner-from-mismatch",
+      description: "The decrypted inner `from` must equal the outer envelope `from`.",
+      input: { envelope: innerMismatchEnv, recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-from",
+      description: "Tampering the AAD-bound `from` field fails the GCM tag.",
+      input: { envelope: tamper("from", "did:web:attacker.example.com"), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-timestamp",
+      description: "Tampering the AAD-bound `timestamp` fails the GCM tag.",
+      input: { envelope: tamper("timestamp", "2026-01-01T00:00:01.000Z"), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-message-nonce",
+      description: "Tampering the AAD-bound `messageNonce` fails the GCM tag.",
+      input: { envelope: tamper("messageNonce", "01HENCRYPTNONCE0000000000BB"), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-nonce",
+      description: "Replacing the AES nonce (also AAD-bound) rejects.",
+      input: { envelope: tamper("nonce", base64urlEncode(new Uint8Array(12))), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-ephemeral-key",
+      description: "Substituting a different valid ephemeral key rejects (wrong ECDH + AAD).",
+      input: { envelope: tamper("ephemeralKey", otherPubB64), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-protocol",
+      description: "A non-ink/0.1 protocol is rejected before decryption.",
+      input: { envelope: tamper("protocol", "ink/0.2"), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-type",
+      description: "A wrong envelope `type` is rejected before decryption.",
+      input: { envelope: tamper("type", "network.tulpa.other"), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "tamper-ciphertext",
+      description: "Flipping a ciphertext byte fails the GCM tag.",
+      input: { envelope: tamper("ciphertext", flippedCipher), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "wrong-recipient-key",
+      description: "The wrong recipient private key derives a different AES key and fails the tag.",
+      input: { envelope, recipientPrivateKeyHex: otherPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "ephemeral-key-wrong-length",
+      description: "An ephemeral key that does not decode to 32 bytes rejects.",
+      input: { envelope: tamper("ephemeralKey", base64urlEncode(new Uint8Array(16))), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "nonce-wrong-length",
+      description: "An AES nonce that does not decode to 12 bytes rejects.",
+      input: { envelope: tamper("nonce", base64urlEncode(new Uint8Array(8))), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "ephemeral-key-oversized-field",
+      description: "An oversized ephemeralKey field is rejected before base64url decode.",
+      input: { envelope: tamper("ephemeralKey", "A".repeat(65)), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "empty-from",
+      description: "An empty `from` is rejected (encrypt could never have produced it).",
+      input: { envelope: tamper("from", ""), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "all-zero-shared-secret",
+      description: "A low-order ephemeral key (32 zero bytes) yields an all-zero ECDH secret and rejects.",
+      input: { envelope: tamper("ephemeralKey", base64urlEncode(new Uint8Array(32))), recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
+    },
+    {
+      caseId: "recipient-key-wrong-length",
+      description: "A recipient private key that is not 32 bytes rejects.",
+      input: { envelope, recipientPrivateKeyHex: bytesToHex(new Uint8Array(16)) },
+      expect: rej,
+    },
+  ]);
+}
 
 writeManifest();
 

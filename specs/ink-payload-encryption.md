@@ -1,0 +1,80 @@
+# INK payload encryption (ECIES)
+
+This document pins the decision an implementation makes when decrypting an INK
+encrypted payload envelope: does this envelope, under this recipient key,
+decrypt to a specific plaintext, or must it be rejected? It is verified by the
+`payload-encryption` conformance category.
+
+INK §3.4 encrypts a message payload with ECIES: an ephemeral X25519 key
+agreement, an HKDF-SHA256 key derivation, and AES-256-GCM with the outer
+envelope bound as additional authenticated data (AAD).
+
+## Scope
+
+The decision is over a parsed envelope object (the decrypt function receives an
+object, not raw bytes). Unknown outer fields are ignored and are not AAD-bound,
+so an envelope that carries extra members still decrypts. Rejecting a lone
+UTF-16 surrogate in a raw request body is a transport-ingestion concern pinned
+by the `jcs-string-safety` category, not this one: a lone surrogate that does
+reach the AAD canonicalizes to U+FFFD identically on both sides (the JS
+`TextEncoder` replaces it, and a JSON parser that rewrites it to U+FFFD reaches
+the same bytes), so the decrypt decision stays in agreement.
+
+## Outer envelope
+
+A `network.tulpa.encrypted` envelope is a JSON object with these fields, all
+strings:
+
+- `protocol` — exactly `ink/0.1`.
+- `type` — exactly `network.tulpa.encrypted`.
+- `from` — the sender DID.
+- `ephemeralKey` — the sender's ephemeral X25519 public key, base64url, no padding.
+- `nonce` — the AES-GCM nonce, base64url, no padding.
+- `ciphertext` — the AES-GCM output (ciphertext followed by the 16-byte tag),
+  base64url, no padding.
+- `timestamp` — the message timestamp.
+- `messageNonce` — the message replay nonce.
+
+## Decryption
+
+Given the envelope and the recipient's 32-byte X25519 private key (and an
+optional bound recipient DID), an implementation:
+
+1. Rejects unless `protocol` is `ink/0.1` and `type` is `network.tulpa.encrypted`.
+2. Rejects unless `from` (1 to 512), `timestamp` (1 to 64), and `messageNonce`
+   (1 to 256) are non-empty strings within their length caps, measured in
+   UTF-16 code units. These mirror the encrypt-side caps so decrypt accepts
+   exactly the scalar set encrypt could have produced.
+3. Decodes `ephemeralKey` (its encoded length capped first) and rejects unless
+   it is exactly 32 bytes.
+4. Computes the X25519 ECDH shared secret with the recipient private key.
+   Rejects an all-zero shared secret (a low-order ephemeral key), which would
+   otherwise derive a publicly known AES key.
+5. Derives the AES key as `HKDF-SHA256(secret, salt = "ink/0.1",
+   info = "ink/0.1/encrypt", length = 32 bytes)`.
+6. Decodes `nonce` (encoded length capped first) and rejects unless it is
+   exactly 12 bytes. Caps the encoded `ciphertext` length before decoding.
+7. Reconstructs the AAD as the bytes of `ink/0.1:envelope\n` followed by the
+   RFC 8785 JCS canonicalization of `{ protocol, type, from, ephemeralKey,
+   nonce, timestamp, messageNonce }` (the envelope's own string values). Any
+   tamper of an AAD-bound field changes these bytes and fails the tag.
+8. Runs AES-256-GCM decryption over `ciphertext` with that nonce and AAD.
+   Rejects on an authentication failure (a tampered ciphertext, tag, AAD field,
+   or wrong recipient key).
+9. Parses the plaintext as JSON and rejects unless it is a non-null object
+   (not an array or scalar).
+10. Rejects unless the decrypted inner `from` equals the outer envelope `from`.
+    When a recipient DID is supplied it must be a non-empty string and the
+    decrypted inner `to` must equal it.
+
+An accepted case pins the exact decrypted plaintext as its canonical bytes, so
+a verifier that decrypts to different bytes, or accepts a tampered or malformed
+envelope, diverges from the corpus.
+
+## Determinism
+
+The corpus is generated from a fixed recipient X25519 key, a fixed ephemeral
+key, and a fixed AES-GCM nonce, so `encryptInkPayload` produces one stable
+envelope that both implementations decrypt identically. AES-GCM places the
+16-byte tag immediately after the ciphertext (the Web Crypto layout), so an
+implementation using a split tag must concatenate in the same order.

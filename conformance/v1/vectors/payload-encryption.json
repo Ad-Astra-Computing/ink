@@ -1,0 +1,412 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "payload-encryption",
+  "cases": [
+    {
+      "caseId": "valid-decrypt",
+      "description": "A well-formed envelope decrypts to the exact plaintext bytes.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"from\":\"did:web:sender.example.com\",\"intent\":\"ping\",\"payload\":{\"note\":\"hello\"},\"protocol\":\"ink/0.1\",\"to\":\"did:web:recipient.example.com\"}"
+      }
+    },
+    {
+      "caseId": "valid-decrypt-recipient-bound",
+      "description": "Decrypt with a recipientDid that matches the inner `to` accepts.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3",
+        "recipientDid": "did:web:recipient.example.com"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"from\":\"did:web:sender.example.com\",\"intent\":\"ping\",\"payload\":{\"note\":\"hello\"},\"protocol\":\"ink/0.1\",\"to\":\"did:web:recipient.example.com\"}"
+      }
+    },
+    {
+      "caseId": "unknown-outer-field-ignored",
+      "description": "An unknown outer field is ignored and not AAD-bound; the envelope still decrypts.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA",
+          "extra": "ignored"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"from\":\"did:web:sender.example.com\",\"intent\":\"ping\",\"payload\":{\"note\":\"hello\"},\"protocol\":\"ink/0.1\",\"to\":\"did:web:recipient.example.com\"}"
+      }
+    },
+    {
+      "caseId": "recipient-binding-mismatch",
+      "description": "A recipientDid that does not match the inner `to` rejects.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3",
+        "recipientDid": "did:web:wrong.example.com"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "inner-from-mismatch",
+      "description": "The decrypted inner `from` must equal the outer envelope `from`.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl63ekou3RFpyCPdTQneACSLemQ15RgzAnv3zH4T0nvotAsr3kctZuPVL9M6P77UK-BySTrEiRSvolIX3dz_7i-72mwBQkoYwcGAdBrjlneyk2Q7IhYo0Qr3",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-from",
+      "description": "Tampering the AAD-bound `from` field fails the GCM tag.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:attacker.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-timestamp",
+      "description": "Tampering the AAD-bound `timestamp` fails the GCM tag.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:01.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-message-nonce",
+      "description": "Tampering the AAD-bound `messageNonce` fails the GCM tag.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000BB"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-nonce",
+      "description": "Replacing the AES nonce (also AAD-bound) rejects.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "AAAAAAAAAAAAAAAA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-ephemeral-key",
+      "description": "Substituting a different valid ephemeral key rejects (wrong ECDH + AAD).",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "VUbW6Na1OQLPe4bfz1G2MClMzH7W4qqs8kTEkyW_I18",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-protocol",
+      "description": "A non-ink/0.1 protocol is rejected before decryption.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.2",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-type",
+      "description": "A wrong envelope `type` is rejected before decryption.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.other",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tamper-ciphertext",
+      "description": "Flipping a ciphertext byte fails the GCM tag.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "AdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "wrong-recipient-key",
+      "description": "The wrong recipient private key derives a different AES key and fails the tag.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "490396a300de5fe4eb31da322cc80d898dd0877451f7ea1359bd763c057ee865"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ephemeral-key-wrong-length",
+      "description": "An ephemeral key that does not decode to 32 bytes rejects.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "AAAAAAAAAAAAAAAAAAAAAA",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nonce-wrong-length",
+      "description": "An AES nonce that does not decode to 12 bytes rejects.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "AAAAAAAAAAA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "ephemeral-key-oversized-field",
+      "description": "An oversized ephemeralKey field is rejected before base64url decode.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-from",
+      "description": "An empty `from` is rejected (encrypt could never have produced it).",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "all-zero-shared-secret",
+      "description": "A low-order ephemeral key (32 zero bytes) yields an all-zero ECDH secret and rejects.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "recipient-key-wrong-length",
+      "description": "A recipient private key that is not 32 bytes rejects.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "00000000000000000000000000000000"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

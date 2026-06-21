@@ -5,6 +5,7 @@ import {
   canonicalAgentPrincipal,
   verifyInkSignature,
   verifyInkSignatureWithKeys,
+  decryptInkPayload,
   jcsCanonicalize,
   checkReplay,
   parseInkTimestampMs,
@@ -209,6 +210,22 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         laterCheckpoint,
       });
       return { result: r.valid ? "accept" : "reject" };
+    }
+    case "payload-encryption": {
+      const { envelope, recipientPrivateKeyHex, recipientDid } = input as {
+        envelope: Parameters<typeof decryptInkPayload>[0];
+        recipientPrivateKeyHex: string;
+        recipientDid?: string;
+      };
+      try {
+        const plaintext = await decryptInkPayload(envelope, recipientPrivateKeyHex, recipientDid);
+        // Accept pins the exact decrypted plaintext as canonical bytes, so a
+        // verifier that decrypts to different bytes (or accepts a tampered
+        // envelope) diverges. Reject is any thrown error.
+        return { result: "accept", canonicalString: jcsCanonicalize(plaintext) };
+      } catch {
+        return { result: "reject" };
+      }
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);
