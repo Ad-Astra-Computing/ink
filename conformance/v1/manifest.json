@@ -5,6 +5,7 @@
     {
       "id": "agent-card",
       "vector": "vectors/agent-card.json",
+      "profile": "base",
       "spec": "specs/ink-agent-card.md",
       "summary": "Agent Card validation and the pinned INK endpoint URL grammar.",
       "caseCount": 35,
@@ -13,6 +14,7 @@
     {
       "id": "agent-card-fetch",
       "vector": "vectors/agent-card-fetch.json",
+      "profile": "base",
       "spec": "specs/ink-agent-card-discovery-fetch.md",
       "summary": "Agent Card discovery response contract (status, content type, size caps, identity binding).",
       "caseCount": 29,
@@ -21,6 +23,7 @@
     {
       "id": "audit-query-response",
       "vector": "vectors/audit-query-response.json",
+      "profile": "audit",
       "spec": "specs/ink-audit-query-response.md",
       "summary": "Composite audit-query-response verification.",
       "caseCount": 25,
@@ -29,6 +32,7 @@
     {
       "id": "connection-payload",
       "vector": "vectors/connection-payload.json",
+      "profile": "base",
       "spec": "specs/ink-connection-payload.md",
       "summary": "Connection request and response payload validation.",
       "caseCount": 22,
@@ -37,6 +41,7 @@
     {
       "id": "first-contact-transcript",
       "vector": "vectors/first-contact-transcript.json",
+      "profile": "base",
       "spec": "specs/ink-first-contact-transcript.md",
       "summary": "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response.",
       "caseCount": 21,
@@ -45,6 +50,7 @@
     {
       "id": "handshake-message",
       "vector": "vectors/handshake-message.json",
+      "profile": "containment",
       "spec": "specs/ink-handshake-message.md",
       "summary": "Challenge, rejection, and resolution message validation.",
       "caseCount": 26,
@@ -53,6 +59,7 @@
     {
       "id": "inclusion-receipt",
       "vector": "vectors/inclusion-receipt.json",
+      "profile": "audit",
       "spec": "specs/ink-inclusion-receipt.md",
       "summary": "Composite inclusion-receipt verification.",
       "caseCount": 39,
@@ -61,6 +68,7 @@
     {
       "id": "jcs-number",
       "vector": "vectors/jcs-number.json",
+      "profile": "base",
       "spec": "specs/ink-jcs-number-profile.md",
       "summary": "RFC 8785 JCS canonicalization and the safe-integer number profile.",
       "caseCount": 10,
@@ -69,6 +77,7 @@
     {
       "id": "jcs-string-safety",
       "vector": "vectors/jcs-string-safety.json",
+      "profile": "base",
       "spec": "specs/ink-signed-string-safety.md",
       "summary": "Lone UTF-16 surrogate rejection in signed strings.",
       "caseCount": 10,
@@ -77,6 +86,7 @@
     {
       "id": "key-rotation",
       "vector": "vectors/key-rotation.json",
+      "profile": "base",
       "spec": "specs/ink-key-rotation-spec.md",
       "summary": "Key-window verification across active, retired, and revoked keys.",
       "caseCount": 28,
@@ -85,6 +95,7 @@
     {
       "id": "merkle-checkpoint",
       "vector": "vectors/merkle-checkpoint.json",
+      "profile": "witness",
       "spec": "specs/ink-merkle-checkpoint.md",
       "summary": "C2SP tlog-checkpoint parsing and canonical formatting.",
       "caseCount": 21,
@@ -93,6 +104,7 @@
     {
       "id": "merkle-consistency",
       "vector": "vectors/merkle-consistency.json",
+      "profile": "witness",
       "spec": "specs/ink-merkle-consistency.md",
       "summary": "RFC 6962 consistency-proof verification.",
       "caseCount": 19,
@@ -101,6 +113,7 @@
     {
       "id": "merkle-inclusion",
       "vector": "vectors/merkle-inclusion.json",
+      "profile": "witness",
       "spec": "specs/ink-merkle-inclusion.md",
       "summary": "RFC 6962 inclusion-proof verification.",
       "caseCount": 14,
@@ -109,6 +122,7 @@
     {
       "id": "merkle-leaf",
       "vector": "vectors/merkle-leaf.json",
+      "profile": "audit",
       "spec": "specs/ink-merkle-leaf.md",
       "summary": "Audit-event Merkle leaf-hash computation.",
       "caseCount": 14,
@@ -117,6 +131,7 @@
     {
       "id": "payload-encryption",
       "vector": "vectors/payload-encryption.json",
+      "profile": "encryption",
       "spec": "specs/ink-payload-encryption.md",
       "summary": "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope.",
       "caseCount": 20,
@@ -125,6 +140,7 @@
     {
       "id": "principal-normalization",
       "vector": "vectors/principal-normalization.json",
+      "profile": "base",
       "spec": "specs/ink-authorization-chain.md",
       "summary": "Agent principal canonicalization (tulpa:/ink:/key: prefixes).",
       "caseCount": 6,
@@ -133,6 +149,7 @@
     {
       "id": "private-hostname",
       "vector": "vectors/private-hostname.json",
+      "profile": "base",
       "spec": "specs/ink-private-hostname.md",
       "summary": "SSRF host-safety gate: classify a hostname as public or private/special/malformed.",
       "caseCount": 58,
@@ -141,6 +158,7 @@
     {
       "id": "replay-freshness",
       "vector": "vectors/replay-freshness.json",
+      "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Timestamp window and nonce replay rejection.",
       "caseCount": 6,
@@ -149,6 +167,7 @@
     {
       "id": "signature-base",
       "vector": "vectors/signature-base.json",
+      "profile": "base",
       "spec": "specs/ink-jcs-number-profile.md",
       "summary": "Ed25519 verification over the canonical signature base.",
       "caseCount": 8,
@@ -157,6 +176,7 @@
     {
       "id": "timestamp-validity",
       "vector": "vectors/timestamp-validity.json",
+      "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Strict INK timestamp grammar and epoch-millisecond parsing.",
       "caseCount": 17,

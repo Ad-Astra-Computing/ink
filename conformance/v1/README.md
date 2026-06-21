@@ -187,6 +187,17 @@ additive field then.
   an implementation that skips or reorders a step diverges. See
   [`../../specs/ink-first-contact-transcript.md`](../../specs/ink-first-contact-transcript.md).
 
+## Conformance profiles
+
+Each category carries a `profile` in `manifest.json` that pins which conformance
+profile requires it. The `base` profile is the floor every conforming INK sender
+and receiver MUST satisfy; `encryption`, `audit`, `witness`, and `containment`
+are capability-gated and required only when an implementation advertises the
+matching capability. The base set is frozen by drift tripwires in
+`test/conformance-profile.test.ts` and `go/ink/conformance_manifest_test.go`. See
+[`../../specs/ink-conformance-profile.md`](../../specs/ink-conformance-profile.md)
+for the per-category sender and receiver obligations.
+
 ## String length and ordering
 
 INK measures string lengths (the agentId and multibase caps) in UTF-16 code
