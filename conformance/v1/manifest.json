@@ -35,6 +35,14 @@
       "sha256": "b921d25e41b5060ef6b832c695375f60b58d7c8418b2172568f058d631549cc6"
     },
     {
+      "id": "first-contact-transcript",
+      "vector": "vectors/first-contact-transcript.json",
+      "spec": "specs/ink-first-contact-transcript.md",
+      "summary": "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response.",
+      "caseCount": 21,
+      "sha256": "ddedb14de25ee034bed194e0fbe0e5034cfb549665acc786f88fd2d63d6c29b0"
+    },
+    {
       "id": "handshake-message",
       "vector": "vectors/handshake-message.json",
       "spec": "specs/ink-handshake-message.md",

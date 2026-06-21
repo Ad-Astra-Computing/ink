@@ -60,6 +60,7 @@ const CATEGORY_META = {
   "agent-card-fetch": { spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
   "private-hostname": { spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
+  "first-contact-transcript": { spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -1890,6 +1891,274 @@ vectorFile("private-hostname", [
       description: "A recipient private key that is not 32 bytes rejects.",
       input: { envelope, recipientPrivateKeyHex: bytesToHex(new Uint8Array(16)) },
       expect: rej,
+    },
+  ]);
+}
+
+// ── first-contact-transcript ────────────────────────────────────────────────
+// A full stranger first-contact exchange composed from already-pinned
+// primitives: discover the receiver's card, select a protocol version from it,
+// verify the signed connection_request under the freshness/replay rule, and
+// verify the accepted connection_response. Deterministic: fixed sender and
+// receiver Ed25519 keys, fixed timestamps and nonces, so the signatures are
+// stable and both implementations verify them identically.
+{
+  const senderSeed = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-firstcontact-sender")));
+  const receiverSeed = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-firstcontact-receiver")));
+  const senderPub = await ed.getPublicKeyAsync(senderSeed);
+  const receiverPub = await ed.getPublicKeyAsync(receiverSeed);
+  const senderPubHex = bytesToHex(senderPub);
+  const receiverPubHex = bytesToHex(receiverPub);
+  const receiverMb = encodePublicKeyMultibase(receiverPub);
+
+  const senderDid = "did:web:sender.example";
+  const receiverDid = "did:web:receiver.example";
+  const reqTs = "2026-01-01T00:00:00.000Z";
+  const respTs = "2026-01-01T00:00:02.000Z";
+  const freshClock = "2026-01-01T00:00:05.000Z";
+  const reqNonce = "firstcontactreqnonce00000001";
+  const profileSnapshot = { headline: "Agent", skills: [], interests: [], openTo: [] };
+
+  // A minimal valid receiver card advertising the given message protocol
+  // versions. The signing key it publishes (publicKeyMultibase) is the same
+  // receiver key the response signature verifies against.
+  // `versions === undefined` omits the supportedProtocolVersions field entirely
+  // (a legacy card that predates the field), which must default to ink/0.1.
+  const buildCard = (versions) => {
+    const card = {
+      protocol: "ink/0.1",
+      agentId: receiverDid,
+      handle: "receiver",
+      displayName: "Receiver Agent",
+      endpoint: "https://receiver.example/ink/v1/intents",
+      publicKeyMultibase: receiverMb,
+      capabilities: { intentsAccepted: ["connection_request"], intentsSent: ["connection_response"] },
+      availability: { timezone: "UTC" },
+    };
+    if (versions !== undefined) card.supportedProtocolVersions = versions;
+    return card;
+  };
+
+  const cardFetch = (card, overrides = {}) => ({
+    status: 200,
+    contentType: "application/json",
+    contentLength: null,
+    bodyRaw: JSON.stringify(card),
+    requestedAgentId: receiverDid,
+    ...overrides,
+  });
+
+  const signEnvelope = async (envelope, recipientDid, timestamp, seed) => {
+    const signInput = { method: "POST", path: "/ink/v1/intents", recipientDid, body: envelope, timestamp };
+    return { signInput, signature: await signInkMessage(signInput, seed) };
+  };
+
+  const requestEnvelope = (protocol, envOverrides = {}) => ({
+    protocol,
+    from: senderDid,
+    to: receiverDid,
+    intent: "connection_request",
+    payload: { method: "intro", context: "We met at the conference.", profileSnapshot },
+    nonce: reqNonce,
+    timestamp: reqTs,
+    ...envOverrides,
+  });
+
+  const responseEnvelope = (protocol, envOverrides = {}) => ({
+    protocol,
+    from: receiverDid,
+    to: senderDid,
+    intent: "connection_response",
+    payload: { status: "accepted", note: "Glad to connect." },
+    nonce: "firstcontactrespnonce0000001",
+    timestamp: respTs,
+    ...envOverrides,
+  });
+
+  const flip = (s) => (s[0] === "A" ? "B" : "A") + s.slice(1);
+
+  // Assemble one transcript input. Defaults are the happy path under `selected`;
+  // each named option overrides one step so a verifier that skips it diverges.
+  const buildTranscript = async ({
+    advertised = ["ink/0.1"],
+    omitVersions = false,
+    clientVersions = ["ink/0.1"],
+    selected = "ink/0.1",
+    reqEnv,
+    respEnv,
+    reqSignInputTs,
+    respSignInputTs,
+    seenNonces = [],
+    clock = freshClock,
+    cardOverrides = {},
+    senderKeyHex = senderPubHex,
+    receiverKeyHex = receiverPubHex,
+    tamperReqSig = (s) => s,
+    tamperRespSig = (s) => s,
+  } = {}) => {
+    const rq = reqEnv ?? requestEnvelope(selected);
+    const rs = respEnv ?? responseEnvelope(selected);
+    const card = buildCard(omitVersions ? undefined : advertised);
+    const req = await signEnvelope(rq, receiverDid, reqSignInputTs ?? rq.timestamp, senderSeed);
+    const resp = await signEnvelope(rs, senderDid, respSignInputTs ?? rs.timestamp, receiverSeed);
+    return {
+      cardFetch: cardFetch(card, cardOverrides),
+      clientSupportedVersions: clientVersions,
+      receiverClock: clock,
+      seenNonces,
+      request: { signInput: req.signInput, signature: tamperReqSig(req.signature), senderPublicKeyHex: senderKeyHex },
+      response: { signInput: resp.signInput, signature: tamperRespSig(resp.signature), receiverPublicKeyHex: receiverKeyHex },
+    };
+  };
+
+  const acc = (selectedVersion) => ({ result: "accept", canonicalString: selectedVersion });
+  const rej = { result: "reject" };
+
+  vectorFile("first-contact-transcript", [
+    {
+      caseId: "valid-first-contact",
+      description: "A complete card-fetch, version-select, signed request, and accepted response verifies.",
+      input: await buildTranscript(),
+      expect: acc("ink/0.1"),
+    },
+    {
+      caseId: "valid-negotiated-v02",
+      description: "When both sides support ink/0.2, the higher preferred common version is selected and pinned.",
+      input: await buildTranscript({
+        advertised: ["ink/0.1", "ink/0.2"],
+        clientVersions: ["ink/0.2", "ink/0.1"],
+        selected: "ink/0.2",
+      }),
+      expect: acc("ink/0.2"),
+    },
+    {
+      caseId: "card-fetch-non-200",
+      description: "A non-200 discovery response fails the fetch step and rejects the transcript.",
+      input: await buildTranscript({ cardOverrides: { status: 404 } }),
+      expect: rej,
+    },
+    {
+      caseId: "card-fetch-agentid-mismatch",
+      description: "A card whose agentId does not equal the requested agentId fails the identity binding.",
+      input: await buildTranscript({ cardOverrides: { requestedAgentId: "did:web:other.example" } }),
+      expect: rej,
+    },
+    {
+      caseId: "no-version-overlap",
+      description: "When the card and client share no protocol version, selection fails and the transcript rejects.",
+      input: await buildTranscript({ advertised: ["ink/0.9"], clientVersions: ["ink/0.1", "ink/0.2"] }),
+      expect: rej,
+    },
+    {
+      caseId: "request-unadvertised-version",
+      description: "A request emitted under a version the card does not advertise rejects.",
+      input: await buildTranscript({ reqEnv: requestEnvelope("ink/0.2") }),
+      expect: rej,
+    },
+    {
+      caseId: "request-bad-signature",
+      description: "A tampered request signature fails verification.",
+      input: await buildTranscript({ tamperReqSig: flip }),
+      expect: rej,
+    },
+    {
+      caseId: "request-payload-missing-context",
+      description: "A request payload missing the required context fails the connection_request schema.",
+      input: await buildTranscript({
+        reqEnv: requestEnvelope("ink/0.1", { payload: { method: "intro", profileSnapshot } }),
+      }),
+      expect: rej,
+    },
+    {
+      caseId: "request-intent-mismatch",
+      description: "A request envelope whose intent is not connection_request rejects.",
+      input: await buildTranscript({
+        reqEnv: requestEnvelope("ink/0.1", { intent: "connection_response" }),
+      }),
+      expect: rej,
+    },
+    {
+      caseId: "request-timestamp-binding-mismatch",
+      description: "A transport timestamp that disagrees with the request envelope timestamp rejects (§3.3 binding).",
+      input: await buildTranscript({ reqSignInputTs: "2026-01-01T00:00:01.000Z" }),
+      expect: rej,
+    },
+    {
+      caseId: "replayed-request-nonce",
+      description: "A request nonce already in the receiver's seen set is a replay and rejects.",
+      input: await buildTranscript({ seenNonces: [reqNonce] }),
+      expect: rej,
+    },
+    {
+      caseId: "stale-request-timestamp",
+      description: "A request older than the freshness window against the receiver clock rejects.",
+      input: await buildTranscript({ clock: "2026-01-01T01:00:00.000Z" }),
+      expect: rej,
+    },
+    {
+      caseId: "response-bad-signature",
+      description: "A tampered response signature fails verification.",
+      input: await buildTranscript({ tamperRespSig: flip }),
+      expect: rej,
+    },
+    {
+      caseId: "response-status-declined",
+      description: "A connection_response whose status is not accepted rejects the first-contact transcript.",
+      input: await buildTranscript({
+        respEnv: responseEnvelope("ink/0.1", { payload: { status: "declined" } }),
+      }),
+      expect: rej,
+    },
+    {
+      caseId: "response-payload-unknown-key",
+      description: "A connection_response payload with an unknown key fails the strict schema.",
+      input: await buildTranscript({
+        respEnv: responseEnvelope("ink/0.1", { payload: { status: "accepted", extra: "x" } }),
+      }),
+      expect: rej,
+    },
+    {
+      caseId: "response-protocol-mismatch",
+      description: "A response emitted under a different version than the selected one rejects.",
+      input: await buildTranscript({
+        advertised: ["ink/0.1", "ink/0.2"],
+        clientVersions: ["ink/0.1", "ink/0.2"],
+        selected: "ink/0.1",
+        respEnv: responseEnvelope("ink/0.2"),
+      }),
+      expect: rej,
+    },
+    {
+      caseId: "response-intent-mismatch",
+      description: "A response envelope whose intent is not connection_response rejects.",
+      input: await buildTranscript({
+        respEnv: responseEnvelope("ink/0.1", { intent: "connection_request" }),
+      }),
+      expect: rej,
+    },
+    {
+      caseId: "response-timestamp-binding-mismatch",
+      description: "A transport timestamp that disagrees with the response envelope timestamp rejects (§3.3 binding).",
+      input: await buildTranscript({ respSignInputTs: "2026-01-01T00:00:03.000Z" }),
+      expect: rej,
+    },
+    {
+      caseId: "future-request-timestamp",
+      description: "A request timestamp beyond the future skew against the receiver clock rejects.",
+      input: await buildTranscript({ clock: "2025-12-31T23:59:00.000Z" }),
+      expect: rej,
+    },
+    {
+      caseId: "card-omits-versions-defaults-v01",
+      description: "A card without supportedProtocolVersions defaults to ink/0.1 and the ink/0.1 flow accepts.",
+      input: await buildTranscript({ omitVersions: true }),
+      expect: acc("ink/0.1"),
+    },
+    {
+      caseId: "card-empty-versions-defaults-v01",
+      description: "A card advertising an empty version list defaults to ink/0.1 and accepts.",
+      input: await buildTranscript({ advertised: [] }),
+      expect: acc("ink/0.1"),
     },
   ]);
 }

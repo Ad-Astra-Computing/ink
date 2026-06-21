@@ -26,6 +26,7 @@ import {
   AgentCardSchema,
   evaluateAgentCardFetch,
   isPrivateHostname,
+  agentSupportedProtocolVersions,
   hexToBytes,
 } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
@@ -226,6 +227,54 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       } catch {
         return { result: "reject" };
       }
+    }
+    case "first-contact-transcript": {
+      const t = input as {
+        cardFetch: AgentCardFetchInput;
+        clientSupportedVersions: string[];
+        receiverClock: string;
+        seenNonces: string[];
+        request: { signInput: Parameters<typeof verifyInkSignature>[0]; signature: string; senderPublicKeyHex: string };
+        response: { signInput: Parameters<typeof verifyInkSignature>[0]; signature: string; receiverPublicKeyHex: string };
+      };
+      // Compose the pinned primitives in order; any failed step rejects the
+      // whole transcript. See specs/ink-first-contact-transcript.md.
+      const reject = { result: "reject" } as const;
+      // 1. discovery
+      const fetched = evaluateAgentCardFetch(t.cardFetch);
+      if (!fetched.accepted || fetched.card === null) return reject;
+      // 2. version selection
+      const advertised = agentSupportedProtocolVersions(fetched.card);
+      const selected = t.clientSupportedVersions.find((v) => advertised.includes(v));
+      if (selected === undefined) return reject;
+      // 3. request agreement
+      const reqEnv = t.request.signInput.body as Record<string, unknown>;
+      if (reqEnv.protocol !== selected) return reject;
+      if (reqEnv.intent !== "connection_request") return reject;
+      if (!ConnectionRequestPayloadSchema.safeParse(reqEnv.payload).success) return reject;
+      if (t.request.signInput.timestamp !== reqEnv.timestamp) return reject;
+      // 4. request signature
+      const reqOk = await verifyInkSignature(t.request.signInput, t.request.signature, hexToBytes(t.request.senderPublicKeyHex));
+      if (!reqOk) return reject;
+      // 5. replay / freshness
+      const replay = checkReplay({
+        messageTimestamp: reqEnv.timestamp as string,
+        receiverClock: t.receiverClock,
+        nonce: reqEnv.nonce as string,
+        previouslySeenNonces: t.seenNonces,
+      });
+      if (!replay.accepted) return reject;
+      // 6. response agreement
+      const respEnv = t.response.signInput.body as Record<string, unknown>;
+      if (respEnv.protocol !== selected) return reject;
+      if (respEnv.intent !== "connection_response") return reject;
+      const respPayload = ConnectionResponsePayloadSchema.safeParse(respEnv.payload);
+      if (!respPayload.success || respPayload.data.status !== "accepted") return reject;
+      if (t.response.signInput.timestamp !== respEnv.timestamp) return reject;
+      // 7. response signature
+      const respOk = await verifyInkSignature(t.response.signInput, t.response.signature, hexToBytes(t.response.receiverPublicKeyHex));
+      if (!respOk) return reject;
+      return { result: "accept", canonicalString: selected };
     }
     default:
       throw new Error(`unknown conformance category: ${category}`);

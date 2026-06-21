@@ -41,6 +41,7 @@ var goVerifiedCategories = []string{
 	"agent-card-fetch",
 	"audit-query-response",
 	"connection-payload",
+	"first-contact-transcript",
 	"handshake-message",
 	"inclusion-receipt",
 	"jcs-number",
