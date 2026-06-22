@@ -34,6 +34,7 @@ import {
   verifyInkAuth,
   extractCandidateKeys,
   decodePublicKeyMultibase,
+  containsLoneSurrogateEscape,
   type CandidateKey,
   type MessageEnvelope,
 } from "@adastracomputing/ink";
@@ -181,6 +182,15 @@ export async function processInbound(
   authHeader: string | undefined,
   cfg: InboundConfig,
 ): Promise<InboundOutcome> {
+  // Reject a lone UTF-16 surrogate escape on the RAW text before parsing.
+  // A signed body is verified over its canonical form; a parser that rewrites
+  // an unpaired surrogate to U+FFFD would destroy the evidence, so a receiver
+  // that normalizes (Go and others) could disagree with the signer. Scanning
+  // the raw bytes pre-parse keeps the accept/reject decision consistent across
+  // implementations (see specs/ink-signed-string-safety.md).
+  if (containsLoneSurrogateEscape(bodyText)) {
+    return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "lone_surrogate" };
+  }
   let raw: unknown;
   try {
     raw = JSON.parse(bodyText);

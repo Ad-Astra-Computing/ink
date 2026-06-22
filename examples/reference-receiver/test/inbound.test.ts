@@ -213,6 +213,20 @@ describe("processInbound", () => {
     if (out.kind === "rejected") expect(out.verdict).toBe("schema");
   });
 
+  it("rejects a raw body carrying a lone UTF-16 surrogate escape before parsing", async () => {
+    const { id, did } = await makeReceiver();
+    // A bare high surrogate escape: valid JSON syntax, but the signer's bytes
+    // would not survive a U+FFFD-rewriting parser, so the receiver must reject
+    // on the raw text per specs/ink-signed-string-safety.md.
+    const body = '{"protocol":"ink/0.1","from":"did:web:x","note":"\\ud800"}';
+    const out = await processInbound(body, undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") {
+      expect(out.verdict).toBe("schema");
+      expect(out.errorCode).toBe("lone_surrogate");
+    }
+  });
+
   it("rejects envelope addressed to a different recipient", async () => {
     const { id, did } = await makeReceiver();
     const { kp: senderKp, card } = await makeSenderWithCard();

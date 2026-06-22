@@ -12,6 +12,21 @@ import type { CandidateKey, KeyStatus } from "../models/key-entry.js";
 export interface NonceStore {
   has(nonce: string): boolean | Promise<boolean>;
   add(nonce: string): void | Promise<void>;
+  /**
+   * Optional atomic check-and-record. Returns true if the nonce was newly
+   * recorded (accept) or false if it was already present (replay). When a
+   * store provides this, the middleware uses it INSTEAD of the separate
+   * has()+add() calls, which have a check-then-act race: on a distributed or
+   * async store, two concurrent replays of one signed request can both
+   * observe "not seen" before either records it, defeating single-use. A
+   * distributed store SHOULD implement this atomically (a conditional put,
+   * `INSERT ... ON CONFLICT DO NOTHING`, or `SET key val NX`).
+   *
+   * Retention: a store MUST retain a recorded nonce for at least the message
+   * freshness window (`MAX_TIMESTAMP_AGE_MS`, 5 minutes). Evicting sooner
+   * reopens the replay this is meant to close.
+   */
+  addIfAbsent?(nonce: string): boolean | Promise<boolean>;
 }
 
 /**
@@ -43,13 +58,17 @@ export async function verifyInkAuth(opts: {
   resolvePublicKey?: (agentId: string) => Uint8Array | null;
   resolveKeySet?: (agentId: string) => CandidateKey[] | null;
   /**
-   * When true, signatures that only verify against a retired key are
-   * rejected with `retired_key_for_live_auth`. Defaults to false so the
-   * middleware stays spec-conformant (active OR retired during rotation
-   * grace per the authority rule) but lets callers opt into the stricter
-   * policy for endpoints that should never accept a possibly-stolen
-   * retired key. Bootstrap and single-key (resolvePublicKey) verification
-   * paths are unaffected because they do not have status metadata.
+   * Whether a signature that only verifies against a retired key is rejected
+   * with `retired_key_for_live_auth`. Defaults to TRUE: live transport auth
+   * refuses retired keys so a stolen retired key (which the key-rotation
+   * authority rule otherwise lets verify within its window, and indefinitely
+   * when it has no `validUntil`) cannot authenticate fresh requests. Set to
+   * `false` to opt into a rotation grace window where a recently-retired key
+   * still authenticates live traffic. Retired keys remain usable for
+   * historical-artifact verification via `verifyInkSignatureWithKeys`
+   * directly; this gate only governs live transport auth. Bootstrap and
+   * single-key (resolvePublicKey) paths are unaffected because they carry no
+   * status metadata.
    */
   requireActiveKey?: boolean;
   /**
@@ -179,6 +198,20 @@ export async function verifyInkAuth(opts: {
     if (!usingNonceStore) return { ok: true };
     const store = opts.nonceStore as NonceStore;
     const nonce = bodyNonce!;
+    // Prefer an atomic check-and-record when the store provides one: it
+    // closes the has()/add() check-then-act race that lets two concurrent
+    // replays of one signed request both pass on a distributed store.
+    if (typeof store.addIfAbsent === "function") {
+      let added: boolean;
+      try {
+        added = await Promise.resolve(store.addIfAbsent(nonce));
+      } catch {
+        return { ok: false, error: "nonce_store_error" };
+      }
+      return added ? { ok: true } : { ok: false, error: "nonce_replay" };
+    }
+    // Fallback: non-atomic has()+add(). Single-use holds for an in-process
+    // store; a distributed store SHOULD implement addIfAbsent for atomicity.
     let alreadySeen: boolean;
     try {
       alreadySeen = await Promise.resolve(store.has(nonce));
@@ -212,13 +245,13 @@ export async function verifyInkAuth(opts: {
       try {
         const result = await verifyInkSignatureWithKeys(input, signature, candidates, hintKeyId);
         if (result.verified) {
-          // Local-policy gate: a retired key still verifies per the spec's
-          // authority rule, but a caller that runs sensitive endpoints
-          // (writes, capability grants, etc.) can require an active key.
-          // This closes the "stolen retired key signs a fresh message"
-          // window: even though the spec allows retired keys for grace,
-          // callers don't have to.
-          if (opts.requireActiveKey && result.keyStatus === "retired") {
+          // Local-policy gate, default-on: a retired key still verifies at the
+          // primitive per the spec's authority rule, but live transport auth
+          // refuses it so a stolen retired key (valid within its window, and
+          // indefinitely when it has no validUntil) cannot sign fresh requests.
+          // A caller that wants a rotation grace window opts out with
+          // requireActiveKey: false.
+          if (opts.requireActiveKey !== false && result.keyStatus === "retired") {
             return { valid: false, error: "retired_key_for_live_auth" };
           }
           const noncePass = await recordNonce();

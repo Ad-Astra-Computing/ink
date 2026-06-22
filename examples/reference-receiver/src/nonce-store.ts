@@ -40,4 +40,17 @@ export class InMemoryNonceStore {
       if (oldest !== undefined) this.set.delete(oldest);
     }
   }
+
+  /**
+   * Atomic check-and-record. `verifyInkAuth` prefers this over has()+add() so
+   * single-use enforcement has no check-then-act race. Inside one isolate it
+   * runs synchronously, so the check and the record cannot interleave. A
+   * KV/DO-backed replacement MUST keep this atomic (a conditional put), and
+   * MUST retain a recorded nonce for at least the 5-minute freshness window.
+   */
+  addIfAbsent(nonce: string): boolean {
+    if (this.set.has(nonce)) return false;
+    this.add(nonce);
+    return true;
+  }
 }

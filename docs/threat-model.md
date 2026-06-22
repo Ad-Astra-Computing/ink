@@ -8,14 +8,21 @@ statement as a real limit of the current design.
 
 ### 1. Request authenticity
 A signed INK message cannot be forged without one of the sender's currently
-accepted signing keys under the key-rotation authority rule: any `active`
-or `retired` key inside the validity window verifies, revoked keys never
-verify. Endpoints that require a still-trusted key (writes, capability
-grants) can pass `requireActiveKey: true` to `verifyInkAuth` to reject
-retired-key signatures. The signing base covers method, path, recipient
-DID, canonical JSON of the body, and timestamp; an attacker who can
-replay body bytes but mutate any of those fields cannot produce a valid
-signature.
+accepted signing keys. The key-rotation authority rule (at the
+`verifyInkSignatureWithKeys` primitive) accepts any `active` or `retired` key
+inside its validity window and never accepts a revoked key, so retired keys
+remain usable for historical-artifact verification. Live transport auth is
+stricter: `verifyInkAuth` rejects retired-key signatures by default
+(`retired_key_for_live_auth`), so a stolen retired key (which the authority
+rule would otherwise let verify within its window, and indefinitely when it has
+no `validUntil`) cannot authenticate fresh requests. A caller that wants a
+rotation grace window for live traffic opts out with `requireActiveKey: false`.
+The signing base covers method, path, recipient DID, canonical JSON of the
+body, and timestamp; an attacker who can replay body bytes but mutate any of
+those fields cannot produce a valid signature. Replay of an unmodified signed
+request is bounded by the freshness window and a single-use nonce; the
+`NonceStore` SHOULD implement the atomic `addIfAbsent` so two concurrent
+replays cannot both pass on a distributed store.
 
 ### 2. Replay protection (narrow window)
 Each INK message body carries a `nonce` and `timestamp` (the latter is

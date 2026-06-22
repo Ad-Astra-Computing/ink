@@ -80,12 +80,17 @@ export function decodeBase58(str: string): Uint8Array {
     num = num * 58n + BigInt(idx);
   }
 
-  // Convert bigint to bytes
-  const hex = num.toString(16).padStart(2, "0");
-  const padded = hex.length % 2 ? "0" + hex : hex;
+  // Convert bigint to bytes. Guard num === 0n explicitly: the significand is
+  // empty for an all-zero value, and the leading-zero loop below emits the
+  // 0x00 bytes. Without this guard `(0n).toString(16)` is "0" and the pad
+  // appends a spurious 0x00, so e.g. "1" would decode to two bytes, not one.
   const bytes: number[] = [];
-  for (let i = 0; i < padded.length; i += 2) {
-    bytes.push(parseInt(padded.slice(i, i + 2), 16));
+  if (num > 0n) {
+    const hex = num.toString(16);
+    const padded = hex.length % 2 ? "0" + hex : hex;
+    for (let i = 0; i < padded.length; i += 2) {
+      bytes.push(parseInt(padded.slice(i, i + 2), 16));
+    }
   }
 
   // Add leading zero bytes

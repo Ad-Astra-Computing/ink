@@ -335,6 +335,13 @@ export async function encryptInkPayload(
   timestamp: string,
   messageNonce: string,
   options?: {
+    // SECURITY: these overrides exist only to make the conformance corpus
+    // deterministic. They MUST NOT be set on production traffic. Reusing a
+    // fixed `ephemeralPrivateKey` across messages to the same recipient
+    // derives the same AES key, and a fixed/colliding `aesNonce` then reuses
+    // the (key, nonce) pair — catastrophic for AES-GCM (forgery plus
+    // plaintext recovery). Leave both unset so each call draws a fresh
+    // ephemeral key and a random nonce.
     ephemeralPrivateKey?: Uint8Array;
     aesNonce?: Uint8Array;
   },

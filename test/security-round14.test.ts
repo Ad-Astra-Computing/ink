@@ -33,7 +33,7 @@ const baseInput = {
 };
 
 describe("verifyInkAuth: requireActiveKey rejects retired-key signatures", () => {
-  it("accepts a retired-key signature by default (spec authority rule)", async () => {
+  it("rejects a retired-key signature by default (hardened: requireActiveKey defaults on)", async () => {
     const oldKey = await makeKey();
     const body = { from: "did:plc:alice", timestamp: new Date().toISOString() };
     const sig = await signInkMessage(
@@ -50,6 +50,31 @@ describe("verifyInkAuth: requireActiveKey rejects retired-key signatures", () =>
       recipientAgentId: baseInput.recipientDid,
       body,
       resolveKeySet: () => keySet,
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toBe("retired_key_for_live_auth");
+    }
+  });
+
+  it("accepts a retired-key signature only when requireActiveKey is explicitly false (rotation grace)", async () => {
+    const oldKey = await makeKey();
+    const body = { from: "did:plc:alice", timestamp: new Date().toISOString() };
+    const sig = await signInkMessage(
+      { method: baseInput.method, path: baseInput.path, recipientDid: baseInput.recipientDid, body, timestamp: body.timestamp },
+      oldKey.priv,
+    );
+    const keySet: CandidateKey[] = [
+      { keyId: "old", publicKey: oldKey.pub, status: "retired" },
+    ];
+    const result = await verifyInkAuth({
+      nonceStore: "deferred",      authHeader: `INK-Ed25519 ${sig}`,
+      method: baseInput.method,
+      path: baseInput.path,
+      recipientAgentId: baseInput.recipientDid,
+      body,
+      resolveKeySet: () => keySet,
+      requireActiveKey: false,
     });
     expect(result.valid).toBe(true);
     if (result.valid) {

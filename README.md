@@ -92,7 +92,7 @@ const signature = await signInkMessage(input, keypair.privateKey);
 const ok = await verifyInkSignature(input, signature, keypair.publicKey);
 ```
 
-For inbound request verification, `verifyInkAuth` parses the `Authorization: INK-Ed25519 <sig>` header, checks freshness, and applies the key-rotation authority rule. It requires a `nonceStore` option so the 5-minute freshness window does not silently accept replays; pass a `NonceStore` to have the middleware enforce single-use, or `"deferred"` to acknowledge that the caller will run `checkReplay` (or equivalent) elsewhere in the request pipeline.
+For inbound request verification, `verifyInkAuth` parses the `Authorization: INK-Ed25519 <sig>` header, checks freshness, and verifies against the sender's key set. It rejects retired keys for live auth by default (`retired_key_for_live_auth`); pass `requireActiveKey: false` to allow a rotation grace window where a recently-retired key still authenticates live traffic. It requires a `nonceStore` option so the 5-minute freshness window does not silently accept replays; pass a `NonceStore` to have the middleware enforce single-use, or `"deferred"` to acknowledge that the caller will run `checkReplay` (or equivalent) elsewhere in the request pipeline. A distributed `NonceStore` SHOULD implement the optional atomic `addIfAbsent` so two concurrent replays cannot both pass the check.
 
 For consumers of bilateral audit-exchange responses (`network.tulpa.audit_response`), call both `verifyAuditResponseSignature` (signed response wrapper) and `verifyAuditEventChain` (sequence-by-one and `previousEventHash` continuity, fork detection). The signature gate alone does not prevent a peer from returning a gapped or forked slice.
 
