@@ -635,12 +635,11 @@ func TestPayloadEncryption(t *testing.T) {
 		if err := json.Unmarshal(c.Input["recipientPrivateKeyHex"], &privHex); err != nil {
 			t.Fatalf("%s: bad recipientPrivateKeyHex: %v", c.CaseID, err)
 		}
-		var recipientDid *string
+		// recipientDid is mandatory; a vector that omits it leaves the empty
+		// string, which DecryptInkPayload rejects (matches the TS reference).
+		var recipientDid string
 		if raw, ok := c.Input["recipientDid"]; ok {
-			var s string
-			if err := json.Unmarshal(raw, &s); err == nil {
-				recipientDid = &s
-			}
+			_ = json.Unmarshal(raw, &recipientDid)
 		}
 
 		got, err := DecryptInkPayload(envelope, privHex, recipientDid)

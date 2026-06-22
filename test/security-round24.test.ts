@@ -96,7 +96,7 @@ describe("audit/encryption verifiers: malformed input", () => {
   });
 
   it("decryptInkPayload throws on null envelope", async () => {
-    await expect(decryptInkPayload(null as unknown as Parameters<typeof decryptInkPayload>[0], "00".repeat(32))).rejects.toThrow();
+    await expect(decryptInkPayload(null as unknown as Parameters<typeof decryptInkPayload>[0], "00".repeat(32), "did:web:r")).rejects.toThrow();
   });
 });
 

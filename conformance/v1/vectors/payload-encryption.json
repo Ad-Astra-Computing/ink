@@ -4,7 +4,7 @@
   "cases": [
     {
       "caseId": "valid-decrypt",
-      "description": "A well-formed envelope decrypts to the exact plaintext bytes.",
+      "description": "A well-formed envelope decrypts to the exact plaintext bytes when the recipientDid matches the inner `to`.",
       "input": {
         "envelope": {
           "protocol": "ink/0.1",
@@ -12,28 +12,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
-          "timestamp": "2026-01-01T00:00:00.000Z",
-          "messageNonce": "01HENCRYPTNONCE0000000000AA"
-        },
-        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
-      },
-      "expect": {
-        "result": "accept",
-        "canonicalString": "{\"from\":\"did:web:sender.example.com\",\"intent\":\"ping\",\"payload\":{\"note\":\"hello\"},\"protocol\":\"ink/0.1\",\"to\":\"did:web:recipient.example.com\"}"
-      }
-    },
-    {
-      "caseId": "valid-decrypt-recipient-bound",
-      "description": "Decrypt with a recipientDid that matches the inner `to` accepts.",
-      "input": {
-        "envelope": {
-          "protocol": "ink/0.1",
-          "type": "network.tulpa.encrypted",
-          "from": "did:web:sender.example.com",
-          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
-          "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -55,16 +34,37 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA",
           "extra": "ignored"
         },
-        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3",
+        "recipientDid": "did:web:recipient.example.com"
       },
       "expect": {
         "result": "accept",
         "canonicalString": "{\"from\":\"did:web:sender.example.com\",\"intent\":\"ping\",\"payload\":{\"note\":\"hello\"},\"protocol\":\"ink/0.1\",\"to\":\"did:web:recipient.example.com\"}"
+      }
+    },
+    {
+      "caseId": "missing-recipient-did",
+      "description": "Decrypt without a recipientDid rejects: the recipient identity assertion is mandatory.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "did:web:sender.example.com",
+          "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
+          "nonce": "t7XuD-6OQdjU-jEZ",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
+          "timestamp": "2026-01-01T00:00:00.000Z",
+          "messageNonce": "01HENCRYPTNONCE0000000000AA"
+        },
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+      },
+      "expect": {
+        "result": "reject"
       }
     },
     {
@@ -77,7 +77,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -98,7 +98,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl63ekou3RFpyCPdTQneACSLemQ15RgzAnv3zH4T0nvotAsr3kctZuPVL9M6P77UK-BySTrEiRSvolIX3dz_7i-72mwBQkoYwcGAdBrjlneyk2Q7IhYo0Qr3",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl63ekou3RFpyCPdTQneACSLemQ15RgzAnv3zH4T0nvotAsr3kctZuPVL9M6P77UK-BySTrEiRSvolIX3dz_7i-72mwBQkoYwcHpCuouptVqv55X7utsIgKP",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -118,7 +118,7 @@
           "from": "did:web:attacker.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -138,7 +138,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:01.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -158,7 +158,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000BB"
         },
@@ -178,7 +178,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "AAAAAAAAAAAAAAAA",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -198,7 +198,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "VUbW6Na1OQLPe4bfz1G2MClMzH7W4qqs8kTEkyW_I18",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -218,7 +218,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -238,7 +238,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -258,7 +258,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "AdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "AdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -278,7 +278,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -298,7 +298,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "AAAAAAAAAAAAAAAAAAAAAA",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -318,7 +318,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "AAAAAAAAAAA",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -338,7 +338,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -358,7 +358,7 @@
           "from": "",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -378,7 +378,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
@@ -398,7 +398,7 @@
           "from": "did:web:sender.example.com",
           "ephemeralKey": "r1KRD9VQFPMYact60H7cyQl0x3XkPcJz3AQ9Y5OcaUY",
           "nonce": "t7XuD-6OQdjU-jEZ",
-          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-iC23VQIVPB-jtmGW-bFNDA",
+          "ciphertext": "hdtJyaP_vY3LDWP7MYYFFEgoXCxgODe-NzbcjrVrV7zHN_kpzl6ra0wvyk0i1TrRUBXXS2mHeCs7604oT2PvinMejDb6s1NjyUEnf_rZJMlgdKPNJ_1uQHGJhRbgrFxc2sbu5TXtwnRTW00RhJ5ORSiOR98gOA561odMZ7LfCPIIkbntGW1y9Jp-3C6sDveCmnIzG6xxRtH2KA",
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },

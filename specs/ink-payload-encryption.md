@@ -37,8 +37,8 @@ strings:
 
 ## Decryption
 
-Given the envelope and the recipient's 32-byte X25519 private key (and an
-optional bound recipient DID), an implementation:
+Given the envelope, the recipient's 32-byte X25519 private key, and the
+mandatory bound recipient DID, an implementation:
 
 1. Rejects unless `protocol` is `ink/0.1` and `type` is `network.tulpa.encrypted`.
 2. Rejects unless `from` (1 to 512), `timestamp` (1 to 64), and `messageNonce`
@@ -55,17 +55,24 @@ optional bound recipient DID), an implementation:
 6. Decodes `nonce` (encoded length capped first) and rejects unless it is
    exactly 12 bytes. Caps the encoded `ciphertext` length before decoding.
 7. Reconstructs the AAD as the bytes of `ink/0.1:envelope\n` followed by the
-   RFC 8785 JCS canonicalization of `{ protocol, type, from, ephemeralKey,
-   nonce, timestamp, messageNonce }` (the envelope's own string values). Any
-   tamper of an AAD-bound field changes these bytes and fails the tag.
+   RFC 8785 JCS canonicalization of `{ protocol, type, from, recipientKey,
+   ephemeralKey, nonce, timestamp, messageNonce }`. All values except
+   `recipientKey` are the envelope's own strings. `recipientKey` is the
+   recipient's static X25519 public key, base64url, recomputed locally from the
+   recipient private key (it is not carried in the envelope), so a ciphertext
+   encrypted for a different recipient derives a different AAD and fails the
+   tag. Any tamper of an AAD-bound field changes these bytes and fails the tag.
 8. Runs AES-256-GCM decryption over `ciphertext` with that nonce and AAD.
    Rejects on an authentication failure (a tampered ciphertext, tag, AAD field,
    or wrong recipient key).
 9. Parses the plaintext as JSON and rejects unless it is a non-null object
    (not an array or scalar).
 10. Rejects unless the decrypted inner `from` equals the outer envelope `from`.
-    When a recipient DID is supplied it must be a non-empty string and the
-    decrypted inner `to` must equal it.
+    A recipient DID is mandatory: it must be a non-empty string and the
+    decrypted inner `to` must equal it. The AAD `recipientKey` already binds the
+    ciphertext to the recipient's encryption key; this binds the recipient DID
+    on top, which matters when one X25519 key backs more than one alias. A
+    missing recipient DID is a reject, not a silent skip.
 
 An accepted case pins the exact decrypted plaintext as its canonical bytes, so
 a verifier that decrypts to different bytes, or accepts a tampered or malformed

@@ -219,7 +219,9 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         recipientDid?: string;
       };
       try {
-        const plaintext = await decryptInkPayload(envelope, recipientPrivateKeyHex, recipientDid);
+        // recipientDid is required; a vector that omits it passes "" so the
+        // mandatory-recipient reject fires (matches a nil pointer in the Go port).
+        const plaintext = await decryptInkPayload(envelope, recipientPrivateKeyHex, recipientDid ?? "");
         // Accept pins the exact decrypted plaintext as canonical bytes, so a
         // verifier that decrypts to different bytes (or accepts a tampered
         // envelope) diverges. Reject is any thrown error.

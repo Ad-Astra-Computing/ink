@@ -251,7 +251,7 @@ describe("decryptInkPayload: envelope.type validation", () => {
     };
 
     await expect(
-      decryptInkPayload(tampered, toHex(encKp.privateKey)),
+      decryptInkPayload(tampered, toHex(encKp.privateKey), "tulpa:zRecipient"),
     ).rejects.toThrow(/type/i);
   });
 

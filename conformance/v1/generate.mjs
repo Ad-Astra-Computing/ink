@@ -1783,21 +1783,21 @@ vectorFile("private-hostname", [
   vectorFile("payload-encryption", [
     {
       caseId: "valid-decrypt",
-      description: "A well-formed envelope decrypts to the exact plaintext bytes.",
-      input: { envelope, recipientPrivateKeyHex: recipientPrivHex },
-      expect: acc(canonicalPlaintext),
-    },
-    {
-      caseId: "valid-decrypt-recipient-bound",
-      description: "Decrypt with a recipientDid that matches the inner `to` accepts.",
+      description: "A well-formed envelope decrypts to the exact plaintext bytes when the recipientDid matches the inner `to`.",
       input: { envelope, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
       expect: acc(canonicalPlaintext),
     },
     {
       caseId: "unknown-outer-field-ignored",
       description: "An unknown outer field is ignored and not AAD-bound; the envelope still decrypts.",
-      input: { envelope: tamper("extra", "ignored"), recipientPrivateKeyHex: recipientPrivHex },
+      input: { envelope: tamper("extra", "ignored"), recipientPrivateKeyHex: recipientPrivHex, recipientDid },
       expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "missing-recipient-did",
+      description: "Decrypt without a recipientDid rejects: the recipient identity assertion is mandatory.",
+      input: { envelope, recipientPrivateKeyHex: recipientPrivHex },
+      expect: rej,
     },
     {
       caseId: "recipient-binding-mismatch",

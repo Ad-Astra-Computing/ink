@@ -95,7 +95,7 @@ describe("decryptInkPayload: rejects empty AAD scalar fields", () => {
       "nonce1234567890123",
     );
     const tampered = { ...result.envelope, from: "" };
-    await expect(decryptInkPayload(tampered, r.privHex)).rejects.toThrow(/from/i);
+    await expect(decryptInkPayload(tampered, r.privHex, "did:plc:bob")).rejects.toThrow(/from/i);
   });
 
   it("rejects envelope.timestamp = empty string", async () => {
@@ -108,7 +108,7 @@ describe("decryptInkPayload: rejects empty AAD scalar fields", () => {
       "nonce1234567890123",
     );
     const tampered = { ...result.envelope, timestamp: "" };
-    await expect(decryptInkPayload(tampered, r.privHex)).rejects.toThrow(/timestamp/i);
+    await expect(decryptInkPayload(tampered, r.privHex, "did:plc:bob")).rejects.toThrow(/timestamp/i);
   });
 
   it("rejects envelope.messageNonce = empty string", async () => {
@@ -121,7 +121,7 @@ describe("decryptInkPayload: rejects empty AAD scalar fields", () => {
       "nonce1234567890123",
     );
     const tampered = { ...result.envelope, messageNonce: "" };
-    await expect(decryptInkPayload(tampered, r.privHex)).rejects.toThrow(/messageNonce/i);
+    await expect(decryptInkPayload(tampered, r.privHex, "did:plc:bob")).rejects.toThrow(/messageNonce/i);
   });
 });
 

@@ -50,7 +50,7 @@ describe("decryptInkPayload: AES nonce length validation", () => {
 
     // Must throw/reject cleanly rather than allowing a crypto exception to propagate unpredictably
     await expect(
-      decryptInkPayload(tampered, toHex(encKp.privateKey)),
+      decryptInkPayload(tampered, toHex(encKp.privateKey), "tulpa:zRecipient"),
     ).rejects.toThrow(/nonce|iv/i);
   });
 
@@ -73,7 +73,7 @@ describe("decryptInkPayload: AES nonce length validation", () => {
     const tampered: InkEncryptedEnvelope = { ...envelope, nonce: base64urlEncode(longNonce) };
 
     await expect(
-      decryptInkPayload(tampered, toHex(encKp.privateKey)),
+      decryptInkPayload(tampered, toHex(encKp.privateKey), "tulpa:zRecipient"),
     ).rejects.toThrow(/nonce|iv/i);
   });
 
