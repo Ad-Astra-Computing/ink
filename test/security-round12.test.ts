@@ -59,11 +59,11 @@ describe("decryptInkPayload: rejects malformed recipientEncryptionPrivateKeyHex"
 
   it("rejects oversize hex private key before crypto work", async () => {
     const huge = "ab".repeat(100_000);
-    await expect(decryptInkPayload(envelope, huge)).rejects.toThrow();
+    await expect(decryptInkPayload(envelope, huge, "did:plc:bob")).rejects.toThrow();
   });
 
   it("rejects wrong-length valid hex with a clean error", async () => {
     const short = "ab".repeat(31);
-    await expect(decryptInkPayload(envelope, short)).rejects.toThrow();
+    await expect(decryptInkPayload(envelope, short, "did:plc:bob")).rejects.toThrow();
   });
 });

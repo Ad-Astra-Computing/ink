@@ -15,7 +15,9 @@
  *    Round 18: validFrom/validUntil/revokedAt preserved in redacted
  *    signing entries.
  *  - decryptInkPayload's `recipientDid &&` check disabled binding on
- *    empty string. Round 18: undefined skips, anything else MUST bind.
+ *    empty string. Round 18 hardened the empty-string case; the 2026-06
+ *    security review then made recipientDid mandatory: a missing or empty
+ *    value rejects (the recipient identity assertion is required).
  */
 import { describe, it, expect } from "vitest";
 import * as ed from "@noble/ed25519";
@@ -80,7 +82,7 @@ describe("encryptInkPayload: rejects oversized AAD scalar fields", () => {
       "2026-04-01T00:00:00Z",
       "nonce1234567890123",
     );
-    const out = await decryptInkPayload(result.envelope, r.privHex);
+    const out = await decryptInkPayload(result.envelope, r.privHex, "did:plc:bob");
     expect(out.msg).toBe("hi");
   });
 });
@@ -104,10 +106,9 @@ describe("decryptInkPayload: recipientDid binding cannot be disabled by empty st
     await expect(decryptInkPayload(envelope, privHex, "")).rejects.toThrow();
   });
 
-  it("undefined recipientDid still skips binding (legacy compat)", async () => {
+  it("rejects an undefined recipientDid even from a JS caller that bypasses the type", async () => {
     const { envelope, privHex } = await encryptedFor("did:plc:bob");
-    const out = await decryptInkPayload(envelope, privHex);
-    expect(out.to).toBe("did:plc:bob");
+    await expect(decryptInkPayload(envelope, privHex, undefined as unknown as string)).rejects.toThrow();
   });
 
   it("matching recipientDid succeeds", async () => {

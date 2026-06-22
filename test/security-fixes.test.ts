@@ -150,7 +150,7 @@ describe("X25519 low-order/zero shared secret rejection", () => {
     };
 
     await expect(
-      decryptInkPayload(fakeEnvelope, toHex(encKp.privateKey)),
+      decryptInkPayload(fakeEnvelope, toHex(encKp.privateKey), "tulpa:zRecipient"),
     ).rejects.toThrow();
   });
 });

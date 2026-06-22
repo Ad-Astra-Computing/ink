@@ -135,7 +135,7 @@
       "spec": "specs/ink-payload-encryption.md",
       "summary": "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope.",
       "caseCount": 20,
-      "sha256": "3e051026c622dcc9d8fb7b000fe953a8c8700e183b79a758357e9552f8dd3d1b"
+      "sha256": "2765fe12fef9f38195fb338c723b708993f61e900b737452c1447750222ae324"
     },
     {
       "id": "principal-normalization",

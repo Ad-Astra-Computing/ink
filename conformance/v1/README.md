@@ -168,9 +168,12 @@ additive field then.
   [`../../specs/ink-private-hostname.md`](../../specs/ink-private-hostname.md).
 - **payload-encryption** — ECIES payload decryption (§3.4): X25519 key
   agreement, HKDF-SHA256, and AES-256-GCM with the outer envelope bound as AAD.
-  A valid envelope decrypts to exact plaintext bytes; an optional recipient-DID
-  binding to the inner `to` accepts or rejects; and a tamper of any AAD-bound
-  field (`protocol`, `type`, `from`, `ephemeralKey`, `nonce`, `timestamp`,
+  A valid envelope decrypts to exact plaintext bytes when the mandatory
+  recipient DID matches the inner `to`; the AAD binds a `recipientKey` (the
+  recipient's static X25519 public key, recomputed locally) so a ciphertext for
+  one recipient cannot be accepted by another. A missing recipient DID, a
+  recipient-DID/inner-`to` mismatch, a tamper of any AAD-bound field
+  (`protocol`, `type`, `from`, `ephemeralKey`, `nonce`, `timestamp`,
   `messageNonce`), a ciphertext-or-tag tamper, the wrong recipient key, a
   malformed or wrong-length ephemeral key or nonce, an all-zero (low-order)
   shared secret, and an inner/outer `from` mismatch all reject. See

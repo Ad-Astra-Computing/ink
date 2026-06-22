@@ -425,13 +425,18 @@ export async function encryptInkPayload(
   // an unambiguous JSON-canonical representation. This prevents an attacker from
   // replaying the same ciphertext with modified outer metadata (timestamp, nonce, etc.)
   // or reattributing the ciphertext to a different sender.
-  // Fields bound: protocol, type, from (sender), ephemeralKey, AES nonce (base64url),
-  // timestamp, messageNonce. Including protocol and type prevents type-confusion attacks
-  // where an attacker reinterprets a valid encrypted envelope as a different message type.
+  // Fields bound: protocol, type, from (sender), recipientKey (the recipient's
+  // static X25519 public key), ephemeralKey, AES nonce (base64url), timestamp,
+  // messageNonce. Binding recipientKey ties the ciphertext to one recipient
+  // identity so it cannot be re-attributed to a different recipient envelope;
+  // the decrypt side recomputes it from the recipient's own private key, so a
+  // mismatch fails the tag. Including protocol and type prevents type-confusion
+  // attacks where an attacker reinterprets the envelope as a different message type.
   const aadObject = {
     protocol: "ink/0.1",
     type: "network.tulpa.encrypted",
     from: senderDid,
+    recipientKey: base64urlEncode(recipientPub),
     ephemeralKey: base64urlEncode(ephPub),
     nonce: base64urlEncode(aesNonce),
     timestamp,
@@ -465,7 +470,10 @@ export async function encryptInkPayload(
 export async function decryptInkPayload(
   envelope: InkEncryptedEnvelope,
   recipientEncryptionPrivateKeyHex: string,
-  recipientDid?: string,
+  // Required: the decrypter MUST assert which recipient identity it is. An
+  // empty string is still a runtime reject so a JS caller that bypasses the
+  // type cannot decrypt without asserting recipient identity.
+  recipientDid: string,
 ): Promise<Record<string, unknown>> {
   if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) {
     throw new Error("envelope must be a non-null object");
@@ -570,11 +578,16 @@ export async function decryptInkPayload(
 
   const aesKey = await crypto.subtle.importKey("raw", symmetricKey, "AES-GCM", false, ["decrypt"]);
   // AAD must match what was used during encryption — same unambiguous JSON-canonical format.
-  // protocol and type are now included to bind the ciphertext to this specific envelope type.
+  // protocol and type bind the ciphertext to this specific envelope type. recipientKey is
+  // recomputed locally from the recipient's own private key (not read from the envelope),
+  // so a ciphertext encrypted for a different recipient derives a different AAD and fails
+  // the GCM tag — binding the ciphertext to this recipient identity cryptographically.
+  const recipientPub = x25519.getPublicKey(recipientPriv);
   const aadObject = {
     protocol: "ink/0.1",
     type: "network.tulpa.encrypted",
     from: envelope.from,
+    recipientKey: base64urlEncode(recipientPub),
     ephemeralKey: envelope.ephemeralKey,
     nonce: envelope.nonce,
     timestamp: envelope.timestamp,
@@ -600,17 +613,18 @@ export async function decryptInkPayload(
   if (decrypted.from !== envelope.from) {
     throw new Error("Inner envelope 'from' does not match outer envelope");
   }
-  // recipientDid is optional, but if the caller supplies it we MUST
-  // bind. Using `recipientDid &&` would silently skip the check on an
-  // empty string — an integrator passing `process.env.AGENT_DID ?? ""`
-  // would think they were binding and not be. Be explicit:
-  if (recipientDid !== undefined) {
-    if (typeof recipientDid !== "string" || recipientDid.length === 0) {
-      throw new Error("recipientDid must be a non-empty string when provided");
-    }
-    if (decrypted.to !== recipientDid) {
-      throw new Error("Inner envelope 'to' does not match recipient DID");
-    }
+  // recipientDid is MANDATORY: the decrypter must assert which recipient
+  // identity it is, and the decrypted inner `to` must equal it. The AAD
+  // recipientKey binding ties the ciphertext to the recipient's static key;
+  // this binds the DID on top, which matters when one X25519 key backs more
+  // than one alias/tenant. A missing or empty recipientDid is a reject, not a
+  // silent skip, so an integrator cannot accidentally decrypt without
+  // asserting recipient identity.
+  if (typeof recipientDid !== "string" || recipientDid.length === 0) {
+    throw new Error("recipientDid is required to assert recipient identity");
+  }
+  if (decrypted.to !== recipientDid) {
+    throw new Error("Inner envelope 'to' does not match recipient DID");
   }
 
   return decrypted;

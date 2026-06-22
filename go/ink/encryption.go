@@ -44,9 +44,9 @@ func envString(env map[string]any, key string) (string, bool) {
 //
 // The envelope is the decoded outer JSON object. recipientPrivKeyHex is
 // the recipient's 32-byte X25519 private key, hex-encoded. recipientDid
-// is optional: when non-nil it MUST be a non-empty string, and the
-// decrypted inner "to" field MUST equal it (binding the ciphertext to
-// this recipient).
+// is MANDATORY: it MUST be a non-empty string, and the decrypted inner "to"
+// field MUST equal it (binding the ciphertext to this recipient identity on
+// top of the AAD recipientKey binding).
 //
 // Security properties preserved from the reference:
 //   - Pre-auth scalar caps (from/timestamp/messageNonce, measured in
@@ -58,12 +58,14 @@ func envString(env map[string]any, key string) (string, bool) {
 //     key would otherwise derive a publicly-known AES key, making the
 //     ciphertext decryptable by anyone. crypto/ecdh already errors on
 //     such points, but the result is also checked defensively.
-//   - AAD binds protocol/type/from/ephemeralKey/nonce/timestamp/
-//     messageNonce so a ciphertext cannot be replayed under modified
-//     outer metadata or reattributed to a different sender.
+//   - AAD binds protocol/type/from/recipientKey/ephemeralKey/nonce/
+//     timestamp/messageNonce so a ciphertext cannot be replayed under
+//     modified outer metadata, reattributed to a different sender, or
+//     accepted by a different recipient (recipientKey is recomputed from
+//     the local private key, not read from the envelope).
 //
 // Every reject path returns a non-nil error (the errDecrypt sentinel).
-func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, recipientDid *string) (map[string]any, error) {
+func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, recipientDid string) (map[string]any, error) {
 	// 1. Envelope must be a non-null JSON object. A nil map is the Go
 	// analogue of the reference's null/non-object reject.
 	if envelope == nil {
@@ -172,11 +174,15 @@ func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, reci
 	// object uses the ORIGINAL envelope string values (not re-encoded
 	// forms) so the canonical bytes match the reference exactly. JCS
 	// sorts keys by UTF-16 code unit (RFC 8785), the same ordering the TS
-	// jcsCanonicalize uses.
+	// jcsCanonicalize uses. recipientKey is recomputed locally from the
+	// recipient's own private key, so a ciphertext encrypted for a
+	// different recipient derives a different AAD and fails the GCM tag.
+	recipientKey := base64.RawURLEncoding.EncodeToString(privKey.PublicKey().Bytes())
 	aadObject := map[string]any{
 		"protocol":     "ink/0.1",
 		"type":         "network.tulpa.encrypted",
 		"from":         from,
+		"recipientKey": recipientKey,
 		"ephemeralKey": ephKeyStr,
 		"nonce":        nonceStr,
 		"timestamp":    timestamp,
@@ -215,18 +221,16 @@ func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, reci
 	}
 
 	// 13. Inner/outer consistency. Inner "from" must equal the outer
-	// envelope "from". When recipientDid is supplied it MUST be a
-	// non-empty string and inner "to" must equal it.
+	// envelope "from". recipientDid is MANDATORY: the decrypter must
+	// assert which recipient identity it is, and inner "to" must equal it.
 	if df, ok := decrypted["from"].(string); !ok || df != from {
 		return nil, errDecrypt
 	}
-	if recipientDid != nil {
-		if *recipientDid == "" {
-			return nil, errDecrypt
-		}
-		if dt, ok := decrypted["to"].(string); !ok || dt != *recipientDid {
-			return nil, errDecrypt
-		}
+	if recipientDid == "" {
+		return nil, errDecrypt
+	}
+	if dt, ok := decrypted["to"].(string); !ok || dt != recipientDid {
+		return nil, errDecrypt
 	}
 
 	// 14. Accept.
