@@ -4,6 +4,50 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.8.0, first-contact transcript, the base conformance profile, and auth hardening
+
+This release pins the end-to-end first-contact exchange as a single conformance
+category, declares and freezes the mandatory base profile every conforming
+sender and receiver must implement, and hardens the live-auth and payload
+encryption paths following a focused review of the key, auth, and encryption
+surface. It is published on the `next` dist-tag.
+
+### Additions
+
+- A `first-contact-transcript` conformance category that pins a full stranger
+  first-contact flow: discover the Agent Card, select a protocol version, verify
+  the signed connection request under the freshness and replay rule, and verify
+  the accepted connection response. The TypeScript reference and the Go
+  implementation make the same decision and select the same protocol version on
+  every vector.
+- A conformance profile for each category in `conformance/v1/manifest.json`. The
+  `base` profile is the floor every conforming implementation must satisfy;
+  `encryption`, `audit`, `witness`, and `containment` are capability gated. The
+  per-category sender and receiver obligations are normative in
+  [`specs/ink-conformance-profile.md`](specs/ink-conformance-profile.md), and the
+  base set is frozen by drift tests in both implementations.
+- An optional atomic `addIfAbsent` method on the `NonceStore` interface. When a
+  store provides it, inbound verification uses it instead of the separate check
+  and record calls, so two concurrent replays of one signed request cannot both
+  pass on a distributed store.
+
+### Changes
+
+- Inbound transport verification rejects a retired key by default. A signature
+  that only verifies against a retired key is refused for live auth unless the
+  caller opts into a rotation grace window. Retired keys remain usable for
+  historical-artifact verification through the key-set primitive.
+
+### Breaking
+
+- Encrypted payload envelopes bind the recipient's static encryption key into
+  the additional authenticated data, and decryption requires the recipient
+  identity. `decryptInkPayload` now takes a required recipient DID and rejects a
+  missing or empty value, and a ciphertext is bound to one recipient identity so
+  it cannot be accepted by another. Envelopes produced by an earlier release do
+  not decrypt under this version. The `payload-encryption` conformance vectors
+  are regenerated accordingly.
+
 ## 0.7.0, discovery conformance and a packaged vector corpus
 
 This release extends the cross-implementation conformance contract to the
