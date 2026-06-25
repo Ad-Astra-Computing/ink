@@ -126,6 +126,57 @@
       }
     },
     {
+      "caseId": "challenge-ink-namespace-accepts",
+      "description": "A challenge using the vendor-neutral network.ink namespace validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "rejection-ink-namespace-accepts",
+      "description": "A rejection using the vendor-neutral network.ink namespace validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "resolution-ink-namespace-accepts",
+      "description": "A resolution using the vendor-neutral network.ink namespace validates.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.resolution",
+          "intentRef": "intent-1",
+          "outcome": "accepted",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
       "caseId": "wrong-protocol-rejects",
       "description": "A protocol other than ink/0.1 is rejected.",
       "input": {

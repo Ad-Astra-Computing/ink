@@ -83,6 +83,166 @@
       }
     },
     {
+      "caseId": "ink-namespace-accepts",
+      "description": "A response under the vendor-neutral network.ink namespace, witness-signed over its actual type, verifies (ink/0.4 dual-accept).",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "sCBxo8CsP-RnYIJFCWBDkLV3GhH4tEe3urBY_n7-dkPAyRGfbuc7G2m61JsS9mnU7tXpnfFTYy3COFOIf3BFAg"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "relabelled-namespace-rejects",
+      "description": "A response signed under the legacy namespace but relabelled to network.ink fails the witness envelope signature.",
+      "input": {
+        "witnessPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "expectedRequester": "did:web:agent-a.example",
+        "expectedMessageId": "msg-001",
+        "agentKeysHex": {
+          "did:web:agent-a.example": "b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"
+        },
+        "response": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.audit_query_response",
+          "serviceDid": "did:web:witness.example",
+          "messageId": "msg-001",
+          "requester": "did:web:agent-a.example",
+          "events": [
+            {
+              "id": "evt-0",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 0,
+              "agentSignature": "XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"
+            },
+            {
+              "id": "evt-1",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 1,
+              "agentSignature": "GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"
+            },
+            {
+              "id": "evt-2",
+              "type": "connection_request",
+              "messageId": "msg-001",
+              "agentId": "did:web:agent-a.example",
+              "counterpartyId": "did:web:agent-b.example",
+              "seq": 2,
+              "agentSignature": "26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"
+            }
+          ],
+          "proofs": [
+            {
+              "eventId": "evt-0",
+              "leafIndex": 0,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"
+              ]
+            },
+            {
+              "eventId": "evt-1",
+              "leafIndex": 1,
+              "inclusionProof": [
+                "cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce",
+                "b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"
+              ]
+            },
+            {
+              "eventId": "evt-2",
+              "leafIndex": 2,
+              "inclusionProof": [
+                "3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"
+              ]
+            }
+          ],
+          "treeSize": 3,
+          "rootHash": "66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435",
+          "timestamp": "2026-06-15T12:00:00.000Z",
+          "serviceSignature": "Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
       "caseId": "empty-tree-accepts",
       "description": "A fresh witness response with tree size 0, no events or proofs, and the empty-tree root verifies.",
       "input": {
