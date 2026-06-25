@@ -1374,9 +1374,16 @@ const aqNonPartyEvent = { id: "evt-np", type: "connection_request", messageId: a
 aqNonPartyEvent.agentSignature = await signAuditEvent(aqNonPartyEvent, aqAgentSeed);
 const aqNonPartyLeaf = await computeAuditMerkleLeafHash(aqNonPartyEvent);
 const aqNonPartyResponse = await aqSigned({ events: [aqNonPartyEvent], proofs: [{ eventId: "evt-np", leafIndex: 0, inclusionProof: [] }], treeSize: 1, rootHash: aqNonPartyLeaf });
+// ink/0.4 dual-accept: a response under the vendor-neutral namespace, witness-
+// signed over its actual type, verifies. The relabel variant keeps the
+// legacy-namespace signature but swaps the type, so the envelope signature fails.
+const aqInkNamespace = await aqSigned({ type: "network.ink.audit_query_response" });
+const aqRelabelled = { ...aqValid, type: "network.ink.audit_query_response" };
 
 vectorFile("audit-query-response", [
   aqAccept("valid-accepts", "A well-formed, witness-signed response with in-scope, agent-signed events and valid Merkle proofs verifies.", { ...aqBase, response: aqValid }),
+  aqAccept("ink-namespace-accepts", "A response under the vendor-neutral network.ink namespace, witness-signed over its actual type, verifies (ink/0.4 dual-accept).", { ...aqBase, response: aqInkNamespace }),
+  aqReject("relabelled-namespace-rejects", "A response signed under the legacy namespace but relabelled to network.ink fails the witness envelope signature.", { ...aqBase, response: aqRelabelled }),
   aqAccept("empty-tree-accepts", "A fresh witness response with tree size 0, no events or proofs, and the empty-tree root verifies.", { ...aqBase, response: aqEmptyResponse }),
   // structure
   aqReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...aqBase, response: { ...aqValid, protocol: "ink/0.2" } }),
@@ -1437,6 +1444,10 @@ vectorFile("handshake-message", [
   hsAccept("challenge-with-optional-arrays-accepts", "A challenge with optional field/window/context arrays within their caps validates.", { ...hsChallenge, fields: ["a", "b"], availableWindows: ["w1"], contextFields: ["c1"] }),
   hsAccept("rejection-with-backoff-accepts", "A rejection with a backoff hint validates.", { ...hsRejection, detail: "too busy", backoffHint: { retryAfterSeconds: 30, backoffClass: "sender" } }),
   hsAccept("resolution-with-details-accepts", "A resolution with details and a counterparty DID validates; details passes through extra keys.", { ...hsResolution, details: { scheduledAt: "2026-06-17", duration: "30m", note: "extra" }, counterpartyDid: "did:web:b.example" }),
+  // vendor-neutral namespace (ink/0.4 dual-accept)
+  hsAccept("challenge-ink-namespace-accepts", "A challenge using the vendor-neutral network.ink namespace validates.", { ...hsChallenge, type: "network.ink.challenge" }),
+  hsAccept("rejection-ink-namespace-accepts", "A rejection using the vendor-neutral network.ink namespace validates.", { ...hsRejection, type: "network.ink.rejection" }),
+  hsAccept("resolution-ink-namespace-accepts", "A resolution using the vendor-neutral network.ink namespace validates.", { ...hsResolution, type: "network.ink.resolution" }),
   // protocol / type
   hsReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...hsChallenge, protocol: "ink/0.2" }),
   hsReject("wrong-type-rejects", "A type not matching any handshake message is rejected.", { ...hsChallenge, type: "network.tulpa.message" }),
@@ -1766,6 +1777,18 @@ vectorFile("private-hostname", [
     innerMismatchPlain, sender, recipientPubHex, ts, msgNonce, opts,
   );
 
+  // Vendor-neutral namespace (ink/0.4 dual-accept): the sender opts into
+  // network.ink.encrypted. The type is AAD-bound, so this decrypts cleanly while
+  // a relabel of the legacy envelope fails the tag. A distinct AES nonce keeps
+  // the (key, nonce) pair unique against the legacy envelope above.
+  const aesNonceInk = new Uint8Array(
+    (await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-encryption-nonce-ink"))).slice(0, 12),
+  );
+  const { envelope: inkNamespaceEnv } = await encryptInkPayload(
+    plaintext, sender, recipientPubHex, ts, msgNonce,
+    { ephemeralPrivateKey: ephPriv, aesNonce: aesNonceInk, messageType: "network.ink.encrypted" },
+  );
+
   const clone = () => JSON.parse(JSON.stringify(envelope));
   const tamper = (field, value) => { const e = clone(); e[field] = value; return e; };
   // Flip the FIRST base64url char of the ciphertext to break the GCM tag. The
@@ -1786,6 +1809,18 @@ vectorFile("private-hostname", [
       description: "A well-formed envelope decrypts to the exact plaintext bytes when the recipientDid matches the inner `to`.",
       input: { envelope, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
       expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "valid-decrypt-ink-namespace",
+      description: "An envelope using the vendor-neutral network.ink.encrypted type decrypts to the same plaintext (ink/0.4 dual-accept).",
+      input: { envelope: inkNamespaceEnv, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
+      expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "relabel-tulpa-to-ink-rejects",
+      description: "A legacy network.tulpa.encrypted envelope relabelled to network.ink.encrypted fails the GCM tag: the type is AAD-bound, not normalized.",
+      input: { envelope: tamper("type", "network.ink.encrypted"), recipientPrivateKeyHex: recipientPrivHex, recipientDid },
+      expect: rej,
     },
     {
       caseId: "unknown-outer-field-ignored",
