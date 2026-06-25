@@ -2,6 +2,7 @@ import { computeMessageHash, signInkMessage, buildAuthHeader } from "../crypto/i
 import { signMessage, verifyMessage } from "../crypto/sign.js";
 import { isPrivateHostname } from "../discovery/agent-card.js";
 import { InkReceiptSchema, type InkReceipt } from "../models/ink-audit.js";
+import { wireTypeAliases } from "../models/wire-type.js";
 
 export interface BuildReceiptInput {
   from: string;
@@ -102,13 +103,16 @@ export async function verifyReceipt(opts: {
   return { valid: true };
 }
 
-/** Loop prevention: don't send receipts for receipts or audit messages. */
-const NO_RECEIPT_TYPES = new Set([
-  "network.tulpa.receipt",
-  "network.tulpa.audit_query",
-  "network.tulpa.audit_response",
-  "network.tulpa.audit_submit",
-  "network.tulpa.audit_inclusion",
+/** Loop prevention: don't send receipts for receipts or audit messages.
+ *  Both the legacy `network.tulpa.*` and vendor-neutral `network.ink.*`
+ *  spellings are suppressed, so a peer on the new namespace cannot induce a
+ *  receipt loop. */
+const NO_RECEIPT_TYPES = new Set<string>([
+  ...wireTypeAliases("receipt"),
+  ...wireTypeAliases("audit_query"),
+  ...wireTypeAliases("audit_response"),
+  ...wireTypeAliases("audit_submit"),
+  ...wireTypeAliases("audit_inclusion"),
 ]);
 
 export function shouldSendReceipt(intentOrType: string): boolean {

@@ -76,7 +76,11 @@ func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, reci
 	if p, ok := envString(envelope, "protocol"); !ok || p != "ink/0.1" {
 		return nil, errDecrypt
 	}
-	if ty, ok := envString(envelope, "type"); !ok || ty != "network.tulpa.encrypted" {
+	// Receivers dual-accept both the legacy and vendor-neutral spelling. The
+	// actual type is bound into the AAD below (never normalized), so a
+	// relabelled envelope reconstructs a different AAD and fails the GCM tag.
+	messageType, ok := envString(envelope, "type")
+	if !ok || !dualWireType(messageType, "encrypted") {
 		return nil, errDecrypt
 	}
 
@@ -180,7 +184,7 @@ func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, reci
 	recipientKey := base64.RawURLEncoding.EncodeToString(privKey.PublicKey().Bytes())
 	aadObject := map[string]any{
 		"protocol":     "ink/0.1",
-		"type":         "network.tulpa.encrypted",
+		"type":         messageType,
 		"from":         from,
 		"recipientKey": recipientKey,
 		"ephemeralKey": ephKeyStr,

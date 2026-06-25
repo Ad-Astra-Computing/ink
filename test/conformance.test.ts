@@ -143,10 +143,15 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "handshake-message": {
       const message = input.message as { type?: unknown };
       const t = typeof message?.type === "string" ? message.type : "";
+      // Dispatch on the type SUFFIX so both the legacy network.tulpa.* and the
+      // vendor-neutral network.ink.* spellings route to the same schema, which
+      // itself dual-accepts (ink/0.4). Mirrors the Go ValidateHandshakeMessage.
+      const suffix = t.startsWith("network.tulpa.") ? t.slice("network.tulpa.".length)
+        : t.startsWith("network.ink.") ? t.slice("network.ink.".length) : "";
       const schema =
-        t === "network.tulpa.challenge" ? InkChallengeSchema :
-        t === "network.tulpa.rejection" ? InkRejectionSchema :
-        t === "network.tulpa.resolution" ? InkResolutionSchema : null;
+        suffix === "challenge" ? InkChallengeSchema :
+        suffix === "rejection" ? InkRejectionSchema :
+        suffix === "resolution" ? InkResolutionSchema : null;
       if (schema === null) return { result: "reject" };
       return { result: schema.safeParse(message).success ? "accept" : "reject" };
     }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dualWireType } from "./wire-type.js";
 
 // ── Transport identifiers (INK Containment §7) ──
 
@@ -48,7 +49,7 @@ export type ChallengeType = z.infer<typeof ChallengeTypeSchema>;
 
 export const InkChallengeSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.challenge"),
+  type: dualWireType("challenge"),
   intentRef: z.string().max(256),
   challengeType: ChallengeTypeSchema,
   fields: z.array(z.string().max(256)).max(32).optional(),
@@ -81,7 +82,7 @@ export type RejectionReason = z.infer<typeof RejectionReasonSchema>;
 
 export const InkRejectionSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.rejection"),
+  type: dualWireType("rejection"),
   intentRef: z.string().max(256),
   reason: RejectionReasonSchema,
   detail: z.string().max(500).optional(),
@@ -111,7 +112,7 @@ export const ResolutionDetailsSchema = z.object({
 
 export const InkResolutionSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.resolution"),
+  type: dualWireType("resolution"),
   intentRef: z.string().max(256),
   outcome: ResolutionOutcomeSchema,
   details: ResolutionDetailsSchema.optional(),
