@@ -75,11 +75,11 @@ func optStrArray(m map[string]interface{}, key string, maxLen, maxUTF16 int) boo
 	return true
 }
 
-func base(m map[string]interface{}, expectedType string) bool {
+func base(m map[string]interface{}, suffix string) bool {
 	if p, ok := hsString(m, "protocol"); !ok || p != "ink/0.1" {
 		return false
 	}
-	if t, ok := hsString(m, "type"); !ok || t != expectedType {
+	if t, ok := hsString(m, "type"); !ok || !dualWireType(t, suffix) {
 		return false
 	}
 	if !reqStr(m, "intentRef", 256) {
@@ -97,7 +97,7 @@ func base(m map[string]interface{}, expectedType string) bool {
 // accept the same object. Unknown top-level keys are ignored, matching Zod's
 // default strip behavior.
 func ValidateInkChallenge(m map[string]interface{}) bool {
-	if !base(m, "network.tulpa.challenge") {
+	if !base(m, "challenge") {
 		return false
 	}
 	ct, ok := hsString(m, "challengeType")
@@ -112,7 +112,7 @@ func ValidateInkChallenge(m map[string]interface{}) bool {
 // ValidateInkRejection validates a network.tulpa.rejection message
 // (InkRejectionSchema).
 func ValidateInkRejection(m map[string]interface{}) bool {
-	if !base(m, "network.tulpa.rejection") {
+	if !base(m, "rejection") {
 		return false
 	}
 	reason, ok := hsString(m, "reason")
@@ -160,7 +160,7 @@ func validateBackoffHint(m map[string]interface{}) bool {
 // ValidateInkResolution validates a network.tulpa.resolution message
 // (InkResolutionSchema).
 func ValidateInkResolution(m map[string]interface{}) bool {
-	if !base(m, "network.tulpa.resolution") {
+	if !base(m, "resolution") {
 		return false
 	}
 	outcome, ok := hsString(m, "outcome")
@@ -192,11 +192,11 @@ func ValidateHandshakeMessage(m map[string]interface{}) bool {
 		return false
 	}
 	switch t {
-	case "network.tulpa.challenge":
+	case "network.tulpa.challenge", "network.ink.challenge":
 		return ValidateInkChallenge(m)
-	case "network.tulpa.rejection":
+	case "network.tulpa.rejection", "network.ink.rejection":
 		return ValidateInkRejection(m)
-	case "network.tulpa.resolution":
+	case "network.tulpa.resolution", "network.ink.resolution":
 		return ValidateInkResolution(m)
 	default:
 		return false

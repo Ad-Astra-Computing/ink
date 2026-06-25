@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { dualWireType } from "./wire-type.js";
 
 // ── INK Audit Event Types (INK Auditability §2) ──
 
@@ -97,7 +98,7 @@ export type InkReceiptDisposition = z.infer<typeof InkReceiptDispositionSchema>;
 
 export const InkReceiptSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.receipt"),
+  type: dualWireType("receipt"),
   from: z.string().max(512),
   to: z.string().max(512),
   messageId: z.string().max(256),
@@ -116,7 +117,7 @@ export type InkReceipt = z.infer<typeof InkReceiptSchema>;
 
 export const InkAuditQuerySchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.audit_query"),
+  type: dualWireType("audit_query"),
   from: z.string().max(512),
   to: z.string().max(512),
   messageId: z.string().max(256),
@@ -130,6 +131,11 @@ export type InkAuditQuery = z.infer<typeof InkAuditQuerySchema>;
 
 export const InkAuditResponseSchema = z.object({
   protocol: z.literal("ink/0.1"),
+  // Stays single-spelling (legacy prefix only). Unlike the other message
+  // types, `responseSignature` authenticates only `JCS(events)`, not the
+  // envelope `type`, so a relabelled response would still verify. Dual-accept
+  // is therefore withheld here until a future wire change brings `type` under
+  // the signature. See specs/ink-compatibility-policy.md §1.3.
   type: z.literal("network.tulpa.audit_response"),
   messageId: z.string().max(256),
   // Bound both the event count and (via InkAuditEventSchema's per-field caps)
@@ -146,7 +152,7 @@ export type InkAuditResponse = z.infer<typeof InkAuditResponseSchema>;
 
 export const InkAuditSubmitSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.audit_submit"),
+  type: dualWireType("audit_submit"),
   from: z.string().max(256),
   to: z.string().max(256),
   event: InkAuditEventSchema,
@@ -160,6 +166,10 @@ export type InkAuditSubmit = z.infer<typeof InkAuditSubmitSchema>;
 
 export const InkAuditInclusionSchema = z.object({
   protocol: z.literal("ink/0.1"),
+  // Single-spelling for the same reason as InkAuditResponseSchema:
+  // `serviceSignature` signs only {eventId, leafIndex, treeSize, rootHash,
+  // timestamp}, not the envelope `type`, so the relabel-rejection invariant
+  // cannot hold. Dual-accept is withheld until `type` is signed.
   type: z.literal("network.tulpa.audit_inclusion"),
   eventId: z.string().max(256),
   treeSize: z.number().int().positive(),
@@ -193,7 +203,7 @@ export type InkIntroductionReceiptStatus = z.infer<typeof InkIntroductionReceipt
 
 export const InkIntroductionReceiptSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.introduction_receipt"),
+  type: dualWireType("introduction_receipt"),
   id: z.string().max(256),
   correlationId: z.string().max(256),
   from: z.string().max(512),

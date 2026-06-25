@@ -306,7 +306,9 @@ export function buildAuthHeader(signatureBase64url: string, keyId?: string): str
 
 export interface InkEncryptedEnvelope {
   protocol: "ink/0.1";
-  type: "network.tulpa.encrypted";
+  // Receivers dual-accept both spellings; senders emit the legacy form by
+  // default (see specs/ink-compatibility-policy.md §1.3 and `messageType`).
+  type: "network.tulpa.encrypted" | "network.ink.encrypted";
   from: string;
   ephemeralKey: string;
   nonce: string;
@@ -344,8 +346,14 @@ export async function encryptInkPayload(
     // ephemeral key and a random nonce.
     ephemeralPrivateKey?: Uint8Array;
     aesNonce?: Uint8Array;
+    // Wire-namespace prefix to emit. Defaults to the legacy
+    // `network.tulpa.encrypted`; a sender that has negotiated the
+    // vendor-neutral namespace may set `network.ink.encrypted`. The chosen
+    // type is bound into the AAD, so it is authenticated, not malleable.
+    messageType?: "network.tulpa.encrypted" | "network.ink.encrypted";
   },
 ): Promise<InkEncryptResult> {
+  const messageType = options?.messageType ?? "network.tulpa.encrypted";
   // Pre-AAD scalar caps. AAD is canonicalized and TextEncoder-allocated;
   // unbounded sender DID / timestamp / messageNonce values would force
   // the encrypt path to spend CPU/memory before any GCM work. These
@@ -434,7 +442,7 @@ export async function encryptInkPayload(
   // attacks where an attacker reinterprets the envelope as a different message type.
   const aadObject = {
     protocol: "ink/0.1",
-    type: "network.tulpa.encrypted",
+    type: messageType,
     from: senderDid,
     recipientKey: base64urlEncode(recipientPub),
     ephemeralKey: base64urlEncode(ephPub),
@@ -451,7 +459,7 @@ export async function encryptInkPayload(
   // 5. Outer envelope
   const envelope: InkEncryptedEnvelope = {
     protocol: "ink/0.1",
-    type: "network.tulpa.encrypted",
+    type: messageType,
     from: senderDid,
     ephemeralKey: base64urlEncode(ephPub),
     nonce: base64urlEncode(aesNonce),
@@ -481,7 +489,11 @@ export async function decryptInkPayload(
   if (envelope.protocol !== "ink/0.1") {
     throw new Error("Unsupported protocol version");
   }
-  if (envelope.type !== "network.tulpa.encrypted") {
+  // Receivers dual-accept the legacy and vendor-neutral spellings. The actual
+  // type is bound into the AAD below (never normalized), so a relabelled
+  // envelope (e.g. a tulpa-tagged ciphertext changed to the ink spelling)
+  // reconstructs a different AAD and fails the GCM tag.
+  if (envelope.type !== "network.tulpa.encrypted" && envelope.type !== "network.ink.encrypted") {
     throw new Error("Invalid encrypted envelope type");
   }
 
@@ -585,7 +597,9 @@ export async function decryptInkPayload(
   const recipientPub = x25519.getPublicKey(recipientPriv);
   const aadObject = {
     protocol: "ink/0.1",
-    type: "network.tulpa.encrypted",
+    // Bind the type AS RECEIVED (legacy or vendor-neutral), never normalized,
+    // so a relabelled envelope fails the tag.
+    type: envelope.type,
     from: envelope.from,
     recipientKey: base64urlEncode(recipientPub),
     ephemeralKey: envelope.ephemeralKey,

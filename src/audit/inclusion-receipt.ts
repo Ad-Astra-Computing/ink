@@ -209,7 +209,7 @@ export async function verifyInclusionReceipt(opts: {
 
 export interface AuditQueryResponse {
   protocol: "ink/0.1";
-  type: "network.tulpa.audit_query_response";
+  type: "network.tulpa.audit_query_response" | "network.ink.audit_query_response";
   serviceDid: string;
   messageId: string;
   requester: string;
@@ -516,7 +516,11 @@ const EMPTY_TREE_ROOT = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991
 function checkAuditQueryResponseShape(r: AuditQueryResponse): string | null {
   if (r === null || typeof r !== "object") return "response is not an object";
   if (r.protocol !== "ink/0.1") return `protocol must be "ink/0.1"`;
-  if (r.type !== "network.tulpa.audit_query_response") return `type must be "network.tulpa.audit_query_response"`;
+  // Receivers dual-accept both spellings; the witness signature is over the
+  // response's actual `type`, so a relabelled response fails signature verify.
+  if (r.type !== "network.tulpa.audit_query_response" && r.type !== "network.ink.audit_query_response") {
+    return `type must be "network.tulpa.audit_query_response" or "network.ink.audit_query_response"`;
+  }
   if (typeof r.serviceDid !== "string" || r.serviceDid.length === 0) return "serviceDid missing";
   if (typeof r.messageId !== "string" || r.messageId.length === 0) return "messageId missing";
   if (typeof r.requester !== "string" || r.requester.length === 0) return "requester missing";
