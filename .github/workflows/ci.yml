@@ -119,6 +119,7 @@ jobs:
       - name: Conformance, vet and format
         working-directory: go
         run: |
-          test -z "$(gofmt -l ./ink)"
+          test -z "$(gofmt -l .)"
           go vet ./...
           go test ./...
+          CGO_ENABLED=0 go build ./cmd/ink
