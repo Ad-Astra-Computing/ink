@@ -193,8 +193,8 @@ export type {
 // Type re-exports
 export type { InkSignInput } from "./crypto/ink.js";
 export type { CandidateKey } from "./models/key-entry.js";
-export { resolveAgentInbox, agentSupportedProtocolVersions } from "./models/agent-card.js";
-export type { AgentCard } from "./models/agent-card.js";
+export { resolveAgentInbox, agentSupportedProtocolVersions, isDiscoverable, effectiveDiscoveryScope, DiscoveryDescriptorSchema } from "./models/agent-card.js";
+export type { AgentCard, DiscoveryDescriptor } from "./models/agent-card.js";
 export type {
   BudgetCheckResult,
   HandshakeBudgetConfig,

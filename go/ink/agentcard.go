@@ -288,6 +288,58 @@ func validateGovernance(m map[string]interface{}) bool {
 	return true
 }
 
+// discoveryExposureRank is the exposure lattice for the discovery descriptor
+// (#188), most-exposed to least. Discovery `scope` reuses the visibility enum
+// and MUST NOT exceed the card's visibility (the hard upper bound).
+var discoveryExposureRank = map[string]int{
+	"public":           3,
+	"network_only":     2,
+	"capability_gated": 1,
+	"private":          0,
+}
+
+// validateDiscovery mirrors DiscoveryDescriptorSchema and the card superRefine
+// (src/models/agent-card.ts). The descriptor is opt-in and only ever narrows
+// exposure: `enabled` and `scope` are required, `scope` is in the visibility
+// enum and may not exceed upperBound (the card's visibility, defaulting to
+// public). `tags` are at most 32 non-empty strings of at most 64 UTF-16 units;
+// `queryable` is an optional bool; `updatedAt` is an optional strict RFC 3339
+// timestamp. Unknown keys are ignored for forward compatibility.
+func validateDiscovery(m map[string]interface{}, upperBound string) bool {
+	if _, ok := m["enabled"].(bool); !ok {
+		return false
+	}
+	scope, ok := m["scope"].(string)
+	if !ok || !inEnum(scope, "public", "network_only", "capability_gated", "private") {
+		return false
+	}
+	if discoveryExposureRank[scope] > discoveryExposureRank[upperBound] {
+		return false
+	}
+	if v, present := m["tags"]; present {
+		arr, ok := v.([]interface{})
+		if !ok || len(arr) > 32 {
+			return false
+		}
+		for _, e := range arr {
+			s, ok := e.(string)
+			if !ok || s == "" || utf16Len(s) > 64 {
+				return false
+			}
+		}
+	}
+	if !optBool(m, "queryable") {
+		return false
+	}
+	if v, present := m["updatedAt"]; present {
+		s, ok := v.(string)
+		if !ok || !isStrictInkTimestamp(s) {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidateAgentCard validates the canonical .well-known/ink/agent.json document
 // against AgentCardSchema (src/models/agent-card.ts). The card and its inner
 // objects are not strict (unknown keys are ignored) except the embedded profile
@@ -349,9 +401,19 @@ func ValidateAgentCard(m map[string]interface{}) bool {
 	if !optStrArray(m, "supportedProtocolVersions", 8, 16) {
 		return false
 	}
+	// An absent visibility is the public upper bound: the card is itself
+	// publicly fetchable, so a discovery descriptor may expose up to public.
+	visibility := "public"
 	if v, present := m["visibility"]; present {
 		s, ok := v.(string)
 		if !ok || !inEnum(s, "public", "network_only", "capability_gated", "private") {
+			return false
+		}
+		visibility = s
+	}
+	if v, present := m["discovery"]; present {
+		d, ok := v.(map[string]interface{})
+		if !ok || !validateDiscovery(d, visibility) {
 			return false
 		}
 	}

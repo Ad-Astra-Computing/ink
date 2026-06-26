@@ -4,6 +4,23 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Additions
+
+- Opt-in discovery descriptor on the Agent Card. A card MAY carry a `discovery`
+  object (`enabled`, `scope`, optional `tags`, `queryable`, and `updatedAt`)
+  that consents to being surfaced by a directory or index. It is additive and
+  forward compatible: a card without it is not discoverable, and unknown
+  descriptor keys are ignored. The descriptor can only narrow exposure, its
+  `scope` reuses the card visibility enum and may not exceed the card's
+  `visibility`. New `isDiscoverable` and `effectiveDiscoveryScope` helpers and
+  the `DiscoveryDescriptorSchema` export. Covered by the `agent-card`
+  conformance category in the TypeScript reference and the Go verifier. See
+  [`specs/ink-discovery-descriptor.md`](specs/ink-discovery-descriptor.md). The
+  authenticated query envelope and the directory service itself are out of
+  scope and deferred.
+
 ## 0.9.0, vendor-neutral message namespace
 
 This release lets a receiver accept the vendor-neutral `network.ink.*` spelling

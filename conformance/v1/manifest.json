@@ -7,9 +7,9 @@
       "vector": "vectors/agent-card.json",
       "profile": "base",
       "spec": "specs/ink-agent-card.md",
-      "summary": "Agent Card validation and the pinned INK endpoint URL grammar.",
-      "caseCount": 35,
-      "sha256": "6211da549af87ba2d2843de50c2f4d851f9252ccb5e454661ff679de1316e354"
+      "summary": "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound.",
+      "caseCount": 48,
+      "sha256": "5e1ea1f97a0796a14918a3bba08781cd0a40d7717a38733a003eac1c38a7a028"
     },
     {
       "id": "agent-card-fetch",
