@@ -64,7 +64,7 @@ const CATEGORY_META = {
   "audit-query-response": { profile: "audit", spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
   "handshake-message": { profile: "containment", spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
   "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
-  "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
+  "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
   "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
@@ -1613,6 +1613,23 @@ vectorFile("agent-card", [
   acReject("bad-key-set-version-rejects", "A non-positive keySetVersion is rejected.", { ...acCard, keySetVersion: 0 }),
   acReject("bad-visibility-rejects", "An unknown visibility is rejected.", { ...acCard, visibility: "secret" }),
   acReject("bad-governance-depth-rejects", "A non-positive maxAcceptedDelegationDepth is rejected.", { ...acCard, governance: { maxAcceptedDelegationDepth: -1 } }),
+  // discovery descriptor (#188): opt-in, additive, and only ever narrowing.
+  // The descriptor `scope` reuses the visibility enum and MUST NOT exceed the
+  // card's `visibility`; an absent `visibility` is the public upper bound
+  // because the card is publicly fetchable. Tags are self-declared hints.
+  acAccept("discovery-enabled-accepts", "An enabled discovery descriptor at the card's visibility, with tags and a strict updatedAt, validates.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: ["hiring", "ai"], queryable: true, updatedAt: acTs } }),
+  acAccept("discovery-disabled-accepts", "An opt-out (enabled:false) discovery descriptor validates.", { ...acCard, visibility: "public", discovery: { enabled: false, scope: "public" } }),
+  acAccept("discovery-narrowing-accepts", "A descriptor narrowing exposure below the card visibility validates.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "network_only" } }),
+  acAccept("discovery-absent-visibility-accepts", "With no visibility field the public upper bound applies, so a public-scope descriptor validates.", { ...acCard, discovery: { enabled: true, scope: "public" } }),
+  acAccept("discovery-unknown-key-ignored-accepts", "An unknown discovery descriptor key is ignored, not rejected, so later additive fields stay forward compatible.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", rank: 5 } }),
+  acReject("discovery-scope-exceeds-visibility-rejects", "A descriptor scope wider than the card visibility is rejected (hard upper bound).", { ...acCard, visibility: "network_only", discovery: { enabled: true, scope: "public" } }),
+  acReject("discovery-missing-enabled-rejects", "A discovery descriptor without enabled is rejected.", { ...acCard, visibility: "public", discovery: { scope: "public" } }),
+  acReject("discovery-missing-scope-rejects", "A discovery descriptor without scope is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true } }),
+  acReject("discovery-bad-scope-enum-rejects", "A discovery scope outside the visibility enum is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "everyone" } }),
+  acReject("discovery-too-many-tags-rejects", "A discovery tags array past 32 entries is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: Array(33).fill("x") } }),
+  acReject("discovery-empty-tag-rejects", "A discovery tag that is the empty string is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: [""] } }),
+  acReject("discovery-over-long-tag-rejects", "A discovery tag past 64 characters is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: ["x".repeat(65)] } }),
+  acReject("discovery-bad-updated-at-rejects", "A discovery updatedAt that is not a strict RFC 3339 timestamp is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", updatedAt: "2026-06-16" } }),
 ]);
 
 // ── agent-card-fetch ───────────────────────────────────────────────────────

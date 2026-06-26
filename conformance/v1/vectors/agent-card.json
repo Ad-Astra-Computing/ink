@@ -1149,6 +1149,494 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "discovery-enabled-accepts",
+      "description": "An enabled discovery descriptor at the card's visibility, with tags and a strict updatedAt, validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "public",
+            "tags": [
+              "hiring",
+              "ai"
+            ],
+            "queryable": true,
+            "updatedAt": "2026-06-16T00:00:00.000Z"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "discovery-disabled-accepts",
+      "description": "An opt-out (enabled:false) discovery descriptor validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": false,
+            "scope": "public"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "discovery-narrowing-accepts",
+      "description": "A descriptor narrowing exposure below the card visibility validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "network_only"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "discovery-absent-visibility-accepts",
+      "description": "With no visibility field the public upper bound applies, so a public-scope descriptor validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "discovery": {
+            "enabled": true,
+            "scope": "public"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "discovery-unknown-key-ignored-accepts",
+      "description": "An unknown discovery descriptor key is ignored, not rejected, so later additive fields stay forward compatible.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "public",
+            "rank": 5
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "discovery-scope-exceeds-visibility-rejects",
+      "description": "A descriptor scope wider than the card visibility is rejected (hard upper bound).",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "network_only",
+          "discovery": {
+            "enabled": true,
+            "scope": "public"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-missing-enabled-rejects",
+      "description": "A discovery descriptor without enabled is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "scope": "public"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-missing-scope-rejects",
+      "description": "A discovery descriptor without scope is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-bad-scope-enum-rejects",
+      "description": "A discovery scope outside the visibility enum is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "everyone"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-too-many-tags-rejects",
+      "description": "A discovery tags array past 32 entries is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "public",
+            "tags": [
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x",
+              "x"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-empty-tag-rejects",
+      "description": "A discovery tag that is the empty string is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "public",
+            "tags": [
+              ""
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-over-long-tag-rejects",
+      "description": "A discovery tag past 64 characters is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "public",
+            "tags": [
+              "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "discovery-bad-updated-at-rejects",
+      "description": "A discovery updatedAt that is not a strict RFC 3339 timestamp is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "visibility": "public",
+          "discovery": {
+            "enabled": true,
+            "scope": "public",
+            "updatedAt": "2026-06-16"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
     }
   ]
 }
