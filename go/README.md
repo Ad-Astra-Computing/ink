@@ -225,3 +225,28 @@ echo '{"leafHash":"…","inclusionProof":[],"leafIndex":0,"treeSize":1,"rootHash
   | ink verify-inclusion
 # {"ok":true,"kind":"merkle-inclusion"}
 ```
+
+## The `ink-verify-server` HTTP service
+
+`ink-verify-server` exposes the same verifiers over HTTP, so another
+implementation or a test harness can reach them without the CLI. It is
+verify-only and stateless: it holds no keys and issues nothing.
+
+```sh
+ink-verify-server --addr :8080
+```
+
+Each verifier is a `POST /verify/<name>` endpoint whose body is the artifact
+JSON the matching subcommand would read: `card`, `signature`, `receipt`,
+`audit-response`, `handshake`, `connection`, `inclusion`, `consistency`.
+`GET /healthz` reports liveness.
+
+```sh
+curl -s localhost:8080/verify/card --data @card.json
+# {"ok":true,"kind":"agent-card"}
+```
+
+The HTTP status mirrors the CLI exit-code contract: `200` carries a verdict
+(`{"ok":true|false,"kind":…}`) for a well-formed artifact, `400` is bad input
+(malformed JSON, a missing or unknown field), `404` is an unknown route, `405`
+is a known route with the wrong method, and `413` is a body over the size cap.
