@@ -95,6 +95,56 @@ func Consistency(data []byte) (Result, error) {
 	return Result{OK: ok, Kind: "merkle-consistency"}, nil
 }
 
+// Handshake validates an INK handshake message (challenge, rejection, or
+// resolution) against the reference schema. The message is the whole input, like
+// an Agent Card. Well-formed JSON of the wrong shape (not an object) is a
+// rejection rather than bad input; only unparseable JSON is bad input.
+func Handshake(data []byte) (Result, error) {
+	const kind = "handshake-message"
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return Result{}, fmt.Errorf("invalid JSON: %w", err)
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: ink.ValidateHandshakeMessage(m), Kind: kind}, nil
+}
+
+type connectionInput struct {
+	Kind    *string         `json:"kind"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// Connection validates a connection_request or connection_response payload
+// against the reference schema for the named kind. The kind selects the schema;
+// the payload is the artifact. A non-object payload is a rejection, while a
+// missing kind or payload, an unknown envelope field, or unparseable JSON is bad
+// input.
+func Connection(data []byte) (Result, error) {
+	const kind = "connection-payload"
+	var in connectionInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if in.Kind == nil {
+		return Result{}, fmt.Errorf("missing required field (kind)")
+	}
+	if len(in.Payload) == 0 {
+		return Result{}, fmt.Errorf("missing required field (payload)")
+	}
+	var v interface{}
+	if err := json.Unmarshal(in.Payload, &v); err != nil {
+		return Result{}, fmt.Errorf("invalid payload JSON: %w", err)
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: ink.ValidateConnectionPayload(*in.Kind, m), Kind: kind}, nil
+}
+
 // The signature input is this CLI's own request schema; it mirrors the
 // `signature-base` conformance vector shape (signInput + signature +
 // publicKeyHex) and additionally accepts publicKeyMultibase, the form an Agent

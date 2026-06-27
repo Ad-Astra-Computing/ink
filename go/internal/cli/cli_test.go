@@ -127,6 +127,28 @@ func TestVerifyAuditResponse(t *testing.T) {
 	}
 }
 
+func TestVerifyHandshake(t *testing.T) {
+	const msg = `{"protocol":"ink/0.1","type":"network.tulpa.challenge","intentRef":"intent-1","challengeType":"availability_query","nonce":"n1","timestamp":"2026-06-16T12:00:00.000Z"}`
+	if code, out, _ := run(t, msg, "verify-handshake"); code != 0 || !strings.Contains(out, `"ok":true`) {
+		t.Fatalf("valid handshake exit = %d out = %q, want 0 ok:true", code, out)
+	}
+	if code, _, _ := run(t, `[1,2,3]`, "verify-handshake"); code != 1 {
+		t.Fatalf("non-object handshake exit = %d, want 1", code)
+	}
+}
+
+func TestVerifyConnection(t *testing.T) {
+	const payload = `{"method":"discovery","context":"met at the conference","profileSnapshot":{"headline":"Staff engineer","skills":["go","typescript"],"interests":["agents"],"openTo":["roles","advising"],"availability":{"timezone":"America/Los_Angeles","meetingHours":"9-5 PT weekdays"}}}`
+	accept := `{"kind":"connection_request","payload":` + payload + `}`
+	if code, out, _ := run(t, accept, "verify-connection"); code != 0 || !strings.Contains(out, `"ok":true`) {
+		t.Fatalf("valid connection exit = %d out = %q, want 0 ok:true", code, out)
+	}
+	noKind := `{"payload":` + payload + `}`
+	if code, _, errOut := run(t, noKind, "verify-connection"); code != 2 || !strings.Contains(errOut, "bad_input") {
+		t.Fatalf("missing kind exit = %d (err %q), want 2 bad_input", code, errOut)
+	}
+}
+
 func TestVerifyConsistency(t *testing.T) {
 	const accept = `{"first":1,"firstRoot":"bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795","second":2,"secondRoot":"f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec","proof":["7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29"]}`
 	if code, _, _ := run(t, accept, "verify-consistency"); code != 0 {

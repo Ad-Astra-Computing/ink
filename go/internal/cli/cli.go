@@ -40,6 +40,8 @@ Commands:
   verify-signature       Verify a detached Ed25519 signature over a signed request
   verify-receipt         Verify a witness inclusion receipt
   verify-audit-response  Verify a witness audit-query response
+  verify-handshake       Validate a handshake message (challenge, rejection, resolution)
+  verify-connection      Validate a connection_request or connection_response payload
   verify-inclusion       Verify a Merkle inclusion proof
   verify-consistency     Verify a Merkle consistency proof
   version                Print the verifier version
@@ -82,6 +84,8 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		"verify-signature":      verify.Signature,
 		"verify-receipt":        verify.Receipt,
 		"verify-audit-response": verify.AuditResponse,
+		"verify-handshake":      verify.Handshake,
+		"verify-connection":     verify.Connection,
 		"verify-inclusion":      verify.Inclusion,
 		"verify-consistency":    verify.Consistency,
 	}

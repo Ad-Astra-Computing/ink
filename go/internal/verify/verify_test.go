@@ -405,6 +405,102 @@ func TestAuditResponseUnknownFieldBadInput(t *testing.T) {
 	}
 }
 
+// The handshake and connection inputs below mirror the first accept case in
+// conformance/v1/vectors/handshake-message.json and connection-payload.json.
+const handshakeMessage = `{"protocol":"ink/0.1","type":"network.tulpa.challenge","intentRef":"intent-1","challengeType":"availability_query","nonce":"n1","timestamp":"2026-06-16T12:00:00.000Z"}`
+const connectionPayload = `{"method":"discovery","context":"met at the conference","profileSnapshot":{"headline":"Staff engineer","skills":["go","typescript"],"interests":["agents"],"openTo":["roles","advising"],"availability":{"timezone":"America/Los_Angeles","meetingHours":"9-5 PT weekdays"}}}`
+
+func TestHandshakeAccept(t *testing.T) {
+	r, err := Handshake([]byte(handshakeMessage))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !r.OK || r.Kind != "handshake-message" {
+		t.Errorf("valid handshake: got %+v", r)
+	}
+}
+
+func TestHandshakeInvalidRejects(t *testing.T) {
+	// A non-literal type fails the schema: a rejection, not an error.
+	bad := `{"protocol":"ink/0.1","type":"network.tulpa.bogus","intentRef":"intent-1","challengeType":"availability_query","nonce":"n1","timestamp":"2026-06-16T12:00:00.000Z"}`
+	r, err := Handshake([]byte(bad))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("invalid handshake accepted: %+v", r)
+	}
+}
+
+func TestHandshakeNonObjectRejects(t *testing.T) {
+	// Well-formed JSON of the wrong shape is a rejection (exit 1), not bad input.
+	r, err := Handshake([]byte(`[1,2,3]`))
+	if err != nil {
+		t.Fatalf("non-object should reject, not error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("array accepted as a handshake message: %+v", r)
+	}
+}
+
+func TestHandshakeMalformedBadInput(t *testing.T) {
+	if _, err := Handshake([]byte(`{not json`)); err == nil {
+		t.Errorf("malformed JSON did not error")
+	}
+}
+
+func TestConnectionAccept(t *testing.T) {
+	in := `{"kind":"connection_request","payload":` + connectionPayload + `}`
+	r, err := Connection([]byte(in))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !r.OK || r.Kind != "connection-payload" {
+		t.Errorf("valid connection payload: got %+v", r)
+	}
+}
+
+func TestConnectionWrongKindRejects(t *testing.T) {
+	in := `{"kind":"bogus_kind","payload":` + connectionPayload + `}`
+	r, err := Connection([]byte(in))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("unknown kind accepted: %+v", r)
+	}
+}
+
+func TestConnectionNonObjectPayloadRejects(t *testing.T) {
+	in := `{"kind":"connection_request","payload":[1,2,3]}`
+	r, err := Connection([]byte(in))
+	if err != nil {
+		t.Fatalf("non-object payload should reject, not error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("array payload accepted: %+v", r)
+	}
+}
+
+func TestConnectionMissingKindBadInput(t *testing.T) {
+	if _, err := Connection([]byte(`{"payload":` + connectionPayload + `}`)); err == nil {
+		t.Errorf("missing kind did not error")
+	}
+}
+
+func TestConnectionMissingPayloadBadInput(t *testing.T) {
+	if _, err := Connection([]byte(`{"kind":"connection_request"}`)); err == nil {
+		t.Errorf("missing payload did not error")
+	}
+}
+
+func TestConnectionUnknownFieldBadInput(t *testing.T) {
+	in := `{"kind":"connection_request","payload":` + connectionPayload + `,"extra":1}`
+	if _, err := Connection([]byte(in)); err == nil {
+		t.Errorf("unknown field did not error")
+	}
+}
+
 func TestEventSignatureVerifierFailsClosed(t *testing.T) {
 	// A 32-byte key so only the agentId/key-resolution guards, not the key
 	// length, decide these cases.

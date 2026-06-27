@@ -202,6 +202,12 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
   `expectedMessageId`, a per-agent `agentKeysHex` map, and optional
   `expectedServiceDid` and `laterCheckpoint`, matching the `audit-query-response`
   vectors).
+- `verify-handshake` validates a handshake message (challenge, rejection, or
+  resolution) against the reference schema; the message object is the whole
+  input, matching the `handshake-message` vectors.
+- `verify-connection` validates a connection_request or connection_response
+  payload against the schema for the named kind (input fields `kind` and
+  `payload`, matching the `connection-payload` vectors).
 - `verify-inclusion` verifies a Merkle inclusion proof (input fields
   `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
   `merkle-inclusion` vectors).
