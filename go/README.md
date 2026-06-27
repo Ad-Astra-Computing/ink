@@ -166,3 +166,38 @@ go test ./...
 Each `Test*` loads its category from `../../conformance/v1/vectors` and asserts
 this implementation makes the expected accept or reject decision on every
 vector, plus the canonical principal or verifying key where the vector pins it.
+
+## The `ink` verifier binary
+
+`cmd/ink` builds a single static binary that verifies INK protocol artifacts
+using this library, with no Node or npm runtime. The command layer
+(`internal/cli`) only parses arguments, reads the artifact JSON, and maps the
+result to an exit code; the verification itself lives in `internal/verify` so a
+later witness or inbound-verifier server can reuse it.
+
+```sh
+cd go
+CGO_ENABLED=0 go build -o ink ./cmd/ink
+```
+
+Commands read the artifact JSON from `--file PATH`, or from stdin when `--file`
+is omitted, and print a JSON result object (`--pretty` for indented output):
+
+- `verify-card` validates an Agent Card document.
+- `verify-inclusion` verifies a Merkle inclusion proof (input fields
+  `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
+  `merkle-inclusion` vectors).
+- `verify-consistency` verifies a Merkle consistency proof (input fields `first`,
+  `firstRoot`, `second`, `secondRoot`, `proof`, matching the `merkle-consistency`
+  vectors).
+- `version` prints the verifier version.
+
+The exit code is the machine contract: `0` verified, `1` well-formed but
+rejected, `2` bad input or usage (malformed JSON, a missing file, an unknown
+command).
+
+```sh
+echo '{"leafHash":"…","inclusionProof":[],"leafIndex":0,"treeSize":1,"rootHash":"…"}' \
+  | ink verify-inclusion
+# {"ok":true,"kind":"merkle-inclusion"}
+```
