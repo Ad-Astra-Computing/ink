@@ -184,6 +184,11 @@ Commands read the artifact JSON from `--file PATH`, or from stdin when `--file`
 is omitted, and print a JSON result object (`--pretty` for indented output):
 
 - `verify-card` validates an Agent Card document.
+- `verify-signature` verifies a detached Ed25519 signature over a signed
+  request (input fields `signInput` with `method`, `path`, `recipientDid`,
+  `body`, `timestamp`, plus `signature` and one of `publicKeyHex` or
+  `publicKeyMultibase`, matching the `signature-base` vectors). The signed body
+  is parsed through the surrogate-safe path before verification.
 - `verify-inclusion` verifies a Merkle inclusion proof (input fields
   `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
   `merkle-inclusion` vectors).

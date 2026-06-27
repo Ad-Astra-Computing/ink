@@ -8,10 +8,13 @@ package verify
 
 import (
 	"bytes"
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"unicode/utf8"
 
 	"github.com/Ad-Astra-Computing/ink/go/ink"
 )
@@ -90,6 +93,108 @@ func Consistency(data []byte) (Result, error) {
 	}
 	ok := ink.VerifyConsistencyProof(*in.First, *in.FirstRoot, *in.Second, *in.SecondRoot, *in.Proof)
 	return Result{OK: ok, Kind: "merkle-consistency"}, nil
+}
+
+// The signature input is this CLI's own request schema; it mirrors the
+// `signature-base` conformance vector shape (signInput + signature +
+// publicKeyHex) and additionally accepts publicKeyMultibase, the form an Agent
+// Card carries. It is parsed strictly: the request scalars are pointer fields
+// so a missing or null one is bad input, and unknown fields, duplicate keys, or
+// trailing data are rejected. The signed body is kept raw and parsed through
+// ParseSignedBody so a lone UTF-16 surrogate is rejected before verification,
+// the receiver MUST the bare VerifyInkSignature cannot enforce on its own.
+
+type signInputJSON struct {
+	Method       *string         `json:"method"`
+	Path         *string         `json:"path"`
+	RecipientDid *string         `json:"recipientDid"`
+	Body         json.RawMessage `json:"body"`
+	Timestamp    *string         `json:"timestamp"`
+}
+
+type signatureInput struct {
+	PublicKeyHex       *string         `json:"publicKeyHex"`
+	PublicKeyMultibase *string         `json:"publicKeyMultibase"`
+	SignInput          json.RawMessage `json:"signInput"`
+	Signature          *string         `json:"signature"`
+}
+
+// Signature verifies a detached Ed25519 signature over an INK signature base.
+// The input shape matches the `signature-base` conformance vectors plus an
+// optional publicKeyMultibase alternative to publicKeyHex.
+func Signature(data []byte) (Result, error) {
+	var in signatureInput
+	if err := strictDecode(data, &in); err != nil {
+		return Result{}, err
+	}
+	if len(in.SignInput) == 0 || in.Signature == nil {
+		return Result{}, fmt.Errorf("missing required field (signInput, signature)")
+	}
+	// Every field of signInput is part of the signature base, so the whole
+	// signed request must be valid UTF-8 with no lone surrogate escape before
+	// encoding/json sees it: Go silently rewrites either to U+FFFD, which would
+	// let a signature over the rewritten bytes verify a request that is not
+	// byte-identical to the one the signer signed. The body path enforces this
+	// too; the scalars (method, path, recipientDid, timestamp) need it here.
+	if !utf8.Valid(in.SignInput) {
+		return Result{}, fmt.Errorf("invalid signInput: not valid UTF-8")
+	}
+	if ink.ContainsLoneSurrogateEscape(in.SignInput) {
+		return Result{}, fmt.Errorf("invalid signInput: unpaired UTF-16 surrogate")
+	}
+	var si signInputJSON
+	if err := strictDecode(in.SignInput, &si); err != nil {
+		return Result{}, err
+	}
+	if si.Method == nil || si.Path == nil || si.RecipientDid == nil || si.Timestamp == nil || len(si.Body) == 0 {
+		return Result{}, fmt.Errorf("missing required signInput field (method, path, recipientDid, body, timestamp)")
+	}
+	pub, err := signaturePublicKey(in)
+	if err != nil {
+		return Result{}, err
+	}
+	body, err := ink.ParseSignedBody(si.Body)
+	if err != nil {
+		return Result{}, fmt.Errorf("invalid signed body: %w", err)
+	}
+	ok := ink.VerifyInkSignature(ink.InkSignInput{
+		Method:       *si.Method,
+		Path:         *si.Path,
+		RecipientDid: *si.RecipientDid,
+		Body:         body,
+		Timestamp:    *si.Timestamp,
+	}, *in.Signature, pub)
+	return Result{OK: ok, Kind: "signature"}, nil
+}
+
+// signaturePublicKey resolves the signing key from exactly one of the two
+// accepted encodings. Supplying both, neither, an undecodable value, or a
+// wrong-length key is bad input rather than a verification failure, so the two
+// encodings reject a malformed key with the same exit code.
+func signaturePublicKey(in signatureInput) ([]byte, error) {
+	var b []byte
+	switch {
+	case in.PublicKeyHex != nil && in.PublicKeyMultibase != nil:
+		return nil, fmt.Errorf("provide exactly one of publicKeyHex or publicKeyMultibase")
+	case in.PublicKeyHex != nil:
+		decoded, err := hex.DecodeString(*in.PublicKeyHex)
+		if err != nil {
+			return nil, fmt.Errorf("invalid publicKeyHex: %w", err)
+		}
+		b = decoded
+	case in.PublicKeyMultibase != nil:
+		decoded, err := ink.DecodePublicKeyMultibase(*in.PublicKeyMultibase)
+		if err != nil {
+			return nil, fmt.Errorf("invalid publicKeyMultibase: %w", err)
+		}
+		b = decoded
+	default:
+		return nil, fmt.Errorf("missing required field (publicKeyHex or publicKeyMultibase)")
+	}
+	if len(b) != ed25519.PublicKeySize {
+		return nil, fmt.Errorf("public key must be %d bytes, got %d", ed25519.PublicKeySize, len(b))
+	}
+	return b, nil
 }
 
 // strictDecode decodes a single JSON object into v, rejecting unknown fields,
