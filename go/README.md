@@ -194,6 +194,14 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
   walk and a later-checkpoint cross-check (input fields `receipt`, one of
   `witnessPublicKeyHex` or `witnessPublicKeyMultibase`, and optional `event`,
   `eventHash`, `laterCheckpoint`, matching the `inclusion-receipt` vectors).
+- `verify-audit-response` verifies a witness audit-query response: the requester
+  and messageId bindings, the witness envelope signature, the per-event scope and
+  proof walks, and the required per-event agent signature, then an optional
+  later-checkpoint cross-check (input fields `response`, one of
+  `witnessPublicKeyHex` or `witnessPublicKeyMultibase`, `expectedRequester`,
+  `expectedMessageId`, a per-agent `agentKeysHex` map, and optional
+  `expectedServiceDid` and `laterCheckpoint`, matching the `audit-query-response`
+  vectors).
 - `verify-inclusion` verifies a Merkle inclusion proof (input fields
   `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
   `merkle-inclusion` vectors).

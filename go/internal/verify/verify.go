@@ -267,6 +267,105 @@ func Receipt(data []byte) (Result, error) {
 	return Result{OK: ink.VerifyInclusionReceipt(receipt, pub, opts), Kind: kind}, nil
 }
 
+// An audit-query response is a witness-signed body, so the same envelope-strict
+// but artifact-tolerant rule as the receipt applies: the response and the
+// optional checkpoint are passed raw to the library parsers, and a malformed one
+// is a rejection. The per-event agent keys are a CLI request map (agentId to hex
+// key); an absent or undecodable key makes the event-signature callback fail,
+// which the library treats as the required per-event agent signature being
+// unmet, a rejection rather than a CLI usage error.
+
+type auditResponseInput struct {
+	WitnessPublicKeyHex       *string           `json:"witnessPublicKeyHex"`
+	WitnessPublicKeyMultibase *string           `json:"witnessPublicKeyMultibase"`
+	Response                  json.RawMessage   `json:"response"`
+	ExpectedRequester         *string           `json:"expectedRequester"`
+	ExpectedMessageID         *string           `json:"expectedMessageId"`
+	ExpectedServiceDid        *string           `json:"expectedServiceDid"`
+	AgentKeysHex              map[string]string `json:"agentKeysHex"`
+	LaterCheckpoint           json.RawMessage   `json:"laterCheckpoint"`
+}
+
+// AuditResponse verifies a witness audit-query response: structure, the
+// requester and messageId bindings, the witness envelope signature, the
+// per-event scope and proof walks, and the required per-event agent signature,
+// then an optional later-checkpoint cross-check. The input shape matches the
+// `audit-query-response` conformance vectors plus an optional
+// witnessPublicKeyMultibase alternative to witnessPublicKeyHex.
+func AuditResponse(data []byte) (Result, error) {
+	var in auditResponseInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if len(in.Response) == 0 {
+		return Result{}, fmt.Errorf("missing required field (response)")
+	}
+	if in.ExpectedRequester == nil || in.ExpectedMessageID == nil {
+		return Result{}, fmt.Errorf("missing required field (expectedRequester, expectedMessageId)")
+	}
+	pub, err := resolvePublicKey(in.WitnessPublicKeyHex, in.WitnessPublicKeyMultibase)
+	if err != nil {
+		return Result{}, err
+	}
+	const kind = "audit-query-response"
+
+	opts := ink.AuditQueryVerifyOptions{
+		ExpectedRequester: *in.ExpectedRequester,
+		ExpectedMessageID: *in.ExpectedMessageID,
+	}
+	if in.ExpectedServiceDid != nil {
+		opts.ExpectedServiceDid = *in.ExpectedServiceDid
+	}
+	// The verifier requires a per-event agent-signature check (Auditability
+	// §7.5). The callback resolves the event's agent key from the request map and
+	// fails closed when the key is absent, undecodable, or the wrong length, so a
+	// missing or malformed key rejects the event rather than skipping the check.
+	opts.VerifyEventSignature = eventSignatureVerifier(in.AgentKeysHex)
+
+	if len(in.LaterCheckpoint) > 0 {
+		cp, cpOK := ink.ParseCheckpointRef(in.LaterCheckpoint)
+		if !cpOK {
+			return Result{OK: false, Kind: kind}, nil
+		}
+		opts.LaterCheckpoint = &cp
+	}
+
+	body, err := ink.ParseSignedBody(in.Response)
+	if err != nil {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	resp, isObj := body.(map[string]interface{})
+	if !isObj {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: ink.VerifyInkAuditQueryResponse(resp, pub, opts), Kind: kind}, nil
+}
+
+// eventSignatureVerifier builds the per-event agent-signature callback the audit
+// verifier requires. It resolves the event's agent key from the request map and
+// fails closed: an event with a missing, empty, or non-string agentId, or one
+// whose key is absent, undecodable, or the wrong length, returns false so the
+// required per-event signature is treated as unmet rather than skipped. An empty
+// agentId is rejected explicitly so an agentKeysHex[""] entry cannot stand in for
+// a real submitting-agent identity.
+func eventSignatureVerifier(agentKeys map[string]string) func(map[string]interface{}) bool {
+	return func(event map[string]interface{}) bool {
+		agentID, ok := event["agentId"].(string)
+		if !ok || agentID == "" {
+			return false
+		}
+		keyHex, ok := agentKeys[agentID]
+		if !ok {
+			return false
+		}
+		key, err := hex.DecodeString(keyHex)
+		if err != nil || len(key) != ed25519.PublicKeySize {
+			return false
+		}
+		return ink.VerifyAuditEventSignature(event, key)
+	}
+}
+
 // decodeEnvelope decodes a CLI request envelope that wraps one or more raw
 // protocol artifacts. It rejects unknown fields, a duplicate top-level key, and
 // trailing data, but unlike strictDecode it does not walk into the raw

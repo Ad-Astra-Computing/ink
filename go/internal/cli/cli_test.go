@@ -113,6 +113,20 @@ func TestVerifyReceipt(t *testing.T) {
 	}
 }
 
+func TestVerifyAuditResponse(t *testing.T) {
+	const witnessHex = "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+	const agentKeys = `{"did:web:agent-a.example":"b8d0e8e9c703c25b661ccbde06420da4ecde22d3291c3fe00f0e53a2fddff297"}`
+	const response = `{"protocol":"ink/0.1","type":"network.tulpa.audit_query_response","serviceDid":"did:web:witness.example","messageId":"msg-001","requester":"did:web:agent-a.example","events":[{"id":"evt-0","type":"connection_request","messageId":"msg-001","agentId":"did:web:agent-a.example","counterpartyId":"did:web:agent-b.example","seq":0,"agentSignature":"XHcBOVegyakSEzI8vT5QiuVB2fGU-h3aqx7bLv51d_f8-YJFYouoB0yYTIJqA0CY0dE4u-PlLdIhmRBtVKj0Bw"},{"id":"evt-1","type":"connection_request","messageId":"msg-001","agentId":"did:web:agent-a.example","counterpartyId":"did:web:agent-b.example","seq":1,"agentSignature":"GPB347fu-T6qi5V6xqGEJcoq7sVtk5pmM-pxBRqf_HszySZrqvuOlkpyZDPxEQMGXm-zJO6NlPITNsBp_lzRAw"},{"id":"evt-2","type":"connection_request","messageId":"msg-001","agentId":"did:web:agent-a.example","counterpartyId":"did:web:agent-b.example","seq":2,"agentSignature":"26eSzfRJO4CtHlwzL1X9O6pY5g4vXnVf5GP87CFsvMtOGHdIAO_qfGoJclF5JfGysp7bb-3pQWkrOJ2ISFheAA"}],"proofs":[{"eventId":"evt-0","leafIndex":0,"inclusionProof":["cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce","64637effd60a4f8b1a74d8737406e91dec34d87f8575f5335e295b561fddcb9d"]},{"eventId":"evt-1","leafIndex":1,"inclusionProof":["cf1d4d7971e05e58ebb9f4f8e2384ba1982b1c072958b7297e7ceabf96b6acce","b455954693e797074af9281352a4f8b336dc01330c3c9047c859aea4a705b2ca"]},{"eventId":"evt-2","leafIndex":2,"inclusionProof":["3f1a6b57827d594230355a70560f6f601f58b1a2acf4bd8a1bad5564d8f658a1"]}],"treeSize":3,"rootHash":"66cc105579a2cb38c58b4279d773623e50ead1568f1ce34fa225f2c55525c435","timestamp":"2026-06-15T12:00:00.000Z","serviceSignature":"Fe4zi76c_NiJ249LskVA0mkIqJF7DmdC0o3LfwcaBxq5FMO7A2ckvabocjLUvT8H5gNWe-EUAGSxJYMYg_jyAw"}`
+	accept := `{"witnessPublicKeyHex":"` + witnessHex + `","response":` + response + `,"expectedRequester":"did:web:agent-a.example","expectedMessageId":"msg-001","agentKeysHex":` + agentKeys + `}`
+	if code, out, _ := run(t, accept, "verify-audit-response"); code != 0 || !strings.Contains(out, `"ok":true`) {
+		t.Fatalf("valid audit response exit = %d out = %q, want 0 ok:true", code, out)
+	}
+	noKey := `{"response":` + response + `,"expectedRequester":"did:web:agent-a.example","expectedMessageId":"msg-001","agentKeysHex":` + agentKeys + `}`
+	if code, _, errOut := run(t, noKey, "verify-audit-response"); code != 2 || !strings.Contains(errOut, "bad_input") {
+		t.Fatalf("missing key exit = %d (err %q), want 2 bad_input", code, errOut)
+	}
+}
+
 func TestVerifyConsistency(t *testing.T) {
 	const accept = `{"first":1,"firstRoot":"bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795","second":2,"secondRoot":"f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec","proof":["7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29"]}`
 	if code, _, _ := run(t, accept, "verify-consistency"); code != 0 {
