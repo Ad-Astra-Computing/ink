@@ -8,6 +8,7 @@
  */
 
 import { z } from "zod";
+import { dualWireType } from "../models/wire-type.js";
 import { AgentCardSchema, type AgentCard } from "../models/agent-card.js";
 import type { AgentCardVisibility } from "../models/ink-handshake.js";
 
@@ -120,7 +121,7 @@ export function buildRedactedCard(card: AgentCard): RedactedAgentCard {
 
 export const AgentCardQuerySchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.agent_card_query"),
+  type: dualWireType("agent_card_query"),
   from: z.string().max(512),
   nonce: z.string().max(256),
   timestamp: z.string().datetime(),
@@ -131,7 +132,7 @@ export type AgentCardQuery = z.infer<typeof AgentCardQuerySchema>;
 
 export const AgentCardResponseSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.agent_card_response"),
+  type: dualWireType("agent_card_response"),
   card: AgentCardSchema,
   grantedFields: z.array(z.string().max(64)).max(32),
   timestamp: z.string().datetime(),
@@ -141,7 +142,7 @@ export type AgentCardResponse = z.infer<typeof AgentCardResponseSchema>;
 
 export const AgentCardDeniedSchema = z.object({
   protocol: z.literal("ink/0.1"),
-  type: z.literal("network.tulpa.agent_card_denied"),
+  type: dualWireType("agent_card_denied"),
   reason: z.enum(["unknown_requester", "insufficient_trust", "not_connected"]),
   timestamp: z.string().datetime(),
 });

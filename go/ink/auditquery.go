@@ -34,7 +34,9 @@ func checkAuditQueryResponseShape(r map[string]interface{}) bool {
 	if v, _ := asString(r, "protocol"); v != "ink/0.1" {
 		return false
 	}
-	if v, _ := asString(r, "type"); v != "network.tulpa.audit_query_response" {
+	// Receivers dual-accept both spellings; the witness signature is over the
+	// response's actual `type`, so a relabelled response fails signature verify.
+	if v, _ := asString(r, "type"); !dualWireType(v, "audit_query_response") {
 		return false
 	}
 	for _, k := range []string{"serviceDid", "messageId", "requester", "timestamp", "serviceSignature"} {

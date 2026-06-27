@@ -64,7 +64,7 @@ const CATEGORY_META = {
   "audit-query-response": { profile: "audit", spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
   "handshake-message": { profile: "containment", spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
   "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
-  "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation and the pinned INK endpoint URL grammar." },
+  "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
   "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
@@ -1374,9 +1374,16 @@ const aqNonPartyEvent = { id: "evt-np", type: "connection_request", messageId: a
 aqNonPartyEvent.agentSignature = await signAuditEvent(aqNonPartyEvent, aqAgentSeed);
 const aqNonPartyLeaf = await computeAuditMerkleLeafHash(aqNonPartyEvent);
 const aqNonPartyResponse = await aqSigned({ events: [aqNonPartyEvent], proofs: [{ eventId: "evt-np", leafIndex: 0, inclusionProof: [] }], treeSize: 1, rootHash: aqNonPartyLeaf });
+// ink/0.4 dual-accept: a response under the vendor-neutral namespace, witness-
+// signed over its actual type, verifies. The relabel variant keeps the
+// legacy-namespace signature but swaps the type, so the envelope signature fails.
+const aqInkNamespace = await aqSigned({ type: "network.ink.audit_query_response" });
+const aqRelabelled = { ...aqValid, type: "network.ink.audit_query_response" };
 
 vectorFile("audit-query-response", [
   aqAccept("valid-accepts", "A well-formed, witness-signed response with in-scope, agent-signed events and valid Merkle proofs verifies.", { ...aqBase, response: aqValid }),
+  aqAccept("ink-namespace-accepts", "A response under the vendor-neutral network.ink namespace, witness-signed over its actual type, verifies (ink/0.4 dual-accept).", { ...aqBase, response: aqInkNamespace }),
+  aqReject("relabelled-namespace-rejects", "A response signed under the legacy namespace but relabelled to network.ink fails the witness envelope signature.", { ...aqBase, response: aqRelabelled }),
   aqAccept("empty-tree-accepts", "A fresh witness response with tree size 0, no events or proofs, and the empty-tree root verifies.", { ...aqBase, response: aqEmptyResponse }),
   // structure
   aqReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...aqBase, response: { ...aqValid, protocol: "ink/0.2" } }),
@@ -1437,6 +1444,10 @@ vectorFile("handshake-message", [
   hsAccept("challenge-with-optional-arrays-accepts", "A challenge with optional field/window/context arrays within their caps validates.", { ...hsChallenge, fields: ["a", "b"], availableWindows: ["w1"], contextFields: ["c1"] }),
   hsAccept("rejection-with-backoff-accepts", "A rejection with a backoff hint validates.", { ...hsRejection, detail: "too busy", backoffHint: { retryAfterSeconds: 30, backoffClass: "sender" } }),
   hsAccept("resolution-with-details-accepts", "A resolution with details and a counterparty DID validates; details passes through extra keys.", { ...hsResolution, details: { scheduledAt: "2026-06-17", duration: "30m", note: "extra" }, counterpartyDid: "did:web:b.example" }),
+  // vendor-neutral namespace (ink/0.4 dual-accept)
+  hsAccept("challenge-ink-namespace-accepts", "A challenge using the vendor-neutral network.ink namespace validates.", { ...hsChallenge, type: "network.ink.challenge" }),
+  hsAccept("rejection-ink-namespace-accepts", "A rejection using the vendor-neutral network.ink namespace validates.", { ...hsRejection, type: "network.ink.rejection" }),
+  hsAccept("resolution-ink-namespace-accepts", "A resolution using the vendor-neutral network.ink namespace validates.", { ...hsResolution, type: "network.ink.resolution" }),
   // protocol / type
   hsReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...hsChallenge, protocol: "ink/0.2" }),
   hsReject("wrong-type-rejects", "A type not matching any handshake message is rejected.", { ...hsChallenge, type: "network.tulpa.message" }),
@@ -1602,6 +1613,23 @@ vectorFile("agent-card", [
   acReject("bad-key-set-version-rejects", "A non-positive keySetVersion is rejected.", { ...acCard, keySetVersion: 0 }),
   acReject("bad-visibility-rejects", "An unknown visibility is rejected.", { ...acCard, visibility: "secret" }),
   acReject("bad-governance-depth-rejects", "A non-positive maxAcceptedDelegationDepth is rejected.", { ...acCard, governance: { maxAcceptedDelegationDepth: -1 } }),
+  // discovery descriptor (#188): opt-in, additive, and only ever narrowing.
+  // The descriptor `scope` reuses the visibility enum and MUST NOT exceed the
+  // card's `visibility`; an absent `visibility` is the public upper bound
+  // because the card is publicly fetchable. Tags are self-declared hints.
+  acAccept("discovery-enabled-accepts", "An enabled discovery descriptor at the card's visibility, with tags and a strict updatedAt, validates.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: ["hiring", "ai"], queryable: true, updatedAt: acTs } }),
+  acAccept("discovery-disabled-accepts", "An opt-out (enabled:false) discovery descriptor validates.", { ...acCard, visibility: "public", discovery: { enabled: false, scope: "public" } }),
+  acAccept("discovery-narrowing-accepts", "A descriptor narrowing exposure below the card visibility validates.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "network_only" } }),
+  acAccept("discovery-absent-visibility-accepts", "With no visibility field the public upper bound applies, so a public-scope descriptor validates.", { ...acCard, discovery: { enabled: true, scope: "public" } }),
+  acAccept("discovery-unknown-key-ignored-accepts", "An unknown discovery descriptor key is ignored, not rejected, so later additive fields stay forward compatible.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", rank: 5 } }),
+  acReject("discovery-scope-exceeds-visibility-rejects", "A descriptor scope wider than the card visibility is rejected (hard upper bound).", { ...acCard, visibility: "network_only", discovery: { enabled: true, scope: "public" } }),
+  acReject("discovery-missing-enabled-rejects", "A discovery descriptor without enabled is rejected.", { ...acCard, visibility: "public", discovery: { scope: "public" } }),
+  acReject("discovery-missing-scope-rejects", "A discovery descriptor without scope is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true } }),
+  acReject("discovery-bad-scope-enum-rejects", "A discovery scope outside the visibility enum is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "everyone" } }),
+  acReject("discovery-too-many-tags-rejects", "A discovery tags array past 32 entries is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: Array(33).fill("x") } }),
+  acReject("discovery-empty-tag-rejects", "A discovery tag that is the empty string is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: [""] } }),
+  acReject("discovery-over-long-tag-rejects", "A discovery tag past 64 characters is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", tags: ["x".repeat(65)] } }),
+  acReject("discovery-bad-updated-at-rejects", "A discovery updatedAt that is not a strict RFC 3339 timestamp is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", updatedAt: "2026-06-16" } }),
 ]);
 
 // ── agent-card-fetch ───────────────────────────────────────────────────────
@@ -1766,6 +1794,18 @@ vectorFile("private-hostname", [
     innerMismatchPlain, sender, recipientPubHex, ts, msgNonce, opts,
   );
 
+  // Vendor-neutral namespace (ink/0.4 dual-accept): the sender opts into
+  // network.ink.encrypted. The type is AAD-bound, so this decrypts cleanly while
+  // a relabel of the legacy envelope fails the tag. A distinct AES nonce keeps
+  // the (key, nonce) pair unique against the legacy envelope above.
+  const aesNonceInk = new Uint8Array(
+    (await crypto.subtle.digest("SHA-256", enc.encode("ink-conformance-encryption-nonce-ink"))).slice(0, 12),
+  );
+  const { envelope: inkNamespaceEnv } = await encryptInkPayload(
+    plaintext, sender, recipientPubHex, ts, msgNonce,
+    { ephemeralPrivateKey: ephPriv, aesNonce: aesNonceInk, messageType: "network.ink.encrypted" },
+  );
+
   const clone = () => JSON.parse(JSON.stringify(envelope));
   const tamper = (field, value) => { const e = clone(); e[field] = value; return e; };
   // Flip the FIRST base64url char of the ciphertext to break the GCM tag. The
@@ -1786,6 +1826,18 @@ vectorFile("private-hostname", [
       description: "A well-formed envelope decrypts to the exact plaintext bytes when the recipientDid matches the inner `to`.",
       input: { envelope, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
       expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "valid-decrypt-ink-namespace",
+      description: "An envelope using the vendor-neutral network.ink.encrypted type decrypts to the same plaintext (ink/0.4 dual-accept).",
+      input: { envelope: inkNamespaceEnv, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
+      expect: acc(canonicalPlaintext),
+    },
+    {
+      caseId: "relabel-tulpa-to-ink-rejects",
+      description: "A legacy network.tulpa.encrypted envelope relabelled to network.ink.encrypted fails the GCM tag: the type is AAD-bound, not normalized.",
+      input: { envelope: tamper("type", "network.ink.encrypted"), recipientPrivateKeyHex: recipientPrivHex, recipientDid },
+      expect: rej,
     },
     {
       caseId: "unknown-outer-field-ignored",

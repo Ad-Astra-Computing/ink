@@ -43,11 +43,38 @@ This is a **historical artifact** of INK's origin at Tulpa and is *not*
 intended to imply Tulpa ownership of the protocol, Ad Astra Computing
 stewards INK; Tulpa is one product built on it.
 
-The prefix is preserved in v0.x for wire compatibility with deployed
-implementations. A future major version MAY introduce a vendor-neutral
-prefix (e.g. `network.ink.*`) and define a transition policy. Until then,
-conforming implementations MUST emit and accept `network.tulpa.*` types as
-specified.
+The vendor-neutral prefix `network.ink.*` is introduced as a
+backward-compatible, receiver-first transition, the same shape as the `ink/0.2`
+body-signature change:
+
+- A conforming receiver MUST dual-accept both spellings of every message type:
+  `network.tulpa.<suffix>` and `network.ink.<suffix>` are equivalent on receipt
+  (e.g. `network.ink.challenge` validates wherever `network.tulpa.challenge`
+  does).
+- A sender MUST continue to EMIT `network.tulpa.*` by default. Emitting the
+  vendor-neutral spelling is opt-in and reserved for a future negotiated
+  capability, so a receiver that has not yet upgraded never sees the new prefix.
+- The dual-accept is a pure receiver-side leniency and is INDEPENDENT of the
+  signed `protocol` field (which governs only the body-signature domain). It is
+  not gated on `ink/0.2` or any wire version.
+- A validated message keeps its actual `type` string. Every signature, hash,
+  receipt, and AEAD binding is over the spelling on the wire, never a normalized
+  one, so relabelling a message (changing its `type` after it was signed or
+  encrypted) fails verification.
+
+Two message types are excluded from dual-accept and stay `network.tulpa.*`
+only: `audit_response` and `audit_inclusion`. Both carry a *detached* signature
+that authenticates only a payload subset (`responseSignature` over `JCS(events)`,
+`serviceSignature` over `{eventId, leafIndex, treeSize, rootHash, timestamp}`)
+and not the envelope `type`. The relabel-rejection guarantee above therefore
+cannot hold for them, so the vendor-neutral spelling is withheld until a future
+wire change brings `type` under their signature. Every other type either signs
+its full body (handshake, receipt, audit-query-response) or binds `type` into
+its AEAD AAD (encrypted), so dual-accept is relabel-safe.
+
+The `handshake-message`, `payload-encryption`, and `audit-query-response`
+conformance categories pin both spellings, including the relabel-rejection
+cases, so the two implementations agree.
 
 ### 1.4 Defined wire versions
 

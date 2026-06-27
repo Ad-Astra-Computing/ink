@@ -4,6 +4,55 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Additions
+
+- Opt-in discovery descriptor on the Agent Card. A card MAY carry a `discovery`
+  object (`enabled`, `scope`, optional `tags`, `queryable`, and `updatedAt`)
+  that consents to being surfaced by a directory or index. It is additive and
+  forward compatible: a card without it is not discoverable, and unknown
+  descriptor keys are ignored. The descriptor can only narrow exposure, its
+  `scope` reuses the card visibility enum and may not exceed the card's
+  `visibility`. New `isDiscoverable` and `effectiveDiscoveryScope` helpers and
+  the `DiscoveryDescriptorSchema` export. Covered by the `agent-card`
+  conformance category in the TypeScript reference and the Go verifier. See
+  [`specs/ink-discovery-descriptor.md`](specs/ink-discovery-descriptor.md). The
+  authenticated query envelope and the directory service itself are out of
+  scope and deferred.
+
+## 0.9.0, vendor-neutral message namespace
+
+This release lets a receiver accept the vendor-neutral `network.ink.*` spelling
+of the eligible message types alongside the legacy `network.tulpa.*` spelling.
+The transition is receiver-first and backward compatible: senders keep emitting
+`network.tulpa.*` by default, so a receiver that has not upgraded never sees the
+new prefix. The two audit types whose detached signatures do not cover the
+envelope type stay single-spelling, see the notes below. It is published on the
+`next` dist-tag.
+
+### Additions
+
+- Receivers dual-accept both `network.tulpa.<suffix>` and `network.ink.<suffix>`
+  for every message type they verify. The dual-accept is a pure receiver-side
+  leniency and is independent of the signed `protocol` field, which continues to
+  govern only the body-signature domain. Senders may opt in to emitting the
+  neutral spelling per message (for example the `messageType` option on the
+  payload encryption helper); the default emission is unchanged.
+- New `network.ink.*` cases in the `handshake-message`, `payload-encryption`
+  and `audit-query-response` conformance categories, including the
+  relabel-rejection cases, so the TypeScript reference and the Go implementation
+  make the same accept and reject decision on both spellings.
+
+### Notes
+
+- Every dual-accepted type binds its actual on-the-wire `type` into the material
+  it authenticates, so changing `type` after a message is signed or encrypted
+  fails verification. The `audit_response` and `audit_inclusion` types stay
+  single-spelling because their detached signatures cover only a payload subset
+  and not the envelope type. See the compatibility policy for the full
+  transition rules.
+
 ## 0.8.0, first-contact transcript, the base conformance profile, and auth hardening
 
 This release pins the end-to-end first-contact exchange as a single conformance

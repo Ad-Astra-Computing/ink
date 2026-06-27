@@ -63,6 +63,8 @@ The card is an object (unknown keys are ignored) with:
 - `currentSigningKeyId` / `currentEncryptionKeyId` (<=128), `keySetVersion` (a
   positive integer), `supportedProtocolVersions` (up to 8 strings of <=16),
   `visibility`, and `governance`: optional.
+- `discovery`: an optional opt-in discoverability descriptor whose `scope` may
+  not exceed `visibility`; see [`ink-discovery-descriptor`](ink-discovery-descriptor.md).
 
 String length bounds are measured in UTF-16 code units, matching the reference
 schema's `.max()`, except the endpoint byte length above.

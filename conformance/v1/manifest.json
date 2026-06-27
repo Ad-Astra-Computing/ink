@@ -7,9 +7,9 @@
       "vector": "vectors/agent-card.json",
       "profile": "base",
       "spec": "specs/ink-agent-card.md",
-      "summary": "Agent Card validation and the pinned INK endpoint URL grammar.",
-      "caseCount": 35,
-      "sha256": "6211da549af87ba2d2843de50c2f4d851f9252ccb5e454661ff679de1316e354"
+      "summary": "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound.",
+      "caseCount": 48,
+      "sha256": "5e1ea1f97a0796a14918a3bba08781cd0a40d7717a38733a003eac1c38a7a028"
     },
     {
       "id": "agent-card-fetch",
@@ -26,8 +26,8 @@
       "profile": "audit",
       "spec": "specs/ink-audit-query-response.md",
       "summary": "Composite audit-query-response verification.",
-      "caseCount": 25,
-      "sha256": "e83a8469213e25264c1517dc47bbbbab01caddc450da032113b2b9d543a6f22d"
+      "caseCount": 27,
+      "sha256": "7c3a80e03ed0aee122055c27594cd4c458b908092f89ce667ce74f5684382df2"
     },
     {
       "id": "connection-payload",
@@ -53,8 +53,8 @@
       "profile": "containment",
       "spec": "specs/ink-handshake-message.md",
       "summary": "Challenge, rejection, and resolution message validation.",
-      "caseCount": 26,
-      "sha256": "3b374fd9727ad62c53f3656bc611c6328b06184f0968eb209726a83fb6565f42"
+      "caseCount": 29,
+      "sha256": "a155e26253ae0ac9de0c16fdcd8a917e1d21cb391cc863ef99d071fc5ee60b82"
     },
     {
       "id": "inclusion-receipt",
@@ -134,8 +134,8 @@
       "profile": "encryption",
       "spec": "specs/ink-payload-encryption.md",
       "summary": "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope.",
-      "caseCount": 20,
-      "sha256": "2765fe12fef9f38195fb338c723b708993f61e900b737452c1447750222ae324"
+      "caseCount": 22,
+      "sha256": "b87a114d1282f829aaf5717ca339c8fa74926548406ca9b28d5ce13438e5a44e"
     },
     {
       "id": "principal-normalization",
