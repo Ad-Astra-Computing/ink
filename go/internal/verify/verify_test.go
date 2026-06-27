@@ -196,3 +196,116 @@ func TestSignatureInvalidUTF8BadInput(t *testing.T) {
 		t.Errorf("invalid UTF-8 in a signed scalar did not error")
 	}
 }
+
+// The receipt inputs below mirror the valid-signature-only-accepts case in
+// conformance/v1/vectors/inclusion-receipt.json: the witness key and a receipt
+// whose service signature verifies, with no event binding or later checkpoint.
+const receiptWitnessHex = "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+const receiptValue = `{"eventId":"evt-1","leafIndex":1,"treeSize":4,"rootHash":"af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f","timestamp":"2026-06-15T12:00:00.000Z","inclusionProof":["03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749","1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"],"serviceSignature":"_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"}`
+
+func receiptInputJSON(keyField string) string {
+	return `{` + keyField + `,"receipt":` + receiptValue + `}`
+}
+
+func TestReceiptHex(t *testing.T) {
+	r, err := Receipt([]byte(receiptInputJSON(`"witnessPublicKeyHex":"` + receiptWitnessHex + `"`)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !r.OK || r.Kind != "inclusion-receipt" {
+		t.Errorf("valid receipt: got %+v", r)
+	}
+}
+
+func TestReceiptMultibase(t *testing.T) {
+	raw, err := hex.DecodeString(receiptWitnessHex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mb, err := ink.EncodePublicKeyMultibase(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := Receipt([]byte(receiptInputJSON(`"witnessPublicKeyMultibase":"` + mb + `"`)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !r.OK {
+		t.Errorf("multibase witness key did not verify: %+v", r)
+	}
+}
+
+func TestReceiptWrongKeyRejects(t *testing.T) {
+	const other = "32fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+	r, err := Receipt([]byte(receiptInputJSON(`"witnessPublicKeyHex":"` + other + `"`)))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("wrong witness key verified: %+v", r)
+	}
+}
+
+func TestReceiptMalformedReceiptRejects(t *testing.T) {
+	// A receipt with a non-integer leafIndex fails the receiver-boundary parse.
+	// Per the conformance contract a malformed receipt is a rejection, not bad
+	// input, so this returns OK:false with no error (exit 1, not 2).
+	bad := `{"eventId":"evt-1","leafIndex":1.5,"treeSize":4,"rootHash":"af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f","timestamp":"2026-06-15T12:00:00.000Z","inclusionProof":[],"serviceSignature":"_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"}`
+	in := `{"witnessPublicKeyHex":"` + receiptWitnessHex + `","receipt":` + bad + `}`
+	r, err := Receipt([]byte(in))
+	if err != nil {
+		t.Fatalf("malformed receipt should reject, not error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("malformed receipt verified: %+v", r)
+	}
+}
+
+func TestReceiptMissingReceiptBadInput(t *testing.T) {
+	if _, err := Receipt([]byte(`{"witnessPublicKeyHex":"` + receiptWitnessHex + `"}`)); err == nil {
+		t.Errorf("missing receipt did not error")
+	}
+}
+
+func TestReceiptNoKeyBadInput(t *testing.T) {
+	if _, err := Receipt([]byte(`{"receipt":` + receiptValue + `}`)); err == nil {
+		t.Errorf("missing witness key did not error")
+	}
+}
+
+func TestReceiptBothKeysBadInput(t *testing.T) {
+	in := `{"witnessPublicKeyHex":"` + receiptWitnessHex + `","witnessPublicKeyMultibase":"z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX","receipt":` + receiptValue + `}`
+	if _, err := Receipt([]byte(in)); err == nil {
+		t.Errorf("supplying both witness key forms did not error")
+	}
+}
+
+func TestReceiptUnknownFieldBadInput(t *testing.T) {
+	in := `{"witnessPublicKeyHex":"` + receiptWitnessHex + `","receipt":` + receiptValue + `,"extra":1}`
+	if _, err := Receipt([]byte(in)); err == nil {
+		t.Errorf("unknown field did not error")
+	}
+}
+
+func TestReceiptMalformedEventHashRejects(t *testing.T) {
+	// A non-string eventHash is a malformed binding, which the reference treats
+	// as a verification rejection (exit 1), not a CLI usage error.
+	in := `{"witnessPublicKeyHex":"` + receiptWitnessHex + `","receipt":` + receiptValue + `,"eventHash":123}`
+	r, err := Receipt([]byte(in))
+	if err != nil {
+		t.Fatalf("malformed eventHash should reject, not error: %v", err)
+	}
+	if r.OK {
+		t.Errorf("malformed eventHash verified: %+v", r)
+	}
+}
+
+func TestReceiptDuplicateKeyBadInput(t *testing.T) {
+	// The envelope is the CLI's own schema, so a duplicate top-level key is
+	// ambiguous input, even though a duplicate key inside the raw receipt is left
+	// to the library parser's last-wins tolerance.
+	in := `{"witnessPublicKeyHex":"` + receiptWitnessHex + `","receipt":` + receiptValue + `,"receipt":` + receiptValue + `}`
+	if _, err := Receipt([]byte(in)); err == nil {
+		t.Errorf("duplicate top-level key did not error")
+	}
+}
