@@ -3,8 +3,41 @@ import { IntentTypeSchema } from "./intent.js";
 import { InkReceiptDispositionSchema } from "./ink-audit.js";
 import { ProfileSnapshotSchema } from "./profile.js";
 import { KeyEntrySchema } from "./key-entry.js";
-import { InkTransportSchema, AgentCardVisibilitySchema } from "./ink-handshake.js";
+import { InkTransportSchema, AgentCardVisibilitySchema, type AgentCardVisibility } from "./ink-handshake.js";
 import { isInkEndpointUrl } from "./endpoint-url.js";
+import { isInkTimestamp } from "../crypto/timestamp.js";
+
+// Opt-in discoverability descriptor (#188). A card MAY carry a `discovery`
+// object that opts the agent in to being surfaced by a directory/index. It is
+// additive and forward compatible: a card without it is not discoverable, and
+// unknown descriptor keys are ignored so later additive fields do not break old
+// parsers. The descriptor can only ever NARROW exposure: `scope` reuses the
+// card visibility enum and MUST NOT exceed the card's `visibility` (enforced by
+// the card superRefine). Self-declared `tags` are hints, not verified claims.
+const discoveryUpdatedAt = z
+  .string()
+  .refine(isInkTimestamp, { message: "must be a strict RFC 3339 timestamp" });
+
+export const DiscoveryDescriptorSchema = z.object({
+  enabled: z.boolean(),
+  scope: AgentCardVisibilitySchema,
+  tags: z.array(z.string().min(1).max(64)).max(32).optional(),
+  queryable: z.boolean().optional(),
+  updatedAt: discoveryUpdatedAt.optional(),
+});
+
+export type DiscoveryDescriptor = z.infer<typeof DiscoveryDescriptorSchema>;
+
+// Exposure lattice, most-exposed to least. `public` reaches the widest
+// audience, `private` the narrowest. Discovery exposure is the minimum of the
+// card's visibility and the descriptor's scope, and the descriptor MUST NOT
+// declare a scope above the card's visibility.
+const DISCOVERY_EXPOSURE_RANK: Record<AgentCardVisibility, number> = {
+  public: 3,
+  network_only: 2,
+  capability_gated: 1,
+  private: 0,
+};
 
 // Endpoint fields use the pinned INK endpoint grammar (https, no userinfo, no
 // fragment, <=2048 UTF-8 bytes, no control/whitespace) rather than the broad
@@ -80,6 +113,8 @@ export const AgentCardSchema = z.object({
   supportedProtocolVersions: z.array(z.string().max(16)).max(8).optional(),
   // Containment extension (Phase 1)
   visibility: AgentCardVisibilitySchema.optional(),
+  // Opt-in discoverability descriptor (#188). Absent => not discoverable.
+  discovery: DiscoveryDescriptorSchema.optional(),
   governance: z.object({
     maxAcceptedDelegationDepth: z.number().int().positive().optional(),
     supportedTransports: z.array(InkTransportSchema).optional(),
@@ -101,6 +136,19 @@ export const AgentCardSchema = z.object({
       path: ["inboxEndpoint"],
       message: "inboxEndpoint MUST equal endpoint when both are present (v0.1.1 spec).",
     });
+  }
+  // #188: the discovery descriptor's scope MUST NOT exceed the card's
+  // visibility. An absent visibility is the public upper bound because the
+  // card is itself publicly fetchable. The descriptor can only narrow.
+  if (card.discovery) {
+    const upperBound = card.visibility ?? "public";
+    if (DISCOVERY_EXPOSURE_RANK[card.discovery.scope] > DISCOVERY_EXPOSURE_RANK[upperBound]) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["discovery", "scope"],
+        message: "discovery.scope MUST NOT exceed the card's visibility (#188).",
+      });
+    }
   }
 });
 
@@ -139,4 +187,34 @@ export function resolveAgentInbox(card: AgentCard): string {
   // `inboxEndpoint` becomes the primary field; consumers using this
   // helper get the swap for free.
   return card.endpoint ?? card.inboxEndpoint;
+}
+
+/**
+ * Whether the card has opted in to discovery (#188). A card is discoverable
+ * only when it carries a `discovery` descriptor with `enabled: true`. This is
+ * never inferred: an absent descriptor or `enabled: false` is not discoverable.
+ */
+export function isDiscoverable(
+  card: Pick<AgentCard, "discovery">,
+): boolean {
+  return card.discovery?.enabled === true;
+}
+
+/**
+ * The effective discovery exposure for a card (#188), or `null` when the card
+ * is not discoverable. The effective scope is the minimum of the card's
+ * `visibility` (the hard upper bound, defaulting to `public` when absent since
+ * the card is publicly fetchable) and the descriptor's `scope`. A card parsed
+ * by `AgentCardSchema` already guarantees `scope <= visibility`, so this
+ * returns the descriptor scope; the min is defensive for unvalidated input.
+ */
+export function effectiveDiscoveryScope(
+  card: Pick<AgentCard, "discovery" | "visibility">,
+): AgentCardVisibility | null {
+  if (!card.discovery?.enabled) return null;
+  const upperBound = card.visibility ?? "public";
+  const scope = card.discovery.scope;
+  return DISCOVERY_EXPOSURE_RANK[scope] <= DISCOVERY_EXPOSURE_RANK[upperBound]
+    ? scope
+    : upperBound;
 }
