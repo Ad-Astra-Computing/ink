@@ -208,6 +208,11 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
 - `verify-connection` validates a connection_request or connection_response
   payload against the schema for the named kind (input fields `kind` and
   `payload`, matching the `connection-payload` vectors).
+- `verify-checkpoint` validates a signed-tree-head checkpoint body: its line
+  structure, integer tree size, hex root, and single trailing newline (input
+  field `body`, matching the `merkle-checkpoint` vectors). On acceptance the
+  result carries the `canonical` re-serialization so a caller can confirm the
+  body is in canonical form.
 - `verify-inclusion` verifies a Merkle inclusion proof (input fields
   `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
   `merkle-inclusion` vectors).
@@ -238,8 +243,8 @@ ink-verify-server --addr :8080
 
 Each verifier is a `POST /verify/<name>` endpoint whose body is the artifact
 JSON the matching subcommand would read: `card`, `signature`, `receipt`,
-`audit-response`, `handshake`, `connection`, `inclusion`, `consistency`.
-`GET /healthz` reports liveness.
+`audit-response`, `handshake`, `connection`, `checkpoint`, `inclusion`,
+`consistency`. `GET /healthz` reports liveness.
 
 ```sh
 curl -s localhost:8080/verify/card --data @card.json

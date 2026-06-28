@@ -69,6 +69,7 @@ func TestAllRoutesWired(t *testing.T) {
 		{"/verify/receipt", ""},
 		{"/verify/audit-response", ""},
 		{"/verify/connection", ""},
+		{"/verify/checkpoint", ""},
 		{"/verify/inclusion", ""},
 		{"/verify/consistency", ""},
 	}

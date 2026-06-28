@@ -42,6 +42,7 @@ Commands:
   verify-audit-response  Verify a witness audit-query response
   verify-handshake       Validate a handshake message (challenge, rejection, resolution)
   verify-connection      Validate a connection_request or connection_response payload
+  verify-checkpoint      Validate a signed-tree-head checkpoint body
   verify-inclusion       Verify a Merkle inclusion proof
   verify-consistency     Verify a Merkle consistency proof
   version                Print the verifier version
@@ -86,6 +87,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		"verify-audit-response": verify.AuditResponse,
 		"verify-handshake":      verify.Handshake,
 		"verify-connection":     verify.Connection,
+		"verify-checkpoint":     verify.Checkpoint,
 		"verify-inclusion":      verify.Inclusion,
 		"verify-consistency":    verify.Consistency,
 	}

@@ -149,6 +149,21 @@ func TestVerifyConnection(t *testing.T) {
 	}
 }
 
+func TestVerifyCheckpoint(t *testing.T) {
+	const accept = `{"body":"example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"}`
+	if code, out, _ := run(t, accept, "verify-checkpoint"); code != 0 || !strings.Contains(out, `"canonical":`) {
+		t.Fatalf("valid checkpoint exit = %d out = %q, want 0 with canonical", code, out)
+	}
+	// A present-but-malformed body (missing trailing newline) is a rejection.
+	malformed := `{"body":"example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271"}`
+	if code, _, _ := run(t, malformed, "verify-checkpoint"); code != 1 {
+		t.Fatalf("malformed checkpoint exit = %d, want 1", code)
+	}
+	if code, _, errOut := run(t, `{}`, "verify-checkpoint"); code != 2 || !strings.Contains(errOut, "bad_input") {
+		t.Fatalf("missing body exit = %d (err %q), want 2 bad_input", code, errOut)
+	}
+}
+
 func TestVerifyConsistency(t *testing.T) {
 	const accept = `{"first":1,"firstRoot":"bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795","second":2,"secondRoot":"f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec","proof":["7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29"]}`
 	if code, _, _ := run(t, accept, "verify-consistency"); code != 0 {

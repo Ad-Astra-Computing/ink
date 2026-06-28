@@ -2,6 +2,7 @@ package verify
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"testing"
 
 	"github.com/Ad-Astra-Computing/ink/go/ink"
@@ -526,4 +527,75 @@ func TestEventSignatureVerifierFailsClosed(t *testing.T) {
 			t.Errorf("%s: event verified but should fail closed", c.name)
 		}
 	}
+}
+
+// A canonical checkpoint body from the merkle-checkpoint vectors: origin, a tree
+// size, and a 32-byte hex root, each on its own line with a trailing newline.
+const validCheckpointBody = "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+
+func TestCheckpointAccept(t *testing.T) {
+	r, err := Checkpoint([]byte(`{"body":` + jsonString(validCheckpointBody) + `}`))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !r.OK || r.Kind != "merkle-checkpoint" {
+		t.Errorf("valid checkpoint: got %+v", r)
+	}
+	// On accept the canonical re-serialization is surfaced; for a body already in
+	// canonical form it round-trips to itself.
+	if r.Canonical != validCheckpointBody {
+		t.Errorf("canonical = %q, want %q", r.Canonical, validCheckpointBody)
+	}
+}
+
+func TestCheckpointMalformedRejects(t *testing.T) {
+	// Present but malformed bodies are a clean rejection, not bad input: an empty
+	// body, a missing trailing newline, and trailing junk all fail ParseCheckpoint.
+	for _, body := range []string{
+		"",
+		"example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271",
+		"example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\nx",
+	} {
+		r, err := Checkpoint([]byte(`{"body":` + jsonString(body) + `}`))
+		if err != nil {
+			t.Fatalf("body %q: unexpected error: %v", body, err)
+		}
+		if r.OK {
+			t.Errorf("body %q accepted, want reject", body)
+		}
+		if r.Canonical != "" {
+			t.Errorf("body %q: canonical set on reject: %q", body, r.Canonical)
+		}
+	}
+}
+
+func TestCheckpointMissingBodyBadInput(t *testing.T) {
+	if _, err := Checkpoint([]byte(`{}`)); err == nil {
+		t.Errorf("missing body did not error")
+	}
+	if _, err := Checkpoint([]byte(`{"body":null}`)); err == nil {
+		t.Errorf("null body did not error")
+	}
+}
+
+// A lone UTF-16 surrogate escape in the signed body must be bad input, not an
+// accept: encoding/json would otherwise rewrite it to U+FFFD and lose the
+// byte-identity the witness signature is over.
+func TestCheckpointLoneSurrogateBadInput(t *testing.T) {
+	if _, err := Checkpoint([]byte(`{"body":"example.com/\ud800-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"}`)); err == nil {
+		t.Errorf("lone surrogate body did not error")
+	}
+}
+
+func TestCheckpointUnknownFieldBadInput(t *testing.T) {
+	in := `{"body":` + jsonString(validCheckpointBody) + `,"extra":1}`
+	if _, err := Checkpoint([]byte(in)); err == nil {
+		t.Errorf("unknown field did not error")
+	}
+}
+
+// jsonString encodes s as a JSON string literal for embedding in test fixtures.
+func jsonString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

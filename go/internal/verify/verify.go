@@ -27,6 +27,10 @@ import (
 type Result struct {
 	OK   bool   `json:"ok"`
 	Kind string `json:"kind"`
+	// Canonical is the canonical re-serialization of an accepted artifact, set
+	// only where a verifier has one to report (the checkpoint body). It is
+	// omitted otherwise so the common result stays {ok, kind}.
+	Canonical string `json:"canonical,omitempty"`
 }
 
 // Card validates an Agent Card document against the reference schema. The card
@@ -143,6 +147,48 @@ func Connection(data []byte) (Result, error) {
 		return Result{OK: false, Kind: kind}, nil
 	}
 	return Result{OK: ink.ValidateConnectionPayload(*in.Kind, m), Kind: kind}, nil
+}
+
+type checkpointInput struct {
+	Body json.RawMessage `json:"body"`
+}
+
+// Checkpoint parses a signed-tree-head checkpoint body and reports whether it is
+// well-formed, mirroring the merkle-checkpoint vectors (input field `body`). The
+// body is the exact signed string: encoding/json rewrites a lone UTF-16
+// surrogate escape or invalid UTF-8 to U+FFFD, which would let a body that is
+// not byte-identical to the signed one parse as valid, so the raw JSON string is
+// guarded before decoding (the same enforcement the signature path applies to
+// its signed scalars). The decoded body is then passed to ink.ParseCheckpoint
+// whose strictness (line count, integer tree size, hex root, a single trailing
+// newline) defines acceptance; a present-but-malformed body is a rejection,
+// while a missing body, an invalid encoding, an unknown field, or unparseable
+// JSON is bad input. On acceptance the canonical re-serialization is returned so
+// a caller can confirm the body is in canonical form.
+func Checkpoint(data []byte) (Result, error) {
+	const kind = "merkle-checkpoint"
+	var in checkpointInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if len(in.Body) == 0 || bytes.Equal(in.Body, []byte("null")) {
+		return Result{}, fmt.Errorf("missing required field (body)")
+	}
+	if !utf8.Valid(in.Body) {
+		return Result{}, fmt.Errorf("invalid body: not valid UTF-8")
+	}
+	if ink.ContainsLoneSurrogateEscape(in.Body) {
+		return Result{}, fmt.Errorf("invalid body: unpaired UTF-16 surrogate")
+	}
+	var body string
+	if err := json.Unmarshal(in.Body, &body); err != nil {
+		return Result{}, fmt.Errorf("invalid body: %w", err)
+	}
+	parsed, ok := ink.ParseCheckpoint(body)
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: true, Kind: kind, Canonical: ink.FormatCheckpoint(parsed)}, nil
 }
 
 // The signature input is this CLI's own request schema; it mirrors the

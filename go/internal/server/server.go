@@ -44,6 +44,7 @@ var routes = []struct {
 	{"audit-response", verify.AuditResponse},
 	{"handshake", verify.Handshake},
 	{"connection", verify.Connection},
+	{"checkpoint", verify.Checkpoint},
 	{"inclusion", verify.Inclusion},
 	{"consistency", verify.Consistency},
 }
