@@ -36,6 +36,19 @@ paths = [
   '''examples/interop-cli/src/ink_interop/crypto\.py$''',
 ]
 
+# The Go verifier test suite embeds the same deterministic Ed25519 test
+# keys and their hex encodings as the interop vectors, sometimes bound to
+# a local named "key". They are fixtures, not secrets, and mirror the
+# conformance vectors the Go CLI is checked against. Suppress ONLY the
+# generic-api-key rule on the internal package tests so other secret
+# classes still get caught if they ever slip in.
+[[allowlists]]
+description = "Deterministic Go verifier test-vector keys, generic-api-key only"
+targetRules = ["generic-api-key"]
+paths = [
+  '''go/internal/.*_test\.go$''',
+]
+
 [[rules]]
 id = "cloudflare-api-token"
 description = "Cloudflare API token"
