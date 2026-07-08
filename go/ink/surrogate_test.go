@@ -62,6 +62,13 @@ func TestParseSignedBody(t *testing.T) {
 	if _, err := ParseSignedBody([]byte(`{"note":"` + bs + `uD800"}`)); err == nil {
 		t.Errorf("lone surrogate body accepted")
 	}
+	// Raw invalid UTF-8 inside a string must be rejected before json.Unmarshal:
+	// the decoder rewrites it to U+FFFD, so the parsed body would no longer be
+	// byte-identical to the signed bytes and distinct wire encodings would
+	// canonicalize the same under one signature.
+	if _, err := ParseSignedBody([]byte("{\"note\":\"a\xffb\"}")); err == nil {
+		t.Errorf("raw invalid utf-8 body accepted")
+	}
 	if _, err := ParseSignedBody([]byte(`{not json`)); err == nil {
 		t.Errorf("malformed JSON accepted")
 	}

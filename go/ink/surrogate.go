@@ -3,16 +3,20 @@ package ink
 import (
 	"encoding/json"
 	"errors"
+	"unicode/utf8"
 )
 
-// ParseSignedBody validates and parses a raw JSON signed body. It rejects a
-// lone UTF-16 surrogate escape before unmarshaling, because encoding/json would
-// otherwise silently rewrite it to U+FFFD and the body that reaches
-// VerifyInkSignature would differ from the one the signer signed. A receiver
-// MUST parse a signed body through this rather than json.Unmarshal directly;
-// VerifyInkSignature takes an already-parsed body and cannot recover a dropped
-// surrogate on its own.
+// ParseSignedBody validates and parses a raw JSON signed body. It rejects raw
+// invalid UTF-8 and a lone UTF-16 surrogate escape before unmarshaling, because
+// encoding/json would otherwise silently rewrite either to U+FFFD and the body
+// that reaches VerifyInkSignature would differ from the one the signer signed.
+// A receiver MUST parse a signed body through this rather than json.Unmarshal
+// directly; VerifyInkSignature takes an already-parsed body and cannot recover
+// dropped bytes on its own.
 func ParseSignedBody(rawBody []byte) (interface{}, error) {
+	if !utf8.Valid(rawBody) {
+		return nil, errors.New("signed body is not valid UTF-8")
+	}
 	if ContainsLoneSurrogateEscape(rawBody) {
 		return nil, errors.New("signed body contains an unpaired UTF-16 surrogate")
 	}
