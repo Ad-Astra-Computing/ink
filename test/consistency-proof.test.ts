@@ -198,7 +198,6 @@ describe("verifyConsistencyProof — negative and tamper cases", () => {
     // Non-safe integers and over-length proofs are rejected before any hashing.
     expect(await verifyConsistencyProof(3, firstRoot, Number.MAX_SAFE_INTEGER + 2, secondRoot, proof)).toBe(false);
     expect(await verifyConsistencyProof(3, firstRoot, 7, secondRoot, Array(65).fill("a".repeat(64)))).toBe(false);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    expect(await verifyConsistencyProof(3, firstRoot, 7, secondRoot, "notanarray" as any)).toBe(false);
+    expect(await verifyConsistencyProof(3, firstRoot, 7, secondRoot, "notanarray" as unknown as string[])).toBe(false);
   });
 });
