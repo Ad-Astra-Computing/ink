@@ -43,6 +43,12 @@ func TestParseInclusionReceipt(t *testing.T) {
 	if _, ok := ParseInclusionReceipt([]byte(`{"eventId":"\ud800","leafIndex":1,"treeSize":4,"rootHash":"` + root + `","inclusionProof":[],"timestamp":"t","serviceSignature":"s"}`)); ok {
 		t.Error("lone-surrogate eventId parsed")
 	}
+	// Raw invalid UTF-8 in a signed field is rejected before unmarshal, so
+	// encoding/json cannot normalize it to U+FFFD and verify a signature over
+	// bytes that differ from the wire.
+	if _, ok := ParseInclusionReceipt([]byte("{\"eventId\":\"e\xff\",\"leafIndex\":1,\"treeSize\":4,\"rootHash\":\"" + root + "\",\"inclusionProof\":[],\"timestamp\":\"t\",\"serviceSignature\":\"s\"}")); ok {
+		t.Error("raw invalid utf-8 eventId parsed")
+	}
 	// A non-object is rejected.
 	if _, ok := ParseInclusionReceipt([]byte(`"not-a-receipt"`)); ok {
 		t.Error("non-object receipt parsed")
