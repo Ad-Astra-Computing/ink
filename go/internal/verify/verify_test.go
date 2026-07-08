@@ -450,6 +450,26 @@ func TestHandshakeMalformedBadInput(t *testing.T) {
 	}
 }
 
+// Raw invalid UTF-8 is bad input, not a normalized rejection: encoding/json
+// would rewrite the byte to U+FFFD, so a request with an invalid byte must map
+// to the bad-input exit code rather than reach schema validation as U+FFFD.
+func TestInvalidUTF8IsBadInput(t *testing.T) {
+	bad := []byte("{\"displayName\":\"a\xffb\"}")
+	verifiers := map[string]func([]byte) (Result, error){
+		"Card":        Card,
+		"Handshake":   Handshake,
+		"Connection":  Connection,
+		"Inclusion":   Inclusion,
+		"Consistency": Consistency,
+		"Checkpoint":  Checkpoint,
+	}
+	for name, fn := range verifiers {
+		if _, err := fn(bad); err == nil {
+			t.Errorf("%s accepted raw invalid UTF-8 instead of returning bad input", name)
+		}
+	}
+}
+
 func TestConnectionAccept(t *testing.T) {
 	in := `{"kind":"connection_request","payload":` + connectionPayload + `}`
 	r, err := Connection([]byte(in))

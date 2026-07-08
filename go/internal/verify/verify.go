@@ -38,6 +38,9 @@ type Result struct {
 // TypeScript reference (unknown top-level keys are ignored, last value wins on a
 // repeated key); required-field and shape enforcement is ValidateAgentCard's job.
 func Card(data []byte) (Result, error) {
+	if !utf8.Valid(data) {
+		return Result{}, fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(data, &m); err != nil {
 		return Result{}, fmt.Errorf("invalid JSON: %w", err)
@@ -105,6 +108,9 @@ func Consistency(data []byte) (Result, error) {
 // rejection rather than bad input; only unparseable JSON is bad input.
 func Handshake(data []byte) (Result, error) {
 	const kind = "handshake-message"
+	if !utf8.Valid(data) {
+		return Result{}, fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	var v interface{}
 	if err := json.Unmarshal(data, &v); err != nil {
 		return Result{}, fmt.Errorf("invalid JSON: %w", err)
@@ -470,6 +476,9 @@ func eventSignatureVerifier(agentKeys map[string]string) func(map[string]interfa
 // is accepted, so the CLI does not add a stricter rule that would diverge from
 // the reference verifier. The duplicate-key check is therefore top-level only.
 func decodeEnvelope(data []byte, v any) error {
+	if !utf8.Valid(data) {
+		return fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	if err := rejectDuplicateTopLevelKeys(data); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
@@ -551,6 +560,9 @@ func skipValue(dec *json.Decoder) error {
 // (wrapped "invalid JSON") on any of those, so the caller maps it to the
 // bad-input exit code rather than a clean rejection.
 func strictDecode(data []byte, v any) error {
+	if !utf8.Valid(data) {
+		return fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	if err := rejectDuplicateKeys(json.NewDecoder(bytes.NewReader(data))); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
