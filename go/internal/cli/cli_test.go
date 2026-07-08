@@ -100,6 +100,19 @@ func TestVerifySignature(t *testing.T) {
 	}
 }
 
+func TestVerifyReceipt(t *testing.T) {
+	const witnessHex = "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+	const receipt = `{"eventId":"evt-1","leafIndex":1,"treeSize":4,"rootHash":"af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f","timestamp":"2026-06-15T12:00:00.000Z","inclusionProof":["03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749","1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"],"serviceSignature":"_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"}`
+	accept := `{"witnessPublicKeyHex":"` + witnessHex + `","receipt":` + receipt + `}`
+	if code, out, _ := run(t, accept, "verify-receipt"); code != 0 || !strings.Contains(out, `"ok":true`) {
+		t.Fatalf("valid receipt exit = %d out = %q, want 0 ok:true", code, out)
+	}
+	noKey := `{"receipt":` + receipt + `}`
+	if code, _, errOut := run(t, noKey, "verify-receipt"); code != 2 || !strings.Contains(errOut, "bad_input") {
+		t.Fatalf("missing key exit = %d (err %q), want 2 bad_input", code, errOut)
+	}
+}
+
 func TestVerifyConsistency(t *testing.T) {
 	const accept = `{"first":1,"firstRoot":"bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795","second":2,"secondRoot":"f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec","proof":["7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29"]}`
 	if code, _, _ := run(t, accept, "verify-consistency"); code != 0 {

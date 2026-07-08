@@ -149,7 +149,7 @@ func Signature(data []byte) (Result, error) {
 	if si.Method == nil || si.Path == nil || si.RecipientDid == nil || si.Timestamp == nil || len(si.Body) == 0 {
 		return Result{}, fmt.Errorf("missing required signInput field (method, path, recipientDid, body, timestamp)")
 	}
-	pub, err := signaturePublicKey(in)
+	pub, err := resolvePublicKey(in.PublicKeyHex, in.PublicKeyMultibase)
 	if err != nil {
 		return Result{}, err
 	}
@@ -167,34 +167,188 @@ func Signature(data []byte) (Result, error) {
 	return Result{OK: ok, Kind: "signature"}, nil
 }
 
-// signaturePublicKey resolves the signing key from exactly one of the two
-// accepted encodings. Supplying both, neither, an undecodable value, or a
-// wrong-length key is bad input rather than a verification failure, so the two
-// encodings reject a malformed key with the same exit code.
-func signaturePublicKey(in signatureInput) ([]byte, error) {
+// resolvePublicKey resolves an Ed25519 key from exactly one of the two accepted
+// encodings, a hex string or a base58btc multibase string. Supplying both,
+// neither, an undecodable value, or a wrong-length key is bad input rather than
+// a verification failure, so the two encodings reject a malformed key with the
+// same exit code.
+func resolvePublicKey(hexKey, multibaseKey *string) ([]byte, error) {
 	var b []byte
 	switch {
-	case in.PublicKeyHex != nil && in.PublicKeyMultibase != nil:
-		return nil, fmt.Errorf("provide exactly one of publicKeyHex or publicKeyMultibase")
-	case in.PublicKeyHex != nil:
-		decoded, err := hex.DecodeString(*in.PublicKeyHex)
+	case hexKey != nil && multibaseKey != nil:
+		return nil, fmt.Errorf("provide exactly one of the hex or multibase public key")
+	case hexKey != nil:
+		decoded, err := hex.DecodeString(*hexKey)
 		if err != nil {
-			return nil, fmt.Errorf("invalid publicKeyHex: %w", err)
+			return nil, fmt.Errorf("invalid hex public key: %w", err)
 		}
 		b = decoded
-	case in.PublicKeyMultibase != nil:
-		decoded, err := ink.DecodePublicKeyMultibase(*in.PublicKeyMultibase)
+	case multibaseKey != nil:
+		decoded, err := ink.DecodePublicKeyMultibase(*multibaseKey)
 		if err != nil {
-			return nil, fmt.Errorf("invalid publicKeyMultibase: %w", err)
+			return nil, fmt.Errorf("invalid multibase public key: %w", err)
 		}
 		b = decoded
 	default:
-		return nil, fmt.Errorf("missing required field (publicKeyHex or publicKeyMultibase)")
+		return nil, fmt.Errorf("missing required public key")
 	}
 	if len(b) != ed25519.PublicKeySize {
 		return nil, fmt.Errorf("public key must be %d bytes, got %d", ed25519.PublicKeySize, len(b))
 	}
 	return b, nil
+}
+
+// An inclusion receipt is a witness-signed artifact, so its envelope is parsed
+// strictly (unknown CLI fields and trailing data are rejected) but the receipt,
+// event, and checkpoint are passed raw to the library parsers below. Those
+// parsers, not strictDecode, define the artifact's accepted shape: a malformed
+// one is a verification rejection (exit 1), the same decision the conformance
+// runner makes, not a CLI usage error.
+
+type receiptInput struct {
+	WitnessPublicKeyHex       *string         `json:"witnessPublicKeyHex"`
+	WitnessPublicKeyMultibase *string         `json:"witnessPublicKeyMultibase"`
+	Receipt                   json.RawMessage `json:"receipt"`
+	Event                     json.RawMessage `json:"event"`
+	EventHash                 json.RawMessage `json:"eventHash"`
+	LaterCheckpoint           json.RawMessage `json:"laterCheckpoint"`
+}
+
+// Receipt verifies a witness inclusion receipt: its structure, the witness
+// Ed25519 service signature, and, when supplied, the event-bound proof walk and
+// a later-checkpoint cross-check. The input shape matches the
+// `inclusion-receipt` conformance vectors plus an optional
+// witnessPublicKeyMultibase alternative to witnessPublicKeyHex.
+func Receipt(data []byte) (Result, error) {
+	var in receiptInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if len(in.Receipt) == 0 {
+		return Result{}, fmt.Errorf("missing required field (receipt)")
+	}
+	pub, err := resolvePublicKey(in.WitnessPublicKeyHex, in.WitnessPublicKeyMultibase)
+	if err != nil {
+		return Result{}, err
+	}
+	const kind = "inclusion-receipt"
+	receipt, ok := ink.ParseInclusionReceipt(in.Receipt)
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	var opts ink.ReceiptVerifyOptions
+	if len(in.Event) > 0 {
+		body, err := ink.ParseSignedBody(in.Event)
+		if err != nil {
+			return Result{OK: false, Kind: kind}, nil
+		}
+		m, isObj := body.(map[string]interface{})
+		if !isObj {
+			return Result{OK: false, Kind: kind}, nil
+		}
+		opts.Event = m
+	}
+	if len(in.EventHash) > 0 {
+		// eventHash is part of the signed artifact's binding, so a malformed one
+		// is a rejection rather than a CLI usage error, matching the receipt and
+		// event handling above. json.Unmarshal accepts a JSON null as the empty
+		// string (no binding), the same as the reference.
+		if err := json.Unmarshal(in.EventHash, &opts.EventHash); err != nil {
+			return Result{OK: false, Kind: kind}, nil
+		}
+	}
+	if len(in.LaterCheckpoint) > 0 {
+		cp, cpOK := ink.ParseCheckpointRef(in.LaterCheckpoint)
+		if !cpOK {
+			return Result{OK: false, Kind: kind}, nil
+		}
+		opts.LaterCheckpoint = &cp
+	}
+	return Result{OK: ink.VerifyInclusionReceipt(receipt, pub, opts), Kind: kind}, nil
+}
+
+// decodeEnvelope decodes a CLI request envelope that wraps one or more raw
+// protocol artifacts. It rejects unknown fields, a duplicate top-level key, and
+// trailing data, but unlike strictDecode it does not walk into the raw
+// sub-messages: the wrapped artifact is handed verbatim to its library parser,
+// whose tolerance (number spellings, last-wins on a repeated key) defines what
+// is accepted, so the CLI does not add a stricter rule that would diverge from
+// the reference verifier. The duplicate-key check is therefore top-level only.
+func decodeEnvelope(data []byte, v any) error {
+	if err := rejectDuplicateTopLevelKeys(data); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
+		return fmt.Errorf("invalid JSON: unexpected trailing data")
+	}
+	return nil
+}
+
+// rejectDuplicateTopLevelKeys errors on a repeated key in the outermost JSON
+// object only. It skips the value after each key without inspecting nested
+// objects, so a duplicate key inside a wrapped artifact is left to that
+// artifact's own parser rather than rejected here.
+func rejectDuplicateTopLevelKeys(data []byte) error {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	t, err := dec.Token()
+	if err != nil {
+		return err
+	}
+	if d, ok := t.(json.Delim); !ok || d != '{' {
+		return nil // not an object; the typed decode reports the shape error
+	}
+	seen := make(map[string]bool)
+	for dec.More() {
+		keyTok, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		key, ok := keyTok.(string)
+		if !ok {
+			return fmt.Errorf("invalid object key")
+		}
+		if seen[key] {
+			return fmt.Errorf("duplicate key %q", key)
+		}
+		seen[key] = true
+		if err := skipValue(dec); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// skipValue consumes exactly one JSON value from dec, descending through any
+// nested object or array so the caller resumes at the next sibling.
+func skipValue(dec *json.Decoder) error {
+	t, err := dec.Token()
+	if err != nil {
+		return err
+	}
+	d, ok := t.(json.Delim)
+	if !ok || (d != '{' && d != '[') {
+		return nil // a scalar value is one token
+	}
+	depth := 1
+	for depth > 0 {
+		tt, err := dec.Token()
+		if err != nil {
+			return err
+		}
+		if dd, ok := tt.(json.Delim); ok {
+			if dd == '{' || dd == '[' {
+				depth++
+			} else {
+				depth--
+			}
+		}
+	}
+	return nil
 }
 
 // strictDecode decodes a single JSON object into v, rejecting unknown fields,

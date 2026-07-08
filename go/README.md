@@ -189,6 +189,11 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
   `body`, `timestamp`, plus `signature` and one of `publicKeyHex` or
   `publicKeyMultibase`, matching the `signature-base` vectors). The signed body
   is parsed through the surrogate-safe path before verification.
+- `verify-receipt` verifies a witness inclusion receipt: its structure, the
+  witness Ed25519 service signature, and, when supplied, the event-bound proof
+  walk and a later-checkpoint cross-check (input fields `receipt`, one of
+  `witnessPublicKeyHex` or `witnessPublicKeyMultibase`, and optional `event`,
+  `eventHash`, `laterCheckpoint`, matching the `inclusion-receipt` vectors).
 - `verify-inclusion` verifies a Merkle inclusion proof (input fields
   `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
   `merkle-inclusion` vectors).
