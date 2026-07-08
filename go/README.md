@@ -194,6 +194,25 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
   walk and a later-checkpoint cross-check (input fields `receipt`, one of
   `witnessPublicKeyHex` or `witnessPublicKeyMultibase`, and optional `event`,
   `eventHash`, `laterCheckpoint`, matching the `inclusion-receipt` vectors).
+- `verify-audit-response` verifies a witness audit-query response: the requester
+  and messageId bindings, the witness envelope signature, the per-event scope and
+  proof walks, and the required per-event agent signature, then an optional
+  later-checkpoint cross-check (input fields `response`, one of
+  `witnessPublicKeyHex` or `witnessPublicKeyMultibase`, `expectedRequester`,
+  `expectedMessageId`, a per-agent `agentKeysHex` map, and optional
+  `expectedServiceDid` and `laterCheckpoint`, matching the `audit-query-response`
+  vectors).
+- `verify-handshake` validates a handshake message (challenge, rejection, or
+  resolution) against the reference schema; the message object is the whole
+  input, matching the `handshake-message` vectors.
+- `verify-connection` validates a connection_request or connection_response
+  payload against the schema for the named kind (input fields `kind` and
+  `payload`, matching the `connection-payload` vectors).
+- `verify-checkpoint` validates a signed-tree-head checkpoint body: its line
+  structure, integer tree size, hex root, and single trailing newline (input
+  field `body`, matching the `merkle-checkpoint` vectors). On acceptance the
+  result carries the `canonical` re-serialization so a caller can confirm the
+  body is in canonical form.
 - `verify-inclusion` verifies a Merkle inclusion proof (input fields
   `leafHash`, `inclusionProof`, `leafIndex`, `treeSize`, `rootHash`, matching the
   `merkle-inclusion` vectors).
@@ -211,3 +230,28 @@ echo '{"leafHash":"…","inclusionProof":[],"leafIndex":0,"treeSize":1,"rootHash
   | ink verify-inclusion
 # {"ok":true,"kind":"merkle-inclusion"}
 ```
+
+## The `ink-verify-server` HTTP service
+
+`ink-verify-server` exposes the same verifiers over HTTP, so another
+implementation or a test harness can reach them without the CLI. It is
+verify-only and stateless: it holds no keys and issues nothing.
+
+```sh
+ink-verify-server --addr :8080
+```
+
+Each verifier is a `POST /verify/<name>` endpoint whose body is the artifact
+JSON the matching subcommand would read: `card`, `signature`, `receipt`,
+`audit-response`, `handshake`, `connection`, `checkpoint`, `inclusion`,
+`consistency`. `GET /healthz` reports liveness.
+
+```sh
+curl -s localhost:8080/verify/card --data @card.json
+# {"ok":true,"kind":"agent-card"}
+```
+
+The HTTP status mirrors the CLI exit-code contract: `200` carries a verdict
+(`{"ok":true|false,"kind":…}`) for a well-formed artifact, `400` is bad input
+(malformed JSON, a missing or unknown field), `404` is an unknown route, `405`
+is a known route with the wrong method, and `413` is a body over the size cap.

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"math"
+	"unicode/utf8"
 )
 
 // parseReceiptInt converts a JSON number token to an int under the reference's
@@ -29,13 +30,16 @@ func parseReceiptInt(n json.Number, min int) (int, bool) {
 }
 
 // ParseInclusionReceipt parses a raw JSON receipt at the receiver boundary. It
-// rejects a body carrying a lone UTF-16 surrogate escape before unmarshaling,
-// because encoding/json would rewrite it to U+FFFD and the verifier would then
-// canonicalize different signed bytes than the reference, and it parses
-// leafIndex and treeSize as integer-valued JSON numbers rather than requiring a
-// specific spelling. A receiver MUST verify a receipt through this parse, the
-// way the signed-body path goes through ParseSignedBody.
+// rejects a body carrying raw invalid UTF-8 or a lone UTF-16 surrogate escape
+// before unmarshaling, because encoding/json would rewrite either to U+FFFD and
+// the verifier would then canonicalize different signed bytes than the
+// reference, and it parses leafIndex and treeSize as integer-valued JSON numbers
+// rather than requiring a specific spelling. A receiver MUST verify a receipt
+// through this parse, the way the signed-body path goes through ParseSignedBody.
 func ParseInclusionReceipt(raw []byte) (InclusionReceipt, bool) {
+	if !utf8.Valid(raw) {
+		return InclusionReceipt{}, false
+	}
 	if ContainsLoneSurrogateEscape(raw) {
 		return InclusionReceipt{}, false
 	}
@@ -71,10 +75,14 @@ func ParseInclusionReceipt(raw []byte) (InclusionReceipt, bool) {
 }
 
 // ParseCheckpointRef parses a raw JSON later-checkpoint reference, applying the
-// same integer-valued-number rule to treeSize as ParseInclusionReceipt. It
-// returns ok=false for a malformed reference, which the caller treats as a
-// failed cross-check.
+// same integer-valued-number rule to treeSize as ParseInclusionReceipt, and the
+// same raw-invalid-UTF-8 rejection so the cross-checked rootHash is byte-
+// identical to the wire. It returns ok=false for a malformed reference, which
+// the caller treats as a failed cross-check.
 func ParseCheckpointRef(raw []byte) (CheckpointRef, bool) {
+	if !utf8.Valid(raw) {
+		return CheckpointRef{}, false
+	}
 	var rc struct {
 		TreeSize json.Number `json:"treeSize"`
 		RootHash string      `json:"rootHash"`

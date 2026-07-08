@@ -27,6 +27,10 @@ import (
 type Result struct {
 	OK   bool   `json:"ok"`
 	Kind string `json:"kind"`
+	// Canonical is the canonical re-serialization of an accepted artifact, set
+	// only where a verifier has one to report (the checkpoint body). It is
+	// omitted otherwise so the common result stays {ok, kind}.
+	Canonical string `json:"canonical,omitempty"`
 }
 
 // Card validates an Agent Card document against the reference schema. The card
@@ -34,6 +38,9 @@ type Result struct {
 // TypeScript reference (unknown top-level keys are ignored, last value wins on a
 // repeated key); required-field and shape enforcement is ValidateAgentCard's job.
 func Card(data []byte) (Result, error) {
+	if !utf8.Valid(data) {
+		return Result{}, fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	var m map[string]interface{}
 	if err := json.Unmarshal(data, &m); err != nil {
 		return Result{}, fmt.Errorf("invalid JSON: %w", err)
@@ -93,6 +100,101 @@ func Consistency(data []byte) (Result, error) {
 	}
 	ok := ink.VerifyConsistencyProof(*in.First, *in.FirstRoot, *in.Second, *in.SecondRoot, *in.Proof)
 	return Result{OK: ok, Kind: "merkle-consistency"}, nil
+}
+
+// Handshake validates an INK handshake message (challenge, rejection, or
+// resolution) against the reference schema. The message is the whole input, like
+// an Agent Card. Well-formed JSON of the wrong shape (not an object) is a
+// rejection rather than bad input; only unparseable JSON is bad input.
+func Handshake(data []byte) (Result, error) {
+	const kind = "handshake-message"
+	if !utf8.Valid(data) {
+		return Result{}, fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
+	var v interface{}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return Result{}, fmt.Errorf("invalid JSON: %w", err)
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: ink.ValidateHandshakeMessage(m), Kind: kind}, nil
+}
+
+type connectionInput struct {
+	Kind    *string         `json:"kind"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// Connection validates a connection_request or connection_response payload
+// against the reference schema for the named kind. The kind selects the schema;
+// the payload is the artifact. A non-object payload is a rejection, while a
+// missing kind or payload, an unknown envelope field, or unparseable JSON is bad
+// input.
+func Connection(data []byte) (Result, error) {
+	const kind = "connection-payload"
+	var in connectionInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if in.Kind == nil {
+		return Result{}, fmt.Errorf("missing required field (kind)")
+	}
+	if len(in.Payload) == 0 {
+		return Result{}, fmt.Errorf("missing required field (payload)")
+	}
+	var v interface{}
+	if err := json.Unmarshal(in.Payload, &v); err != nil {
+		return Result{}, fmt.Errorf("invalid payload JSON: %w", err)
+	}
+	m, ok := v.(map[string]interface{})
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: ink.ValidateConnectionPayload(*in.Kind, m), Kind: kind}, nil
+}
+
+type checkpointInput struct {
+	Body json.RawMessage `json:"body"`
+}
+
+// Checkpoint parses a signed-tree-head checkpoint body and reports whether it is
+// well-formed, mirroring the merkle-checkpoint vectors (input field `body`). The
+// body is the exact signed string: encoding/json rewrites a lone UTF-16
+// surrogate escape or invalid UTF-8 to U+FFFD, which would let a body that is
+// not byte-identical to the signed one parse as valid, so the raw JSON string is
+// guarded before decoding (the same enforcement the signature path applies to
+// its signed scalars). The decoded body is then passed to ink.ParseCheckpoint
+// whose strictness (line count, integer tree size, hex root, a single trailing
+// newline) defines acceptance; a present-but-malformed body is a rejection,
+// while a missing body, an invalid encoding, an unknown field, or unparseable
+// JSON is bad input. On acceptance the canonical re-serialization is returned so
+// a caller can confirm the body is in canonical form.
+func Checkpoint(data []byte) (Result, error) {
+	const kind = "merkle-checkpoint"
+	var in checkpointInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if len(in.Body) == 0 || bytes.Equal(in.Body, []byte("null")) {
+		return Result{}, fmt.Errorf("missing required field (body)")
+	}
+	if !utf8.Valid(in.Body) {
+		return Result{}, fmt.Errorf("invalid body: not valid UTF-8")
+	}
+	if ink.ContainsLoneSurrogateEscape(in.Body) {
+		return Result{}, fmt.Errorf("invalid body: unpaired UTF-16 surrogate")
+	}
+	var body string
+	if err := json.Unmarshal(in.Body, &body); err != nil {
+		return Result{}, fmt.Errorf("invalid body: %w", err)
+	}
+	parsed, ok := ink.ParseCheckpoint(body)
+	if !ok {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: true, Kind: kind, Canonical: ink.FormatCheckpoint(parsed)}, nil
 }
 
 // The signature input is this CLI's own request schema; it mirrors the
@@ -267,6 +369,105 @@ func Receipt(data []byte) (Result, error) {
 	return Result{OK: ink.VerifyInclusionReceipt(receipt, pub, opts), Kind: kind}, nil
 }
 
+// An audit-query response is a witness-signed body, so the same envelope-strict
+// but artifact-tolerant rule as the receipt applies: the response and the
+// optional checkpoint are passed raw to the library parsers, and a malformed one
+// is a rejection. The per-event agent keys are a CLI request map (agentId to hex
+// key); an absent or undecodable key makes the event-signature callback fail,
+// which the library treats as the required per-event agent signature being
+// unmet, a rejection rather than a CLI usage error.
+
+type auditResponseInput struct {
+	WitnessPublicKeyHex       *string           `json:"witnessPublicKeyHex"`
+	WitnessPublicKeyMultibase *string           `json:"witnessPublicKeyMultibase"`
+	Response                  json.RawMessage   `json:"response"`
+	ExpectedRequester         *string           `json:"expectedRequester"`
+	ExpectedMessageID         *string           `json:"expectedMessageId"`
+	ExpectedServiceDid        *string           `json:"expectedServiceDid"`
+	AgentKeysHex              map[string]string `json:"agentKeysHex"`
+	LaterCheckpoint           json.RawMessage   `json:"laterCheckpoint"`
+}
+
+// AuditResponse verifies a witness audit-query response: structure, the
+// requester and messageId bindings, the witness envelope signature, the
+// per-event scope and proof walks, and the required per-event agent signature,
+// then an optional later-checkpoint cross-check. The input shape matches the
+// `audit-query-response` conformance vectors plus an optional
+// witnessPublicKeyMultibase alternative to witnessPublicKeyHex.
+func AuditResponse(data []byte) (Result, error) {
+	var in auditResponseInput
+	if err := decodeEnvelope(data, &in); err != nil {
+		return Result{}, err
+	}
+	if len(in.Response) == 0 {
+		return Result{}, fmt.Errorf("missing required field (response)")
+	}
+	if in.ExpectedRequester == nil || in.ExpectedMessageID == nil {
+		return Result{}, fmt.Errorf("missing required field (expectedRequester, expectedMessageId)")
+	}
+	pub, err := resolvePublicKey(in.WitnessPublicKeyHex, in.WitnessPublicKeyMultibase)
+	if err != nil {
+		return Result{}, err
+	}
+	const kind = "audit-query-response"
+
+	opts := ink.AuditQueryVerifyOptions{
+		ExpectedRequester: *in.ExpectedRequester,
+		ExpectedMessageID: *in.ExpectedMessageID,
+	}
+	if in.ExpectedServiceDid != nil {
+		opts.ExpectedServiceDid = *in.ExpectedServiceDid
+	}
+	// The verifier requires a per-event agent-signature check (Auditability
+	// §7.5). The callback resolves the event's agent key from the request map and
+	// fails closed when the key is absent, undecodable, or the wrong length, so a
+	// missing or malformed key rejects the event rather than skipping the check.
+	opts.VerifyEventSignature = eventSignatureVerifier(in.AgentKeysHex)
+
+	if len(in.LaterCheckpoint) > 0 {
+		cp, cpOK := ink.ParseCheckpointRef(in.LaterCheckpoint)
+		if !cpOK {
+			return Result{OK: false, Kind: kind}, nil
+		}
+		opts.LaterCheckpoint = &cp
+	}
+
+	body, err := ink.ParseSignedBody(in.Response)
+	if err != nil {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	resp, isObj := body.(map[string]interface{})
+	if !isObj {
+		return Result{OK: false, Kind: kind}, nil
+	}
+	return Result{OK: ink.VerifyInkAuditQueryResponse(resp, pub, opts), Kind: kind}, nil
+}
+
+// eventSignatureVerifier builds the per-event agent-signature callback the audit
+// verifier requires. It resolves the event's agent key from the request map and
+// fails closed: an event with a missing, empty, or non-string agentId, or one
+// whose key is absent, undecodable, or the wrong length, returns false so the
+// required per-event signature is treated as unmet rather than skipped. An empty
+// agentId is rejected explicitly so an agentKeysHex[""] entry cannot stand in for
+// a real submitting-agent identity.
+func eventSignatureVerifier(agentKeys map[string]string) func(map[string]interface{}) bool {
+	return func(event map[string]interface{}) bool {
+		agentID, ok := event["agentId"].(string)
+		if !ok || agentID == "" {
+			return false
+		}
+		keyHex, ok := agentKeys[agentID]
+		if !ok {
+			return false
+		}
+		key, err := hex.DecodeString(keyHex)
+		if err != nil || len(key) != ed25519.PublicKeySize {
+			return false
+		}
+		return ink.VerifyAuditEventSignature(event, key)
+	}
+}
+
 // decodeEnvelope decodes a CLI request envelope that wraps one or more raw
 // protocol artifacts. It rejects unknown fields, a duplicate top-level key, and
 // trailing data, but unlike strictDecode it does not walk into the raw
@@ -275,6 +476,9 @@ func Receipt(data []byte) (Result, error) {
 // is accepted, so the CLI does not add a stricter rule that would diverge from
 // the reference verifier. The duplicate-key check is therefore top-level only.
 func decodeEnvelope(data []byte, v any) error {
+	if !utf8.Valid(data) {
+		return fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	if err := rejectDuplicateTopLevelKeys(data); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
@@ -356,6 +560,9 @@ func skipValue(dec *json.Decoder) error {
 // (wrapped "invalid JSON") on any of those, so the caller maps it to the
 // bad-input exit code rather than a clean rejection.
 func strictDecode(data []byte, v any) error {
+	if !utf8.Valid(data) {
+		return fmt.Errorf("invalid JSON: not valid UTF-8")
+	}
 	if err := rejectDuplicateKeys(json.NewDecoder(bytes.NewReader(data))); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}

@@ -36,13 +36,17 @@ Usage:
   ink <command> [--file PATH] [--pretty]
 
 Commands:
-  verify-card          Validate an Agent Card document
-  verify-signature     Verify a detached Ed25519 signature over a signed request
-  verify-receipt       Verify a witness inclusion receipt
-  verify-inclusion     Verify a Merkle inclusion proof
-  verify-consistency   Verify a Merkle consistency proof
-  version              Print the verifier version
-  help                 Print this help
+  verify-card            Validate an Agent Card document
+  verify-signature       Verify a detached Ed25519 signature over a signed request
+  verify-receipt         Verify a witness inclusion receipt
+  verify-audit-response  Verify a witness audit-query response
+  verify-handshake       Validate a handshake message (challenge, rejection, resolution)
+  verify-connection      Validate a connection_request or connection_response payload
+  verify-checkpoint      Validate a signed-tree-head checkpoint body
+  verify-inclusion       Verify a Merkle inclusion proof
+  verify-consistency     Verify a Merkle consistency proof
+  version                Print the verifier version
+  help                   Print this help
 
 Input is read from --file PATH, or from stdin when --file is omitted.
 Output is a JSON result object; pass --pretty for human-readable text.
@@ -77,11 +81,15 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	verifiers := map[string]verifier{
-		"verify-card":        verify.Card,
-		"verify-signature":   verify.Signature,
-		"verify-receipt":     verify.Receipt,
-		"verify-inclusion":   verify.Inclusion,
-		"verify-consistency": verify.Consistency,
+		"verify-card":           verify.Card,
+		"verify-signature":      verify.Signature,
+		"verify-receipt":        verify.Receipt,
+		"verify-audit-response": verify.AuditResponse,
+		"verify-handshake":      verify.Handshake,
+		"verify-connection":     verify.Connection,
+		"verify-checkpoint":     verify.Checkpoint,
+		"verify-inclusion":      verify.Inclusion,
+		"verify-consistency":    verify.Consistency,
 	}
 	v, ok := verifiers[cmd]
 	if !ok {
