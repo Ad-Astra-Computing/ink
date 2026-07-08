@@ -37,6 +37,7 @@ Usage:
 
 Commands:
   verify-card          Validate an Agent Card document
+  verify-signature     Verify a detached Ed25519 signature over a signed request
   verify-inclusion     Verify a Merkle inclusion proof
   verify-consistency   Verify a Merkle consistency proof
   version              Print the verifier version
@@ -76,6 +77,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	verifiers := map[string]verifier{
 		"verify-card":        verify.Card,
+		"verify-signature":   verify.Signature,
 		"verify-inclusion":   verify.Inclusion,
 		"verify-consistency": verify.Consistency,
 	}

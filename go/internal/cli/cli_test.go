@@ -86,6 +86,20 @@ func TestVerifyInclusion(t *testing.T) {
 	}
 }
 
+func TestVerifySignature(t *testing.T) {
+	const pubHex = "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+	const sig = "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+	const signInput = `{"method":"POST","path":"/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent","recipientDid":"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX","timestamp":"2026-06-11T00:00:00.000Z","body":{"correlationId":"22222222-2222-4222-8222-222222222222","createdAt":"2026-06-11T00:00:00.000Z","from":"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX","id":"11111111-1111-4111-8111-111111111111","intent":"ping","nonce":"33333333-3333-4333-8333-333333333333","payload":{"note":"conformance","scope":"deep"},"protocol":"ink/0.1","timestamp":"2026-06-11T00:00:00.000Z","to":"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"}}`
+	accept := `{"publicKeyHex":"` + pubHex + `","signInput":` + signInput + `,"signature":"` + sig + `"}`
+	if code, out, _ := run(t, accept, "verify-signature"); code != 0 || !strings.Contains(out, `"ok":true`) {
+		t.Fatalf("valid signature exit = %d out = %q, want 0 ok:true", code, out)
+	}
+	noKey := `{"signInput":` + signInput + `,"signature":"` + sig + `"}`
+	if code, _, errOut := run(t, noKey, "verify-signature"); code != 2 || !strings.Contains(errOut, "bad_input") {
+		t.Fatalf("missing key exit = %d (err %q), want 2 bad_input", code, errOut)
+	}
+}
+
 func TestVerifyConsistency(t *testing.T) {
 	const accept = `{"first":1,"firstRoot":"bb15072bf1d8bf0791f48964ef8511973fa01f0b8307c36576ea2e2486386795","second":2,"secondRoot":"f53ae60398fe1ad1a266cd62229393fd8cc0e6e7dc52df6714ee2fe0dede66ec","proof":["7c335acabf2f6e37cef0988b4c52e007d466f8f87782ce50e1dafa30d881ec29"]}`
 	if code, _, _ := run(t, accept, "verify-consistency"); code != 0 {
