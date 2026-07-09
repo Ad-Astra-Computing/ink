@@ -7,6 +7,17 @@ import { hasUnpairedSurrogate } from "./surrogate.js";
 
 // ── Encoding helpers ──
 
+// @types/node 26 types Uint8Array as generic over ArrayBufferLike, which the DOM
+// WebCrypto BufferSource parameter no longer accepts (it wants an ArrayBuffer-
+// backed view). Copy into a fresh ArrayBuffer-backed Uint8Array at the WebCrypto
+// boundary. The bytes are identical, so the AES-GCM ciphertext, tag, and every
+// signature are unchanged: this is a type-level fix, not a behavior change.
+function toWebCryptoBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
+  const out = new Uint8Array(bytes.byteLength);
+  out.set(bytes);
+  return out;
+}
+
 const MAX_ENCODE_INPUT_BYTES = 2_000_000;
 
 function base64urlEncode(bytes: Uint8Array): string {
@@ -453,7 +464,11 @@ export async function encryptInkPayload(
   const aadString = `ink/0.1:envelope\n${jcsCanonicalize(aadObject)}`;
   const aad = new TextEncoder().encode(aadString);
   const ciphertextWithTag = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv: aesNonce, additionalData: aad }, aesKey, plaintextBytes),
+    await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv: toWebCryptoBytes(aesNonce), additionalData: toWebCryptoBytes(aad) },
+      aesKey,
+      toWebCryptoBytes(plaintextBytes),
+    ),
   );
 
   // 5. Outer envelope
@@ -610,7 +625,11 @@ export async function decryptInkPayload(
   const aadString = `ink/0.1:envelope\n${jcsCanonicalize(aadObject)}`;
   const aad = new TextEncoder().encode(aadString);
   const plaintextBytes = new Uint8Array(
-    await crypto.subtle.decrypt({ name: "AES-GCM", iv: aesNonce, additionalData: aad }, aesKey, ciphertextWithTag),
+    await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: toWebCryptoBytes(aesNonce), additionalData: toWebCryptoBytes(aad) },
+      aesKey,
+      toWebCryptoBytes(ciphertextWithTag),
+    ),
   );
 
   // Plaintext is now AES-GCM-authenticated, so any well-formed JSON object
