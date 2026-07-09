@@ -6,6 +6,8 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ## Unreleased
 
+## 0.10.0, opt-in Agent Card discovery
+
 ### Additions
 
 - Opt-in discovery descriptor on the Agent Card. A card MAY carry a `discovery`
@@ -20,6 +22,14 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   [`specs/ink-discovery-descriptor.md`](specs/ink-discovery-descriptor.md). The
   authenticated query envelope and the directory service itself are out of
   scope and deferred.
+
+### Tooling
+
+- The static Go verifier now covers every wrappable conformance category on both
+  the `ink` CLI and the `ink-verify-server` HTTP service: card, signature,
+  receipt, audit-response, handshake, connection, checkpoint, inclusion, and
+  consistency. Signed-artifact parsers reject raw invalid UTF-8 before decoding
+  so a signature cannot verify over bytes that differ from the wire.
 
 ## 0.9.0, vendor-neutral message namespace
 
