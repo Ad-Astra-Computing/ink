@@ -6,6 +6,14 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ## Unreleased
 
+### Tooling
+
+- The package builds cleanly against `@types/node` 26. Node 26 types `Uint8Array`
+  as generic over `ArrayBufferLike`, which the WebCrypto `BufferSource` parameter
+  no longer accepts; the AES-GCM envelope encrypt and decrypt paths now normalize
+  their inputs to an `ArrayBuffer`-backed view at the WebCrypto boundary. The
+  bytes are unchanged, so ciphertext, tags, and signatures are identical.
+
 ## 0.10.0, opt-in Agent Card discovery
 
 ### Additions
