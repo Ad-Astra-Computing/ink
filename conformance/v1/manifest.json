@@ -39,6 +39,15 @@
       "sha256": "b921d25e41b5060ef6b832c695375f60b58d7c8418b2172568f058d631549cc6"
     },
     {
+      "id": "discovery-query-envelope",
+      "vector": "vectors/discovery-query-envelope.json",
+      "profile": "discovery",
+      "spec": "specs/ink-discovery-query.md",
+      "summary": "Authenticated discovery query envelope: schema bounds and requester-key signature verification.",
+      "caseCount": 15,
+      "sha256": "04382e6a0fdc8f4de127a81d37555ec2170a9d849df3df935738fe9793cf4d4d"
+    },
+    {
       "id": "first-contact-transcript",
       "vector": "vectors/first-contact-transcript.json",
       "profile": "base",

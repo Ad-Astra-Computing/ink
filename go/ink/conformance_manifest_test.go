@@ -51,6 +51,7 @@ var goProfileCategories = map[string][]string{
 	"audit":       {"audit-query-response", "inclusion-receipt", "merkle-leaf"},
 	"witness":     {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
 	"containment": {"handshake-message"},
+	"discovery":   {"discovery-query-envelope"},
 }
 
 type conformanceManifest struct {
@@ -70,6 +71,7 @@ var goVerifiedCategories = []string{
 	"agent-card-fetch",
 	"audit-query-response",
 	"connection-payload",
+	"discovery-query-envelope",
 	"first-contact-transcript",
 	"handshake-message",
 	"inclusion-receipt",

@@ -71,6 +71,11 @@ capability it does not fully implement.
 - **containment** (`handshake-message`) — required when the implementation
   advertises the containment and governance extension: the signed challenge,
   rejection, and resolution handshake messages.
+- **discovery** (`discovery-query-envelope`) — required when the implementation
+  answers directory discovery queries: verifying a requester-signed discovery
+  query envelope against the requester's key before matching. Opting in to being
+  surfaced is the agent-card discovery descriptor (base profile); serving the
+  query is this capability.
 
 ## Relationship to the compliance checklist
 

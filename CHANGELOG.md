@@ -17,7 +17,11 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   `network.ink.*` spellings; the signature binds every field. This is a protocol
   primitive only: the directory service, ranking, response, and consent
   semantics are out of scope. See
-  [`specs/ink-discovery-query.md`](specs/ink-discovery-query.md).
+  [`specs/ink-discovery-query.md`](specs/ink-discovery-query.md). Pinned by the
+  new `discovery-query-envelope` conformance category and verified by both the
+  TypeScript reference and the Go implementation. The category is a new
+  capability-gated `discovery` conformance profile, required only of an
+  implementation that answers directory queries.
 
 ### Tooling
 
