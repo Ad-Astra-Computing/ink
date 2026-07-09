@@ -41,6 +41,7 @@ const FROZEN_PROFILES = {
     "timestamp-validity",
   ],
   containment: ["handshake-message"],
+  discovery: ["discovery-query-envelope"],
   encryption: ["payload-encryption"],
   witness: ["merkle-checkpoint", "merkle-consistency", "merkle-inclusion"],
 } satisfies Record<string, string[]>;

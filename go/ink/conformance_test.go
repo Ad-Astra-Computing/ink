@@ -527,6 +527,25 @@ func TestSignatureBase(t *testing.T) {
 	}
 }
 
+func TestDiscoveryQueryEnvelope(t *testing.T) {
+	vf := loadVectors(t, "discovery-query-envelope")
+	for _, c := range vf.Cases {
+		var pubHex string
+		if err := json.Unmarshal(c.Input["publicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+		}
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+		}
+		ok := VerifyDiscoveryQueryEnvelope(c.Input["envelope"], pub)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
 func TestReplayFreshness(t *testing.T) {
 	vf := loadVectors(t, "replay-freshness")
 	for _, c := range vf.Cases {

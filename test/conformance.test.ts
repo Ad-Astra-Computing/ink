@@ -28,6 +28,7 @@ import {
   isPrivateHostname,
   agentSupportedProtocolVersions,
   hexToBytes,
+  verifyDiscoveryQueryEnvelope,
 } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -63,6 +64,11 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         publicKeyHex: string;
       };
       const ok = await verifyInkSignature(signInput, signature, hexToBytes(publicKeyHex));
+      return { result: ok ? "accept" : "reject" };
+    }
+    case "discovery-query-envelope": {
+      const { envelope, publicKeyHex } = input as { envelope: unknown; publicKeyHex: string };
+      const ok = await verifyDiscoveryQueryEnvelope(envelope, hexToBytes(publicKeyHex));
       return { result: ok ? "accept" : "reject" };
     }
     case "jcs-number": {

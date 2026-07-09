@@ -25,6 +25,7 @@ import {
   signAuditQueryResponse,
   encryptInkPayload,
   base64urlEncode,
+  buildDiscoveryQueryEnvelope,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -47,7 +48,7 @@ const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 // `containment` are capability-gated and required only when the implementation
 // advertises that capability. The base set is frozen by drift tripwires in
 // test/conformance-profile.test.ts and go/ink/conformance_manifest_test.go.
-const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment"]);
+const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment", "discovery"]);
 const CATEGORY_META = {
   "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
   "signature-base": { profile: "base", spec: "specs/ink-jcs-number-profile.md", summary: "Ed25519 verification over the canonical signature base." },
@@ -69,6 +70,7 @@ const CATEGORY_META = {
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
+  "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds and requester-key signature verification." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -2221,6 +2223,46 @@ vectorFile("private-hostname", [
       input: await buildTranscript({ advertised: [] }),
       expect: acc("ink/0.1"),
     },
+  ]);
+}
+
+// ── discovery-query-envelope ────────────────────────────────────────────────
+// An authenticated discovery query envelope (specs/ink-discovery-query.md). The
+// requester signs a bounded query addressed to a directory; the directory
+// verifies it against the requester's public key. Each vector carries the full
+// envelope and the requester's public key hex; a verifier accepts iff the
+// envelope is structurally valid and the signature verifies.
+{
+  const base = {
+    from: `tulpa:${mb}`,
+    to: "did:web:directory.example",
+    nonce: "conformance-discovery-nonce-1",
+    timestamp: "2026-07-09T00:00:00.000Z",
+    query: { tags: ["go", "typescript"], scope: "public", limit: 10 },
+  };
+  const env = await buildDiscoveryQueryEnvelope(base, seed);
+  const inkEnv = await buildDiscoveryQueryEnvelope({ ...base, type: "network.ink.discovery_query" }, seed);
+  const minimalEnv = await buildDiscoveryQueryEnvelope({ ...base, query: {} }, seed);
+  const otherPublicKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(9)));
+
+  const dqe = (caseId, description, input, result) => ({ caseId, description, input, expect: { result } });
+
+  vectorFile("discovery-query-envelope", [
+    dqe("valid-query-accepts", "A requester-signed query with tags, scope, and limit verifies against the requester's key.", { envelope: env, publicKeyHex }, "accept"),
+    dqe("network-ink-spelling-accepts", "The vendor-neutral network.ink.discovery_query spelling is signed and verifies like the legacy spelling.", { envelope: inkEnv, publicKeyHex }, "accept"),
+    dqe("empty-query-accepts", "An empty query object (no tags, scope, or limit) is a valid signed request.", { envelope: minimalEnv, publicKeyHex }, "accept"),
+    dqe("tampered-to-rejects", "Changing the addressed directory after signing invalidates the signature.", { envelope: { ...env, to: "did:web:evil.example" }, publicKeyHex }, "reject"),
+    dqe("relabeled-type-rejects", "Relabeling the wire type from network.tulpa to network.ink after signing invalidates the signature; the spelling is signed, not normalized.", { envelope: { ...env, type: "network.ink.discovery_query" }, publicKeyHex }, "reject"),
+    dqe("tampered-tag-rejects", "Altering a query tag after signing invalidates the signature.", { envelope: { ...env, query: { ...env.query, tags: ["rust", "typescript"] } }, publicKeyHex }, "reject"),
+    dqe("wrong-key-rejects", "Verifying against a different public key fails.", { envelope: env, publicKeyHex: otherPublicKeyHex }, "reject"),
+    dqe("malformed-signature-rejects", "A signature that is not valid base64url of the right length is rejected.", { envelope: { ...env, signature: env.signature.slice(0, 85) + "+" }, publicKeyHex }, "reject"),
+    dqe("unknown-top-level-key-rejects", "An unknown top-level field is rejected by the strict schema before verification.", { envelope: { ...env, extra: 1 }, publicKeyHex }, "reject"),
+    dqe("unknown-query-key-rejects", "An unknown field inside the query object is rejected by the strict schema.", { envelope: { ...env, query: { ...env.query, rank: "best" } }, publicKeyHex }, "reject"),
+    dqe("over-limit-tags-rejects", "A query with more than 32 tags is out of profile and rejects.", { envelope: { ...env, query: { ...env.query, tags: Array.from({ length: 33 }, (_, i) => `t${i}`) } }, publicKeyHex }, "reject"),
+    dqe("limit-over-100-rejects", "A limit above 100 is out of profile and rejects.", { envelope: { ...env, query: { ...env.query, limit: 101 } }, publicKeyHex }, "reject"),
+    dqe("invalid-timestamp-rejects", "A timestamp that is not a strict INK timestamp rejects.", { envelope: { ...env, timestamp: "2026-07-09 00:00" }, publicKeyHex }, "reject"),
+    dqe("short-nonce-rejects", "A nonce shorter than 16 code units is out of profile and rejects.", { envelope: { ...env, nonce: "short" }, publicKeyHex }, "reject"),
+    dqe("missing-signature-rejects", "An envelope with no signature field rejects.", { envelope: (() => { const { signature, ...rest } = env; return rest; })(), publicKeyHex }, "reject"),
   ]);
 }
 
