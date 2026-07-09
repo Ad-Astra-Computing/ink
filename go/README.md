@@ -255,3 +255,35 @@ The HTTP status mirrors the CLI exit-code contract: `200` carries a verdict
 (`{"ok":true|false,"kind":…}`) for a well-formed artifact, `400` is bad input
 (malformed JSON, a missing or unknown field), `404` is an unknown route, `405`
 is a known route with the wrong method, and `413` is a body over the size cap.
+
+## The `ink-witness-server` issuing service
+
+`ink-witness-server` runs a single in-memory witness log over HTTP. Unlike the
+verify server it is stateful and holds an Ed25519 witness key: it stamps a
+server-side timestamp, appends each submitted audit event as a new leaf, and
+returns a signed inclusion receipt. It also serves the current signed checkpoint
+and the inclusion and consistency proofs of its tree. It is in-memory and
+non-durable, so a restart starts an empty log; it is a development and interop
+witness, not a durable production log.
+
+The witness key is a hex-encoded 32-byte Ed25519 seed in `INK_WITNESS_SEED_HEX`.
+Submit is authenticated by default: set the bearer token in
+`INK_WITNESS_SUBMIT_TOKEN`, or pass `-allow-unauthenticated` for local testing.
+
+```sh
+INK_WITNESS_SEED_HEX=$SEED INK_WITNESS_SUBMIT_TOKEN=$TOK \
+  ink-witness-server --addr :8081 --origin example.com/ink-witness
+```
+
+- `POST /submit` appends the audit event in the body and returns the signed
+  inclusion receipt. It requires `Authorization: Bearer <token>` unless the
+  server was started with `-allow-unauthenticated`.
+- `GET /checkpoint` returns the current signed checkpoint note.
+- `GET /inclusion?index=N` returns `{index, size, proof}` for leaf `N`.
+- `GET /consistency?first=A&second=B` returns the consistency proof between the
+  trees of size `A` and `B`.
+- `GET /healthz` reports liveness.
+
+The status map adds `401` for a submit without a valid bearer token and `507`
+when the log has reached its configured capacity (`-max-leaves`), on top of the
+`200/400/404/405/413` the verify server uses.

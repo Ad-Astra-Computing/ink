@@ -1,0 +1,53 @@
+// Command ink-witness-server runs a single in-memory INK witness log over HTTP.
+// It holds an Ed25519 witness key, issues signed inclusion receipts for
+// submitted audit events, and serves the current checkpoint and the inclusion
+// and consistency proofs of its tree. It is in-memory and non-durable, so a
+// restart starts an empty log; it is a development and interop witness, not a
+// durable production log.
+//
+// The witness key is a hex-encoded 32-byte Ed25519 seed read from
+// INK_WITNESS_SEED_HEX. Submit is authenticated by default: set the bearer token
+// in INK_WITNESS_SUBMIT_TOKEN, or pass -allow-unauthenticated to run an open
+// submit endpoint for local testing.
+package main
+
+import (
+	"flag"
+	"log"
+	"os"
+
+	"github.com/Ad-Astra-Computing/ink/go/internal/witnessserver"
+)
+
+func main() {
+	addr := flag.String("addr", ":8081", "address to listen on")
+	origin := flag.String("origin", "", "witness origin identity bound into every checkpoint")
+	maxLeaves := flag.Int("max-leaves", 0, "cap on the in-memory tree size (0 selects the default)")
+	allowUnauth := flag.Bool("allow-unauthenticated", false, "accept submit without a bearer token (local testing only)")
+	flag.Parse()
+
+	if *origin == "" {
+		log.Fatal("-origin is required")
+	}
+	seedHex := os.Getenv("INK_WITNESS_SEED_HEX")
+	if seedHex == "" {
+		log.Fatal("INK_WITNESS_SEED_HEX is required (hex-encoded 32-byte ed25519 seed)")
+	}
+	priv, err := witnessserver.PrivateKeyFromSeedHex(seedHex)
+	if err != nil {
+		log.Fatalf("witness key: %v", err)
+	}
+
+	cfg := witnessserver.Config{
+		Origin:               *origin,
+		PrivateKey:           priv,
+		SubmitToken:          os.Getenv("INK_WITNESS_SUBMIT_TOKEN"),
+		AllowUnauthenticated: *allowUnauth,
+		MaxLeaves:            *maxLeaves,
+	}
+
+	log.Printf("ink-witness-server listening on %s (origin %s)", *addr, *origin)
+	if err := witnessserver.Serve(*addr, cfg); err != nil {
+		log.Fatal(err)
+	}
+}

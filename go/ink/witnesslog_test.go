@@ -2,6 +2,7 @@ package ink
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -207,6 +208,51 @@ func TestWitnessLogRejects(t *testing.T) {
 	}
 	if log.Size() != 0 {
 		t.Errorf("rejected submits mutated the log: size %d", log.Size())
+	}
+}
+
+func TestWitnessLogSubmitWithCapacity(t *testing.T) {
+	log, _ := newTestLog(t)
+	const cap = 3
+	for i := 0; i < cap; i++ {
+		raw, _ := makeEvent(i)
+		if _, err := log.SubmitWithCapacity(raw, testLogTimestamp, cap); err != nil {
+			t.Fatalf("submit %d under capacity: %v", i, err)
+		}
+	}
+	raw, _ := makeEvent(cap)
+	_, err := log.SubmitWithCapacity(raw, testLogTimestamp, cap)
+	if !errors.Is(err, ErrCapacity) {
+		t.Errorf("at-capacity submit err = %v, want ErrCapacity", err)
+	}
+	if log.Size() != cap {
+		t.Errorf("capacity-rejected submit grew the log to %d", log.Size())
+	}
+	// A non-positive bound applies no extra limit beyond the hard ceiling.
+	if _, err := log.SubmitWithCapacity(raw, testLogTimestamp, 0); err != nil {
+		t.Errorf("submit with no bound: %v", err)
+	}
+}
+
+// TestWitnessLogConcurrentSubmitRespectsCapacity fires many concurrent bounded
+// submits and asserts the tree never exceeds the bound: the check-and-append is
+// atomic, so a burst cannot overshoot the way a check-then-append would.
+func TestWitnessLogConcurrentSubmitRespectsCapacity(t *testing.T) {
+	log, _ := newTestLog(t)
+	const cap = 5
+	const n = 50
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			raw, _ := makeEvent(i)
+			_, _ = log.SubmitWithCapacity(raw, testLogTimestamp, cap)
+		}(i)
+	}
+	wg.Wait()
+	if log.Size() != cap {
+		t.Errorf("Size = %d, want exactly %d (no overshoot)", log.Size(), cap)
 	}
 }
 
