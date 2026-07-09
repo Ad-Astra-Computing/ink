@@ -124,3 +124,4 @@ jobs:
           go test ./...
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink" ./cmd/ink
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-verify-server" ./cmd/ink-verify-server
+          CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-witness-server" ./cmd/ink-witness-server

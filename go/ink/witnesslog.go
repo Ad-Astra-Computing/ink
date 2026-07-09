@@ -45,12 +45,28 @@ func NewWitnessLog(origin string, witnessPrivateKey ed25519.PrivateKey) (*Witnes
 	return &WitnessLog{origin: origin, priv: priv}, nil
 }
 
+// ErrCapacity is returned by Submit and SubmitWithCapacity when the log cannot
+// accept another leaf, either because it reached a caller-supplied capacity or
+// its own hard ceiling. It lets a caller map an at-capacity submission to a
+// distinct outcome (for example an HTTP 507) instead of treating it as a
+// malformed event.
+var ErrCapacity = errors.New("witness log is at capacity")
+
 // Submit appends the leaf hash of a raw audit event and returns a signed
 // inclusion receipt committing to the tree as it stands after the append. The
 // raw event is parsed through ParseSignedBody, so invalid UTF-8 or a lone
 // surrogate is rejected before hashing. The event must be a JSON object with a
 // non-empty string id; timestamp is the witness's receipt timestamp.
 func (w *WitnessLog) Submit(rawEvent []byte, timestamp string) (InclusionReceipt, error) {
+	return w.SubmitWithCapacity(rawEvent, timestamp, 0)
+}
+
+// SubmitWithCapacity behaves like Submit but also rejects the append with
+// ErrCapacity once the tree has reached maxLeaves leaves. The bound is checked
+// inside the same critical section as the append, so a burst of concurrent
+// submits cannot overshoot it. A non-positive maxLeaves applies no bound beyond
+// the log's own hard ceiling.
+func (w *WitnessLog) SubmitWithCapacity(rawEvent []byte, timestamp string, maxLeaves int) (InclusionReceipt, error) {
 	// Validate every receipt input before the append so a rejected Submit never
 	// mutates the log: the append-only tree only grows on success.
 	if timestamp == "" || !utf8.Valid([]byte(timestamp)) {
@@ -74,9 +90,9 @@ func (w *WitnessLog) Submit(rawEvent []byte, timestamp string) (InclusionReceipt
 	}
 
 	w.mu.Lock()
-	if len(w.leaves) >= maxSafeInteger {
+	if len(w.leaves) >= maxSafeInteger || (maxLeaves > 0 && len(w.leaves) >= maxLeaves) {
 		w.mu.Unlock()
-		return InclusionReceipt{}, errors.New("log is full")
+		return InclusionReceipt{}, ErrCapacity
 	}
 	index := len(w.leaves)
 	w.leaves = append(w.leaves, leafHash)
