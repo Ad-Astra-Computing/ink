@@ -23,8 +23,13 @@ type WitnessLog struct {
 	origin string
 	priv   ed25519.PrivateKey
 
-	mu     sync.Mutex
+	mu sync.Mutex
+	// leaves and events are appended together and stay index-aligned: events[i]
+	// is the raw audit event whose leaf hash is leaves[i]. The events are retained
+	// so the log can answer an audit query with the events themselves plus their
+	// inclusion proofs, not only a Merkle proof over an opaque leaf.
 	leaves []string
+	events []map[string]interface{}
 }
 
 // NewWitnessLog creates an empty log that signs as origin with the witness key.
@@ -96,6 +101,7 @@ func (w *WitnessLog) SubmitWithCapacity(rawEvent []byte, timestamp string, maxLe
 	}
 	index := len(w.leaves)
 	w.leaves = append(w.leaves, leafHash)
+	w.events = append(w.events, obj)
 	// A three-index slice caps len and cap at the tree size at this append, so a
 	// later append that reallocates or writes past this size cannot alias it.
 	snapshot := w.leaves[: index+1 : index+1]
@@ -151,4 +157,99 @@ func (w *WitnessLog) InclusionProof(index int) (proof []string, size int, err er
 func (w *WitnessLog) ConsistencyProof(first, second int) ([]string, error) {
 	leaves, _ := w.snapshot()
 	return ConsistencyProof(leaves, first, second)
+}
+
+// AuditQueryResponse builds and witness-signs an audit-query response over the
+// current tree, returning each retained event within the (messageID, requester)
+// scope, together with its inclusion proof, that can form a valid response. An
+// in-scope event without a non-empty agentSignature, or a repeat of an id already
+// returned, is skipped so a malformed or duplicate submission cannot fail the
+// whole query. serviceDid is the witness identity bound into the response
+// envelope; timestamp is the response timestamp. The result verifies with
+// VerifyInkAuditQueryResponse against the witness public key, the same requester,
+// and the same messageID. An empty result is a valid response over the current
+// tree with no events.
+func (w *WitnessLog) AuditQueryResponse(serviceDid, requester, messageID, timestamp string) (map[string]interface{}, error) {
+	if serviceDid == "" || requester == "" || messageID == "" || timestamp == "" {
+		return nil, errors.New("serviceDid, requester, messageId and timestamp must be non-empty")
+	}
+	// Snapshot the aligned leaves and events under one lock so the proofs, the
+	// tree head and the selected events are all taken from the same tree state.
+	w.mu.Lock()
+	n := len(w.leaves)
+	leaves := w.leaves[:n:n]
+	events := w.events[:n:n]
+	w.mu.Unlock()
+
+	root, err := MerkleTreeHead(leaves)
+	if err != nil {
+		return nil, err
+	}
+
+	selectedEvents := []interface{}{}
+	proofs := []interface{}{}
+	seen := map[string]bool{}
+	for i, ev := range events {
+		if !eventInScope(ev, messageID, requester) {
+			continue
+		}
+		// Only include an event that can be part of a valid signed response: a
+		// non-empty id and agentSignature (the signer and verifier both require the
+		// signature) and an id not already returned (the verifier rejects duplicate
+		// event ids). Skipping a malformed or duplicate retained event returns the
+		// valid events in scope instead of failing the whole query, so one bad or
+		// repeated submission cannot deny an audit query for the scope.
+		id, _ := ev["id"].(string)
+		sig, _ := ev["agentSignature"].(string)
+		if id == "" || sig == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		proof, err := InclusionProof(leaves, i)
+		if err != nil {
+			return nil, err
+		}
+		proofHashes := make([]interface{}, len(proof))
+		for j, h := range proof {
+			proofHashes[j] = h
+		}
+		selectedEvents = append(selectedEvents, ev)
+		proofs = append(proofs, map[string]interface{}{
+			"eventId":        id,
+			"leafIndex":      float64(i),
+			"inclusionProof": proofHashes,
+		})
+	}
+
+	response := map[string]interface{}{
+		"protocol":   "ink/0.1",
+		"type":       "network.tulpa.audit_query_response",
+		"serviceDid": serviceDid,
+		"messageId":  messageID,
+		"requester":  requester,
+		"events":     selectedEvents,
+		"proofs":     proofs,
+		"treeSize":   float64(n),
+		"rootHash":   root,
+		"timestamp":  timestamp,
+	}
+	signature, err := SignAuditQueryResponse(response, w.priv)
+	if err != nil {
+		return nil, err
+	}
+	response["serviceSignature"] = signature
+	return response, nil
+}
+
+// eventInScope reports whether a retained event falls within an audit query's
+// (messageID, requester) scope, matching the verifier's per-event rule: the
+// event's messageId must equal the envelope messageId and the requester must be
+// a party, its agentId or counterpartyId.
+func eventInScope(ev map[string]interface{}, messageID, requester string) bool {
+	if mid, _ := ev["messageId"].(string); mid != messageID {
+		return false
+	}
+	agentID, _ := ev["agentId"].(string)
+	counterpartyID, _ := ev["counterpartyId"].(string)
+	return agentID == requester || counterpartyID == requester
 }

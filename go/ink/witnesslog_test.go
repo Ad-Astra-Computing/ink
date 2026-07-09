@@ -211,6 +211,152 @@ func TestWitnessLogRejects(t *testing.T) {
 	}
 }
 
+// makeAuditEvent returns a raw audit event shaped for audit-query scope: it
+// carries a messageId, an agentId and counterpartyId, and a non-empty
+// agentSignature. index selects the agent so events for two requesters can be
+// interleaved in one log.
+func makeAuditEvent(i int, messageID, agentID, counterpartyID string) ([]byte, map[string]interface{}) {
+	m := map[string]interface{}{
+		"id":             fmt.Sprintf("evt-%d", i),
+		"type":           "connection_request",
+		"messageId":      messageID,
+		"agentId":        agentID,
+		"counterpartyId": counterpartyID,
+		"seq":            i,
+		"agentSignature": fmt.Sprintf("sig-%d", i),
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+	var parsed map[string]interface{}
+	if err := json.Unmarshal(b, &parsed); err != nil {
+		panic(err)
+	}
+	return b, parsed
+}
+
+func TestWitnessLogAuditQueryResponse(t *testing.T) {
+	log, pub := newTestLog(t)
+	const serviceDid = "did:web:witness.example"
+	const messageID = "msg-1"
+	const alice = "did:web:alice.example"
+	const bob = "did:web:bob.example"
+	const carol = "did:web:carol.example"
+
+	// Three events for the (msg-1, alice<->bob) thread and one unrelated event.
+	for i := 0; i < 3; i++ {
+		raw, _ := makeAuditEvent(i, messageID, alice, bob)
+		if _, err := log.Submit(raw, testLogTimestamp); err != nil {
+			t.Fatalf("submit %d: %v", i, err)
+		}
+	}
+	rawOther, _ := makeAuditEvent(99, "msg-2", carol, bob)
+	if _, err := log.Submit(rawOther, testLogTimestamp); err != nil {
+		t.Fatalf("submit other: %v", err)
+	}
+
+	response, err := log.AuditQueryResponse(serviceDid, alice, messageID, testLogTimestamp)
+	if err != nil {
+		t.Fatalf("AuditQueryResponse: %v", err)
+	}
+	// Every returned event is agent-signed here with a fixed value, so the
+	// verifier's per-event signature callback just asserts the field is present.
+	opts := AuditQueryVerifyOptions{
+		ExpectedRequester:  alice,
+		ExpectedMessageID:  messageID,
+		ExpectedServiceDid: serviceDid,
+		VerifyEventSignature: func(ev map[string]interface{}) bool {
+			sig, _ := ev["agentSignature"].(string)
+			return sig != ""
+		},
+	}
+	if !VerifyInkAuditQueryResponse(response, pub, opts) {
+		t.Fatal("audit-query response did not verify end to end")
+	}
+	events, _ := response["events"].([]interface{})
+	if len(events) != 3 {
+		t.Errorf("returned %d events, want 3 (the in-scope thread only)", len(events))
+	}
+	if ts := int(response["treeSize"].(float64)); ts != 4 {
+		t.Errorf("treeSize = %d, want 4 (the full tree)", ts)
+	}
+
+	// A requester who is not a party to any event gets an empty but valid response
+	// over the current tree.
+	const stranger = "did:web:stranger.example"
+	empty, err := log.AuditQueryResponse(serviceDid, stranger, messageID, testLogTimestamp)
+	if err != nil {
+		t.Fatalf("empty AuditQueryResponse: %v", err)
+	}
+	if evs, _ := empty["events"].([]interface{}); len(evs) != 0 {
+		t.Errorf("out-of-scope query returned %d events, want 0", len(evs))
+	}
+	emptyOpts := opts
+	emptyOpts.ExpectedRequester = stranger
+	if !VerifyInkAuditQueryResponse(empty, pub, emptyOpts) {
+		t.Error("empty audit-query response did not verify")
+	}
+}
+
+// TestWitnessLogAuditQueryResponseRobustness proves a malformed or duplicate
+// retained event in scope does not fail the whole query: an event without an
+// agentSignature and a duplicate event id are skipped, and the valid events
+// still verify.
+func TestWitnessLogAuditQueryResponseRobustness(t *testing.T) {
+	log, pub := newTestLog(t)
+	const serviceDid = "did:web:witness.example"
+	const messageID = "msg-1"
+	const alice = "did:web:alice.example"
+
+	submitRaw := func(raw string) {
+		if _, err := log.Submit([]byte(raw), testLogTimestamp); err != nil {
+			t.Fatalf("submit %s: %v", raw, err)
+		}
+	}
+	// evt-a: valid and in scope.
+	submitRaw(`{"id":"evt-a","messageId":"msg-1","agentId":"did:web:alice.example","counterpartyId":"did:web:bob.example","agentSignature":"sig-a"}`)
+	// in scope but no agentSignature: must be skipped, not fatal.
+	submitRaw(`{"id":"evt-b","messageId":"msg-1","agentId":"did:web:alice.example","counterpartyId":"did:web:bob.example"}`)
+	// duplicate id of evt-a, in scope: must be skipped, not duplicated.
+	submitRaw(`{"id":"evt-a","messageId":"msg-1","agentId":"did:web:alice.example","counterpartyId":"did:web:bob.example","agentSignature":"sig-a2"}`)
+
+	response, err := log.AuditQueryResponse(serviceDid, alice, messageID, testLogTimestamp)
+	if err != nil {
+		t.Fatalf("AuditQueryResponse: %v", err)
+	}
+	opts := AuditQueryVerifyOptions{
+		ExpectedRequester:  alice,
+		ExpectedMessageID:  messageID,
+		ExpectedServiceDid: serviceDid,
+		VerifyEventSignature: func(ev map[string]interface{}) bool {
+			sig, _ := ev["agentSignature"].(string)
+			return sig != ""
+		},
+	}
+	if !VerifyInkAuditQueryResponse(response, pub, opts) {
+		t.Fatal("response with a malformed and a duplicate in-scope event did not verify")
+	}
+	if evs, _ := response["events"].([]interface{}); len(evs) != 1 {
+		t.Errorf("returned %d events, want 1 (evt-a once, skipping the unsigned and the duplicate)", len(evs))
+	}
+}
+
+func TestWitnessLogAuditQueryResponseValidation(t *testing.T) {
+	log, _ := newTestLog(t)
+	const sd = "did:web:witness.example"
+	for _, bad := range []struct{ serviceDid, requester, messageID, ts string }{
+		{"", "r", "m", testLogTimestamp},
+		{sd, "", "m", testLogTimestamp},
+		{sd, "r", "", testLogTimestamp},
+		{sd, "r", "m", ""},
+	} {
+		if _, err := log.AuditQueryResponse(bad.serviceDid, bad.requester, bad.messageID, bad.ts); err == nil {
+			t.Errorf("AuditQueryResponse(%q,%q,%q,%q) accepted empty argument", bad.serviceDid, bad.requester, bad.messageID, bad.ts)
+		}
+	}
+}
+
 func TestWitnessLogSubmitWithCapacity(t *testing.T) {
 	log, _ := newTestLog(t)
 	const cap = 3

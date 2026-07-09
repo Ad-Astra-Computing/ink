@@ -17,6 +17,7 @@ import (
 )
 
 const testOrigin = "example.com/ink-witness"
+const testServiceDid = "did:web:witness.example"
 const testToken = "s3cret-submit-token"
 
 // fixedClock returns a clock whose instant is a valid INK timestamp when floored
@@ -39,6 +40,9 @@ func newServer(t *testing.T, cfg Config) (http.Handler, ed25519.PublicKey) {
 	priv, pub := testKey(t)
 	if cfg.Origin == "" {
 		cfg.Origin = testOrigin
+	}
+	if cfg.ServiceDid == "" {
+		cfg.ServiceDid = testServiceDid
 	}
 	if cfg.PrivateKey == nil {
 		cfg.PrivateKey = priv
@@ -137,7 +141,10 @@ func TestConfigValidation(t *testing.T) {
 	if _, err := New(Config{Origin: testOrigin, PrivateKey: make([]byte, 5), SubmitToken: testToken}); err == nil {
 		t.Error("bad key length accepted")
 	}
-	if _, err := New(Config{Origin: testOrigin, PrivateKey: priv, AllowUnauthenticated: true}); err != nil {
+	if _, err := New(Config{Origin: testOrigin, PrivateKey: priv, SubmitToken: testToken}); err == nil {
+		t.Error("empty serviceDid accepted")
+	}
+	if _, err := New(Config{Origin: testOrigin, PrivateKey: priv, ServiceDid: testServiceDid, AllowUnauthenticated: true}); err != nil {
 		t.Errorf("AllowUnauthenticated without a token should be allowed: %v", err)
 	}
 }
@@ -167,6 +174,7 @@ func TestWrongMethodIs405(t *testing.T) {
 		method, path, allow string
 	}{
 		{http.MethodGet, "/submit", http.MethodPost},
+		{http.MethodGet, "/audit-query", http.MethodPost},
 		{http.MethodPost, "/checkpoint", http.MethodGet},
 		{http.MethodPost, "/inclusion", http.MethodGet},
 		{http.MethodPost, "/consistency", http.MethodGet},
@@ -416,6 +424,75 @@ func TestConcurrentSubmit(t *testing.T) {
 	}
 	if data := checkpoint(t, h, pub); data.TreeSize != n {
 		t.Errorf("final tree size = %d, want %d", data.TreeSize, n)
+	}
+}
+
+// auditEventJSON returns a raw audit event scoped to (messageID, requester).
+func auditEventJSON(i int, messageID, agentID, counterpartyID string) string {
+	m := map[string]interface{}{
+		"id":             fmt.Sprintf("evt-%d", i),
+		"type":           "connection_request",
+		"messageId":      messageID,
+		"agentId":        agentID,
+		"counterpartyId": counterpartyID,
+		"seq":            i,
+		"agentSignature": fmt.Sprintf("sig-%d", i),
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
+
+func TestAuditQueryEndpoint(t *testing.T) {
+	h, pub := newServer(t, Config{})
+	const messageID = "msg-1"
+	const alice = "did:web:alice.example"
+	const bob = "did:web:bob.example"
+	for i := 0; i < 3; i++ {
+		body := auditEventJSON(i, messageID, alice, bob)
+		rec, _ := do(h, http.MethodPost, "/submit", body, withToken(testToken))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("submit %d: status %d", i, rec.Code)
+		}
+	}
+
+	// Missing auth is rejected.
+	q := fmt.Sprintf(`{"requester":%q,"messageId":%q}`, alice, messageID)
+	if rec, _ := do(h, http.MethodPost, "/audit-query", q); rec.Code != http.StatusUnauthorized {
+		t.Errorf("unauthenticated audit-query status = %d, want 401", rec.Code)
+	}
+	// Empty fields are bad input.
+	if rec, _ := do(h, http.MethodPost, "/audit-query", `{"requester":"","messageId":"m"}`, withToken(testToken)); rec.Code != http.StatusBadRequest {
+		t.Errorf("empty requester status = %d, want 400", rec.Code)
+	}
+	if rec, _ := do(h, http.MethodPost, "/audit-query", `{not json`, withToken(testToken)); rec.Code != http.StatusBadRequest {
+		t.Errorf("bad json status = %d, want 400", rec.Code)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/audit-query", strings.NewReader(q))
+	req.Header.Set("Authorization", "Bearer "+testToken)
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("audit-query status = %d (%s)", rec.Code, rec.Body.String())
+	}
+	var response map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	opts := ink.AuditQueryVerifyOptions{
+		ExpectedRequester:  alice,
+		ExpectedMessageID:  messageID,
+		ExpectedServiceDid: testServiceDid,
+		VerifyEventSignature: func(ev map[string]interface{}) bool {
+			sig, _ := ev["agentSignature"].(string)
+			return sig != ""
+		},
+	}
+	if !ink.VerifyInkAuditQueryResponse(response, pub, opts) {
+		t.Error("audit-query response did not verify end to end")
+	}
+	if evs, _ := response["events"].([]interface{}); len(evs) != 3 {
+		t.Errorf("returned %d events, want 3", len(evs))
 	}
 }
 

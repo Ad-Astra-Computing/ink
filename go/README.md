@@ -267,23 +267,34 @@ non-durable, so a restart starts an empty log; it is a development and interop
 witness, not a durable production log.
 
 The witness key is a hex-encoded 32-byte Ed25519 seed in `INK_WITNESS_SEED_HEX`.
-Submit is authenticated by default: set the bearer token in
+Submit and audit-query are authenticated by default: set the bearer token in
 `INK_WITNESS_SUBMIT_TOKEN`, or pass `-allow-unauthenticated` for local testing.
 
 ```sh
 INK_WITNESS_SEED_HEX=$SEED INK_WITNESS_SUBMIT_TOKEN=$TOK \
-  ink-witness-server --addr :8081 --origin example.com/ink-witness
+  ink-witness-server --addr :8081 \
+  --origin example.com/ink-witness --service-did did:web:witness.example
 ```
 
-- `POST /submit` appends the audit event in the body and returns the signed
-  inclusion receipt. It requires `Authorization: Bearer <token>` unless the
+- `POST /submit` appends the audit event in the body, retains it, and returns the
+  signed inclusion receipt. It requires `Authorization: Bearer <token>` unless the
   server was started with `-allow-unauthenticated`.
+- `POST /audit-query` takes a JSON body `{"requester":…,"messageId":…}` and
+  returns a witness-signed audit-query response: each retained event in that
+  `(messageId, requester)` scope that can form a valid response, plus its
+  inclusion proof over the current tree.
+  Because it returns event contents, not just proofs over opaque leaves, it is
+  authenticated like `submit`. The token is an operator credential: the caller is
+  trusted as the witness operator and may query any scope, so `requester` is a
+  scope selector, not an authenticated identity. Per-agent authenticated
+  disclosure, where each agent retrieves only its own scope through a signed
+  audit-query request, is out of scope for this development witness.
 - `GET /checkpoint` returns the current signed checkpoint note.
 - `GET /inclusion?index=N` returns `{index, size, proof}` for leaf `N`.
 - `GET /consistency?first=A&second=B` returns the consistency proof between the
   trees of size `A` and `B`.
 - `GET /healthz` reports liveness.
 
-The status map adds `401` for a submit without a valid bearer token and `507`
-when the log has reached its configured capacity (`-max-leaves`), on top of the
-`200/400/404/405/413` the verify server uses.
+The status map adds `401` for a submit or audit-query without a valid bearer
+token and `507` when the log has reached its configured capacity (`-max-leaves`),
+on top of the `200/400/404/405/413` the verify server uses.
