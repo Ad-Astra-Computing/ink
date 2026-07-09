@@ -195,6 +195,16 @@ export type { InkSignInput } from "./crypto/ink.js";
 export type { CandidateKey } from "./models/key-entry.js";
 export { resolveAgentInbox, agentSupportedProtocolVersions, isDiscoverable, effectiveDiscoveryScope, DiscoveryDescriptorSchema } from "./models/agent-card.js";
 export type { AgentCard, DiscoveryDescriptor } from "./models/agent-card.js";
+
+// Authenticated discovery query envelope (#200): a requester-signed request a
+// directory can verify. Protocol primitive only; no directory service here.
+export {
+  DiscoveryQuerySchema,
+  DiscoveryQueryEnvelopeSchema,
+  buildDiscoveryQueryEnvelope,
+  verifyDiscoveryQueryEnvelope,
+} from "./models/discovery-query.js";
+export type { DiscoveryQuery, DiscoveryQueryEnvelope, DiscoveryQueryInput } from "./models/discovery-query.js";
 export type {
   BudgetCheckResult,
   HandshakeBudgetConfig,
