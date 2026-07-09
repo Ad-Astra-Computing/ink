@@ -15,10 +15,10 @@
 //
 //	200  success (a signed receipt, a checkpoint, or a proof)
 //	400  bad input (malformed event, bad query parameter, impossible proof)
-//	401  submit without a valid bearer token
+//	401  submit or audit-query without a valid bearer token
 //	404  unknown route
 //	405  known route, wrong method
-//	413  submit body over the size cap
+//	413  submit or audit-query body over the size cap
 //	507  the log has reached its configured capacity
 package witnessserver
 
@@ -34,6 +34,7 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Ad-Astra-Computing/ink/go/ink"
 )
@@ -48,8 +49,11 @@ const maxBodyBytes = 4 << 20 // 4 MiB
 const maxSafeInteger = 9007199254740991
 
 // defaultMaxLeaves bounds the in-memory tree by default so an authenticated but
-// abusive client, or a misconfigured one, cannot grow the log without limit.
-const defaultMaxLeaves = 1 << 20
+// abusive client, or a misconfigured one, cannot grow the log without limit. The
+// log retains each event, so worst-case memory is roughly this count times the
+// per-event body size (bounded by maxBodyBytes), not the leaf hashes alone; the
+// default is kept conservative for an in-memory witness for that reason.
+const defaultMaxLeaves = 1 << 16
 
 // timestampLayout is the INK millisecond timestamp grammar in Go reference form.
 // The trailing Z is a literal: the instant is floored to UTC first.
@@ -59,13 +63,18 @@ const timestampLayout = "2006-01-02T15:04:05.000Z"
 // submit token is required unless AllowUnauthenticated is set, so the default
 // posture is authenticated submit.
 type Config struct {
-	Origin               string
-	PrivateKey           ed25519.PrivateKey
+	Origin     string
+	PrivateKey ed25519.PrivateKey
+	// ServiceDid is the witness identity bound into an audit-query response
+	// envelope, for example did:web:witness.example. It is required.
+	ServiceDid           string
 	SubmitToken          string
 	AllowUnauthenticated bool
 	// MaxLeaves caps the tree size; 0 selects defaultMaxLeaves. It is a soft
 	// bound checked before append: a small overshoot is possible under
 	// concurrency, but the underlying log still enforces its own hard ceiling.
+	// Because the log retains every event, this count also bounds memory: worst
+	// case is MaxLeaves times the per-event body size.
 	MaxLeaves int
 	// Now supplies the receipt timestamp clock; nil selects time.Now. It is
 	// injectable so a test can assert a deterministic stamped timestamp.
@@ -73,9 +82,10 @@ type Config struct {
 }
 
 type server struct {
-	log     *ink.WitnessLog
-	origin  string
-	authOff bool
+	log        *ink.WitnessLog
+	origin     string
+	serviceDid string
+	authOff    bool
 	// tokenHash is the SHA-256 of the configured submit token. Comparing hashes
 	// rather than the raw tokens keeps both sides a fixed 32 bytes, so a constant
 	// time comparison cannot leak the token length.
@@ -95,6 +105,9 @@ func New(cfg Config) (http.Handler, error) {
 	if !cfg.AllowUnauthenticated && cfg.SubmitToken == "" {
 		return nil, errors.New("a submit token is required unless unauthenticated submit is explicitly allowed")
 	}
+	if cfg.ServiceDid == "" || !utf8.ValidString(cfg.ServiceDid) {
+		return nil, errors.New("a valid serviceDid is required")
+	}
 	maxLeaves := cfg.MaxLeaves
 	if maxLeaves <= 0 {
 		maxLeaves = defaultMaxLeaves
@@ -104,12 +117,13 @@ func New(cfg Config) (http.Handler, error) {
 		now = time.Now
 	}
 	s := &server{
-		log:       log,
-		origin:    cfg.Origin,
-		authOff:   cfg.AllowUnauthenticated,
-		tokenHash: sha256.Sum256([]byte(cfg.SubmitToken)),
-		maxLeaves: maxLeaves,
-		now:       now,
+		log:        log,
+		origin:     cfg.Origin,
+		serviceDid: cfg.ServiceDid,
+		authOff:    cfg.AllowUnauthenticated,
+		tokenHash:  sha256.Sum256([]byte(cfg.SubmitToken)),
+		maxLeaves:  maxLeaves,
+		now:        now,
 	}
 	return s.handler(), nil
 }
@@ -125,6 +139,7 @@ type route struct {
 func (s *server) routes() []route {
 	return []route{
 		{http.MethodPost, "/submit", s.handleSubmit},
+		{http.MethodPost, "/audit-query", s.handleAuditQuery},
 		{http.MethodGet, "/checkpoint", s.handleCheckpoint},
 		{http.MethodGet, "/inclusion", s.handleInclusion},
 		{http.MethodGet, "/consistency", s.handleConsistency},
@@ -213,6 +228,58 @@ func (s *server) authorized(req *http.Request) bool {
 	}
 	got := sha256.Sum256([]byte(h[len(prefix):]))
 	return subtle.ConstantTimeCompare(got[:], s.tokenHash[:]) == 1
+}
+
+// handleAuditQuery answers an audit query with a witness-signed audit-query
+// response: each retained event within the (messageId, requester) scope that can
+// form a valid response, plus its inclusion proof over the current tree. Because
+// the response carries event contents, not just proofs over opaque leaves, it is
+// authenticated like submit rather than public like the proof reads.
+//
+// The bearer token is an operator credential: it authenticates the caller as the
+// witness operator, who holds the signing key and may query any (messageId,
+// requester) scope. It is not a per-agent credential, and the body's requester is
+// a scope selector, not an authenticated identity, so a token holder can retrieve
+// any scope. A witness that must let each agent retrieve only its own scope has to
+// require a signed audit-query request that binds the requester to its key and
+// resolve that key out of band; that per-agent authenticated disclosure is out of
+// scope for this in-memory development witness.
+func (s *server) handleAuditQuery(w http.ResponseWriter, req *http.Request) {
+	if !s.authOff && !s.authorized(req) {
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		writeError(w, http.StatusUnauthorized, "a valid bearer token is required")
+		return
+	}
+	req.Body = http.MaxBytesReader(w, req.Body, maxBodyBytes)
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		var mbe *http.MaxBytesError
+		if errors.As(err, &mbe) {
+			writeError(w, http.StatusRequestEntityTooLarge, fmt.Sprintf("body exceeds %d bytes", maxBodyBytes))
+			return
+		}
+		writeError(w, http.StatusBadRequest, "cannot read body: "+err.Error())
+		return
+	}
+	var q struct {
+		Requester string `json:"requester"`
+		MessageID string `json:"messageId"`
+	}
+	if err := json.Unmarshal(body, &q); err != nil {
+		writeError(w, http.StatusBadRequest, "body must be a JSON object with requester and messageId")
+		return
+	}
+	if q.Requester == "" || q.MessageID == "" {
+		writeError(w, http.StatusBadRequest, "requester and messageId must be non-empty")
+		return
+	}
+	timestamp := s.now().UTC().Truncate(time.Millisecond).Format(timestampLayout)
+	response, err := s.log.AuditQueryResponse(s.serviceDid, q.Requester, q.MessageID, timestamp)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "cannot build audit-query response")
+		return
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *server) handleCheckpoint(w http.ResponseWriter, _ *http.Request) {

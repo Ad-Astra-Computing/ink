@@ -1,14 +1,15 @@
 // Command ink-witness-server runs a single in-memory INK witness log over HTTP.
 // It holds an Ed25519 witness key, issues signed inclusion receipts for
-// submitted audit events, and serves the current checkpoint and the inclusion
-// and consistency proofs of its tree. It is in-memory and non-durable, so a
-// restart starts an empty log; it is a development and interop witness, not a
-// durable production log.
+// submitted audit events, answers audit queries with signed audit-query
+// responses, and serves the current checkpoint and the inclusion and
+// consistency proofs of its tree. It is in-memory and non-durable, so a restart
+// starts an empty log; it is a development and interop witness, not a durable
+// production log.
 //
 // The witness key is a hex-encoded 32-byte Ed25519 seed read from
-// INK_WITNESS_SEED_HEX. Submit is authenticated by default: set the bearer token
-// in INK_WITNESS_SUBMIT_TOKEN, or pass -allow-unauthenticated to run an open
-// submit endpoint for local testing.
+// INK_WITNESS_SEED_HEX. Submit and audit-query are authenticated by default: set
+// the bearer token in INK_WITNESS_SUBMIT_TOKEN, or pass -allow-unauthenticated to
+// run an open server for local testing.
 package main
 
 import (
@@ -22,12 +23,16 @@ import (
 func main() {
 	addr := flag.String("addr", ":8081", "address to listen on")
 	origin := flag.String("origin", "", "witness origin identity bound into every checkpoint")
+	serviceDid := flag.String("service-did", "", "witness DID bound into an audit-query response, for example did:web:witness.example")
 	maxLeaves := flag.Int("max-leaves", 0, "cap on the in-memory tree size (0 selects the default)")
-	allowUnauth := flag.Bool("allow-unauthenticated", false, "accept submit without a bearer token (local testing only)")
+	allowUnauth := flag.Bool("allow-unauthenticated", false, "accept submit and audit-query without a bearer token (local testing only)")
 	flag.Parse()
 
 	if *origin == "" {
 		log.Fatal("-origin is required")
+	}
+	if *serviceDid == "" {
+		log.Fatal("-service-did is required")
 	}
 	seedHex := os.Getenv("INK_WITNESS_SEED_HEX")
 	if seedHex == "" {
@@ -41,6 +46,7 @@ func main() {
 	cfg := witnessserver.Config{
 		Origin:               *origin,
 		PrivateKey:           priv,
+		ServiceDid:           *serviceDid,
 		SubmitToken:          os.Getenv("INK_WITNESS_SUBMIT_TOKEN"),
 		AllowUnauthenticated: *allowUnauth,
 		MaxLeaves:            *maxLeaves,
