@@ -6,6 +6,19 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ## Unreleased
 
+### Additions
+
+- Authenticated discovery query envelope. A requester signs a bounded query
+  (optional `tags`, `scope`, and `limit`) addressed to a directory, and the
+  directory verifies it against the requester's key. New
+  `DiscoveryQueryEnvelopeSchema` and `DiscoveryQuerySchema`, a
+  `buildDiscoveryQueryEnvelope` signer, and a `verifyDiscoveryQueryEnvelope`
+  verifier that fails closed. The `type` accepts both the `network.tulpa.*` and
+  `network.ink.*` spellings; the signature binds every field. This is a protocol
+  primitive only: the directory service, ranking, response, and consent
+  semantics are out of scope. See
+  [`specs/ink-discovery-query.md`](specs/ink-discovery-query.md).
+
 ### Tooling
 
 - The package builds cleanly against `@types/node` 26. Node 26 types `Uint8Array`
