@@ -4,7 +4,7 @@
 
 An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.4.0` and `0.7.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.8.0` and `0.10.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
 
 `ink/0.2` is the recommended target for new receiver implementations. It is a backward-compatible minor over `ink/0.1`, changing only the body-signature domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. `ink/0.1` remains fully supported: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
