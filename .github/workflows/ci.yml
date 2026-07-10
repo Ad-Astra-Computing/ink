@@ -125,3 +125,38 @@ jobs:
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink" ./cmd/ink
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-verify-server" ./cmd/ink-verify-server
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-witness-server" ./cmd/ink-witness-server
+
+  go-ts-interop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+
+      - name: Cache npm
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      - name: Go witness issues, TypeScript reference verifies
+        run: nix develop --command npx vitest run test/go-witness-interop.test.ts

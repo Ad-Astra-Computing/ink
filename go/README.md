@@ -298,3 +298,22 @@ INK_WITNESS_SEED_HEX=$SEED INK_WITNESS_SUBMIT_TOKEN=$TOK \
 The status map adds `401` for a submit or audit-query without a valid bearer
 token and `507` when the log has reached its configured capacity (`-max-leaves`),
 on top of the `200/400/404/405/413` the verify server uses.
+
+## Cross-implementation issuing interop
+
+The shared conformance vectors prove both implementations agree on frozen
+inputs. They do not prove that an artifact freshly minted by one implementation
+is accepted by the other. The `test/go-witness-interop.test.ts` test closes that
+gap in the live direction that matters most: the Go witness server issues, and
+the TypeScript reference verifier checks.
+
+The test builds this witness binary, starts it on a local port with a witness
+seed and an operator token, submits two agent-signed audit events, and then has
+the reference verifier accept every issued artifact using only reference APIs:
+the two inclusion receipts, the signed checkpoint, the inclusion proof of a leaf
+over the current tree, the consistency proof between two tree sizes, and the
+audit-query response with its per-event agent signatures. The two sides share no
+code, only bytes on the socket, so agreement is evidence the wire contract is
+implementable independently rather than accidentally shaped by either codebase.
+It runs as the `go-ts-interop` CI job, kept separate from the static Go
+conformance run so a failure clearly means dynamic interop broke.
