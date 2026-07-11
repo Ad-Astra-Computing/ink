@@ -18,7 +18,7 @@ export interface AuditEntryInput {
   kv: KVNamespace;
   sender: string;
   intent: string;
-  verdict: "accepted" | "rejected_rate_limit" | "rejected_schema" | "rejected_signature" | "rejected_unsupported_intent" | "rejected_oversize" | "error";
+  verdict: "accepted" | "rejected_rate_limit" | "rejected_schema" | "rejected_signature" | "rejected_unsupported_intent" | "rejected_oversize" | "rejected_utf8" | "error";
   errorCode?: string;
   now?: () => number;
 }

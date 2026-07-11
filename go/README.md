@@ -78,9 +78,12 @@ non-string cases. See
 Lone UTF-16 surrogates in signed strings are banned in both implementations,
 because `encoding/json` would rewrite a lone surrogate to U+FFFD and canonicalize
 different bytes. A receiver MUST parse a signed body through `ParseSignedBody`,
-which scans the raw JSON for an unpaired surrogate escape before unmarshaling;
-`VerifyInkSignature` takes an already-parsed body and cannot recover a dropped
-surrogate on its own. The `jcs-string-safety` vectors pin the scanner. See
+which rejects raw invalid UTF-8 and scans the raw JSON for an unpaired surrogate
+escape before unmarshaling; `VerifyInkSignature` takes an already-parsed body and
+cannot recover a dropped byte on its own. The `jcs-string-safety` vectors pin the
+surrogate scanner, and the `signed-body-utf8` vectors pin the raw-UTF-8 rule,
+which is now a corpus-enforced part of the contract rather than an
+implementation-defined edge. See
 [`../specs/ink-signed-string-safety.md`](../specs/ink-signed-string-safety.md).
 
 Merkle inclusion proofs walk identically in both implementations:
@@ -145,16 +148,6 @@ This package targets 64-bit platforms: it uses native `int` for `treeSize`,
 `leafIndex`, and the consistency `first`/`second` sizes, and a `2^53 - 1` integer
 bound that does not fit a 32-bit `int`, so the safe-integer edge is deterministic
 only where `int` is 64 bits wide.
-
-## Known divergences pending a spec decision
-
-These are edges the shared conformance vectors do not yet cover. They are
-recorded so the 1.0 spec can mandate one behavior and both implementations
-converge by specification:
-
-- **Raw UTF-8 validity.** `encoding/json` replaces invalid UTF-8 with U+FFFD,
-  the same parser-loss class as lone surrogates; a receiver should require valid
-  UTF-8 before parsing. Tracked at the same boundary as the surrogate check.
 
 ## Running the conformance suite
 

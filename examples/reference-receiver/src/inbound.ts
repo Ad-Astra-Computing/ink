@@ -34,7 +34,8 @@ import {
   verifyInkAuth,
   extractCandidateKeys,
   decodePublicKeyMultibase,
-  containsLoneSurrogateEscape,
+  parseSignedBodyBytes,
+  ParseSignedBodyError,
   type CandidateKey,
   type MessageEnvelope,
 } from "@adastracomputing/ink";
@@ -63,7 +64,7 @@ export type InboundOutcome =
   | { kind: "ok"; intent: string; sender: string; response: unknown }
   | {
       kind: "rejected";
-      verdict: "schema" | "signature" | "unsupported_intent" | "oversize";
+      verdict: "utf8" | "schema" | "signature" | "unsupported_intent" | "oversize";
       sender: string;
       intent: string;
       errorCode: string;
@@ -73,12 +74,18 @@ export type InboundOutcome =
  * Read at most MAX_BODY_BYTES from the request. If the client sends
  * more we drop the connection — the receiver should never canonicalize
  * something we couldn't fully observe.
+ *
+ * Returns the raw bytes, not a decoded string. A signed body is verified
+ * over its raw bytes, so the receiver must gate on those bytes before
+ * decoding: a lenient decode substitutes U+FFFD for an invalid sequence
+ * and the original bytes are gone. `processInbound` runs that gate through
+ * `parseSignedBodyBytes`.
  */
 export async function readBoundedBody(
   req: Request,
   max = MAX_BODY_BYTES,
-): Promise<{ ok: true; text: string } | { ok: false; reason: "oversize" | "read_error" }> {
-  if (!req.body) return { ok: true, text: "" };
+): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; reason: "oversize" | "read_error" }> {
+  if (!req.body) return { ok: true, bytes: new Uint8Array(0) };
   const reader = req.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -104,7 +111,7 @@ export async function readBoundedBody(
     buf.set(c, off);
     off += c.byteLength;
   }
-  return { ok: true, text: new TextDecoder().decode(buf) };
+  return { ok: true, bytes: buf };
 }
 
 /**
@@ -178,23 +185,27 @@ export function buildAckResponse(envelope: MessageEnvelope, cfg: InboundConfig):
  * around this function — kept thin for testability.
  */
 export async function processInbound(
-  bodyText: string,
+  bodyBytes: Uint8Array,
   authHeader: string | undefined,
   cfg: InboundConfig,
 ): Promise<InboundOutcome> {
-  // Reject a lone UTF-16 surrogate escape on the RAW text before parsing.
-  // A signed body is verified over its canonical form; a parser that rewrites
-  // an unpaired surrogate to U+FFFD would destroy the evidence, so a receiver
-  // that normalizes (Go and others) could disagree with the signer. Scanning
-  // the raw bytes pre-parse keeps the accept/reject decision consistent across
-  // implementations (see specs/ink-signed-string-safety.md).
-  if (containsLoneSurrogateEscape(bodyText)) {
-    return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "lone_surrogate" };
-  }
+  // Gate the RAW bytes before parsing. `parseSignedBodyBytes` decodes with a
+  // fatal UTF-8 decoder (so an invalid sequence is rejected rather than
+  // substituted with U+FFFD), scans the decoded text for a lone UTF-16
+  // surrogate escape, then parses. A signed body is verified over its raw
+  // bytes; a receiver that decodes leniently would canonicalize bytes the
+  // signer never signed and could disagree with the signer, so this runs on
+  // the bytes before any parse (see specs/ink-signed-string-safety.md).
   let raw: unknown;
   try {
-    raw = JSON.parse(bodyText);
-  } catch {
+    raw = parseSignedBodyBytes(bodyBytes);
+  } catch (err) {
+    if (err instanceof ParseSignedBodyError) {
+      if (err.reason === "utf8") {
+        return { kind: "rejected", verdict: "utf8", sender: "", intent: "", errorCode: "invalid_utf8" };
+      }
+      return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "lone_surrogate" };
+    }
     return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "json_parse_failed" };
   }
   let envelope: MessageEnvelope;

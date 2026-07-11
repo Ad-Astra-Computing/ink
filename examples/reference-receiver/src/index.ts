@@ -183,7 +183,7 @@ async function handleInbound(
     }));
     return jsonResponse({ error: "rate_limited", scope: "ip", resetSec: ipVerdict.resetSec }, { status: 429 });
   }
-  const outcome = await processInbound(body.text, req.headers.get("authorization") ?? undefined, {
+  const outcome = await processInbound(body.bytes, req.headers.get("authorization") ?? undefined, {
     identity: id.identity,
     receiverDid: id.did,
     nonceStore: isolateNonceStore,
@@ -194,6 +194,7 @@ async function handleInbound(
       verdict: `rejected_${outcome.verdict === "schema" ? "schema"
         : outcome.verdict === "signature" ? "signature"
         : outcome.verdict === "unsupported_intent" ? "unsupported_intent"
+        : outcome.verdict === "utf8" ? "utf8"
         : "oversize"}`,
       errorCode: outcome.errorCode,
     }));

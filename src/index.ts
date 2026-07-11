@@ -31,6 +31,8 @@ export {
 export { signMessage, verifyMessage } from "./crypto/sign.js";
 export { parseInkTimestampMs, isInkTimestamp, MAX_TIMESTAMP_LENGTH } from "./crypto/timestamp.js";
 export { containsLoneSurrogateEscape, hasUnpairedSurrogate } from "./crypto/surrogate.js";
+export { parseSignedBodyBytes, ParseSignedBodyError } from "./crypto/parse-signed-body.js";
+export type { ParseSignedBodyReason } from "./crypto/parse-signed-body.js";
 export { verifyInkSignatureWithKeys } from "./crypto/multi-key-verify.js";
 export {
   generateKeypair,

@@ -35,33 +35,59 @@ the original. A backslash escapes the next character, so a literal `\\uD800`
 escape, and is accepted. A valid pair such as `😀` is accepted. Hex
 digits are case-insensitive.
 
+## Raw UTF-8 validity
+
+A receiver MUST reject a signed body whose raw bytes are not valid UTF-8, before
+JSON parsing. `encoding/json` replaces an invalid UTF-8 byte sequence with
+`U+FFFD` at parse time, the same parser-introduced divergence as a lone
+surrogate, so a body that reached canonicalization would be signed over
+different bytes than an implementation that rejected the invalid bytes. A signer
+MUST NOT sign a body whose raw bytes are not valid UTF-8.
+
+This rule is on the **raw bytes**, not a decoded string. A runtime whose string
+type cannot hold invalid UTF-8 (a JavaScript string is one) has already crossed
+the byte boundary once it holds the body as a string: its decoder substituted
+`U+FFFD` for any invalid sequence, and the original bytes are gone. Such a
+receiver MUST perform the check on the `Uint8Array` (or equivalent byte buffer)
+before decoding, with a fatal UTF-8 decoder that fails rather than substitutes.
+The lone-surrogate scan still runs on the decoded text after this check passes,
+because a lone surrogate escape is itself valid UTF-8.
+
+A leading UTF-8 byte-order mark (`EF BB BF`) is itself valid UTF-8, so the byte
+gate MUST NOT strip it. The mark decodes to `U+FEFF`, which is not legal at the
+start of a JSON document, so a body that begins with a BOM passes the byte gate
+and then rejects at the JSON parse step. A byte gate that silently strips the BOM
+would accept a body whose canonical bytes differ from what the signer signed.
+
 ## Enforcement order
 
 A receiver processes a signed body in this order, rejecting at the first failure:
 
 1. receive the raw body bytes;
 2. enforce the size cap;
-3. reject any unpaired surrogate escape in the raw JSON text;
-4. parse the JSON;
-5. apply schema and complexity bounds;
-6. canonicalize and verify the signature.
+3. reject any raw bytes that are not valid UTF-8;
+4. reject any unpaired surrogate escape in the raw JSON text;
+5. parse the JSON;
+6. apply schema and complexity bounds;
+7. canonicalize and verify the signature.
 
-Steps 3 must run before step 4: once the JSON is parsed, the raw provenance, and
-with it the ability to detect the original surrogate, is gone.
-
-## Related: raw UTF-8 validity
-
-`encoding/json` also replaces invalid UTF-8 byte sequences in a string with
-`U+FFFD`, which is the same class of parser-introduced divergence. A receiver
-SHOULD require the raw body to be valid UTF-8 before parsing. That guard lives at
-the same boundary as the surrogate check; it is noted here and tracked
-separately because invalid UTF-8 cannot be expressed in the JSON conformance
-corpus.
+Steps 3 and 4 must run before step 5: once the JSON is parsed, the raw
+provenance, and with it the ability to detect the original invalid bytes or
+surrogate, is gone.
 
 ## Conformance
 
 The `jcs-string-safety` category of the
-[`ink.conformance.v1`](../conformance/v1) corpus pins this rule. Each vector is a
-raw JSON body with the expected accept or reject decision, covering a valid
-pair, a literal `\\uD800`, and lone surrogates in a value, a member name, and a
-nested array, in upper and lower case.
+[`ink.conformance.v1`](../conformance/v1) corpus pins the surrogate rule. Each
+vector is a raw JSON body with the expected accept or reject decision, covering a
+valid pair, a literal `\\uD800`, and lone surrogates in a value, a member name,
+and a nested array, in upper and lower case.
+
+The `signed-body-utf8` category pins the raw-UTF-8 rule. A JSON string cannot
+hold invalid UTF-8, so each vector carries the raw body as a hex-encoded
+`bodyHex` field the runner decodes to bytes before deciding. It covers valid
+multibyte UTF-8 accepts, invalid-UTF-8 rejects (a lone continuation byte, a
+truncated multibyte sequence, an overlong encoding, the byte `0xFF`, and
+UTF-16-encoded bytes), and a valid-UTF-8 body whose text carries a lone
+surrogate escape, which rejects because the surrogate scan still runs once the
+UTF-8 check passes.

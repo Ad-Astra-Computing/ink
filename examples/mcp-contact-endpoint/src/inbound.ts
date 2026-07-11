@@ -15,6 +15,8 @@
 import {
   validateMessage,
   verifyInkAuth,
+  parseSignedBodyBytes,
+  ParseSignedBodyError,
   type CandidateKey,
   type MessageEnvelope,
 } from "@adastracomputing/ink";
@@ -68,15 +70,22 @@ export async function handleInbound(req: Request, env: Env): Promise<Response> {
   if (!ipGate.ok) return rateLimited(ipGate);
 
   // 1. Read the body under a hard cap so a multi-megabyte POST cannot pin the
-  //    worker on the read, then parse. Reject malformed.
+  //    worker on the read, then gate the raw bytes and parse. `parseSignedBodyBytes`
+  //    rejects invalid UTF-8 and a lone UTF-16 surrogate escape before parsing,
+  //    because a signed body is verified over its raw bytes and a lenient decode
+  //    would canonicalize bytes the signer never signed (see
+  //    ../../specs/ink-signed-string-safety.md). Reject malformed.
   const read = await readBoundedBody(req, MAX_BODY_BYTES);
   if (!read.ok) {
     return json(read.reason === "oversize" ? 413 : 400, { error: read.reason === "oversize" ? "payload_too_large" : "read_error" });
   }
   let raw: unknown;
   try {
-    raw = JSON.parse(read.text);
-  } catch {
+    raw = parseSignedBodyBytes(read.bytes);
+  } catch (err) {
+    if (err instanceof ParseSignedBodyError) {
+      return json(400, { error: err.reason === "utf8" ? "invalid_utf8" : "lone_surrogate" });
+    }
     return json(400, { error: "invalid_json" });
   }
 

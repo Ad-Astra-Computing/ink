@@ -10,6 +10,7 @@ import {
   checkReplay,
   parseInkTimestampMs,
   containsLoneSurrogateEscape,
+  parseSignedBodyBytes,
   verifyInclusionProof,
   verifyConsistencyProof,
   parseCheckpoint,
@@ -109,6 +110,14 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "jcs-string-safety": {
       const reject = containsLoneSurrogateEscape(input.bodyRaw as string);
       return { result: reject ? "reject" : "accept" };
+    }
+    case "signed-body-utf8": {
+      try {
+        parseSignedBodyBytes(hexToBytes(input.bodyHex as string));
+        return { result: "accept" };
+      } catch {
+        return { result: "reject" };
+      }
     }
     case "merkle-inclusion": {
       const { leafHash, inclusionProof, leafIndex, treeSize, rootHash } = input as {

@@ -183,6 +183,15 @@
       "sha256": "e38e8a6ac7578321dc83343f7271f19afbebcfb3bd12a798fed2c9c15608ec12"
     },
     {
+      "id": "signed-body-utf8",
+      "vector": "vectors/signed-body-utf8.json",
+      "profile": "base",
+      "spec": "specs/ink-signed-string-safety.md",
+      "summary": "Raw-UTF-8 validity of a signed body, enforced at the byte boundary before parsing.",
+      "caseCount": 15,
+      "sha256": "1b8cc534ee526b8c18529a2b3b571a58ae7e1d3347fd393d83096487553580ad"
+    },
+    {
       "id": "timestamp-validity",
       "vector": "vectors/timestamp-validity.json",
       "profile": "base",
