@@ -17,6 +17,7 @@
         "replay-freshness",
         "timestamp-validity",
         "jcs-string-safety",
+        "signed-body-utf8",
         "merkle-inclusion",
         "merkle-consistency",
         "merkle-checkpoint",

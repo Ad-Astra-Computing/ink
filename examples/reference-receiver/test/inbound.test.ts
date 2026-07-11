@@ -19,6 +19,8 @@ import {
   type InkSignInput,
 } from "@adastracomputing/ink";
 
+const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
+
 const RECEIVER_HOST = "receiver.example";
 const RECEIVER_DID = `did:web:${RECEIVER_HOST}`;
 const SENDER_HOST = "sender.example";
@@ -95,10 +97,10 @@ async function signWithSender(
 }
 
 describe("readBoundedBody", () => {
-  it("returns body text for a small payload", async () => {
+  it("returns the raw body bytes for a small payload", async () => {
     const req = new Request("https://example.com", { method: "POST", body: "hello" });
     const out = await readBoundedBody(req);
-    expect(out.ok && out.text).toBe("hello");
+    expect(out.ok && Array.from(out.bytes)).toEqual(Array.from(enc("hello")));
   });
 
   it("rejects oversize payloads", async () => {
@@ -198,7 +200,7 @@ describe("buildAckResponse", () => {
 describe("processInbound", () => {
   it("rejects malformed json with schema verdict", async () => {
     const { id, did } = await makeReceiver();
-    const out = await processInbound("{ not json", undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    const out = await processInbound(enc("{ not json"), undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
     expect(out.kind).toBe("rejected");
     if (out.kind === "rejected") {
       expect(out.verdict).toBe("schema");
@@ -208,7 +210,7 @@ describe("processInbound", () => {
 
   it("rejects schema-invalid envelope", async () => {
     const { id, did } = await makeReceiver();
-    const out = await processInbound(JSON.stringify({ protocol: "wrong" }), undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    const out = await processInbound(enc(JSON.stringify({ protocol: "wrong" })), undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
     expect(out.kind).toBe("rejected");
     if (out.kind === "rejected") expect(out.verdict).toBe("schema");
   });
@@ -219,11 +221,38 @@ describe("processInbound", () => {
     // would not survive a U+FFFD-rewriting parser, so the receiver must reject
     // on the raw text per specs/ink-signed-string-safety.md.
     const body = '{"protocol":"ink/0.1","from":"did:web:x","note":"\\ud800"}';
-    const out = await processInbound(body, undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    const out = await processInbound(enc(body), undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
     expect(out.kind).toBe("rejected");
     if (out.kind === "rejected") {
       expect(out.verdict).toBe("schema");
       expect(out.errorCode).toBe("lone_surrogate");
+    }
+  });
+
+  it("rejects a raw body whose bytes are not valid UTF-8 before parsing", async () => {
+    const { id, did } = await makeReceiver();
+    // 0xFF never appears in valid UTF-8. A lenient decode substitutes U+FFFD
+    // and would verify a signature over bytes the signer never signed, so the
+    // receiver must reject on the raw bytes (specs/ink-signed-string-safety.md).
+    const bytes = Uint8Array.from([0x7b, 0xff, 0x7d]);
+    const out = await processInbound(bytes, undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") {
+      expect(out.verdict).toBe("utf8");
+      expect(out.errorCode).toBe("invalid_utf8");
+    }
+  });
+
+  it("rejects a BOM-prefixed body at the parse step", async () => {
+    const { id, did } = await makeReceiver();
+    // A UTF-8 BOM is valid UTF-8, so the byte gate passes, but the surviving
+    // U+FEFF is not legal JSON, so JSON parsing rejects it end to end.
+    const bytes = Uint8Array.from([0xef, 0xbb, 0xbf, ...enc('{"note":"ok"}')]);
+    const out = await processInbound(bytes, undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") {
+      expect(out.verdict).toBe("schema");
+      expect(out.errorCode).toBe("json_parse_failed");
     }
   });
 
@@ -236,7 +265,7 @@ describe("processInbound", () => {
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
       [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
     });
-    const out = await processInbound(JSON.stringify(envelope), auth, {
+    const out = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("rejected");
@@ -254,7 +283,7 @@ describe("processInbound", () => {
       intent: "follow_up" as const,
       payload: { referenceId: "m-prev-1", message: "ping?" },
     };
-    const out = await processInbound(JSON.stringify(envelope), "ignored", {
+    const out = await processInbound(enc(JSON.stringify(envelope)), "ignored", {
       identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("rejected");
@@ -264,7 +293,7 @@ describe("processInbound", () => {
   it("rejects when the sender card cannot be resolved", async () => {
     const { id, did } = await makeReceiver();
     const envelope = buildPingEnvelope({ from: SENDER_DID, to: did });
-    const out = await processInbound(JSON.stringify(envelope), "INK-Ed25519 " + "A".repeat(86), {
+    const out = await processInbound(enc(JSON.stringify(envelope)), "INK-Ed25519 " + "A".repeat(86), {
       identity: id, receiverDid: did, fetcher: jsonFetcher({}), nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("rejected");
@@ -284,7 +313,7 @@ describe("processInbound", () => {
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
       [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
     });
-    const out = await processInbound(JSON.stringify(tampered), auth, {
+    const out = await processInbound(enc(JSON.stringify(tampered)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("rejected");
@@ -300,7 +329,7 @@ describe("processInbound", () => {
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
       [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
     });
-    const out = await processInbound(JSON.stringify(envelope), auth, {
+    const out = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("ok");
@@ -321,7 +350,7 @@ describe("processInbound", () => {
     const auth = await signWithSender(envelope, kp);
     let fetched = false;
     const fetcher = (async () => { fetched = true; return new Response("", { status: 404 }); }) as typeof fetch;
-    const out = await processInbound(JSON.stringify(envelope), auth, {
+    const out = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("ok");
@@ -336,7 +365,7 @@ describe("processInbound", () => {
     const senderDid = `did:key:${multibase}#${multibase}`;
     const envelope = buildPingEnvelope({ from: senderDid, to: did });
     const auth = await signWithSender(envelope, kp);
-    const out = await processInbound(JSON.stringify(envelope), auth, {
+    const out = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore(),
     });
     expect(out.kind).toBe("ok");
@@ -354,11 +383,11 @@ describe("processInbound", () => {
     });
     const envelope = buildPingEnvelope({ from: SENDER_DID, to: did });
     const auth = await signWithSender(envelope, senderKp);
-    const first = await processInbound(JSON.stringify(envelope), auth, {
+    const first = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore,
     });
     expect(first.kind).toBe("ok");
-    const second = await processInbound(JSON.stringify(envelope), auth, {
+    const second = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore,
     });
     expect(second.kind).toBe("rejected");

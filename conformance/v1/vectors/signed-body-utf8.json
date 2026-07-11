@@ -1,0 +1,156 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "signed-body-utf8",
+  "cases": [
+    {
+      "caseId": "ascii-body-accepts",
+      "description": "An ASCII signed body is valid UTF-8 and parses.",
+      "input": {
+        "bodyHex": "7b226e6f7465223a2268656c6c6f227d"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "multibyte-utf8-accepts",
+      "description": "A body with a two-byte, a four-byte, and a three-byte UTF-8 sequence is valid and parses, so an implementation must accept multibyte content the byte cap does not reject.",
+      "input": {
+        "bodyHex": "7b226e6f7465223a22e282ac20f09f988020e4bda0227d"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "lone-continuation-byte-rejects",
+      "description": "A lone continuation byte (0x80) with no lead byte is not valid UTF-8 and is rejected before parsing.",
+      "input": {
+        "bodyHex": "7b807d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "truncated-multibyte-rejects",
+      "description": "A three-byte sequence (0xE2 0x82) missing its final byte is not valid UTF-8 and is rejected.",
+      "input": {
+        "bodyHex": "7be2827d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "overlong-encoding-rejects",
+      "description": "An overlong two-byte encoding of the solidus (0xC0 0xAF) is not valid UTF-8 and is rejected, so an implementation that decoded it to '/' would sign different bytes.",
+      "input": {
+        "bodyHex": "7bc0af7d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "invalid-byte-ff-rejects",
+      "description": "The byte 0xFF never appears in valid UTF-8 and is rejected.",
+      "input": {
+        "bodyHex": "7bff7d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "utf16-bytes-reject",
+      "description": "The UTF-16BE code unit for the euro sign (0x20 0xAC) puts a continuation byte where UTF-8 wants a lead byte, so a UTF-16-encoded body is rejected.",
+      "input": {
+        "bodyHex": "7b20ac7d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "valid-utf8-lone-surrogate-rejects",
+      "description": "A body whose bytes are valid UTF-8 but whose JSON text carries a lone high-surrogate escape is rejected, so the surrogate scan still runs after the UTF-8 decode passes.",
+      "input": {
+        "bodyHex": "7b226e6f7465223a225c7544383030227d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "not-json-rejects",
+      "description": "A body that is valid UTF-8 but not JSON is rejected at the parse step.",
+      "input": {
+        "bodyHex": "7b6e6f74206a736f6e"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nfc-form-accepts",
+      "description": "A body carrying e-acute as the precomposed U+00E9 (bytes 0xC3 0xA9) is valid UTF-8 and parses, so it is accepted.",
+      "input": {
+        "bodyHex": "7b226e223a22c3a9227d"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "nfd-form-accepts",
+      "description": "The same e-acute decomposed as U+0065 U+0301 (bytes 0x65 0xCC 0x81) is also valid UTF-8 and parses, so with nfc-form-accepts this pins the rule as byte validity, not Unicode normalization.",
+      "input": {
+        "bodyHex": "7b226e223a2265cc81227d"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "invalid-byte-fe-rejects",
+      "description": "The byte 0xFE never appears in valid UTF-8 and is rejected before parsing.",
+      "input": {
+        "bodyHex": "7bfe7d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "raw-surrogate-bytes-reject",
+      "description": "The CESU-8 style raw encoding of the surrogate code point U+D800 (bytes 0xED 0xA0 0x80) is not valid UTF-8 and is rejected, the byte-level twin of the lone-surrogate escape case.",
+      "input": {
+        "bodyHex": "7beda0807d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "above-max-codepoint-rejects",
+      "description": "The sequence 0xF4 0x90 0x80 0x80 would encode U+110000, above the U+10FFFF maximum, so it is not valid UTF-8 and is rejected.",
+      "input": {
+        "bodyHex": "7bf49080807d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bom-prefixed-rejects",
+      "description": "A UTF-8 BOM (bytes 0xEF 0xBB 0xBF) prefixing an otherwise valid ASCII JSON object is valid UTF-8 but rejected at the parse step, because the surviving U+FEFF is not a legal JSON character; this pins the fatal decoder against a lenient BOM-stripping decode that would diverge.",
+      "input": {
+        "bodyHex": "efbbbf7b226e6f7465223a226f6b227d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

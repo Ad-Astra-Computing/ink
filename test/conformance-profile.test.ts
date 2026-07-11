@@ -38,6 +38,7 @@ const FROZEN_PROFILES = {
     "private-hostname",
     "replay-freshness",
     "signature-base",
+    "signed-body-utf8",
     "timestamp-validity",
   ],
   containment: ["handshake-message"],

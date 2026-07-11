@@ -120,6 +120,10 @@ Added in `0.7.0`:
 - Conformance vectors extend to the discovery and handshake surface: the Agent Card, the connection request and response payloads, the challenge, rejection, and resolution handshake messages, and the composite audit-query-response verifier are pinned by shared vectors both implementations run. `conformance/v1/manifest.json` indexes the corpus and ships in the package as a resolvable subpath.
 - `isInkEndpointUrl(value)` exposes the Agent Card endpoint URL grammar. Agent Card endpoint fields now validate against this narrow `https`-only grammar rather than a broad URL check, so endpoints with another scheme, a fragment, embedded credentials, or a malformed percent escape are rejected. See [`CHANGELOG.md`](CHANGELOG.md).
 
+Unreleased:
+
+- `parseSignedBodyBytes(bytes)` parses a raw signed body from its bytes, decoding with a fatal UTF-8 decoder then rejecting a lone surrogate escape before JSON parse, and throws `ParseSignedBodyError` with a `reason` of `"utf8"` or `"surrogate"` that names which gate rejected. A receiver holding raw body bytes uses it instead of a lenient string decode, because a lenient decode substitutes U+FFFD for invalid bytes and would verify a signature over bytes the signer never signed. See [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Agent-assisted implementation
 
 If you are asking an AI coding agent to add INK support to an existing service, the canonical packet for that workflow is the [Agent-assisted implementation](https://ink.tulpa.network/guides/agent-assisted-implementation/) guide. It contains the curated implementer prompt, a mandatory traceability matrix, the conformance checklist, and a human-review checklist. The guide is updated as the protocol evolves; treat it as the live source rather than copying its contents into your repo.

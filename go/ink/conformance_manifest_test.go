@@ -45,6 +45,7 @@ var goProfileCategories = map[string][]string{
 		"private-hostname",
 		"replay-freshness",
 		"signature-base",
+		"signed-body-utf8",
 		"timestamp-validity",
 	},
 	"encryption":  {"payload-encryption"},
@@ -87,6 +88,7 @@ var goVerifiedCategories = []string{
 	"private-hostname",
 	"replay-freshness",
 	"signature-base",
+	"signed-body-utf8",
 	"timestamp-validity",
 }
 

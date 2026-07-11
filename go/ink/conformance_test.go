@@ -94,6 +94,28 @@ func TestJCSStringSafety(t *testing.T) {
 	}
 }
 
+func TestSignedBodyUTF8(t *testing.T) {
+	vf := loadVectors(t, "signed-body-utf8")
+	for _, c := range vf.Cases {
+		var bodyHex string
+		if err := json.Unmarshal(c.Input["bodyHex"], &bodyHex); err != nil {
+			t.Fatalf("%s: bad bodyHex: %v", c.CaseID, err)
+		}
+		raw, err := hex.DecodeString(bodyHex)
+		if err != nil {
+			t.Fatalf("%s: bodyHex not hex: %v", c.CaseID, err)
+		}
+		_, parseErr := ParseSignedBody(raw)
+		got := "accept"
+		if parseErr != nil {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: got %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
 func TestJCSNumber(t *testing.T) {
 	vf := loadVectors(t, "jcs-number")
 	for _, c := range vf.Cases {

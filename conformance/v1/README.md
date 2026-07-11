@@ -74,6 +74,20 @@ additive field then.
   JSON text before parsing, because a parser that rewrites a lone surrogate to
   U+FFFD would sign different bytes. See
   [`../../specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md).
+- **signed-body-utf8** — a signed body must be valid UTF-8 in its raw bytes,
+  checked before parsing, because a lenient decode substitutes U+FFFD and would
+  verify over bytes the signer never signed. The raw body rides in a hex-encoded
+  `bodyHex` field a JSON string cannot express. Valid multibyte UTF-8 accepts,
+  and the precomposed and decomposed forms of the same character both accept, so
+  the rule is byte validity rather than Unicode normalization. A lone
+  continuation byte, a truncated multibyte sequence, an overlong encoding, the
+  bytes `0xFE` and `0xFF`, a raw surrogate encoding, an above-maximum code point,
+  and UTF-16-encoded bytes all reject. A valid-UTF-8 body whose text carries a
+  lone surrogate escape rejects because the surrogate scan still runs. A
+  BOM-prefixed body rejects end to end: the BOM survives the fatal decode and
+  fails at JSON parsing, which pins the fatal decoder against a lenient
+  BOM-stripping decode that would diverge. See
+  [`../../specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md).
 - **merkle-inclusion** — an RFC 6962 inclusion-proof walk: a leaf hash and a
   top-down list of sibling hashes recompute the claimed Merkle root, with internal
   nodes hashed `SHA-256(0x01 || left || right)`. Every leaf position in a

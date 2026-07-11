@@ -23,13 +23,13 @@ a role MUST satisfy every base obligation for that role.
 ## Base profile (MUST)
 
 Every conforming INK implementation MUST satisfy the base profile categories for
-the roles it performs. The base profile is the twelve categories tagged
+the roles it performs. The base profile is the thirteen categories tagged
 `profile: "base"` in the manifest:
 
 `agent-card`, `agent-card-fetch`, `connection-payload`,
 `first-contact-transcript`, `jcs-number`, `jcs-string-safety`, `key-rotation`,
 `principal-normalization`, `private-hostname`, `replay-freshness`,
-`signature-base`, `timestamp-validity`.
+`signature-base`, `signed-body-utf8`, `timestamp-validity`.
 
 | Category | Base sender MUST | Base receiver MUST |
 |---|---|---|
@@ -37,6 +37,7 @@ the roles it performs. The base profile is the twelve categories tagged
 | signature-base | Build the §3.3 signature base and produce the Ed25519 signature over its UTF-8 bytes. | Reconstruct the same base and verify the signature, failing closed on any mismatch. |
 | jcs-number | Canonicalize signed bodies under RFC 8785 with the safe-integer number profile. | Canonicalize the body the same way before verifying, rejecting an unsafe number. |
 | jcs-string-safety | Reject a lone UTF-16 surrogate in any body it signs. | Reject a lone UTF-16 surrogate in any signed body it verifies, scanning the raw text before parsing. |
+| signed-body-utf8 | Emit a signed body whose raw bytes are valid UTF-8. | Reject a signed body whose raw bytes are not valid UTF-8, before parsing. |
 | timestamp-validity | Emit timestamps in the strict INK RFC 3339 millisecond grammar. | Parse and validate inbound timestamps under the same grammar. |
 | replay-freshness | Emit a fresh timestamp and a unique per-message nonce. | Enforce the freshness window and reject a replayed nonce, recording the nonce only after the other checks pass. |
 | key-rotation | Sign with an active key and emit its `keyId`. | Verify against the peer's published key set, honoring active, retired, and revoked status, and accept a legacy single-key card. |

@@ -57,6 +57,7 @@ const CATEGORY_META = {
   "replay-freshness": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
   "timestamp-validity": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Strict INK timestamp grammar and epoch-millisecond parsing." },
   "jcs-string-safety": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Lone UTF-16 surrogate rejection in signed strings." },
+  "signed-body-utf8": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Raw-UTF-8 validity of a signed body, enforced at the byte boundary before parsing." },
   "merkle-inclusion": { profile: "witness", spec: "specs/ink-merkle-inclusion.md", summary: "RFC 6962 inclusion-proof verification." },
   "merkle-consistency": { profile: "witness", spec: "specs/ink-merkle-consistency.md", summary: "RFC 6962 consistency-proof verification." },
   "merkle-checkpoint": { profile: "witness", spec: "specs/ink-merkle-checkpoint.md", summary: "C2SP tlog-checkpoint parsing and canonical formatting." },
@@ -800,6 +801,110 @@ vectorFile("jcs-string-safety", [
     caseId: "lone-surrogate-in-array-rejects",
     description: "A lone surrogate in a nested array element is rejected.",
     input: { bodyRaw: `{"a":["x","${sLoneLo}"]}` },
+    expect: { result: "reject" },
+  },
+]);
+
+// ── signed-body-utf8 ─────────────────────────────────────────────────────
+// A signed body is verified over its raw bytes, so a receiver MUST reject a body
+// whose bytes are not valid UTF-8 before parsing. encoding/json (and a lenient
+// TextDecoder) substitutes U+FFFD for an invalid sequence, so a body carrying
+// invalid UTF-8 would be signed over different bytes across implementations, the
+// same parser-loss hazard as a lone surrogate. The carrier is bodyHex, the raw
+// bytes hex-encoded, because a JSON string cannot hold invalid UTF-8. A runner
+// decodes the hex, then runs the byte-level parse (fatal UTF-8 decode, then the
+// lone-surrogate scan, then JSON parse) and pins the accept or reject decision.
+const toHex = (bytes) => Buffer.from(bytes).toString("hex");
+const utf8Hex = (text) => Buffer.from(text, "utf8").toString("hex");
+vectorFile("signed-body-utf8", [
+  {
+    caseId: "ascii-body-accepts",
+    description: "An ASCII signed body is valid UTF-8 and parses.",
+    input: { bodyHex: utf8Hex(`{"note":"hello"}`) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "multibyte-utf8-accepts",
+    description: "A body with a two-byte, a four-byte, and a three-byte UTF-8 sequence is valid and parses, so an implementation must accept multibyte content the byte cap does not reject.",
+    input: { bodyHex: utf8Hex(`{"note":"€ 😀 你"}`) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "lone-continuation-byte-rejects",
+    description: "A lone continuation byte (0x80) with no lead byte is not valid UTF-8 and is rejected before parsing.",
+    input: { bodyHex: toHex([0x7b, 0x80, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "truncated-multibyte-rejects",
+    description: "A three-byte sequence (0xE2 0x82) missing its final byte is not valid UTF-8 and is rejected.",
+    input: { bodyHex: toHex([0x7b, 0xe2, 0x82, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "overlong-encoding-rejects",
+    description: "An overlong two-byte encoding of the solidus (0xC0 0xAF) is not valid UTF-8 and is rejected, so an implementation that decoded it to '/' would sign different bytes.",
+    input: { bodyHex: toHex([0x7b, 0xc0, 0xaf, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "invalid-byte-ff-rejects",
+    description: "The byte 0xFF never appears in valid UTF-8 and is rejected.",
+    input: { bodyHex: toHex([0x7b, 0xff, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "utf16-bytes-reject",
+    description: "The UTF-16BE code unit for the euro sign (0x20 0xAC) puts a continuation byte where UTF-8 wants a lead byte, so a UTF-16-encoded body is rejected.",
+    input: { bodyHex: toHex([0x7b, 0x20, 0xac, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "valid-utf8-lone-surrogate-rejects",
+    description: "A body whose bytes are valid UTF-8 but whose JSON text carries a lone high-surrogate escape is rejected, so the surrogate scan still runs after the UTF-8 decode passes.",
+    input: { bodyHex: utf8Hex(`{"note":"${sLoneHi}"}`) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "not-json-rejects",
+    description: "A body that is valid UTF-8 but not JSON is rejected at the parse step.",
+    input: { bodyHex: utf8Hex("{not json") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nfc-form-accepts",
+    description: "A body carrying e-acute as the precomposed U+00E9 (bytes 0xC3 0xA9) is valid UTF-8 and parses, so it is accepted.",
+    input: { bodyHex: toHex([0x7b, 0x22, 0x6e, 0x22, 0x3a, 0x22, 0xc3, 0xa9, 0x22, 0x7d]) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nfd-form-accepts",
+    description: "The same e-acute decomposed as U+0065 U+0301 (bytes 0x65 0xCC 0x81) is also valid UTF-8 and parses, so with nfc-form-accepts this pins the rule as byte validity, not Unicode normalization.",
+    input: { bodyHex: toHex([0x7b, 0x22, 0x6e, 0x22, 0x3a, 0x22, 0x65, 0xcc, 0x81, 0x22, 0x7d]) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "invalid-byte-fe-rejects",
+    description: "The byte 0xFE never appears in valid UTF-8 and is rejected before parsing.",
+    input: { bodyHex: toHex([0x7b, 0xfe, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "raw-surrogate-bytes-reject",
+    description: "The CESU-8 style raw encoding of the surrogate code point U+D800 (bytes 0xED 0xA0 0x80) is not valid UTF-8 and is rejected, the byte-level twin of the lone-surrogate escape case.",
+    input: { bodyHex: toHex([0x7b, 0xed, 0xa0, 0x80, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "above-max-codepoint-rejects",
+    description: "The sequence 0xF4 0x90 0x80 0x80 would encode U+110000, above the U+10FFFF maximum, so it is not valid UTF-8 and is rejected.",
+    input: { bodyHex: toHex([0x7b, 0xf4, 0x90, 0x80, 0x80, 0x7d]) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "bom-prefixed-rejects",
+    description: "A UTF-8 BOM (bytes 0xEF 0xBB 0xBF) prefixing an otherwise valid ASCII JSON object is valid UTF-8 but rejected at the parse step, because the surviving U+FEFF is not a legal JSON character; this pins the fatal decoder against a lenient BOM-stripping decode that would diverge.",
+    input: { bodyHex: toHex([0xef, 0xbb, 0xbf, ...Buffer.from(`{"note":"ok"}`, "utf8")]) },
     expect: { result: "reject" },
   },
 ]);

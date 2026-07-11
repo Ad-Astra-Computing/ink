@@ -4,6 +4,26 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Additions
+
+- Raw-UTF-8 validity of a signed body is now a normative rule pinned by the
+  conformance corpus. A receiver MUST reject a signed body whose raw bytes are
+  not valid UTF-8, before parsing, because a lenient decode substitutes U+FFFD
+  and would verify a signature over bytes the signer never signed. The new
+  `parseSignedBodyBytes` helper takes a `Uint8Array`, decodes it with a fatal
+  UTF-8 decoder, runs the lone-surrogate scan, then parses, and is the entry
+  point a receiver holding raw body bytes uses instead of a lenient string
+  decode. The rule is pinned by the new `signed-body-utf8` conformance category
+  and verified by both the TypeScript reference and the Go implementation. See
+  [`specs/ink-signed-string-safety.md`](specs/ink-signed-string-safety.md).
+- `parseSignedBodyBytes` throws `ParseSignedBodyError` with a `reason` of
+  `"utf8"` or `"surrogate"` so a receiver can map each byte-gate rejection to
+  its own response without matching on the error message. A malformed body
+  still surfaces the native `SyntaxError` from `JSON.parse`. The error class and
+  its `ParseSignedBodyReason` type are exported from the package root.
+
 ## 0.11.0, authenticated discovery query envelope
 
 ### Additions
