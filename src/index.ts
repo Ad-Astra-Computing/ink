@@ -207,6 +207,25 @@ export {
   verifyDiscoveryQueryEnvelope,
 } from "./models/discovery-query.js";
 export type { DiscoveryQuery, DiscoveryQueryEnvelope, DiscoveryQueryInput } from "./models/discovery-query.js";
+
+// Minimal authorization grant, the "Sign in with INK" primitive (#160). An
+// issuer signs a scoped, audience-bound, expiring grant a subject presents to a
+// service; the service verifies it fails-closed with typed rejection reasons.
+// Not a permissions framework: no delegation chain or policy language.
+export {
+  AuthorizationGrantSchema,
+  buildAuthorizationGrant,
+  verifyAuthorizationGrant,
+  AuthorizationGrantError,
+} from "./models/authorization-grant.js";
+export type {
+  AuthorizationGrant,
+  AuthorizationGrantInput,
+  AuthorizationGrantReason,
+  AuthorizationGrantVerifyContext,
+  AuthorizationGrantVerifyResult,
+  VerifiedOwnerStatus,
+} from "./models/authorization-grant.js";
 export type {
   BudgetCheckResult,
   HandshakeBudgetConfig,
