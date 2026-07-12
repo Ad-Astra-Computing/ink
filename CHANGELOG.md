@@ -4,6 +4,44 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.13.0, minimal authorization grant primitive
+
+### Additions
+
+- Minimal authorization grant, the "Sign in with INK" primitive. An issuer signs
+  a scoped grant bound to one subject, one audience, and a fixed validity window,
+  and a service verifies it against the issuer key and its own context. New
+  `AuthorizationGrantSchema`, a `buildAuthorizationGrant` signer, and a
+  `verifyAuthorizationGrant` verifier that fails closed. The `type` accepts both
+  the `network.tulpa.*` and `network.ink.*` spellings; the signature binds every
+  field including the audience, so a grant minted for one service cannot be
+  presented at another. This is a primitive, not a permissions framework: there
+  is no delegation chain or policy language, and a scope entry is an opaque token
+  the service interprets. See
+  [`specs/ink-authorization-grant.md`](specs/ink-authorization-grant.md).
+- The verifier returns a typed rejection reason (`schema`, `signature`,
+  `audience`, `expired`, `not_yet_valid`, `replay`, `revoked`,
+  `owner_unverified`) so a service can map each failure to its own response
+  without matching on prose, the same error-design pattern as
+  `parseSignedBodyBytes`. The `AuthorizationGrantError` class and the
+  `AuthorizationGrantReason` type are exported from the package root, alongside
+  the `AuthorizationGrantVerifyContext` and `VerifiedOwnerStatus` types.
+- Revocation is a receiver-side denylist keyed by `grantId`, checked by a
+  caller-supplied predicate at verify time, with short validity windows as the
+  primary control. INK grants carry no protocol-level revocation list or
+  endpoint, matching how the discovery query envelope leaves replay windows to
+  receiver policy. The rationale is recorded in the spec.
+- Owner verification is a composition hook, not a computed signal. A grant may
+  set `requireVerifiedOwner`, and the verifier then requires the service to pass
+  in a verified owner status; the status itself comes from the service's own
+  owner-verification pipeline.
+- The rule is pinned by the new `authorization-grant` conformance category, a
+  capability-gated `authorization` profile, and is verified by both the
+  TypeScript reference and the Go implementation over the same vectors. The
+  corpus carries positive and negative cases: confused-deputy audience, replay,
+  revocation, expiry and clock-skew bounds, mutated-body signature failure, and
+  scope fuzzing.
+
 ## 0.12.0, raw-body UTF-8 conformance rule
 
 ### Additions
