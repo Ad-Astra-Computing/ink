@@ -30,6 +30,14 @@ const (
 	scopeMax      = 64
 )
 
+// MaxGrantLifetimeMs is the maximum grant lifetime in milliseconds. The validity
+// window (expiresAt minus issuedAt) must not exceed it. It mirrors the reference
+// MAX_GRANT_LIFETIME_MS: ten minutes, the login/bootstrap ceiling. A grant whose
+// window is longer is out of profile and rejects structurally, independent of the
+// verifier clock. A verifier caller may tighten this per check but never loosen
+// it.
+const MaxGrantLifetimeMs = 10 * 60 * 1000
+
 // AuthorizationGrantReason is the stable discriminator a caller uses to map a
 // rejection to its own response. It mirrors the TypeScript
 // AuthorizationGrantReason. An empty reason accompanies an accept.
@@ -46,19 +54,33 @@ const (
 	GrantReasonOwnerUnverified AuthorizationGrantReason = "owner_unverified"
 )
 
+// GrantKey identifies a grant for replay and revocation. Both keys are the pair
+// of the signed Issuer and the issuer-chosen GrantID. GrantID is chosen by the
+// issuer, so two issuers can pick the same string; keying on the pair keeps one
+// issuer's seen or revoked ids from colliding with another's.
+type GrantKey struct {
+	Issuer  string
+	GrantID string
+}
+
 // AuthorizationGrantContext is everything a verifier needs beyond the issuer
 // key. Audience is the checking service's own identity, compared against the
 // signed audience to reject a confused-deputy replay. Now is the verifier clock,
-// a strict INK timestamp. SeenGrantIDs and IsRevoked are the replay and
-// revocation receiver-policy hooks. VerifiedOwnerStatus is the owner-verification
-// composition hook, consulted only when the grant requires it; an empty string
-// means no status was supplied (treated as unverified).
+// a strict INK timestamp. SeenGrants and IsRevoked are the replay and revocation
+// receiver-policy hooks, both keyed by the (issuer, grantId) pair.
+// VerifiedOwnerStatus is the owner-verification composition hook, consulted only
+// when the grant requires it; an empty string means no status was supplied
+// (treated as unverified). MaxLifetimeMs optionally tightens the maximum grant
+// lifetime for this check; a zero or negative value means "use the profile
+// default", and any positive value is clamped to at most MaxGrantLifetimeMs so a
+// caller can only shorten the ceiling, never raise it.
 type AuthorizationGrantContext struct {
 	Audience            string
 	Now                 string
-	SeenGrantIDs        []string
-	IsRevoked           func(grantID string) bool
+	SeenGrants          []GrantKey
+	IsRevoked           func(key GrantKey) bool
 	VerifiedOwnerStatus string
+	MaxLifetimeMs       int64
 }
 
 // VerifyAuthorizationGrant verifies a scoped authorization grant against the
@@ -116,17 +138,35 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 		return false, GrantReasonAudience
 	}
 
-	// Validity window. The verifier clock must be a strict INK timestamp; a
-	// malformed clock fails closed. Lower bound inclusive, upper bound exclusive.
-	now, okNow := ParseInkTimestampMs(ctx.Now)
-	if !okNow {
-		return false, GrantReasonExpired
-	}
 	issuedAt, _ := obj["issuedAt"].(string)
 	expiresAt, _ := obj["expiresAt"].(string)
 	start, okStart := ParseInkTimestampMs(issuedAt)
 	end, okEnd := ParseInkTimestampMs(expiresAt)
 	if !okStart || !okEnd {
+		return false, GrantReasonSchema
+	}
+
+	// Caller-tightened lifetime. The schema already enforced the profile ceiling
+	// before the signature; here a caller may shorten it further for this check.
+	// The value is clamped so it can only tighten, never loosen, and is checked
+	// after the signature so the policy value is not observable on an
+	// unauthenticated grant. A window past the tightened cap rejects as schema.
+	if ctx.MaxLifetimeMs > 0 {
+		cap := ctx.MaxLifetimeMs
+		if cap > MaxGrantLifetimeMs {
+			cap = MaxGrantLifetimeMs
+		}
+		if end-start > cap {
+			return false, GrantReasonSchema
+		}
+	}
+
+	// Validity window. The verifier clock must be a strict INK timestamp; a
+	// malformed clock is a verifier input error and fails closed as schema, not a
+	// window verdict the verifier never computed. Lower bound inclusive, upper
+	// bound exclusive.
+	now, okNow := ParseInkTimestampMs(ctx.Now)
+	if !okNow {
 		return false, GrantReasonSchema
 	}
 	if now < start {
@@ -136,17 +176,20 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 		return false, GrantReasonExpired
 	}
 
+	issuer, _ := obj["issuer"].(string)
 	grantID, _ := obj["grantId"].(string)
+	key := GrantKey{Issuer: issuer, GrantID: grantID}
 
-	// Replay: a grantId already seen at this receiver is a replay.
-	for _, seen := range ctx.SeenGrantIDs {
-		if seen == grantID {
+	// Replay: an (issuer, grantId) pair already seen at this receiver is a replay.
+	// Keying on the pair keeps one issuer's ids from colliding with another's.
+	for _, seen := range ctx.SeenGrants {
+		if seen.Issuer == issuer && seen.GrantID == grantID {
 			return false, GrantReasonReplay
 		}
 	}
 
-	// Revocation: the receiver's denylist predicate.
-	if ctx.IsRevoked != nil && ctx.IsRevoked(grantID) {
+	// Revocation: the receiver's denylist predicate, keyed by the same pair.
+	if ctx.IsRevoked != nil && ctx.IsRevoked(key) {
 		return false, GrantReasonRevoked
 	}
 
@@ -208,9 +251,10 @@ func validateAuthorizationGrant(obj map[string]interface{}) (string, bool) {
 	if !okEnd {
 		return "", false
 	}
-	// The window must be strictly positive: a zero or negative window is a
-	// malformed grant, matching the reference refine.
-	if end <= start {
+	// The window must be strictly positive and no longer than the maximum grant
+	// lifetime: a zero or negative window is malformed, and an over-long window is
+	// out of profile. Both match the reference refine.
+	if end <= start || end-start > MaxGrantLifetimeMs {
 		return "", false
 	}
 	if !validateAuthorizationGrantScope(obj["scope"]) {

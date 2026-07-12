@@ -25,6 +25,8 @@ func TestValidateAuthorizationGrantAcceptsWellFormed(t *testing.T) {
 		grantObject(`["profile:read","messages:send"]`, ""),
 		grantObject(`["profile:read"]`, `,"requireVerifiedOwner":true`),
 		grantObject(`["profile:read"]`, `,"requireVerifiedOwner":false`),
+		// A window exactly at the ten-minute ceiling is in profile.
+		strings.Replace(grantObject(`["profile:read"]`, ""), "2026-07-11T12:05:00.000Z", "2026-07-11T12:10:00.000Z", 1),
 	}
 	for _, c := range cases {
 		if _, ok := validateAuthorizationGrant(parseObj(t, c)); !ok {
@@ -37,22 +39,24 @@ func TestValidateAuthorizationGrantAcceptsWellFormed(t *testing.T) {
 // implementation must make identically, independent of the conformance corpus.
 func TestValidateAuthorizationGrantRejects(t *testing.T) {
 	cases := map[string]string{
-		"empty scope":           grantObject(`[]`, ""),
-		"duplicate scope":       grantObject(`["a","a"]`, ""),
-		"non-string scope":      grantObject(`["a",1]`, ""),
-		"null scope":            grantObject(`null`, ""),
-		"unknown top-level key": grantObject(`["a"]`, `,"extra":1`),
-		"missing signature":     `{"protocol":"ink/0.1","type":"network.tulpa.authorization_grant","issuer":"i","subject":"s","audience":"a","scope":["x"],"grantId":"0123456789abcdef","issuedAt":"2026-07-11T12:00:00.000Z","expiresAt":"2026-07-11T12:05:00.000Z"}`,
-		"missing scope":         `{"protocol":"ink/0.1","type":"network.tulpa.authorization_grant","issuer":"i","subject":"s","audience":"a","grantId":"0123456789abcdef","issuedAt":"2026-07-11T12:00:00.000Z","expiresAt":"2026-07-11T12:05:00.000Z","signature":"` + dummySig + `"}`,
-		"wrong protocol":        strings.Replace(grantObject(`["a"]`, ""), "ink/0.1", "ink/0.2", 1),
-		"bad type":              strings.Replace(grantObject(`["a"]`, ""), "network.tulpa.authorization_grant", "network.tulpa.other", 1),
-		"invalid issuedAt":      strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:00:00.000Z", "2026-07-11 12:00", 1),
-		"invalid expiresAt":     strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:05:00.000Z", "2026-07-11 12:05", 1),
-		"inverted window":       strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:05:00.000Z", "2026-07-11T12:00:00.000Z", 1),
-		"short grantId":         strings.Replace(grantObject(`["a"]`, ""), "conformance-grant-000000001", "short", 1),
-		"non-bool owner":        grantObject(`["a"]`, `,"requireVerifiedOwner":"yes"`),
-		"null required issuer":  strings.Replace(grantObject(`["a"]`, ""), `"issuer":"tulpa:issuer"`, `"issuer":null`, 1),
-		"null required type":    strings.Replace(grantObject(`["a"]`, ""), `"type":"network.tulpa.authorization_grant"`, `"type":null`, 1),
+		"empty scope":             grantObject(`[]`, ""),
+		"duplicate scope":         grantObject(`["a","a"]`, ""),
+		"non-string scope":        grantObject(`["a",1]`, ""),
+		"null scope":              grantObject(`null`, ""),
+		"unknown top-level key":   grantObject(`["a"]`, `,"extra":1`),
+		"missing signature":       `{"protocol":"ink/0.1","type":"network.tulpa.authorization_grant","issuer":"i","subject":"s","audience":"a","scope":["x"],"grantId":"0123456789abcdef","issuedAt":"2026-07-11T12:00:00.000Z","expiresAt":"2026-07-11T12:05:00.000Z"}`,
+		"missing scope":           `{"protocol":"ink/0.1","type":"network.tulpa.authorization_grant","issuer":"i","subject":"s","audience":"a","grantId":"0123456789abcdef","issuedAt":"2026-07-11T12:00:00.000Z","expiresAt":"2026-07-11T12:05:00.000Z","signature":"` + dummySig + `"}`,
+		"wrong protocol":          strings.Replace(grantObject(`["a"]`, ""), "ink/0.1", "ink/0.2", 1),
+		"bad type":                strings.Replace(grantObject(`["a"]`, ""), "network.tulpa.authorization_grant", "network.tulpa.other", 1),
+		"invalid issuedAt":        strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:00:00.000Z", "2026-07-11 12:00", 1),
+		"invalid expiresAt":       strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:05:00.000Z", "2026-07-11 12:05", 1),
+		"inverted window":         strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:05:00.000Z", "2026-07-11T12:00:00.000Z", 1),
+		"over maximum lifetime":   strings.Replace(grantObject(`["a"]`, ""), "2026-07-11T12:05:00.000Z", "2026-07-11T12:11:00.000Z", 1),
+		"over-length scope entry": grantObject(`["`+strings.Repeat("x", 129)+`"]`, ""),
+		"short grantId":           strings.Replace(grantObject(`["a"]`, ""), "conformance-grant-000000001", "short", 1),
+		"non-bool owner":          grantObject(`["a"]`, `,"requireVerifiedOwner":"yes"`),
+		"null required issuer":    strings.Replace(grantObject(`["a"]`, ""), `"issuer":"tulpa:issuer"`, `"issuer":null`, 1),
+		"null required type":      strings.Replace(grantObject(`["a"]`, ""), `"type":"network.tulpa.authorization_grant"`, `"type":null`, 1),
 	}
 	for name, grant := range cases {
 		if _, ok := validateAuthorizationGrant(parseObj(t, grant)); ok {
