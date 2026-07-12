@@ -23,6 +23,7 @@ type conformanceCase struct {
 	Input       map[string]json.RawMessage `json:"input"`
 	Expect      struct {
 		Result             string `json:"result"`
+		Reason             string `json:"reason"`
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
 		KeyStatus          string `json:"keyStatus"`
 		KeyID              string `json:"keyId"`
@@ -564,6 +565,76 @@ func TestDiscoveryQueryEnvelope(t *testing.T) {
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
+func TestAuthorizationGrant(t *testing.T) {
+	vf := loadVectors(t, "authorization-grant")
+	for _, c := range vf.Cases {
+		var pubHex, audience, now string
+		if err := json.Unmarshal(c.Input["issuerPublicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad issuerPublicKeyHex: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["audience"], &audience); err != nil {
+			t.Fatalf("%s: bad audience: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: issuerPublicKeyHex not hex: %v", c.CaseID, err)
+		}
+		var seen []GrantKey
+		if raw, ok := c.Input["seenGrants"]; ok {
+			var list []struct {
+				Issuer  string `json:"issuer"`
+				GrantID string `json:"grantId"`
+			}
+			_ = json.Unmarshal(raw, &list)
+			for _, k := range list {
+				seen = append(seen, GrantKey{Issuer: k.Issuer, GrantID: k.GrantID})
+			}
+		}
+		revoked := map[GrantKey]bool{}
+		if raw, ok := c.Input["revokedGrants"]; ok {
+			var list []struct {
+				Issuer  string `json:"issuer"`
+				GrantID string `json:"grantId"`
+			}
+			_ = json.Unmarshal(raw, &list)
+			for _, k := range list {
+				revoked[GrantKey{Issuer: k.Issuer, GrantID: k.GrantID}] = true
+			}
+		}
+		ownerStatus := ""
+		if raw, ok := c.Input["verifiedOwner"]; ok {
+			var vo struct {
+				Status string `json:"status"`
+			}
+			_ = json.Unmarshal(raw, &vo)
+			ownerStatus = vo.Status
+		}
+		var maxLifetimeMs int64
+		if raw, ok := c.Input["maxLifetimeMs"]; ok {
+			_ = json.Unmarshal(raw, &maxLifetimeMs)
+		}
+		ctx := AuthorizationGrantContext{
+			Audience:            audience,
+			Now:                 now,
+			SeenGrants:          seen,
+			IsRevoked:           func(key GrantKey) bool { return revoked[key] },
+			VerifiedOwnerStatus: ownerStatus,
+			MaxLifetimeMs:       maxLifetimeMs,
+		}
+		ok, reason := VerifyAuthorizationGrant(c.Input["grant"], pub, ctx)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
 		}
 	}
 }

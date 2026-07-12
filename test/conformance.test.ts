@@ -30,7 +30,9 @@ import {
   agentSupportedProtocolVersions,
   hexToBytes,
   verifyDiscoveryQueryEnvelope,
+  verifyAuthorizationGrant,
 } from "../src/index.js";
+import type { VerifiedOwnerStatus, GrantKey } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
 
@@ -44,10 +46,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
+  expect: { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
+type Outcome = { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -71,6 +73,41 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       const { envelope, publicKeyHex } = input as { envelope: unknown; publicKeyHex: string };
       const ok = await verifyDiscoveryQueryEnvelope(envelope, hexToBytes(publicKeyHex));
       return { result: ok ? "accept" : "reject" };
+    }
+    case "authorization-grant": {
+      const {
+        grant,
+        issuerPublicKeyHex,
+        audience,
+        now,
+        seenGrants,
+        revokedGrants,
+        verifiedOwner,
+        maxLifetimeMs,
+      } = input as {
+        grant: unknown;
+        issuerPublicKeyHex: string;
+        audience: string;
+        now: string;
+        seenGrants?: GrantKey[];
+        revokedGrants?: GrantKey[];
+        verifiedOwner?: VerifiedOwnerStatus;
+        maxLifetimeMs?: number;
+      };
+      // Reconstruct the receiver context from the vector: the revocation list
+      // becomes a denylist predicate keyed by the (issuer, grantId) pair, and the
+      // seen set and owner status pass through. A verifier accepts iff the result
+      // is ok; on reject the typed reason is pinned too.
+      const revoked = revokedGrants ?? [];
+      const result = await verifyAuthorizationGrant(grant, hexToBytes(issuerPublicKeyHex), {
+        audience,
+        now,
+        seenGrants,
+        isRevoked: (key) => revoked.some((r) => r.issuer === key.issuer && r.grantId === key.grantId),
+        verifiedOwner,
+        maxLifetimeMs,
+      });
+      return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
     }
     case "jcs-number": {
       try {
@@ -316,6 +353,9 @@ describe("ink/1 conformance vectors", () => {
         it(`${c.caseId}: ${c.description}`, async () => {
           const actual = await evaluate(doc.category, c.input);
           expect(actual.result, c.caseId).toBe(c.expect.result);
+          if (c.expect.reason !== undefined) {
+            expect(actual.reason, c.caseId).toBe(c.expect.reason);
+          }
           if (c.expect.canonicalPrincipal !== undefined) {
             expect(actual.canonicalPrincipal, c.caseId).toBe(c.expect.canonicalPrincipal);
           }

@@ -4,6 +4,70 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.13.0, minimal authorization grant primitive
+
+### Additions
+
+- Minimal authorization grant, the "Sign in with INK" primitive. An issuer signs
+  a scoped grant bound to one subject, one audience, and a fixed validity window,
+  and a service verifies it against the issuer key and its own context. New
+  `AuthorizationGrantSchema`, a `buildAuthorizationGrant` signer, and a
+  `verifyAuthorizationGrant` verifier that fails closed. The `type` accepts both
+  the `network.tulpa.*` and `network.ink.*` spellings; the signature binds every
+  field including the audience, so a grant minted for one service cannot be
+  presented at another. This is a primitive, not a permissions framework: there
+  is no delegation chain or policy language, and a scope entry is an opaque token
+  the service interprets. See
+  [`specs/ink-authorization-grant.md`](specs/ink-authorization-grant.md).
+- The verifier returns a typed rejection reason (`schema`, `signature`,
+  `audience`, `expired`, `not_yet_valid`, `replay`, `revoked`,
+  `owner_unverified`) so a service can map each failure to its own response
+  without matching on prose, the same error-design pattern as
+  `parseSignedBodyBytes`. The `AuthorizationGrantError` class and the
+  `AuthorizationGrantReason` type are exported from the package root, alongside
+  the `AuthorizationGrantVerifyContext`, `GrantKey`, and `VerifiedOwnerStatus`
+  types.
+- The validity window is capped at a normative ten-minute maximum lifetime,
+  exported as `MAX_GRANT_LIFETIME_MS`. A grant whose window is longer is out of
+  profile and rejects as `schema` on the signed bytes alone, before the signature
+  and independent of the verifier clock, so the short-window revocation control
+  cannot be undercut by a long-lived grant. A verifier caller may tighten the
+  ceiling per check through a `maxLifetimeMs` context value, which is clamped so
+  it can only shorten and never raise the cap; the tightened check runs after the
+  signature so the policy value is not observable on an unauthenticated grant.
+- Replay and revocation key on the `(issuer, grantId)` pair, not `grantId` alone.
+  Because `grantId` is issuer-chosen, two issuers can pick the same string, so
+  keying on the pair keeps one issuer's seen or revoked ids from colliding with
+  another's. The verify context takes `seenGrants` and an `isRevoked` predicate
+  over the exported `GrantKey` shape.
+- Revocation is a receiver-side denylist keyed by `(issuer, grantId)`, checked by
+  a caller-supplied predicate at verify time, with short validity windows as the
+  primary control. INK grants carry no protocol-level revocation list or
+  endpoint, matching how the discovery query envelope leaves replay windows to
+  receiver policy. The rationale is recorded in the spec.
+- String safety is structural. A grant carrying a lone UTF-16 surrogate rejects
+  as `schema` before the signature check, not as a signature failure. A malformed
+  base64url signature rejects as `schema` in both implementations, and a verifier
+  clock that is not a strict INK timestamp rejects as `schema` rather than
+  reporting a window verdict the verifier never computed.
+- A scope token's meaning is audience-local. A receiver interprets a token only
+  under its own audience policy, and an unrecognized token implies no authority.
+  The spec records the portability rule.
+- Owner verification is a composition hook, not a computed signal. A grant may
+  set `requireVerifiedOwner`, and the verifier then requires the service to pass
+  in a verified owner status; the status itself comes from the service's own
+  owner-verification pipeline.
+- The rule is pinned by the new `authorization-grant` conformance category, a
+  capability-gated `authorization` profile, and is verified by both the
+  TypeScript reference and the Go implementation over the same vectors. Each
+  reject vector pins its typed reason so the two implementations agree on verify
+  order. The corpus carries positive and negative cases: confused-deputy
+  audience, replay and revocation keyed by `(issuer, grantId)`, a cross-issuer
+  case where another issuer's entry for the same `grantId` does not interfere,
+  expiry and clock-skew bounds, the maximum-lifetime and caller-tightened bounds,
+  signature-first ordering under hostile context, a lone surrogate, and scope and
+  field-length fuzzing.
+
 ## 0.12.0, raw-body UTF-8 conformance rule
 
 ### Additions
