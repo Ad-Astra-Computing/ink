@@ -2399,41 +2399,67 @@ vectorFile("private-hostname", [
   const inkGrant = await buildAuthorizationGrant({ ...grantBase, type: "network.ink.authorization_grant" }, seed);
   const ownerGrant = await buildAuthorizationGrant({ ...grantBase, requireVerifiedOwner: true }, seed);
   const otherPublicKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(9)));
+  // A backslash const keeps a literal lone-surrogate escape out of a JSON string
+  // the generator would otherwise write as U+FFFD.
+  const loneSurrogateSubject = "sub\uD800";
+  // A window exactly one second past the ten-minute ceiling. It is signed with a
+  // key the vector never verifies against, so the over-long window is the reason
+  // it rejects, structurally, before the signature.
+  const overCapExpiresAt = new Date(Date.parse(grantBase.issuedAt) + 10 * 60 * 1000 + 1000).toISOString();
 
   // The verification context every accept case shares: the checking service is
   // did:web:service.example and its clock sits inside the window.
   const ctx = { audience: "did:web:service.example", now: nowInWindow };
+  const key = { issuer: grantBase.issuer, grantId: grantBase.grantId };
 
-  const ag = (caseId, description, input, result) => ({ caseId, description, input, expect: { result } });
+  const acc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
+  const rej = (caseId, description, input, reason) => ({ caseId, description, input, expect: { result: "reject", reason } });
 
   vectorFile("authorization-grant", [
-    ag("valid-grant-accepts", "A scoped grant verified against the issuer key, for the named audience, inside its window, verifies.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx }, "accept"),
-    ag("network-ink-spelling-accepts", "The vendor-neutral network.ink.authorization_grant spelling is signed and verifies like the legacy spelling.", { grant: inkGrant, issuerPublicKeyHex: publicKeyHex, ...ctx }, "accept"),
-    ag("issued-at-lower-bound-accepts", "A grant presented at exactly issuedAt is inside the window (inclusive lower bound).", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: grantBase.issuedAt }, "accept"),
-    ag("required-owner-verified-accepts", "A grant that requires a verified owner verifies when the service supplies a verified owner status.", { grant: ownerGrant, issuerPublicKeyHex: publicKeyHex, ...ctx, verifiedOwner: { status: "verified" } }, "accept"),
-    ag("wrong-issuer-key-rejects", "Verifying against a different public key fails the signature check.", { grant, issuerPublicKeyHex: otherPublicKeyHex, ...ctx }, "reject"),
-    ag("tampered-scope-rejects", "Broadening the scope after signing invalidates the signature.", { grant: { ...grant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("tampered-subject-rejects", "Changing the subject after signing invalidates the signature.", { grant: { ...grant, subject: "did:web:attacker.example" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("confused-deputy-rejects", "A grant minted for did:web:service.example presented to a different service is rejected on the audience check even though the signature is valid.", { grant, issuerPublicKeyHex: publicKeyHex, audience: "did:web:other-service.example", now: nowInWindow }, "reject"),
-    ag("relabeled-audience-rejects", "Relabeling the grant audience to match the checking service after signing does not help: the signature bound the original audience.", { grant: { ...grant, audience: "did:web:other-service.example" }, issuerPublicKeyHex: publicKeyHex, audience: "did:web:other-service.example", now: nowInWindow }, "reject"),
-    ag("expired-rejects", "A grant presented after expiresAt is rejected.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "2026-07-11T12:06:00.000Z" }, "reject"),
-    ag("expiry-upper-bound-rejects", "A grant presented at exactly expiresAt is rejected (exclusive upper bound).", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: grantBase.expiresAt }, "reject"),
-    ag("not-yet-valid-rejects", "A grant presented before issuedAt is rejected; issuer and verifier clock skew must not admit a future grant.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "2026-07-11T11:59:00.000Z" }, "reject"),
-    ag("replayed-grant-id-rejects", "A grantId already in the service's seen set is a replay and is rejected.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, seenGrantIds: [grantBase.grantId] }, "reject"),
-    ag("revoked-grant-id-rejects", "A grantId on the service's revocation list is rejected even inside the window.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, revokedGrantIds: [grantBase.grantId] }, "reject"),
-    ag("required-owner-unverified-rejects", "A grant that requires a verified owner is rejected when the owner status is unverified.", { grant: ownerGrant, issuerPublicKeyHex: publicKeyHex, ...ctx, verifiedOwner: { status: "unverified" } }, "reject"),
-    ag("required-owner-absent-rejects", "A grant that requires a verified owner is rejected when the service supplies no owner status; absent is not verified.", { grant: ownerGrant, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("unknown-top-level-key-rejects", "An unknown top-level field is rejected by the strict schema before verification.", { grant: { ...grant, extra: 1 }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("empty-scope-rejects", "A grant with no scope entries is out of profile and rejects.", { grant: { ...grant, scope: [] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("duplicate-scope-rejects", "A grant with a repeated scope entry is rejected; scope entries must be distinct so two implementations count the same set.", { grant: { ...grant, scope: ["profile:read", "profile:read"] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("overbroad-scope-rejects", "A scope array with more than 64 entries is out of profile and rejects.", { grant: { ...grant, scope: Array.from({ length: 65 }, (_, i) => `s${i}`) }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("non-string-scope-entry-rejects", "A scope array with a non-string entry rejects.", { grant: { ...grant, scope: ["profile:read", 1] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("inverted-window-rejects", "A grant whose expiresAt is not after issuedAt is malformed and rejects.", { grant: { ...grant, expiresAt: grantBase.issuedAt }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("invalid-issued-at-rejects", "A grant whose issuedAt is not a strict INK timestamp rejects.", { grant: { ...grant, issuedAt: "2026-07-11 12:00" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("malformed-signature-rejects", "A signature that is not valid base64url of the right length is rejected.", { grant: { ...grant, signature: grant.signature.slice(0, 85) + "+" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("missing-signature-rejects", "A grant with no signature field rejects.", { grant: (() => { const { signature, ...rest } = grant; return rest; })(), issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("short-grant-id-rejects", "A grantId shorter than 16 code units is out of profile and rejects.", { grant: { ...grant, grantId: "short" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "reject"),
-    ag("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp fails closed rather than admitting the grant.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "not-a-timestamp" }, "reject"),
+    acc("valid-grant-accepts", "A scoped grant verified against the issuer key, for the named audience, inside its window, verifies.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx }),
+    acc("network-ink-spelling-accepts", "The vendor-neutral network.ink.authorization_grant spelling is signed and verifies like the legacy spelling.", { grant: inkGrant, issuerPublicKeyHex: publicKeyHex, ...ctx }),
+    acc("issued-at-lower-bound-accepts", "A grant presented at exactly issuedAt is inside the window (inclusive lower bound).", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: grantBase.issuedAt }),
+    acc("required-owner-verified-accepts", "A grant that requires a verified owner verifies when the service supplies a verified owner status.", { grant: ownerGrant, issuerPublicKeyHex: publicKeyHex, ...ctx, verifiedOwner: { status: "verified" } }),
+    acc("owner-not-required-ignores-status-accepts", "A grant that does not require a verified owner verifies even when the service supplies an unverified owner status; the hook is consulted only when the grant asks for it.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, verifiedOwner: { status: "unverified" } }),
+    acc("cross-issuer-same-grant-id-accepts", "A different issuer's seen and revoked entry for the same grantId string does not block this grant; replay and revocation key on the (issuer, grantId) pair.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, seenGrants: [{ issuer: "tulpa:other-issuer", grantId: grantBase.grantId }], revokedGrants: [{ issuer: "tulpa:other-issuer", grantId: grantBase.grantId }] }),
+    rej("bad-signature-with-wrong-audience-rejects-signature", "A grant with a broadened scope (bad signature) presented to the wrong audience still rejects on the signature, pinning signature-first ordering ahead of the audience check.", { grant: { ...grant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, audience: "did:web:other-service.example", now: nowInWindow }, "signature"),
+    rej("bad-signature-with-expired-rejects-signature", "A grant with a broadened scope presented after expiry still rejects on the signature, not on expiry.", { grant: { ...grant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "2026-07-11T12:06:00.000Z" }, "signature"),
+    rej("bad-signature-with-replay-rejects-signature", "A grant with a broadened scope whose (issuer, grantId) is already seen still rejects on the signature, not on replay.", { grant: { ...grant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, ...ctx, seenGrants: [key] }, "signature"),
+    rej("bad-signature-with-revoked-rejects-signature", "A grant with a broadened scope whose (issuer, grantId) is revoked still rejects on the signature, not on revocation.", { grant: { ...grant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, ...ctx, revokedGrants: [key] }, "signature"),
+    rej("bad-signature-with-owner-unverified-rejects-signature", "An owner-requiring grant with a broadened scope and an unverified owner still rejects on the signature, not on owner verification.", { grant: { ...ownerGrant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, ...ctx, verifiedOwner: { status: "unverified" } }, "signature"),
+    rej("wrong-issuer-key-rejects", "Verifying against a different public key fails the signature check.", { grant, issuerPublicKeyHex: otherPublicKeyHex, ...ctx }, "signature"),
+    rej("tampered-scope-rejects", "Broadening the scope after signing invalidates the signature.", { grant: { ...grant, scope: ["profile:read", "admin:all"] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "signature"),
+    rej("tampered-subject-rejects", "Changing the subject after signing invalidates the signature.", { grant: { ...grant, subject: "did:web:attacker.example" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "signature"),
+    rej("confused-deputy-rejects", "A grant minted for did:web:service.example presented to a different service is rejected on the audience check even though the signature is valid.", { grant, issuerPublicKeyHex: publicKeyHex, audience: "did:web:other-service.example", now: nowInWindow }, "audience"),
+    rej("relabeled-audience-rejects", "Relabeling the grant audience to match the checking service after signing does not help: the signature bound the original audience.", { grant: { ...grant, audience: "did:web:other-service.example" }, issuerPublicKeyHex: publicKeyHex, audience: "did:web:other-service.example", now: nowInWindow }, "signature"),
+    rej("expired-rejects", "A grant presented after expiresAt is rejected.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "2026-07-11T12:06:00.000Z" }, "expired"),
+    rej("expiry-upper-bound-rejects", "A grant presented at exactly expiresAt is rejected (exclusive upper bound).", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: grantBase.expiresAt }, "expired"),
+    rej("not-yet-valid-rejects", "A grant presented before issuedAt is rejected; issuer and verifier clock skew must not admit a future grant.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "2026-07-11T11:59:00.000Z" }, "not_yet_valid"),
+    rej("replayed-grant-id-rejects", "A grant whose (issuer, grantId) is already in the service's seen set is a replay and is rejected.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, seenGrants: [key] }, "replay"),
+    rej("revoked-grant-id-rejects", "A grant whose (issuer, grantId) is on the service's revocation list is rejected even inside the window.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, revokedGrants: [key] }, "revoked"),
+    rej("required-owner-unverified-rejects", "A grant that requires a verified owner is rejected when the owner status is unverified.", { grant: ownerGrant, issuerPublicKeyHex: publicKeyHex, ...ctx, verifiedOwner: { status: "unverified" } }, "owner_unverified"),
+    rej("required-owner-absent-rejects", "A grant that requires a verified owner is rejected when the service supplies no owner status; absent is not verified.", { grant: ownerGrant, issuerPublicKeyHex: publicKeyHex, ...ctx }, "owner_unverified"),
+    rej("unknown-top-level-key-rejects", "An unknown top-level field is rejected by the strict schema before verification.", { grant: { ...grant, extra: 1 }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("lone-surrogate-rejects", "A lone UTF-16 surrogate in a string field is not portable and rejects structurally as schema, before the signature.", { grant: { ...grant, subject: loneSurrogateSubject }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("empty-scope-rejects", "A grant with no scope entries is out of profile and rejects.", { grant: { ...grant, scope: [] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("duplicate-scope-rejects", "A grant with a repeated scope entry is rejected; scope entries must be distinct so two implementations count the same set.", { grant: { ...grant, scope: ["profile:read", "profile:read"] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("overbroad-scope-rejects", "A scope array with more than 64 entries is out of profile and rejects.", { grant: { ...grant, scope: Array.from({ length: 65 }, (_, i) => `s${i}`) }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("non-string-scope-entry-rejects", "A scope array with a non-string entry rejects.", { grant: { ...grant, scope: ["profile:read", 1] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("over-length-scope-entry-rejects", "A scope entry longer than 128 code units is out of profile and rejects.", { grant: { ...grant, scope: ["profile:read", "x".repeat(129)] }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("over-length-issuer-rejects", "An issuer longer than 512 code units is out of profile and rejects.", { grant: { ...grant, issuer: "i".repeat(513) }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("over-length-subject-rejects", "A subject longer than 512 code units is out of profile and rejects.", { grant: { ...grant, subject: "s".repeat(513) }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("over-length-audience-rejects", "An audience longer than 512 code units is out of profile and rejects.", { grant: { ...grant, audience: "a".repeat(513) }, issuerPublicKeyHex: publicKeyHex, audience: "a".repeat(513), now: nowInWindow }, "schema"),
+    rej("over-length-grant-id-rejects", "A grantId longer than 256 code units is out of profile and rejects.", { grant: { ...grant, grantId: "g".repeat(257) }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("invalid-protocol-rejects", "A protocol other than ink/0.1 is out of profile and rejects.", { grant: { ...grant, protocol: "ink/0.2" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("invalid-type-rejects", "A type that is neither the network.tulpa nor the network.ink spelling is out of profile and rejects.", { grant: { ...grant, type: "network.tulpa.other" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("inverted-window-rejects", "A grant whose expiresAt is not after issuedAt is malformed and rejects.", { grant: { ...grant, expiresAt: grantBase.issuedAt }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("over-maximum-lifetime-rejects", "A grant whose window exceeds the ten-minute maximum lifetime is out of profile and rejects structurally, before the signature, even against a wrong key.", { grant: { ...grant, expiresAt: overCapExpiresAt }, issuerPublicKeyHex: otherPublicKeyHex, audience: ctx.audience, now: grantBase.issuedAt }, "schema"),
+    rej("over-caller-lifetime-rejects", "A grant inside the profile window but longer than a caller-tightened maxLifetimeMs is rejected as schema, after the signature.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx, maxLifetimeMs: 60000 }, "schema"),
+    rej("invalid-issued-at-rejects", "A grant whose issuedAt is not a strict INK timestamp rejects.", { grant: { ...grant, issuedAt: "2026-07-11 12:00" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("malformed-signature-rejects", "A signature that is not valid base64url of the right length is rejected.", { grant: { ...grant, signature: grant.signature.slice(0, 85) + "+" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("missing-signature-rejects", "A grant with no signature field rejects.", { grant: (() => { const { signature, ...rest } = grant; return rest; })(), issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("short-grant-id-rejects", "A grantId shorter than 16 code units is out of profile and rejects.", { grant: { ...grant, grantId: "short" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "not-a-timestamp" }, "schema"),
   ]);
 }
 

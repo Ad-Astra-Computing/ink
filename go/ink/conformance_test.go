@@ -23,6 +23,7 @@ type conformanceCase struct {
 	Input       map[string]json.RawMessage `json:"input"`
 	Expect      struct {
 		Result             string `json:"result"`
+		Reason             string `json:"reason"`
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
 		KeyStatus          string `json:"keyStatus"`
 		KeyID              string `json:"keyId"`
@@ -585,16 +586,26 @@ func TestAuthorizationGrant(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: issuerPublicKeyHex not hex: %v", c.CaseID, err)
 		}
-		var seen []string
-		if raw, ok := c.Input["seenGrantIds"]; ok {
-			_ = json.Unmarshal(raw, &seen)
-		}
-		revoked := map[string]bool{}
-		if raw, ok := c.Input["revokedGrantIds"]; ok {
-			var list []string
+		var seen []GrantKey
+		if raw, ok := c.Input["seenGrants"]; ok {
+			var list []struct {
+				Issuer  string `json:"issuer"`
+				GrantID string `json:"grantId"`
+			}
 			_ = json.Unmarshal(raw, &list)
-			for _, id := range list {
-				revoked[id] = true
+			for _, k := range list {
+				seen = append(seen, GrantKey{Issuer: k.Issuer, GrantID: k.GrantID})
+			}
+		}
+		revoked := map[GrantKey]bool{}
+		if raw, ok := c.Input["revokedGrants"]; ok {
+			var list []struct {
+				Issuer  string `json:"issuer"`
+				GrantID string `json:"grantId"`
+			}
+			_ = json.Unmarshal(raw, &list)
+			for _, k := range list {
+				revoked[GrantKey{Issuer: k.Issuer, GrantID: k.GrantID}] = true
 			}
 		}
 		ownerStatus := ""
@@ -605,17 +616,25 @@ func TestAuthorizationGrant(t *testing.T) {
 			_ = json.Unmarshal(raw, &vo)
 			ownerStatus = vo.Status
 		}
+		var maxLifetimeMs int64
+		if raw, ok := c.Input["maxLifetimeMs"]; ok {
+			_ = json.Unmarshal(raw, &maxLifetimeMs)
+		}
 		ctx := AuthorizationGrantContext{
 			Audience:            audience,
 			Now:                 now,
-			SeenGrantIDs:        seen,
-			IsRevoked:           func(id string) bool { return revoked[id] },
+			SeenGrants:          seen,
+			IsRevoked:           func(key GrantKey) bool { return revoked[key] },
 			VerifiedOwnerStatus: ownerStatus,
+			MaxLifetimeMs:       maxLifetimeMs,
 		}
-		ok, _ := VerifyAuthorizationGrant(c.Input["grant"], pub, ctx)
+		ok, reason := VerifyAuthorizationGrant(c.Input["grant"], pub, ctx)
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
 		}
 	}
 }

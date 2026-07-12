@@ -35,8 +35,8 @@
       "profile": "authorization",
       "spec": "specs/ink-authorization-grant.md",
       "summary": "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, validity window, replay, revocation, and the optional owner-verification requirement.",
-      "caseCount": 27,
-      "sha256": "bb066060f42b774c491b6f6e9c634c0ebce1e4d390bd6ce2cd8f14aceaff76cc"
+      "caseCount": 44,
+      "sha256": "60d0c877a427193fe20c4737669069a4acbd585ffdd48d09e9848812830c8fb3"
     },
     {
       "id": "connection-payload",
