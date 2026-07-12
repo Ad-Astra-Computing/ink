@@ -5,6 +5,7 @@ import {
   verifyAuthorizationGrant,
   AuthorizationGrantError,
   AuthorizationGrantSchema,
+  MAX_GRANT_LIFETIME_MS,
   type AuthorizationGrantInput,
   type AuthorizationGrantVerifyContext,
 } from "../src/models/authorization-grant.js";
@@ -15,10 +16,11 @@ const issuedAt = "2026-07-11T12:00:00.000Z";
 const expiresAt = "2026-07-11T12:05:00.000Z";
 const clockInWindow = "2026-07-11T12:02:00.000Z";
 const grantId = "grant-0123456789abcdef";
+const issuer = "did:web:issuer.example";
 
 function baseInput(overrides: Partial<AuthorizationGrantInput> = {}): AuthorizationGrantInput {
   return {
-    issuer: "did:web:issuer.example",
+    issuer,
     subject: "did:web:subject.example",
     audience: "did:web:service.example",
     scope: ["profile:read", "messages:send"],
@@ -147,21 +149,21 @@ describe("authorization grant verify: fail closed with typed reasons", () => {
     if (!result.ok) expect(result.reason).toBe("not_yet_valid");
   });
 
-  it("rejects a replayed grantId with reason replay", async () => {
+  it("rejects a replayed (issuer, grantId) with reason replay", async () => {
     const kp = await generateKeypair();
     const grant = await makeGrant(kp);
-    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ seenGrantIds: [grantId] }));
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ seenGrants: [{ issuer, grantId }] }));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("replay");
   });
 
-  it("rejects a revoked grantId with reason revoked", async () => {
+  it("rejects a revoked (issuer, grantId) with reason revoked", async () => {
     const kp = await generateKeypair();
     const grant = await makeGrant(kp);
     const result = await verifyAuthorizationGrant(
       grant,
       kp.publicKey,
-      baseContext({ isRevoked: (id) => id === grantId }),
+      baseContext({ isRevoked: (key) => key.issuer === issuer && key.grantId === grantId }),
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("revoked");
@@ -263,11 +265,12 @@ describe("authorization grant verify: fail closed on hostile and edge inputs", (
     if (!result.ok) expect(result.reason).toBe("schema");
   });
 
-  it("rejects a context clock that is not a strict INK timestamp", async () => {
+  it("rejects a context clock that is not a strict INK timestamp with reason schema", async () => {
     const kp = await generateKeypair();
     const grant = await makeGrant(kp);
     const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ now: "nonsense" }));
     expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("schema");
   });
 
   it("accepts a grant presented exactly at issuedAt (inclusive lower bound)", async () => {
@@ -337,6 +340,171 @@ describe("authorization grant scope fuzzing", () => {
     const grant = await makeGrant(kp);
     const result = await verifyAuthorizationGrant(
       { ...grant, scope: ["profile:read", "profile:read"] },
+      kp.publicKey,
+      baseContext(),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("schema");
+  });
+});
+
+describe("authorization grant maximum lifetime", () => {
+  it("exposes a ten-minute maximum grant lifetime", () => {
+    expect(MAX_GRANT_LIFETIME_MS).toBe(10 * 60 * 1000);
+  });
+
+  it("accepts a window exactly at the maximum lifetime", async () => {
+    const kp = await generateKeypair();
+    const start = "2026-07-11T12:00:00.000Z";
+    const end = new Date(Date.parse(start) + MAX_GRANT_LIFETIME_MS).toISOString();
+    const grant = await makeGrant(kp, { issuedAt: start, expiresAt: end });
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ now: start }));
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses to build a grant whose window exceeds the maximum lifetime", async () => {
+    const kp = await generateKeypair();
+    const start = "2026-07-11T12:00:00.000Z";
+    const end = new Date(Date.parse(start) + MAX_GRANT_LIFETIME_MS + 1000).toISOString();
+    await expect(buildAuthorizationGrant(baseInput({ issuedAt: start, expiresAt: end }), kp.privateKey)).rejects.toThrow();
+  });
+
+  it("rejects a grant whose window exceeds the maximum lifetime with reason schema", async () => {
+    const kp = await generateKeypair();
+    const start = "2026-07-11T12:00:00.000Z";
+    const end = new Date(Date.parse(start) + MAX_GRANT_LIFETIME_MS + 1000).toISOString();
+    // Sign a short in-profile grant, then relabel expiresAt past the ceiling: the
+    // over-long window is rejected structurally before the signature is even checked.
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(
+      { ...grant, issuedAt: start, expiresAt: end },
+      kp.publicKey,
+      baseContext({ now: start }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("schema");
+  });
+
+  it("rejects the over-long window before the signature (structural, on signed bytes)", async () => {
+    const kp = await generateKeypair();
+    const other = await generateKeypair();
+    const start = "2026-07-11T12:00:00.000Z";
+    const end = new Date(Date.parse(start) + MAX_GRANT_LIFETIME_MS + 1000).toISOString();
+    const grant = await makeGrant(kp);
+    // Wrong verifying key would fail signature, but the window cap fails first.
+    const result = await verifyAuthorizationGrant(
+      { ...grant, issuedAt: start, expiresAt: end },
+      other.publicKey,
+      baseContext({ now: start }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("schema");
+  });
+
+  it("lets a caller tighten the lifetime for a check but the tightened cap is applied after the signature", async () => {
+    const kp = await generateKeypair();
+    // A full five-minute grant, in profile, but the caller only accepts windows
+    // up to one minute for this check.
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ maxLifetimeMs: 60 * 1000 }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("schema");
+  });
+
+  it("a caller-tightened window failure is checked after the signature", async () => {
+    const kp = await generateKeypair();
+    const other = await generateKeypair();
+    const grant = await makeGrant(kp);
+    // Both the signature (wrong key) and the tightened window would fail; the
+    // signature must be reported first.
+    const result = await verifyAuthorizationGrant(grant, other.publicKey, baseContext({ maxLifetimeMs: 60 * 1000 }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("signature");
+  });
+
+  it("does not let a caller loosen the lifetime beyond the profile ceiling", async () => {
+    const kp = await generateKeypair();
+    const start = "2026-07-11T12:00:00.000Z";
+    const end = new Date(Date.parse(start) + MAX_GRANT_LIFETIME_MS + 1000).toISOString();
+    const grant = await makeGrant(kp);
+    // A caller asking for a two-hour cap cannot admit an over-ceiling grant: the
+    // schema layer already rejected it before any context value applied.
+    const result = await verifyAuthorizationGrant(
+      { ...grant, issuedAt: start, expiresAt: end },
+      kp.publicKey,
+      baseContext({ now: start, maxLifetimeMs: 2 * 60 * 60 * 1000 }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("schema");
+  });
+});
+
+describe("authorization grant replay and revocation key on (issuer, grantId)", () => {
+  it("does not treat a different issuer's same grantId as a replay", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    // Another issuer has used the same grantId string. Our seen set records that
+    // other issuer's key, which must not affect this grant.
+    const result = await verifyAuthorizationGrant(
+      grant,
+      kp.publicKey,
+      baseContext({ seenGrants: [{ issuer: "did:web:other-issuer.example", grantId }] }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("does not treat a different issuer's same grantId as revoked", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(
+      grant,
+      kp.publicKey,
+      baseContext({ isRevoked: (key) => key.grantId === grantId && key.issuer === "did:web:other-issuer.example" }),
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("still rejects a replay of the same issuer and grantId", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(
+      grant,
+      kp.publicKey,
+      baseContext({ seenGrants: [{ issuer: "did:web:other-issuer.example", grantId }, { issuer, grantId }] }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("replay");
+  });
+});
+
+describe("authorization grant signature-first ordering with hostile context", () => {
+  const cases: Array<[string, Partial<AuthorizationGrantVerifyContext>]> = [
+    ["wrong audience", { audience: "did:web:other-service.example" }],
+    ["expired clock", { now: "2026-07-11T12:06:00.000Z" }],
+    ["replay set", { seenGrants: [{ issuer, grantId }] }],
+    ["revoked predicate", { isRevoked: () => true }],
+    ["owner unverified", { verifiedOwner: { status: "unverified" } }],
+  ];
+  for (const [label, ctx] of cases) {
+    it(`reports signature first even with ${label}`, async () => {
+      const kp = await generateKeypair();
+      const grant = await makeGrant(kp, { requireVerifiedOwner: true });
+      const tampered = { ...grant, scope: ["profile:read", "admin:all"] };
+      const result = await verifyAuthorizationGrant(tampered, kp.publicKey, baseContext(ctx));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("signature");
+    });
+  }
+});
+
+describe("authorization grant string safety is structural", () => {
+  it("rejects a lone UTF-16 surrogate in a string field with reason schema", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    // A lone high surrogate in the subject is not portable, so it rejects as a
+    // structural failure before the signature check.
+    const result = await verifyAuthorizationGrant(
+      { ...grant, subject: "sub\uD800" },
       kp.publicKey,
       baseContext(),
     );

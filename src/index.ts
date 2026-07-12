@@ -217,6 +217,7 @@ export {
   buildAuthorizationGrant,
   verifyAuthorizationGrant,
   AuthorizationGrantError,
+  MAX_GRANT_LIFETIME_MS,
 } from "./models/authorization-grant.js";
 export type {
   AuthorizationGrant,
@@ -224,6 +225,7 @@ export type {
   AuthorizationGrantReason,
   AuthorizationGrantVerifyContext,
   AuthorizationGrantVerifyResult,
+  GrantKey,
   VerifiedOwnerStatus,
 } from "./models/authorization-grant.js";
 export type {

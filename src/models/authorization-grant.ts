@@ -2,6 +2,7 @@ import { z } from "zod";
 import { dualWireType } from "./wire-type.js";
 import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
 import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
+import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
 
 // A minimal scoped authorization grant, the "Sign in with INK" primitive. An
 // issuer signs a bounded capability for a subject to present to one named
@@ -21,6 +22,19 @@ const GRANT_ID_MAX = 256;
 const SCOPE_ENTRY_MAX = 128;
 const SCOPE_MAX = 64;
 
+// Maximum grant lifetime. The validity window (expiresAt minus issuedAt) must
+// not exceed this. A grant is a short-lived bootstrap credential and its window
+// is the primary revocation control, so a long window undermines the whole
+// short-TTL stance. Ten minutes is the login/bootstrap ceiling: long enough to
+// absorb clock skew and a slow sign-in, short enough that every grant expires on
+// its own before a receiver denylist would matter. It is a fixed profile bound,
+// larger than the 5 minute freshness age used for single messages because a
+// grant covers a whole sign-in rather than one request. A verifier caller may
+// tighten this per check but never loosen it. A grant whose window exceeds the
+// cap is out of profile and rejects structurally, the same as a grantId or scope
+// bound, independent of the verifier clock.
+export const MAX_GRANT_LIFETIME_MS = 10 * 60 * 1000;
+
 // A scope is a non-empty array of distinct opaque tokens. Distinctness is
 // enforced so a grant cannot smuggle a larger apparent scope through repetition,
 // and so two implementations count the same set. The tokens are not parsed here:
@@ -30,6 +44,18 @@ const ScopeSchema = z
   .min(1)
   .max(SCOPE_MAX)
   .refine((s) => new Set(s).size === s.length, { message: "scope entries must be distinct" });
+
+// The validity window must be strictly positive and no longer than the maximum
+// grant lifetime. A zero or negative window is a malformed grant, not one that
+// expires the instant it is issued. A window longer than MAX_GRANT_LIFETIME_MS
+// is out of profile: the short-window control only holds if the window is short.
+function isWindowInProfile(g: { issuedAt: string; expiresAt: string }): boolean {
+  const start = parseInkTimestampMs(g.issuedAt);
+  const end = parseInkTimestampMs(g.expiresAt);
+  if (start === null || end === null) return false;
+  if (end <= start) return false;
+  return end - start <= MAX_GRANT_LIFETIME_MS;
+}
 
 // The signed grant. The signature covers every field except `signature` itself,
 // so a verifier can bind the grant to the issuer key and reject any tampering of
@@ -52,19 +78,17 @@ export const AuthorizationGrantSchema = z
     // caller's owner-verification pipeline. Absent means the grant does not
     // require owner verification.
     requireVerifiedOwner: z.boolean().optional(),
-    signature: z.string().min(1),
+    // The signature is 64 raw bytes, 86 base64url characters with no padding. A
+    // string that is not that exact shape is a structural failure, rejected as
+    // "schema" before any signature work, so both implementations agree on the
+    // reason for a malformed signature.
+    signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
   })
   .strict()
-  // expiresAt must be strictly after issuedAt: a zero or negative window is a
-  // malformed grant, not a grant that expires the instant it is issued.
-  .refine(
-    (g) => {
-      const start = parseInkTimestampMs(g.issuedAt);
-      const end = parseInkTimestampMs(g.expiresAt);
-      return start !== null && end !== null && end > start;
-    },
-    { message: "expiresAt must be after issuedAt" },
-  );
+  // The window must be strictly positive and within the maximum grant lifetime.
+  .refine(isWindowInProfile, {
+    message: "validity window must be positive and within the maximum grant lifetime",
+  });
 
 export type AuthorizationGrant = z.infer<typeof AuthorizationGrantSchema>;
 
@@ -82,14 +106,9 @@ const UnsignedAuthorizationGrantSchema = z
     requireVerifiedOwner: z.boolean().optional(),
   })
   .strict()
-  .refine(
-    (g) => {
-      const start = parseInkTimestampMs(g.issuedAt);
-      const end = parseInkTimestampMs(g.expiresAt);
-      return start !== null && end !== null && end > start;
-    },
-    { message: "expiresAt must be after issuedAt" },
-  );
+  .refine(isWindowInProfile, {
+    message: "validity window must be positive and within the maximum grant lifetime",
+  });
 
 export interface AuthorizationGrantInput {
   /** Defaults to the legacy `network.tulpa.authorization_grant` spelling. */
@@ -106,8 +125,10 @@ export interface AuthorizationGrantInput {
 
 /**
  * Which check rejected a grant. Callers discriminate on this stable field rather
- * than any message prose. `schema` covers every structural or byte-safety
- * failure; the rest are the individual security decisions.
+ * than any message prose. `schema` covers every structural, byte-safety, or
+ * profile-bound failure, including a window that exceeds the maximum grant
+ * lifetime and a verifier clock that is not a strict INK timestamp; the rest are
+ * the individual security decisions.
  */
 export type AuthorizationGrantReason =
   | "schema"
@@ -144,20 +165,38 @@ export interface VerifiedOwnerStatus {
 }
 
 /**
+ * A grant identity for replay and revocation. Both keys are the pair of the
+ * signed `issuer` and the issuer-chosen `grantId`. `grantId` is chosen by the
+ * issuer, so two issuers can pick the same string; keying replay and revocation
+ * on the pair keeps one issuer's seen or revoked ids from colliding with
+ * another's, which would otherwise let a hostile or careless issuer deny or
+ * confuse a grant it never minted.
+ */
+export interface GrantKey {
+  issuer: string;
+  grantId: string;
+}
+
+/**
  * Everything a verifier needs beyond the issuer key. `audience` is the service
  * checking the grant, compared against the signed `audience` to reject a grant
  * minted for a different service (confused deputy). `now` is the verifier clock,
- * a strict INK timestamp. `seenGrantIds` and `isRevoked` are the two receiver
- * policy hooks for replay and revocation; both are optional and default to
- * "not seen" and "not revoked". `verifiedOwner` is the owner-verification
- * composition hook, consulted only when the grant requires it.
+ * a strict INK timestamp. `seenGrants` and `isRevoked` are the two receiver
+ * policy hooks for replay and revocation; both are keyed by the
+ * `(issuer, grantId)` pair, both optional, and default to "not seen" and "not
+ * revoked". `verifiedOwner` is the owner-verification composition hook, consulted
+ * only when the grant requires it. `maxLifetimeMs` optionally tightens the
+ * maximum grant lifetime for this check; it is clamped to at most
+ * `MAX_GRANT_LIFETIME_MS`, so a caller can only shorten the ceiling, never raise
+ * it.
  */
 export interface AuthorizationGrantVerifyContext {
   audience: string;
   now: string;
-  seenGrantIds?: Iterable<string>;
-  isRevoked?: (grantId: string) => boolean;
+  seenGrants?: Iterable<GrantKey>;
+  isRevoked?: (key: GrantKey) => boolean;
   verifiedOwner?: VerifiedOwnerStatus;
+  maxLifetimeMs?: number;
 }
 
 export type AuthorizationGrantVerifyResult =
@@ -198,13 +237,22 @@ export async function buildAuthorizationGrant(
  * signature never reveals whether its audience or window would have passed.
  *
  * Check order (each returns its own reason on the first failure):
- *   1. structural schema + byte safety                  -> "schema"
- *   2. issuer signature over the canonical grant        -> "signature"
- *   3. audience binding (confused-deputy defense)        -> "audience"
- *   4. validity window (not_yet_valid / expired)         -> "not_yet_valid" | "expired"
- *   5. replay (grantId already seen)                     -> "replay"
- *   6. revocation (grantId on the receiver denylist)     -> "revoked"
- *   7. owner verification, only when the grant requires  -> "owner_unverified"
+ *   1. structural schema + byte safety + lifetime cap    -> "schema"
+ *   2. issuer signature over the canonical grant         -> "signature"
+ *   3. audience binding (confused-deputy defense)         -> "audience"
+ *   4. caller-tightened lifetime cap                      -> "schema"
+ *   5. validity window (not_yet_valid / expired)          -> "not_yet_valid" | "expired"
+ *   6. replay (issuer + grantId already seen)             -> "replay"
+ *   7. revocation (issuer + grantId on the denylist)      -> "revoked"
+ *   8. owner verification, only when the grant requires   -> "owner_unverified"
+ *
+ * The default maximum lifetime is enforced in step 1, before the signature, so a
+ * grant whose window exceeds the profile ceiling is rejected structurally on the
+ * signed bytes alone. A caller-tightened `maxLifetimeMs` is enforced in step 4,
+ * after the signature, so a verifier-local policy value is never observable on an
+ * unauthenticated grant. A `now` that is not a strict INK timestamp is a verifier
+ * input error and rejects as "schema", not a window verdict the verifier never
+ * computed.
  */
 export async function verifyAuthorizationGrant(
   raw: unknown,
@@ -223,6 +271,15 @@ export async function verifyAuthorizationGrant(
     }
     const grant = parsed.data;
 
+    // String safety is structural: a grant carrying a lone UTF-16 surrogate is
+    // not portable across implementations, so it is rejected as "schema" before
+    // the signature check rather than surfacing as a signature failure. verifyMessage
+    // also rejects it defensively, but here the reason is the structural one the
+    // spec names.
+    if (hasUnpairedSurrogate(grant)) {
+      return { ok: false, reason: "schema" };
+    }
+
     // Signature before any context decision, so a rejection never leaks whether
     // the audience or window would have matched.
     if (!(await verifyMessage(grant, issuerPublicKey))) {
@@ -236,18 +293,33 @@ export async function verifyAuthorizationGrant(
       return { ok: false, reason: "audience" };
     }
 
-    // Validity window. The verifier clock must itself be a strict INK timestamp;
-    // a caller that supplies a malformed clock fails closed. The lower bound is
-    // inclusive (a grant is valid at its issue instant) and the upper bound is
-    // exclusive (a grant is not valid at its expiry instant).
-    const now = parseInkTimestampMs(context.now);
-    if (now === null) {
-      return { ok: false, reason: "expired" };
-    }
     const start = parseInkTimestampMs(grant.issuedAt);
     const end = parseInkTimestampMs(grant.expiresAt);
     if (start === null || end === null) {
       // Unreachable after schema validation, but fail closed rather than trust it.
+      return { ok: false, reason: "schema" };
+    }
+
+    // Caller-tightened lifetime. The schema already enforced the profile ceiling
+    // before the signature; here a caller may shorten it further for this check.
+    // The value is clamped so it can only tighten, never loosen, the ceiling. A
+    // window past the tightened cap is out of the caller's policy and rejects as
+    // "schema", checked after the signature so the policy value is not observable
+    // on an unauthenticated grant.
+    if (context.maxLifetimeMs !== undefined) {
+      const cap = Math.min(context.maxLifetimeMs, MAX_GRANT_LIFETIME_MS);
+      if (end - start > cap) {
+        return { ok: false, reason: "schema" };
+      }
+    }
+
+    // Validity window. The verifier clock must itself be a strict INK timestamp;
+    // a caller that supplies a malformed clock fails closed as a verifier input
+    // error rather than a window verdict the verifier never computed. The lower
+    // bound is inclusive (a grant is valid at its issue instant) and the upper
+    // bound is exclusive (a grant is not valid at its expiry instant).
+    const now = parseInkTimestampMs(context.now);
+    if (now === null) {
       return { ok: false, reason: "schema" };
     }
     if (now < start) {
@@ -257,19 +329,20 @@ export async function verifyAuthorizationGrant(
       return { ok: false, reason: "expired" };
     }
 
-    // Replay: a grantId already seen at this receiver is a replay. The seen set
-    // is receiver state, not part of the grant.
-    if (context.seenGrantIds) {
-      for (const id of context.seenGrantIds) {
-        if (id === grant.grantId) {
+    // Replay: an (issuer, grantId) pair already seen at this receiver is a
+    // replay. The seen set is receiver state, not part of the grant. Keying on
+    // the pair keeps one issuer's ids from colliding with another's.
+    if (context.seenGrants) {
+      for (const key of context.seenGrants) {
+        if (key.issuer === grant.issuer && key.grantId === grant.grantId) {
           return { ok: false, reason: "replay" };
         }
       }
     }
 
-    // Revocation: the receiver's denylist predicate. A grant whose id is revoked
-    // is rejected even inside its validity window.
-    if (context.isRevoked && context.isRevoked(grant.grantId)) {
+    // Revocation: the receiver's denylist predicate, keyed by the same
+    // (issuer, grantId) pair. A revoked grant is rejected even inside its window.
+    if (context.isRevoked && context.isRevoked({ issuer: grant.issuer, grantId: grant.grantId })) {
       return { ok: false, reason: "revoked" };
     }
 
