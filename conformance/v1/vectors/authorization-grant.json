@@ -1,0 +1,810 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "authorization-grant",
+  "cases": [
+    {
+      "caseId": "valid-grant-accepts",
+      "description": "A scoped grant verified against the issuer key, for the named audience, inside its window, verifies.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "network-ink-spelling-accepts",
+      "description": "The vendor-neutral network.ink.authorization_grant spelling is signed and verifies like the legacy spelling.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "HQCLEEypptaXaSxipJ6ocEOaHrwDhzajT0wTvXqx7Glg4RV8qJyxwr0GRG0HW8DrOhc-5gLfYt1Q45XC94fVAA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "issued-at-lower-bound-accepts",
+      "description": "A grant presented at exactly issuedAt is inside the window (inclusive lower bound).",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "required-owner-verified-accepts",
+      "description": "A grant that requires a verified owner verifies when the service supplies a verified owner status.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "requireVerifiedOwner": true,
+          "signature": "pZLB_snFrxHeF6EXPe_nP4gAvvOUT4RkBCg4qIOaIKfT_lFeap_7XKd5e9h48zSL_dJWPJr8fKjhkHbJxC2FBg"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "verifiedOwner": {
+          "status": "verified"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "wrong-issuer-key-rejects",
+      "description": "Verifying against a different public key fails the signature check.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-scope-rejects",
+      "description": "Broadening the scope after signing invalidates the signature.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "admin:all"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "tampered-subject-rejects",
+      "description": "Changing the subject after signing invalidates the signature.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:attacker.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "confused-deputy-rejects",
+      "description": "A grant minted for did:web:service.example presented to a different service is rejected on the audience check even though the signature is valid.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:other-service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "relabeled-audience-rejects",
+      "description": "Relabeling the grant audience to match the checking service after signing does not help: the signature bound the original audience.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:other-service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:other-service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "expired-rejects",
+      "description": "A grant presented after expiresAt is rejected.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "expiry-upper-bound-rejects",
+      "description": "A grant presented at exactly expiresAt is rejected (exclusive upper bound).",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:05:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "not-yet-valid-rejects",
+      "description": "A grant presented before issuedAt is rejected; issuer and verifier clock skew must not admit a future grant.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T11:59:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "replayed-grant-id-rejects",
+      "description": "A grantId already in the service's seen set is a replay and is rejected.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "seenGrantIds": [
+          "conformance-grant-000000001"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "revoked-grant-id-rejects",
+      "description": "A grantId on the service's revocation list is rejected even inside the window.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "revokedGrantIds": [
+          "conformance-grant-000000001"
+        ]
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "required-owner-unverified-rejects",
+      "description": "A grant that requires a verified owner is rejected when the owner status is unverified.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "requireVerifiedOwner": true,
+          "signature": "pZLB_snFrxHeF6EXPe_nP4gAvvOUT4RkBCg4qIOaIKfT_lFeap_7XKd5e9h48zSL_dJWPJr8fKjhkHbJxC2FBg"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "verifiedOwner": {
+          "status": "unverified"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "required-owner-absent-rejects",
+      "description": "A grant that requires a verified owner is rejected when the service supplies no owner status; absent is not verified.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "requireVerifiedOwner": true,
+          "signature": "pZLB_snFrxHeF6EXPe_nP4gAvvOUT4RkBCg4qIOaIKfT_lFeap_7XKd5e9h48zSL_dJWPJr8fKjhkHbJxC2FBg"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "unknown-top-level-key-rejects",
+      "description": "An unknown top-level field is rejected by the strict schema before verification.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA",
+          "extra": 1
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-scope-rejects",
+      "description": "A grant with no scope entries is out of profile and rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "duplicate-scope-rejects",
+      "description": "A grant with a repeated scope entry is rejected; scope entries must be distinct so two implementations count the same set.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "profile:read"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "overbroad-scope-rejects",
+      "description": "A scope array with more than 64 entries is out of profile and rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "s0",
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "s5",
+            "s6",
+            "s7",
+            "s8",
+            "s9",
+            "s10",
+            "s11",
+            "s12",
+            "s13",
+            "s14",
+            "s15",
+            "s16",
+            "s17",
+            "s18",
+            "s19",
+            "s20",
+            "s21",
+            "s22",
+            "s23",
+            "s24",
+            "s25",
+            "s26",
+            "s27",
+            "s28",
+            "s29",
+            "s30",
+            "s31",
+            "s32",
+            "s33",
+            "s34",
+            "s35",
+            "s36",
+            "s37",
+            "s38",
+            "s39",
+            "s40",
+            "s41",
+            "s42",
+            "s43",
+            "s44",
+            "s45",
+            "s46",
+            "s47",
+            "s48",
+            "s49",
+            "s50",
+            "s51",
+            "s52",
+            "s53",
+            "s54",
+            "s55",
+            "s56",
+            "s57",
+            "s58",
+            "s59",
+            "s60",
+            "s61",
+            "s62",
+            "s63",
+            "s64"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-string-scope-entry-rejects",
+      "description": "A scope array with a non-string entry rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            1
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "inverted-window-rejects",
+      "description": "A grant whose expiresAt is not after issuedAt is malformed and rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:00:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "invalid-issued-at-rejects",
+      "description": "A grant whose issuedAt is not a strict INK timestamp rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11 12:00",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "malformed-signature-rejects",
+      "description": "A signature that is not valid base64url of the right length is rejected.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_A+"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-signature-rejects",
+      "description": "A grant with no signature field rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "short-grant-id-rejects",
+      "description": "A grantId shorter than 16 code units is out of profile and rejects.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "short",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "invalid-now-rejects",
+      "description": "A verifier clock that is not a strict INK timestamp fails closed rather than admitting the grant.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "not-a-timestamp"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

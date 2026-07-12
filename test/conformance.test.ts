@@ -30,7 +30,9 @@ import {
   agentSupportedProtocolVersions,
   hexToBytes,
   verifyDiscoveryQueryEnvelope,
+  verifyAuthorizationGrant,
 } from "../src/index.js";
+import type { VerifiedOwnerStatus } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
 
@@ -71,6 +73,37 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       const { envelope, publicKeyHex } = input as { envelope: unknown; publicKeyHex: string };
       const ok = await verifyDiscoveryQueryEnvelope(envelope, hexToBytes(publicKeyHex));
       return { result: ok ? "accept" : "reject" };
+    }
+    case "authorization-grant": {
+      const {
+        grant,
+        issuerPublicKeyHex,
+        audience,
+        now,
+        seenGrantIds,
+        revokedGrantIds,
+        verifiedOwner,
+      } = input as {
+        grant: unknown;
+        issuerPublicKeyHex: string;
+        audience: string;
+        now: string;
+        seenGrantIds?: string[];
+        revokedGrantIds?: string[];
+        verifiedOwner?: VerifiedOwnerStatus;
+      };
+      // Reconstruct the receiver context from the vector: the revocation list
+      // becomes a denylist predicate, and the seen set and owner status pass
+      // through. A verifier accepts iff the result is ok.
+      const revoked = new Set(revokedGrantIds ?? []);
+      const result = await verifyAuthorizationGrant(grant, hexToBytes(issuerPublicKeyHex), {
+        audience,
+        now,
+        seenGrantIds,
+        isRevoked: (id) => revoked.has(id),
+        verifiedOwner,
+      });
+      return { result: result.ok ? "accept" : "reject" };
     }
     case "jcs-number": {
       try {
