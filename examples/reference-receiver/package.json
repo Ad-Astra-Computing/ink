@@ -11,7 +11,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.8.0"
+    "@adastracomputing/ink": "^0.12.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260708.1",

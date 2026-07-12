@@ -74,6 +74,12 @@ Astra Computing at `api.tulpa.network`.
 
 ## Deploy
 
+This example requires `@adastracomputing/ink` 0.12.0 or newer, which is
+published on the `next` dist-tag. Running `npm install` here resolves that pin directly. If you
+lift this code into your own project, request the version explicitly with
+`npm install @adastracomputing/ink@next` rather than the default `latest`, since
+`latest` still points at an earlier release without `parseSignedBodyBytes`.
+
 ```sh
 cd examples/reference-receiver
 npm install
