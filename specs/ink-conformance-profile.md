@@ -77,6 +77,13 @@ capability it does not fully implement.
   query envelope against the requester's key before matching. Opting in to being
   surfaced is the agent-card discovery descriptor (base profile); serving the
   query is this capability.
+- **authorization** (`authorization-grant`): required when the implementation
+  accepts "Sign in with INK" authorization grants. A service verifies a
+  scoped, audience-bound, expiring grant against the issuer key and its own
+  context (audience, clock, replay set, revocation list, owner status) before
+  acting on it. Issuing a grant is the sender side of the same capability. An
+  implementation that does not advertise authorization is not expected to accept
+  grants.
 
 ## Relationship to the compliance checklist
 
