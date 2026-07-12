@@ -4,7 +4,7 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
-## Unreleased
+## 0.12.0, raw-body UTF-8 conformance rule
 
 ### Additions
 

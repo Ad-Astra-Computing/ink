@@ -4,7 +4,7 @@
 
 An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.8.0` and `0.11.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental; current defined wire version `ink/0.2`.** Wire formats, trust semantics, and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.8.0` and `0.12.0` is published on the `next` tag; senders still emit `ink/0.1` by default unless explicitly configured.
 
 `ink/0.2` is the recommended target for new receiver implementations. It is a backward-compatible minor over `ink/0.1`, changing only the body-signature domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. `ink/0.1` remains fully supported: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
@@ -120,7 +120,7 @@ Added in `0.7.0`:
 - Conformance vectors extend to the discovery and handshake surface: the Agent Card, the connection request and response payloads, the challenge, rejection, and resolution handshake messages, and the composite audit-query-response verifier are pinned by shared vectors both implementations run. `conformance/v1/manifest.json` indexes the corpus and ships in the package as a resolvable subpath.
 - `isInkEndpointUrl(value)` exposes the Agent Card endpoint URL grammar. Agent Card endpoint fields now validate against this narrow `https`-only grammar rather than a broad URL check, so endpoints with another scheme, a fragment, embedded credentials, or a malformed percent escape are rejected. See [`CHANGELOG.md`](CHANGELOG.md).
 
-Unreleased:
+Added in `0.12.0`:
 
 - `parseSignedBodyBytes(bytes)` parses a raw signed body from its bytes, decoding with a fatal UTF-8 decoder then rejecting a lone surrogate escape before JSON parse, and throws `ParseSignedBodyError` with a `reason` of `"utf8"` or `"surrogate"` that names which gate rejected. A receiver holding raw body bytes uses it instead of a lenient string decode, because a lenient decode substitutes U+FFFD for invalid bytes and would verify a signature over bytes the signer never signed. See [`CHANGELOG.md`](CHANGELOG.md).
 
