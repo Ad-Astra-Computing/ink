@@ -42,7 +42,9 @@ required except `requireVerifiedOwner`:
 - `issuedAt`: a strict INK timestamp (RFC 3339 date-time, uppercase `T`, seconds
   required, `Z` or numeric offset). The grant is not valid before this instant.
 - `expiresAt`: a strict INK timestamp, strictly after `issuedAt`. The grant is
-  not valid at or after this instant. A zero or negative window is malformed.
+  not valid at or after this instant. A zero or negative window is malformed, and
+  a window longer than the maximum grant lifetime (see *Maximum lifetime*) is out
+  of profile.
 - `requireVerifiedOwner`: optional boolean. When `true`, the verifier requires
   the service to supply a verified owner status (see *Owner verification*).
   Absent means the grant does not require owner verification.
@@ -72,7 +74,12 @@ failure, with a stable reason for each:
 
 1. **Structure and byte safety** (`schema`). The raw bytes must be valid UTF-8
    with no lone UTF-16 surrogate escape, and the object must satisfy the schema
-   above, including the distinct-scope and positive-window rules. See
+   above, including the distinct-scope rule, the positive-window rule, the
+   maximum-lifetime bound, and the base64url signature shape. String safety is
+   structural: a grant carrying a lone UTF-16 surrogate rejects as `schema`
+   before the signature check, not as a signature failure. A window that exceeds
+   the maximum grant lifetime rejects here too, on the signed bytes alone,
+   independent of the verifier clock. See
    [`ink-signed-string-safety.md`](ink-signed-string-safety.md).
 2. **Issuer signature** (`signature`). The Ed25519 signature must verify against
    the issuer key under RFC 8032 strict rules (small-order and non-canonical
@@ -81,19 +88,59 @@ failure, with a stable reason for each:
 3. **Audience binding** (`audience`). The signed `audience` must equal the
    verifying service's own identity. This is the confused-deputy defense: a
    grant minted for one service must not be presentable at another.
-4. **Validity window** (`not_yet_valid`, `expired`). `now` must be in
+4. **Caller-tightened lifetime** (`schema`). A caller may pass a maximum lifetime
+   shorter than the profile ceiling for this check. A window longer than that
+   tightened cap rejects as `schema`. This runs after the signature so a
+   verifier-local policy value is never observable on an unauthenticated grant.
+   The value only tightens the ceiling and can never raise it.
+5. **Validity window** (`not_yet_valid`, `expired`). `now` must be in
    `[issuedAt, expiresAt)`: at or after `issuedAt` and strictly before
-   `expiresAt`. A `now` that is not a strict INK timestamp fails closed.
-5. **Replay** (`replay`). A `grantId` already in the service's seen set is a
-   replay.
-6. **Revocation** (`revoked`). A `grantId` the service's revocation predicate
-   reports as revoked is rejected even inside its window.
-7. **Owner verification** (`owner_unverified`). Consulted only when the grant
+   `expiresAt`. A `now` that is not a strict INK timestamp is a verifier input
+   error and fails closed as `schema`, not as a window verdict the verifier never
+   computed.
+6. **Replay** (`replay`). An `(issuer, grantId)` pair already in the service's
+   seen set is a replay.
+7. **Revocation** (`revoked`). An `(issuer, grantId)` pair the service's
+   revocation predicate reports as revoked is rejected even inside its window.
+8. **Owner verification** (`owner_unverified`). Consulted only when the grant
    sets `requireVerifiedOwner: true`: the supplied owner status must be
    `verified`. An absent status is unverified.
 
 Verification fails closed and never throws. A reference caller may instead throw
 an `AuthorizationGrantError` carrying the same reason.
+
+## Maximum lifetime
+
+A grant is a short-lived bootstrap credential and its window is the primary
+revocation control, so the window must be short for that control to mean
+anything. This profile makes the ceiling normative: the validity window
+(`expiresAt` minus `issuedAt`) MUST NOT exceed ten minutes. A grant with a longer
+window is out of profile and rejects as `schema`, on the signed bytes alone,
+before the signature and independent of the verifier clock. Ten minutes is the
+login and bootstrap ceiling: long enough to absorb clock skew and a slow sign-in,
+short enough that a grant expires on its own well before a receiver denylist
+would matter. It is deliberately larger than the five-minute freshness age INK
+applies to a single message, because a grant covers a whole sign-in rather than
+one request.
+
+A verifier caller MAY tighten this ceiling for a given check by supplying a
+shorter maximum lifetime; the value is clamped so it can only shorten the ceiling
+and never raise it above ten minutes. The tightened cap is a verifier-local
+policy and is enforced after the signature, so it is not observable on an
+unauthenticated grant. Both the fixed ceiling and any tightened cap reject as
+`schema`.
+
+## Scope portability
+
+A `scope` entry is an opaque token whose meaning is audience-local. The token set
+is signed and bounded, but this profile assigns no meaning to any token. A
+receiver MUST interpret a scope token only under its own audience policy, and MUST
+NOT read a token minted for one audience as carrying the same authority at
+another. An unknown token grants nothing: a receiver that does not recognize a
+token MUST NOT treat it as implying any authority, and MUST fall back to its
+default-deny policy for the capability it did not recognize. Two receivers may
+assign different meanings to the same token string, which is why a grant is bound
+to one `audience` and why the signature binds that binding.
 
 ## Owner verification
 
@@ -114,15 +161,20 @@ agree on. The revocation story is deliberately the simplest defensible one
 consistent with the rest of INK:
 
 - **Short windows are the primary control.** A grant is only valid inside
-  `[issuedAt, expiresAt)`. An issuer keeps the window short (minutes, not days,
-  the same short-TTL stance the authorization-chain note records for delegation
-  tokens), so the window a revocation must cover is small and every grant
-  expires on its own.
-- **Explicit revocation is a receiver-side denylist keyed by `grantId`.** A
-  service that wants to revoke a specific grant before it expires records its
-  `grantId` and supplies a revocation predicate at verify time. A revoked
-  `grantId` is rejected even inside its window. This reuses the same shape as the
-  replay seen-set: receiver state, not a signed field, checked by id.
+  `[issuedAt, expiresAt)`, and the window is capped at ten minutes by the
+  normative *Maximum lifetime* rule above (the same short-TTL stance the
+  authorization-chain note records for delegation tokens), so the window a
+  revocation must cover is small and every grant expires on its own.
+- **Explicit revocation is a receiver-side denylist keyed by `(issuer,
+  grantId)`.** A service that wants to revoke a specific grant before it expires
+  records the pair of its signed `issuer` and its `grantId`, and supplies a
+  revocation predicate at verify time. A revoked pair is rejected even inside its
+  window. This reuses the same shape as the replay seen-set: receiver state, not
+  a signed field, checked by the pair. The key is the pair rather than the
+  `grantId` alone because `grantId` is issuer-chosen, so two issuers can pick the
+  same string; keying on the pair keeps one issuer's revoked or seen ids from
+  colliding with another's, which would otherwise let a hostile or careless
+  issuer deny or confuse a grant it never minted.
 
 This mirrors how the discovery query envelope leaves freshness and replay windows
 to directory policy: the protocol pins the artifact and the accept/reject
@@ -143,11 +195,13 @@ profile does not mandate audit; it notes that the `grantId`, `issuer`,
 ## Acceptance
 
 A conformant verifier accepts a grant if and only if it is structurally valid
-under the schema above, its signature verifies against the issuer key, its
-`audience` matches the verifying service, `now` falls in `[issuedAt, expiresAt)`,
-its `grantId` is neither replayed nor revoked, and, when the grant requires it,
-the supplied owner status is `verified`. Every other case is a rejection with the
-reason named above. Verification fails closed and never throws.
+under the schema above (including the maximum-lifetime bound), its signature
+verifies against the issuer key, its `audience` matches the verifying service,
+its window is within any caller-tightened lifetime, `now` falls in
+`[issuedAt, expiresAt)`, its `(issuer, grantId)` pair is neither replayed nor
+revoked, and, when the grant requires it, the supplied owner status is
+`verified`. Every other case is a rejection with the reason named above.
+Verification fails closed and never throws.
 
 ## Conformance
 
@@ -159,10 +213,18 @@ accepts grants (see
 the full grant plus the verification context, and both the TypeScript reference
 and the Go implementation must make the same accept or reject decision. The
 corpus covers the scoped happy path, both wire spellings, the inclusive lower and
-exclusive upper window bounds, a required-owner accept, and the negative cases: a
-wrong issuer key, a tampered scope or subject, a confused-deputy audience, a
-relabeled audience, an expired or not-yet-valid grant, a replayed or revoked
-`grantId`, an unverified or absent owner where required, an unknown key, an
-empty, duplicate, overbroad, or non-string scope, an inverted window, a malformed
-timestamp, a malformed or missing signature, a short `grantId`, and a malformed
-verifier clock.
+exclusive upper window bounds, a required-owner accept, an owner-not-required
+accept that ignores the status, a cross-issuer accept where another issuer's seen
+and revoked entry for the same `grantId` string does not block the grant, and the
+negative cases. Each reject vector pins the typed reason so the two
+implementations agree on verify order. The negative cases are: a wrong issuer
+key, a tampered scope or subject, a confused-deputy audience, a relabeled
+audience, an expired or not-yet-valid grant, a replayed or revoked
+`(issuer, grantId)` pair, an unverified or absent owner where required, a bad
+signature combined with a wrong audience, expiry, replay, revocation, or an
+unverified owner (each pinning signature-first ordering), an unknown key, a lone
+surrogate, an empty, duplicate, overbroad, non-string, or over-length scope
+entry, an over-length issuer, subject, audience, or `grantId`, an invalid
+`protocol` or `type`, an inverted window, a window over the maximum lifetime, a
+window over a caller-tightened cap, a malformed timestamp, a malformed or missing
+signature, a short `grantId`, and a malformed verifier clock.
