@@ -568,6 +568,58 @@ func TestDiscoveryQueryEnvelope(t *testing.T) {
 	}
 }
 
+func TestAuthorizationGrant(t *testing.T) {
+	vf := loadVectors(t, "authorization-grant")
+	for _, c := range vf.Cases {
+		var pubHex, audience, now string
+		if err := json.Unmarshal(c.Input["issuerPublicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad issuerPublicKeyHex: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["audience"], &audience); err != nil {
+			t.Fatalf("%s: bad audience: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: issuerPublicKeyHex not hex: %v", c.CaseID, err)
+		}
+		var seen []string
+		if raw, ok := c.Input["seenGrantIds"]; ok {
+			_ = json.Unmarshal(raw, &seen)
+		}
+		revoked := map[string]bool{}
+		if raw, ok := c.Input["revokedGrantIds"]; ok {
+			var list []string
+			_ = json.Unmarshal(raw, &list)
+			for _, id := range list {
+				revoked[id] = true
+			}
+		}
+		ownerStatus := ""
+		if raw, ok := c.Input["verifiedOwner"]; ok {
+			var vo struct {
+				Status string `json:"status"`
+			}
+			_ = json.Unmarshal(raw, &vo)
+			ownerStatus = vo.Status
+		}
+		ctx := AuthorizationGrantContext{
+			Audience:            audience,
+			Now:                 now,
+			SeenGrantIDs:        seen,
+			IsRevoked:           func(id string) bool { return revoked[id] },
+			VerifiedOwnerStatus: ownerStatus,
+		}
+		ok, _ := VerifyAuthorizationGrant(c.Input["grant"], pub, ctx)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
 func TestReplayFreshness(t *testing.T) {
 	vf := loadVectors(t, "replay-freshness")
 	for _, c := range vf.Cases {

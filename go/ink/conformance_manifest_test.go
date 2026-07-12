@@ -48,11 +48,12 @@ var goProfileCategories = map[string][]string{
 		"signed-body-utf8",
 		"timestamp-validity",
 	},
-	"encryption":  {"payload-encryption"},
-	"audit":       {"audit-query-response", "inclusion-receipt", "merkle-leaf"},
-	"witness":     {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
-	"containment": {"handshake-message"},
-	"discovery":   {"discovery-query-envelope"},
+	"encryption":    {"payload-encryption"},
+	"audit":         {"audit-query-response", "inclusion-receipt", "merkle-leaf"},
+	"witness":       {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
+	"containment":   {"handshake-message"},
+	"discovery":     {"discovery-query-envelope"},
+	"authorization": {"authorization-grant"},
 }
 
 type conformanceManifest struct {
@@ -71,6 +72,7 @@ var goVerifiedCategories = []string{
 	"agent-card",
 	"agent-card-fetch",
 	"audit-query-response",
+	"authorization-grant",
 	"connection-payload",
 	"discovery-query-envelope",
 	"first-contact-transcript",
