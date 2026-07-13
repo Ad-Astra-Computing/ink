@@ -12,8 +12,11 @@ import (
 // sequencing and state a witness needs: it assigns each submitted audit event
 // the next leaf index, holds the ordered leaf hashes, and issues signed
 // inclusion receipts and signed checkpoints over its current tree. It builds on
-// the pure issuing Merkle core and the signer; it adds no transport and no
-// durable storage, so a process restart starts an empty log.
+// the pure issuing Merkle core and the signer; it adds no transport and performs
+// no file IO itself, so by default a process restart starts an empty log. A
+// caller that needs durability injects a storage sink with SetPersist and rebuilds
+// the tree with ReplayAppend; the ordering guarantee that keeps a receipt from
+// attesting to an unpersisted leaf lives here, but the storage does not.
 //
 // A WitnessLog is safe for concurrent use. Submit serializes appends, and the
 // proof and checkpoint reads take a snapshot of the append-only leaf slice, so a
@@ -30,6 +33,31 @@ type WitnessLog struct {
 	// inclusion proofs, not only a Merkle proof over an opaque leaf.
 	leaves []string
 	events []map[string]interface{}
+	// persist is an optional durability sink. When set, it runs inside the append
+	// critical section, after the in-memory append but before the receipt is
+	// signed, so the record for a leaf is committed to durable storage in tree
+	// order before any receipt can attest to that leaf. It receives the raw
+	// submitted event bytes, the receipt timestamp and the assigned leaf index. If
+	// it returns an error the append is rolled back and Submit fails, so a leaf the
+	// sink could not durably record is never issued a receipt and never grows the
+	// tree. The library itself performs no file IO: the sink is injected by the
+	// caller, and the nil case is the original in-memory path with no added cost.
+	persist func(rawEvent []byte, timestamp string, index int) error
+}
+
+// SetPersist installs a durability sink that is invoked for every accepted leaf
+// inside the append critical section, after the in-memory append and before the
+// inclusion receipt is signed. It exists so a caller can make the log durable
+// without adding storage code to this pure library: the sink owns the file, and
+// the log owns only ordering. It must be called before the log accepts any
+// submission (for example right after NewWitnessLog, or after the ReplayAppend
+// pass that rebuilds a durable log) and not concurrently with Submit. A sink error
+// fails the submission closed and rolls
+// back the append, so the durable record and the tree never diverge.
+func (w *WitnessLog) SetPersist(persist func(rawEvent []byte, timestamp string, index int) error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.persist = persist
 }
 
 // NewWitnessLog creates an empty log that signs as origin with the witness key.
@@ -102,14 +130,67 @@ func (w *WitnessLog) SubmitWithCapacity(rawEvent []byte, timestamp string, maxLe
 	index := len(w.leaves)
 	w.leaves = append(w.leaves, leafHash)
 	w.events = append(w.events, obj)
+	// Commit the durable record for this leaf inside the critical section, before
+	// the receipt is signed and before the lock is released. This is the security
+	// ordering: the record for leaf index is on stable storage in the same order
+	// as the tree, so a receipt can never attest to a leaf a crash could lose. On a
+	// sink failure the append is rolled back and the submission fails closed, so
+	// the durable log and the in-memory tree never diverge.
+	if w.persist != nil {
+		if err := w.persist(rawEvent, timestamp, index); err != nil {
+			w.leaves = w.leaves[:index]
+			w.events = w.events[:index]
+			w.mu.Unlock()
+			return InclusionReceipt{}, err
+		}
+	}
 	// A three-index slice caps len and cap at the tree size at this append, so a
 	// later append that reallocates or writes past this size cannot alias it.
 	snapshot := w.leaves[: index+1 : index+1]
 	w.mu.Unlock()
 
 	// Inputs are prevalidated and leaves are always 64-hex, so signing cannot
-	// fail after the append.
+	// fail after the append. The durable record was committed under the lock
+	// above, so this receipt can only attest to an already-persisted leaf.
 	return SignInclusionReceipt(snapshot, index, eventID, timestamp, w.priv)
+}
+
+// ReplayAppend re-appends a previously accepted event during startup replay. It
+// runs the raw event through the exact same validation and leaf-hash path as
+// Submit, so the rebuilt tree is byte-identical to the tree the events first
+// produced, but it neither signs a receipt nor invokes the durability sink: the
+// record being replayed is already on stable storage. The maxLeaves bound is
+// enforced here too, so a durable log larger than the configured bound refuses to
+// rebuild rather than silently exceeding it. ReplayAppend must be called before
+// SetPersist and before the log serves any live submission.
+func (w *WitnessLog) ReplayAppend(rawEvent []byte, timestamp string, maxLeaves int) error {
+	if timestamp == "" || !utf8.Valid([]byte(timestamp)) {
+		return errors.New("timestamp must be a non-empty valid UTF-8 string")
+	}
+	parsed, err := ParseSignedBody(rawEvent)
+	if err != nil {
+		return err
+	}
+	obj, ok := parsed.(map[string]interface{})
+	if !ok {
+		return errors.New("event must be a JSON object")
+	}
+	eventID, ok := obj["id"].(string)
+	if !ok || eventID == "" {
+		return errors.New("event id must be a non-empty string")
+	}
+	leafHash, ok := ComputeAuditMerkleLeafHash(obj)
+	if !ok {
+		return errors.New("event could not be hashed into a leaf")
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if len(w.leaves) >= maxSafeInteger || (maxLeaves > 0 && len(w.leaves) >= maxLeaves) {
+		return ErrCapacity
+	}
+	w.leaves = append(w.leaves, leafHash)
+	w.events = append(w.events, obj)
+	return nil
 }
 
 // Size returns the current number of leaves in the log.

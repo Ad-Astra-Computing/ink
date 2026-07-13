@@ -1,15 +1,17 @@
-// Package witnessserver exposes a single in-memory INK WitnessLog over HTTP. It
-// is an issuing endpoint: it holds an Ed25519 witness key, stamps a server-side
+// Package witnessserver exposes a single INK WitnessLog over HTTP. It is an
+// issuing endpoint: it holds an Ed25519 witness key, stamps a server-side
 // timestamp, appends each submitted audit event as a new leaf, and returns a
 // signed inclusion receipt. It also serves the current signed checkpoint and the
 // inclusion and consistency proofs of its append-only tree.
 //
 // Unlike the stateless verify server, this server is stateful and key-holding,
 // so it is deliberately scoped small and security-shaped: it is a single
-// process, in-memory and non-durable (a restart starts an empty log), it caps
-// the tree size so an unbounded append cannot exhaust memory, and submit is
-// authenticated by default. It is a development and interop witness, not a
-// durable production log.
+// process, it caps the tree size so an unbounded append cannot exhaust memory,
+// and submit is authenticated by default. By default the log is in-memory and a
+// restart starts empty; when Config.DataDir is set the log is durable, replaying
+// an append-only record file on startup and fsyncing each record before its
+// receipt is signed. It is a development and interop witness, not a production
+// log.
 //
 // Status mapping:
 //
@@ -19,6 +21,8 @@
 //	404  unknown route
 //	405  known route, wrong method
 //	413  submit or audit-query body over the size cap
+//	500  a durable submission could not be recorded (write or fsync failure)
+//	503  the durable store is poisoned and refusing further submissions
 //	507  the log has reached its configured capacity
 package witnessserver
 
@@ -32,11 +36,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"time"
 	"unicode/utf8"
 
 	"github.com/Ad-Astra-Computing/ink/go/ink"
+	"github.com/Ad-Astra-Computing/ink/go/internal/witnessstore"
 )
 
 // maxBodyBytes caps a single submit body, matching the verify server's cap so
@@ -79,6 +85,17 @@ type Config struct {
 	// Now supplies the receipt timestamp clock; nil selects time.Now. It is
 	// injectable so a test can assert a deterministic stamped timestamp.
 	Now func() time.Time
+	// DataDir enables durable storage. When empty the log is in-memory and a
+	// restart starts empty, the original behavior. When set, the server keeps an
+	// append-only record file under it, replays that file on startup to rebuild the
+	// tree, and fsyncs each record before its inclusion receipt is signed, so a
+	// receipt never attests to an event a crash could lose. The replayed leaf count
+	// is bounded by MaxLeaves, so a log file larger than the bound refuses to start.
+	DataDir string
+	// syncForTest, when set, replaces the store's fsync. It exists only so a test
+	// can observe that the fsync happens before the receipt is signed or inject a
+	// durability failure; production leaves it nil.
+	syncForTest func() error
 }
 
 type server struct {
@@ -96,17 +113,35 @@ type server struct {
 
 // New validates the configuration and returns the server's HTTP handler. It
 // fails if the origin or key is invalid, or if no submit token is set and
-// unauthenticated submit was not explicitly allowed.
+// unauthenticated submit was not explicitly allowed. If cfg.DataDir is set the
+// log is durable: the record file under it is replayed to rebuild the tree and
+// each later submission is fsynced before its receipt is signed. New does not
+// surface the record-file closer; a caller that must flush and release the file
+// on shutdown (a long-running server, a test that restarts) uses NewWithCloser.
+// Because every accepted record is already fsynced, dropping the closer loses no
+// data; it only leaves the file to be released at process exit.
 func New(cfg Config) (http.Handler, error) {
-	log, err := ink.NewWitnessLog(cfg.Origin, cfg.PrivateKey)
+	h, closer, err := NewWithCloser(cfg)
 	if err != nil {
 		return nil, err
 	}
+	_ = closer
+	return h, nil
+}
+
+// NewWithCloser is New but also returns a closer for the durable record file.
+// Callers that outlive a single request (a server, a test that restarts) use it
+// so the file is flushed and released; the in-memory path returns a no-op closer.
+func NewWithCloser(cfg Config) (http.Handler, io.Closer, error) {
+	log, err := ink.NewWitnessLog(cfg.Origin, cfg.PrivateKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	if !cfg.AllowUnauthenticated && cfg.SubmitToken == "" {
-		return nil, errors.New("a submit token is required unless unauthenticated submit is explicitly allowed")
+		return nil, nil, errors.New("a submit token is required unless unauthenticated submit is explicitly allowed")
 	}
 	if cfg.ServiceDid == "" || !utf8.ValidString(cfg.ServiceDid) {
-		return nil, errors.New("a valid serviceDid is required")
+		return nil, nil, errors.New("a valid serviceDid is required")
 	}
 	maxLeaves := cfg.MaxLeaves
 	if maxLeaves <= 0 {
@@ -116,6 +151,16 @@ func New(cfg Config) (http.Handler, error) {
 	if now == nil {
 		now = time.Now
 	}
+
+	var closer io.Closer = noopCloser{}
+	if cfg.DataDir != "" {
+		store, err := openDurableLog(log, cfg.DataDir, maxLeaves, cfg.syncForTest)
+		if err != nil {
+			return nil, nil, err
+		}
+		closer = store
+	}
+
 	s := &server{
 		log:        log,
 		origin:     cfg.Origin,
@@ -125,8 +170,62 @@ func New(cfg Config) (http.Handler, error) {
 		maxLeaves:  maxLeaves,
 		now:        now,
 	}
-	return s.handler(), nil
+	return s.handler(), closer, nil
 }
+
+// recordFileName is the fixed name of the append-only record file inside DataDir.
+const recordFileName = "witness-log.jsonl"
+
+// openDurableLog opens the record file under dataDir, replays it to rebuild the
+// tree bounded by maxLeaves, and wires the persist sink so every later submission
+// is fsynced before its receipt is signed. Replay runs before the sink is
+// installed, so a replayed leaf is not re-persisted. It fails closed on a corrupt
+// log or a replay that would exceed the bound.
+func openDurableLog(log *ink.WitnessLog, dataDir string, maxLeaves int, syncForTest func() error) (*witnessstore.Store, error) {
+	// Create the data directory and durably fsync the parent of every directory
+	// this actually creates, so a crash right after the first receipt cannot lose a
+	// freshly created directory and leave replay with an empty log. Open then fsyncs
+	// the record file's own entry inside dataDir.
+	if err := witnessstore.MkdirAllDurable(dataDir, 0o700); err != nil {
+		return nil, fmt.Errorf("cannot create data dir: %w", err)
+	}
+	path := filepath.Join(dataDir, recordFileName)
+	if err := witnessstore.Replay(path, func(raw []byte, ts string) error {
+		return log.ReplayAppend(raw, ts, maxLeaves)
+	}); err != nil {
+		return nil, fmt.Errorf("cannot replay witness log: %w", err)
+	}
+	store, err := witnessstore.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open witness log for append: %w", err)
+	}
+	if syncForTest != nil {
+		store.SetSyncForTest(syncForTest)
+	}
+	log.SetPersist(func(raw []byte, ts string, _ int) error {
+		if err := store.Append(raw, ts); err != nil {
+			// Tag a durability failure so handleSubmit maps it to a 5xx storage error
+			// rather than a 4xx client error: the submission was well formed, the
+			// witness could not durably record it. Join, not %v-wrap, so the store's
+			// own sentinels (for example ErrStorePoisoned) stay matchable with
+			// errors.Is alongside errStorage. The append is rolled back and no receipt
+			// is issued regardless.
+			return errors.Join(errStorage, err)
+		}
+		return nil
+	})
+	return store, nil
+}
+
+// errStorage tags a submission that failed because the durable store could not
+// record it (a write, fsync, or rollback failure, or a poisoned store), as
+// opposed to a malformed event. handleSubmit maps it to a 5xx so a client does not
+// read a storage outage as bad input.
+var errStorage = errors.New("witness log storage failure")
+
+type noopCloser struct{}
+
+func (noopCloser) Close() error { return nil }
 
 // route pairs a method-qualified path with its handler and the method the
 // catch-all reports in Allow when the path is hit with the wrong method.
@@ -207,7 +306,19 @@ func (s *server) handleSubmit(w http.ResponseWriter, req *http.Request) {
 			writeError(w, http.StatusInsufficientStorage, "the log has reached its configured capacity")
 			return
 		}
-		// The log validates the event and only appends on success, so any other
+		if errors.Is(err, errStorage) {
+			// A well-formed submission the durable store could not record. The append
+			// was rolled back and no receipt issued; this is a server-side storage
+			// failure, not client bad input, so it maps to 500 (and 503 once the store
+			// is poisoned and refusing further writes).
+			status := http.StatusInternalServerError
+			if errors.Is(err, witnessstore.ErrStorePoisoned) {
+				status = http.StatusServiceUnavailable
+			}
+			writeError(w, status, "the witness could not durably record the event")
+			return
+		}
+		// The log validates the event and only appends on success, so any remaining
 		// error here is a malformed submission and the tree is unchanged.
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -243,7 +354,7 @@ func (s *server) authorized(req *http.Request) bool {
 // any scope. A witness that must let each agent retrieve only its own scope has to
 // require a signed audit-query request that binds the requester to its key and
 // resolve that key out of band; that per-agent authenticated disclosure is out of
-// scope for this in-memory development witness.
+// scope for this development witness.
 func (s *server) handleAuditQuery(w http.ResponseWriter, req *http.Request) {
 	if !s.authOff && !s.authorized(req) {
 		w.Header().Set("WWW-Authenticate", "Bearer")
@@ -370,10 +481,11 @@ func PrivateKeyFromSeedHex(seedHex string) (ed25519.PrivateKey, error) {
 // timeouts mirror the verify server: MaxBytesReader caps body size, these cap
 // the time a slow client can hold a connection.
 func Serve(addr string, cfg Config) error {
-	handler, err := New(cfg)
+	handler, closer, err := NewWithCloser(cfg)
 	if err != nil {
 		return err
 	}
+	defer closer.Close()
 	srv := &http.Server{
 		Addr:              addr,
 		Handler:           handler,

@@ -251,13 +251,13 @@ is a known route with the wrong method, and `413` is a body over the size cap.
 
 ## The `ink-witness-server` issuing service
 
-`ink-witness-server` runs a single in-memory witness log over HTTP. Unlike the
+`ink-witness-server` runs a single witness log over HTTP. Unlike the
 verify server it is stateful and holds an Ed25519 witness key: it stamps a
 server-side timestamp, appends each submitted audit event as a new leaf, and
 returns a signed inclusion receipt. It also serves the current signed checkpoint
-and the inclusion and consistency proofs of its tree. It is in-memory and
-non-durable, so a restart starts an empty log; it is a development and interop
-witness, not a durable production log.
+and the inclusion and consistency proofs of its tree. By default it is in-memory,
+so a restart starts an empty log; pass `-data-dir` to keep the log across
+restarts. It is a development and interop witness, not a durable production log.
 
 The witness key is a hex-encoded 32-byte Ed25519 seed in `INK_WITNESS_SEED_HEX`.
 Submit and audit-query are authenticated by default: set the bearer token in
@@ -266,8 +266,43 @@ Submit and audit-query are authenticated by default: set the bearer token in
 ```sh
 INK_WITNESS_SEED_HEX=$SEED INK_WITNESS_SUBMIT_TOKEN=$TOK \
   ink-witness-server --addr :8081 \
-  --origin example.com/ink-witness --service-did did:web:witness.example
+  --origin example.com/ink-witness --service-did did:web:witness.example \
+  --data-dir /var/lib/ink-witness
 ```
+
+### Durability
+
+Passing `-data-dir <dir>` keeps an append-only record file under `<dir>`, one
+JSON line per accepted leaf holding the raw event bytes, so the log survives a
+restart. An empty `-data-dir` (the default) keeps the log in memory, and a
+restart starts empty.
+
+The durability guarantee is ordering. On each accepted submission the record is
+written and fsynced to stable storage *before* the inclusion receipt is signed,
+so a receipt can never attest to a leaf a crash could lose. On startup the
+record file is replayed through the same validation and leaf-hash path the live
+submit uses, so the tree is rebuilt byte-identically: the checkpoint at the
+recovered size has the same root it had before the restart, every prior receipt
+still verifies, and new submissions continue the same tree. The `-max-leaves`
+bound applies to replay too, so a record file larger than the bound refuses to
+start rather than exceeding it.
+
+The security invariant is one-directional: a receipt is signed only after the
+record is fsynced, so no receipt ever attests to a leaf a crash could lose. The
+converse is expected and harmless: a crash between the fsync and the receipt can
+leave a durable record with no receipt, which replay simply rebuilds as a valid
+leaf, so an interrupted submitter may find its event present.
+
+Recovery is fail-closed. The trailing newline is the commit marker for a fully
+written record, and a write or fsync that fails is truncated away, so the only
+tail replay discards is a partial line with no newline a crash left mid write. A
+complete newline-terminated record with no receipt is a valid leaf replay keeps,
+the at-least-once case above. Every other defect is fatal: a newline-terminated
+record that fails to decode (at any position, including the last) is a complete
+record that came out corrupt, so replay refuses to start and
+returns an error rather than silently drop a real leaf. If a failed append cannot
+truncate its bytes back durably the server refuses further submissions until it is
+restarted. There is no auto-repair; an operator inspects the file.
 
 - `POST /submit` appends the audit event in the body, retains it, and returns the
   signed inclusion receipt. It requires `Authorization: Bearer <token>` unless the
@@ -290,7 +325,12 @@ INK_WITNESS_SEED_HEX=$SEED INK_WITNESS_SUBMIT_TOKEN=$TOK \
 
 The status map adds `401` for a submit or audit-query without a valid bearer
 token and `507` when the log has reached its configured capacity (`-max-leaves`),
-on top of the `200/400/404/405/413` the verify server uses.
+on top of the `200/400/404/405/413` the verify server uses. With `-data-dir` a
+submission the durable store cannot record fails closed with `500`, or `503` once
+a failed rollback has poisoned the store and it is refusing writes.
+
+Flags: `-addr`, `-origin`, `-service-did`, `-max-leaves` (0 selects the default),
+`-data-dir` (empty keeps the log in memory), and `-allow-unauthenticated`.
 
 ## Cross-implementation issuing interop
 

@@ -444,3 +444,132 @@ func TestWitnessLogConcurrentSubmit(t *testing.T) {
 		}
 	}
 }
+
+// TestWitnessLogPersistOrderingBeforeSign proves the durability sink runs before
+// the receipt is signed, and in tree order. The sink records the index it saw for
+// each call; because SetPersist runs it inside the append critical section before
+// SignInclusionReceipt, a returned receipt can only exist for an index the sink
+// already committed, and the recorded order equals the leaf order.
+func TestWitnessLogPersistOrderingBeforeSign(t *testing.T) {
+	log, pub := newTestLog(t)
+	var persisted []int
+	log.SetPersist(func(raw []byte, ts string, index int) error {
+		// The sink sees the raw submitted bytes and the assigned index; recording
+		// them here lets the test assert order and pre-sign timing.
+		persisted = append(persisted, index)
+		return nil
+	})
+	const n = 4
+	for i := 0; i < n; i++ {
+		raw, event := makeEvent(i)
+		r, err := log.Submit(raw, testLogTimestamp)
+		if err != nil {
+			t.Fatalf("submit %d: %v", i, err)
+		}
+		// The sink must have recorded this leaf before the receipt for it existed.
+		if len(persisted) != i+1 || persisted[i] != i {
+			t.Fatalf("submit %d: sink saw %v, want the leaf committed in order before the receipt", i, persisted)
+		}
+		if !VerifyInclusionReceipt(r, pub, ReceiptVerifyOptions{Event: event}) {
+			t.Errorf("submit %d: receipt did not verify", i)
+		}
+	}
+}
+
+// TestWitnessLogPersistFailureRollsBack proves a sink error fails the submission
+// closed and leaves the tree unchanged: no leaf, no receipt, and later submits
+// keep contiguous indices.
+func TestWitnessLogPersistFailureRollsBack(t *testing.T) {
+	log, _ := newTestLog(t)
+	failNext := false
+	log.SetPersist(func(raw []byte, ts string, index int) error {
+		if failNext {
+			return errors.New("disk full")
+		}
+		return nil
+	})
+	raw0, _ := makeEvent(0)
+	if _, err := log.Submit(raw0, testLogTimestamp); err != nil {
+		t.Fatalf("submit 0: %v", err)
+	}
+	failNext = true
+	raw1, _ := makeEvent(1)
+	if _, err := log.Submit(raw1, testLogTimestamp); err == nil {
+		t.Fatal("submit with a failing sink returned a receipt")
+	}
+	if log.Size() != 1 {
+		t.Fatalf("failed submit grew the tree to %d, want 1", log.Size())
+	}
+	failNext = false
+	// The next accepted event takes index 1, proving the failed append left no gap.
+	r, err := log.Submit(raw1, testLogTimestamp)
+	if err != nil {
+		t.Fatalf("submit after recovery: %v", err)
+	}
+	if r.LeafIndex != 1 {
+		t.Errorf("post-failure leaf index = %d, want 1 (no gap)", r.LeafIndex)
+	}
+}
+
+// TestWitnessLogReplayRebuildsIdenticalTree proves ReplayAppend rebuilds a tree
+// whose root at any size equals the root the live submissions produced, without
+// signing or re-persisting.
+func TestWitnessLogReplayRebuildsIdenticalTree(t *testing.T) {
+	live, pub := newTestLog(t)
+	const n = 7
+	raws := make([][]byte, n)
+	for i := 0; i < n; i++ {
+		raw, _ := makeEvent(i)
+		raws[i] = raw
+		if _, err := live.Submit(raw, testLogTimestamp); err != nil {
+			t.Fatalf("live submit %d: %v", i, err)
+		}
+	}
+	liveCP, err := live.Checkpoint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	liveData, ok := VerifyCheckpoint(liveCP, pub, testLogOrigin)
+	if !ok {
+		t.Fatal("live checkpoint did not verify")
+	}
+
+	priv, _ := conformanceWitnessKey()
+	rebuilt, err := NewWitnessLog(testLogOrigin, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < n; i++ {
+		if err := rebuilt.ReplayAppend(raws[i], testLogTimestamp, 0); err != nil {
+			t.Fatalf("replay %d: %v", i, err)
+		}
+	}
+	rebuiltCP, err := rebuilt.Checkpoint()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rebuiltData, ok := VerifyCheckpoint(rebuiltCP, pub, testLogOrigin)
+	if !ok {
+		t.Fatal("rebuilt checkpoint did not verify")
+	}
+	if rebuiltData.TreeSize != liveData.TreeSize || rebuiltData.RootHash != liveData.RootHash {
+		t.Errorf("rebuilt tree (%d,%s) != live tree (%d,%s)", rebuiltData.TreeSize, rebuiltData.RootHash, liveData.TreeSize, liveData.RootHash)
+	}
+}
+
+// TestWitnessLogReplayHonoursCapacity proves replay refuses to exceed the bound.
+func TestWitnessLogReplayHonoursCapacity(t *testing.T) {
+	priv, _ := conformanceWitnessKey()
+	log, err := NewWitnessLog(testLogOrigin, priv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw0, _ := makeEvent(0)
+	if err := log.ReplayAppend(raw0, testLogTimestamp, 1); err != nil {
+		t.Fatalf("replay 0: %v", err)
+	}
+	raw1, _ := makeEvent(1)
+	if err := log.ReplayAppend(raw1, testLogTimestamp, 1); !errors.Is(err, ErrCapacity) {
+		t.Errorf("replay past bound err = %v, want ErrCapacity", err)
+	}
+}
