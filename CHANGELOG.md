@@ -42,7 +42,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   the service interprets. See
   [`specs/ink-authorization-grant.md`](specs/ink-authorization-grant.md).
 - The verifier returns a typed rejection reason (`schema`, `signature`,
-  `audience`, `expired`, `not_yet_valid`, `replay`, `revoked`,
+  `audience`, `subject`, `expired`, `not_yet_valid`, `replay`, `revoked`,
   `owner_unverified`) so a service can map each failure to its own response
   without matching on prose, the same error-design pattern as
   `parseSignedBodyBytes`. The `AuthorizationGrantError` class and the
@@ -89,6 +89,38 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   expiry and clock-skew bounds, the maximum-lifetime and caller-tightened bounds,
   signature-first ordering under hostile context, a lone surrogate, and scope and
   field-length fuzzing.
+- Presentation is bound to the subject. The verify context takes an optional
+  `presenter`, the authenticated identity of the principal presenting the grant as
+  the transport establishes it; when it is supplied and does not equal the signed
+  `subject` the grant rejects with the new `subject` reason, so a stolen grant is
+  not presentable by another principal inside its window. When no presenter is
+  supplied the grant is a bearer artifact the audience binds out of band. Over INK
+  the audience verifies the authenticated envelope sender equals the subject, and
+  grant bytes are confidential in transit. The check runs after the audience check
+  and before the window checks in both implementations, and is pinned by
+  presenter-matches, presenter-absent, and presenter-mismatch conformance vectors.
+- The caller-tightened `maxLifetimeMs` treats zero as unset and fails closed on a
+  negative or non-finite value. A value of exactly zero uses the profile default,
+  matching the Go context where a zero-value integer is indistinguishable from an
+  unset one. A `NaN` would make the tightened-cap comparison silently false and
+  disable the policy, so a negative or non-finite value rejects as `schema`, the
+  same as a malformed clock. The Go context uses an integer type, so it cannot
+  carry a non-finite value and enforces the rule by construction.
+- The byte bound on a raw grant body is a shared byte-layer rule. A grant
+  presented as raw bytes rejects as `schema` when longer than 65536 bytes, before
+  it is decoded, since the largest well-formed grant is around 12 KiB and a body
+  padded past the bound is not a legitimate presentation. The Go verifier receives
+  bytes and enforces the bound itself through the exported `MaxGrantBodyBytes`; the
+  reference verifier receives an already-decoded object and applies the structural
+  bounds instead, so the exported `MAX_GRANT_BODY_BYTES` constant is the contract
+  for whatever layer received its bytes. A post-parse node, depth, and character
+  walk mirrors the reference complexity bounds, so both implementations reject the
+  same pathological structure.
+- The spec pins that a service MUST record an accepted `(issuer, grantId)` pair
+  atomically with acceptance, as a single check-and-insert, so two concurrent
+  presentations of the same pair cannot both be accepted. Replay recording is
+  receiver state the verifier reads but does not own; the `seenGrants` docs carry
+  the same rule.
 
 ## 0.12.0, raw-body UTF-8 conformance rule
 

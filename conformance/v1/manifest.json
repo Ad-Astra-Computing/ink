@@ -34,9 +34,9 @@
       "vector": "vectors/authorization-grant.json",
       "profile": "authorization",
       "spec": "specs/ink-authorization-grant.md",
-      "summary": "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, validity window, replay, revocation, and the optional owner-verification requirement.",
-      "caseCount": 44,
-      "sha256": "60d0c877a427193fe20c4737669069a4acbd585ffdd48d09e9848812830c8fb3"
+      "summary": "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement.",
+      "caseCount": 50,
+      "sha256": "77c17a75aa3a458a2fb2ee576f2f936d96c506aaeb2d099901c38dba9f730ecb"
     },
     {
       "id": "connection-payload",

@@ -6,9 +6,11 @@ import {
   AuthorizationGrantError,
   AuthorizationGrantSchema,
   MAX_GRANT_LIFETIME_MS,
+  MAX_GRANT_BODY_BYTES,
   type AuthorizationGrantInput,
   type AuthorizationGrantVerifyContext,
 } from "../src/models/authorization-grant.js";
+import { MAX_GRANT_BODY_BYTES as MAX_GRANT_BODY_BYTES_ROOT } from "../src/index.js";
 
 // A fixed issue time and a matching clock keep every case inside the default
 // freshness window unless a case moves the clock deliberately.
@@ -348,6 +350,16 @@ describe("authorization grant scope fuzzing", () => {
   });
 });
 
+describe("authorization grant byte bound", () => {
+  it("exposes a 65536-byte maximum grant body, the spec byte bound", () => {
+    expect(MAX_GRANT_BODY_BYTES).toBe(65536);
+  });
+
+  it("re-exports the byte bound from the package root", () => {
+    expect(MAX_GRANT_BODY_BYTES_ROOT).toBe(MAX_GRANT_BODY_BYTES);
+  });
+});
+
 describe("authorization grant maximum lifetime", () => {
   it("exposes a ten-minute maximum grant lifetime", () => {
     expect(MAX_GRANT_LIFETIME_MS).toBe(10 * 60 * 1000);
@@ -436,6 +448,108 @@ describe("authorization grant maximum lifetime", () => {
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("schema");
+  });
+});
+
+describe("authorization grant caller-tightened lifetime input validation", () => {
+  const badValues: Array<[string, number]> = [
+    ["NaN", Number.NaN],
+    ["Infinity", Number.POSITIVE_INFINITY],
+    ["-Infinity", Number.NEGATIVE_INFINITY],
+    ["negative", -1],
+  ];
+  for (const [label, value] of badValues) {
+    it(`rejects a ${label} maxLifetimeMs as schema (fails closed like a malformed clock)`, async () => {
+      const kp = await generateKeypair();
+      const grant = await makeGrant(kp);
+      const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ maxLifetimeMs: value }));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe("schema");
+    });
+  }
+
+  it("treats a zero maxLifetimeMs as unset and uses the profile default (accepts)", async () => {
+    // Zero means unset, matching Go's MaxLifetimeMs == 0 gate: a Go zero-value
+    // integer is indistinguishable from an unset one, so 0 is no caller cap.
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ maxLifetimeMs: 0 }));
+    expect(result.ok).toBe(true);
+  });
+
+  it("still accepts a finite positive maxLifetimeMs that admits the window", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ maxLifetimeMs: 5 * 60 * 1000 }));
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe("authorization grant presentation binding", () => {
+  const subject = "did:web:subject.example";
+
+  it("accepts when the presenter equals the signed subject", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ presenter: subject }));
+    expect(result.ok).toBe(true);
+  });
+
+  it("rejects when the presenter is not the signed subject with reason subject", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ presenter: "did:web:thief.example" }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("subject");
+  });
+
+  it("skips the check when no presenter is supplied (bearer artifact)", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext());
+    expect(result.ok).toBe(true);
+  });
+
+  it("skips the check when the presenter is an empty string (empty means absent)", async () => {
+    // An empty presenter is no presenter, matching Go's Presenter != "" gate:
+    // Go cannot tell an unset field from an empty one, so the two are equivalent.
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ presenter: "" }));
+    expect(result.ok).toBe(true);
+  });
+
+  it("checks the presenter after the audience check, before the window", async () => {
+    const kp = await generateKeypair();
+    // Wrong audience and a stolen presenter both fail; the audience check runs
+    // first, so the reason is audience, not subject.
+    const grant = await makeGrant(kp, { audience: "did:web:other-service.example" });
+    const result = await verifyAuthorizationGrant(grant, kp.publicKey, baseContext({ presenter: "did:web:thief.example" }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("audience");
+  });
+
+  it("checks the presenter before the window, so a stolen expired grant rejects on subject", async () => {
+    const kp = await generateKeypair();
+    // The grant is expired and stolen; the subject binding is checked before the
+    // window, so the reason is subject rather than expired.
+    const grant = await makeGrant(kp);
+    const result = await verifyAuthorizationGrant(
+      grant,
+      kp.publicKey,
+      baseContext({ presenter: "did:web:thief.example", now: "2026-07-11T12:06:00.000Z" }),
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("subject");
+  });
+
+  it("reports signature first even when the presenter does not match", async () => {
+    const kp = await generateKeypair();
+    const grant = await makeGrant(kp);
+    const tampered = { ...grant, scope: ["profile:read", "admin:all"] };
+    const result = await verifyAuthorizationGrant(tampered, kp.publicKey, baseContext({ presenter: "did:web:thief.example" }));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("signature");
   });
 });
 

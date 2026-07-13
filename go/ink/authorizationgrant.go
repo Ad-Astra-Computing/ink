@@ -47,6 +47,7 @@ const (
 	GrantReasonSchema          AuthorizationGrantReason = "schema"
 	GrantReasonSignature       AuthorizationGrantReason = "signature"
 	GrantReasonAudience        AuthorizationGrantReason = "audience"
+	GrantReasonSubject         AuthorizationGrantReason = "subject"
 	GrantReasonExpired         AuthorizationGrantReason = "expired"
 	GrantReasonNotYetValid     AuthorizationGrantReason = "not_yet_valid"
 	GrantReasonReplay          AuthorizationGrantReason = "replay"
@@ -66,17 +67,32 @@ type GrantKey struct {
 // AuthorizationGrantContext is everything a verifier needs beyond the issuer
 // key. Audience is the checking service's own identity, compared against the
 // signed audience to reject a confused-deputy replay. Now is the verifier clock,
-// a strict INK timestamp. SeenGrants and IsRevoked are the replay and revocation
-// receiver-policy hooks, both keyed by the (issuer, grantId) pair.
+// a strict INK timestamp. Presenter is the authenticated identity of the
+// principal presenting the grant, as the transport established it (for INK, the
+// signed envelope sender); when it is non-empty it must equal the signed subject,
+// so a stolen grant is not presentable by another principal inside its window. An
+// empty Presenter skips the binding check and leaves the grant a bearer artifact
+// the audience must bind out of band. SeenGrants and IsRevoked are the replay and
+// revocation receiver-policy hooks, both keyed by the (issuer, grantId) pair.
+// SeenGrants only reports what a prior acceptance recorded: a service MUST record
+// the accepted (issuer, grantId) pair atomically with acceptance (check-and-insert
+// under one guard) so two concurrent presentations of the same pair cannot both
+// be accepted; this verifier reads the set but does not record into it.
 // VerifiedOwnerStatus is the owner-verification composition hook, consulted only
 // when the grant requires it; an empty string means no status was supplied
 // (treated as unverified). MaxLifetimeMs optionally tightens the maximum grant
-// lifetime for this check; a zero or negative value means "use the profile
-// default", and any positive value is clamped to at most MaxGrantLifetimeMs so a
-// caller can only shorten the ceiling, never raise it.
+// lifetime for this check; a zero value means "use the profile default" (a Go
+// zero-value integer is indistinguishable from an unset one), a NEGATIVE value is
+// a verifier input error that fails closed as schema, and any positive value is
+// clamped to at most MaxGrantLifetimeMs so a caller can only shorten the ceiling,
+// never raise it. The Go type is an integer, so it cannot carry the NaN or
+// Infinity the reference guards against: the reference rejects a maxLifetimeMs
+// that is not a finite number greater than zero as schema, and this integer field
+// expresses the same rule by construction, treating only zero as unset.
 type AuthorizationGrantContext struct {
 	Audience            string
 	Now                 string
+	Presenter           string
 	SeenGrants          []GrantKey
 	IsRevoked           func(key GrantKey) bool
 	VerifiedOwnerStatus string
@@ -85,15 +101,23 @@ type AuthorizationGrantContext struct {
 
 // VerifyAuthorizationGrant verifies a scoped authorization grant against the
 // issuer public key and a verification context. It mirrors the TypeScript
-// verifyAuthorizationGrant byte for byte: strict schema validation, then a body
-// signature over "tulpa/sign\n" + JCS(grant without the signature field),
-// verified with RFC 8032 strict Ed25519, then the audience, window, replay,
-// revocation, and owner-verification checks in the same order. It fails closed
-// and returns a typed reason on the first failure.
+// verifyAuthorizationGrant byte for byte: a complexity bound, strict schema
+// validation, then a body signature over "tulpa/sign\n" + JCS(grant without the
+// signature field), verified with RFC 8032 strict Ed25519, then the audience,
+// presentation-binding, window, replay, revocation, and owner-verification checks
+// in the same order. It fails closed and returns a typed reason on the first
+// failure.
 //
 // The grant is parsed once into a generic object, exactly as a JSON.parse based
 // verifier sees it, so the validated bytes and the signed bytes cannot disagree.
 func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx AuthorizationGrantContext) (bool, AuthorizationGrantReason) {
+	// Byte cap before anything touches the decoder: a body past the schema-derived
+	// ceiling is rejected outright, so a pathological blob is never unmarshaled.
+	// The reference bails inside its pre-canonicalize bounds walk; this is the same
+	// stance at the byte boundary. See bounds.go for the derivation.
+	if len(raw) > MaxGrantBodyBytes {
+		return false, GrantReasonSchema
+	}
 	// The grant is a signed artifact: encoding/json rewrites invalid UTF-8 or a
 	// lone surrogate to U+FFFD, so reject both before parsing.
 	if !utf8.Valid(raw) || ContainsLoneSurrogateEscape(raw) {
@@ -101,6 +125,14 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 	}
 	var obj map[string]interface{}
 	if err := json.Unmarshal(raw, &obj); err != nil {
+		return false, GrantReasonSchema
+	}
+	// Post-parse structural bounds walk, mirroring the reference node, depth, and
+	// character budgets so both implementations reject the same over-deep or
+	// over-wide object. This runs before schema validation walks the fields, so a
+	// pathological structure short circuits here rather than deep inside field
+	// checks or canonicalization.
+	if !withinGrantBounds(obj) {
 		return false, GrantReasonSchema
 	}
 	signature, ok := validateAuthorizationGrant(obj)
@@ -138,6 +170,19 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 		return false, GrantReasonAudience
 	}
 
+	// Presentation binding. When the caller authenticated the presenting principal
+	// it supplies Presenter here, which must equal the signed subject, so a stolen
+	// grant is not presentable by another principal inside its window. An empty
+	// Presenter skips the check and leaves the grant a bearer artifact the audience
+	// binds out of band. This runs after the audience check and before the window
+	// checks, so a stolen grant rejects on the binding rather than on its clock.
+	if ctx.Presenter != "" {
+		subject, _ := obj["subject"].(string)
+		if ctx.Presenter != subject {
+			return false, GrantReasonSubject
+		}
+	}
+
 	issuedAt, _ := obj["issuedAt"].(string)
 	expiresAt, _ := obj["expiresAt"].(string)
 	start, okStart := ParseInkTimestampMs(issuedAt)
@@ -151,6 +196,17 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 	// The value is clamped so it can only tighten, never loosen, and is checked
 	// after the signature so the policy value is not observable on an
 	// unauthenticated grant. A window past the tightened cap rejects as schema.
+	//
+	// A zero MaxLifetimeMs means unset: use the profile default, no tightening,
+	// since a Go zero-value integer is indistinguishable from an unset one. A
+	// NEGATIVE value is a verifier input error, not "use default": a negative cap
+	// admits no window at all, so it fails closed as schema, mirroring the
+	// reference, which rejects a maxLifetimeMs that is not a finite number greater
+	// than zero (the non-finite case is TS-only, since this integer field cannot
+	// express NaN or Infinity).
+	if ctx.MaxLifetimeMs < 0 {
+		return false, GrantReasonSchema
+	}
 	if ctx.MaxLifetimeMs > 0 {
 		cap := ctx.MaxLifetimeMs
 		if cap > MaxGrantLifetimeMs {

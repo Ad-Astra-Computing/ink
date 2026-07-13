@@ -50,6 +50,16 @@ required except `requireVerifiedOwner`:
   Absent means the grant does not require owner verification.
 - `signature`: the Ed25519 body signature, base64url without padding.
 
+### Byte bound
+
+A grant presented as raw bytes MUST be rejected as `schema` when it is longer
+than 65536 bytes, before it is decoded. The bound is generous: the largest
+well-formed grant is around 12 KiB of UTF-8, so a grant padded past 65536 bytes
+with whitespace or other padding is not a legitimate presentation and need not
+be decoded to be refused. A verifier handed an already-decoded object applies the
+structural bounds instead of the byte bound, so the byte bound is then the
+responsibility of whatever layer received the bytes and decoded them.
+
 ## Signature
 
 The signature covers every field except `signature` itself. It is computed over
@@ -88,26 +98,65 @@ failure, with a stable reason for each:
 3. **Audience binding** (`audience`). The signed `audience` must equal the
    verifying service's own identity. This is the confused-deputy defense: a
    grant minted for one service must not be presentable at another.
-4. **Caller-tightened lifetime** (`schema`). A caller may pass a maximum lifetime
+4. **Presentation binding** (`subject`). When the caller supplies the
+   authenticated presenting principal (see *Presentation binding*), it must equal
+   the signed `subject`; a presenter that is not the subject rejects here, before
+   the window opens, so a stolen grant is not presentable by another principal.
+   When no presenter is supplied this check is skipped and the grant is a bearer
+   artifact the audience must bind out of band. This runs after the audience check
+   and before the lifetime and window checks.
+5. **Caller-tightened lifetime** (`schema`). A caller may pass a maximum lifetime
    shorter than the profile ceiling for this check. A window longer than that
    tightened cap rejects as `schema`. This runs after the signature so a
    verifier-local policy value is never observable on an unauthenticated grant.
-   The value only tightens the ceiling and can never raise it.
-5. **Validity window** (`not_yet_valid`, `expired`). `now` must be in
+   The value only tightens the ceiling and can never raise it. A caller-supplied
+   maximum lifetime of exactly zero means unset and uses the profile default,
+   applying no tightening. A negative or non-finite value is a verifier input
+   error and fails closed as `schema`, the same as a malformed clock, so a `NaN`
+   cannot silently disable the check. The non-finite case is reference-only, since
+   an integer-typed implementation cannot express it; both the zero-is-unset and
+   negative-is-error rules hold across implementations.
+6. **Validity window** (`not_yet_valid`, `expired`). `now` must be in
    `[issuedAt, expiresAt)`: at or after `issuedAt` and strictly before
    `expiresAt`. A `now` that is not a strict INK timestamp is a verifier input
    error and fails closed as `schema`, not as a window verdict the verifier never
    computed.
-6. **Replay** (`replay`). An `(issuer, grantId)` pair already in the service's
+7. **Replay** (`replay`). An `(issuer, grantId)` pair already in the service's
    seen set is a replay.
-7. **Revocation** (`revoked`). An `(issuer, grantId)` pair the service's
+8. **Revocation** (`revoked`). An `(issuer, grantId)` pair the service's
    revocation predicate reports as revoked is rejected even inside its window.
-8. **Owner verification** (`owner_unverified`). Consulted only when the grant
+9. **Owner verification** (`owner_unverified`). Consulted only when the grant
    sets `requireVerifiedOwner: true`: the supplied owner status must be
    `verified`. An absent status is unverified.
 
 Verification fails closed and never throws. A reference caller may instead throw
 an `AuthorizationGrantError` carrying the same reason.
+
+## Presentation binding
+
+A grant names its `subject` but the signature alone does not tie a presentation
+to that principal, so within its window a grant is a bearer artifact: whoever
+holds the bytes can present them. That is acceptable only when the audience binds
+the presentation itself. A verifier that has authenticated the presenting
+principal, by whatever the transport establishes, passes it in as the presenter,
+and the verifier rejects with reason `subject` when the presenter is not the
+signed `subject`. A presenter is a non-empty string. An empty or absent presenter
+means no authenticated presenter was established, so the check is skipped and the
+grant is treated as a bearer artifact whose presentation the audience is
+responsible for binding out of band. A service MUST NOT pass an empty string as an
+authenticated identity: an authentication layer that yields an empty identity must
+treat the presentation as unauthenticated and reject before grant verification.
+This equivalence is the cross-implementation contract, because an implementation
+whose string type cannot distinguish an unset field from an empty one cannot tell
+the two apart.
+
+When a grant arrives over INK the transport already authenticates the sender
+through the signed envelope, so the audience MUST verify that the authenticated
+envelope sender equals the grant `subject` before acting on the grant. The grant
+bytes are confidential in transit: an audience MUST NOT expose a valid grant to a
+party other than its subject and the issuer, because anyone holding the bytes can
+present them anywhere the audience does not bind presentation. This binding is the
+defense against a grant stolen inside its short window.
 
 ## Maximum lifetime
 
@@ -153,6 +202,21 @@ a grant that requires verification is rejected unless that status is `verified`.
 How the service produces the status, and its freshness or caching, are the
 service's policy and are out of scope here.
 
+## Replay
+
+Replay is receiver state, not a signed field: the verifier reads the service's
+seen set of `(issuer, grantId)` pairs and rejects a pair it already holds, but
+nothing in the grant records that a presentation happened. Recording an accepted
+pair is the service's job, and it MUST be atomic with acceptance. A service MUST
+record the accepted `(issuer, grantId)` pair under the same guard that admits the
+grant, as a single check-and-insert: check the pair is absent and insert it in one
+step. Two concurrent presentations of the same pair MUST NOT both be accepted; a
+service that scans the seen set and inserts in separate steps leaves a window where
+both presentations pass the scan before either inserts, which defeats the replay
+control. The verifier itself only reads the seen set: it does not record, because
+the record is receiver state the service owns and must serialize against its own
+concurrency.
+
 ## Revocation
 
 INK grants are point artifacts with no global state, so there is no revocation
@@ -196,12 +260,14 @@ profile does not mandate audit; it notes that the `grantId`, `issuer`,
 
 A conformant verifier accepts a grant if and only if it is structurally valid
 under the schema above (including the maximum-lifetime bound), its signature
-verifies against the issuer key, its `audience` matches the verifying service,
-its window is within any caller-tightened lifetime, `now` falls in
-`[issuedAt, expiresAt)`, its `(issuer, grantId)` pair is neither replayed nor
-revoked, and, when the grant requires it, the supplied owner status is
-`verified`. Every other case is a rejection with the reason named above.
-Verification fails closed and never throws.
+verifies against the issuer key, its `audience` matches the verifying service, its
+signed `subject` matches any presenter the caller supplied, its window is within
+any caller-tightened lifetime, `now` falls in `[issuedAt, expiresAt)`, its
+`(issuer, grantId)` pair is neither replayed nor revoked, and, when the grant
+requires it, the supplied owner status is `verified`. The rejection reasons are
+`schema`, `signature`, `audience`, `subject`, `not_yet_valid`, `expired`,
+`replay`, `revoked`, and `owner_unverified`. Every other case is a rejection with
+the reason named above. Verification fails closed and never throws.
 
 ## Conformance
 
@@ -214,17 +280,22 @@ the full grant plus the verification context, and both the TypeScript reference
 and the Go implementation must make the same accept or reject decision. The
 corpus covers the scoped happy path, both wire spellings, the inclusive lower and
 exclusive upper window bounds, a required-owner accept, an owner-not-required
-accept that ignores the status, a cross-issuer accept where another issuer's seen
-and revoked entry for the same `grantId` string does not block the grant, and the
-negative cases. Each reject vector pins the typed reason so the two
+accept that ignores the status, a presenter that matches the subject, a grant
+with no presenter, and an empty-string presenter (all accept, since an empty
+presenter is no presenter), a zero caller-tightened lifetime that is treated as
+unset (accept), a cross-issuer accept where another issuer's seen and revoked
+entry for the same `grantId` string does not block the grant, and the negative
+cases. Each reject vector pins the typed reason so the two
 implementations agree on verify order. The negative cases are: a wrong issuer
 key, a tampered scope or subject, a confused-deputy audience, a relabeled
-audience, an expired or not-yet-valid grant, a replayed or revoked
+audience, a presenter that is not the subject, an expired or not-yet-valid grant,
+a replayed or revoked
 `(issuer, grantId)` pair, an unverified or absent owner where required, a bad
 signature combined with a wrong audience, expiry, replay, revocation, or an
 unverified owner (each pinning signature-first ordering), an unknown key, a lone
 surrogate, an empty, duplicate, overbroad, non-string, or over-length scope
 entry, an over-length issuer, subject, audience, or `grantId`, an invalid
 `protocol` or `type`, an inverted window, a window over the maximum lifetime, a
-window over a caller-tightened cap, a malformed timestamp, a malformed or missing
+window over a caller-tightened cap, a negative caller-tightened lifetime that
+fails closed as `schema`, a malformed timestamp, a malformed or missing
 signature, a short `grantId`, and a malformed verifier clock.

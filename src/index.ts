@@ -218,6 +218,7 @@ export {
   verifyAuthorizationGrant,
   AuthorizationGrantError,
   MAX_GRANT_LIFETIME_MS,
+  MAX_GRANT_BODY_BYTES,
 } from "./models/authorization-grant.js";
 export type {
   AuthorizationGrant,

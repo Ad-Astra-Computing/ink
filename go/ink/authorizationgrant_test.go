@@ -1,9 +1,35 @@
 package ink
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 )
+
+// signGrantForTest signs a grant object under the ink/0.1 body-signature domain
+// (tulpa/sign) so the negative-path context checks that run only after a valid
+// signature can be reached. It mirrors buildAuthorizationGrant: JCS over the
+// unsigned object, Ed25519 over the domain-prefixed canonical bytes.
+func signGrantForTest(t *testing.T, unsigned map[string]interface{}, priv ed25519.PrivateKey) string {
+	t.Helper()
+	canonical, err := canonicalizeJSON(unsigned)
+	if err != nil {
+		t.Fatalf("canonicalize grant: %v", err)
+	}
+	sig := ed25519.Sign(priv, []byte("tulpa/sign\n"+canonical))
+	return base64.RawURLEncoding.EncodeToString(sig)
+}
+
+// grantSeed derives a fixed Ed25519 key for the signed-grant tests.
+func grantSeed(t *testing.T) (ed25519.PrivateKey, ed25519.PublicKey) {
+	t.Helper()
+	seed := sha256.Sum256([]byte("ink-authorization-grant-go-test-key"))
+	priv := ed25519.NewKeyFromSeed(seed[:])
+	return priv, priv.Public().(ed25519.PublicKey)
+}
 
 // grantObject builds an authorization grant JSON literal. scope, extra, and the
 // optional owner clause let a case vary one field while the rest stay valid.
@@ -92,5 +118,124 @@ func TestVerifyAuthorizationGrantFailsClosedOnBadSignature(t *testing.T) {
 	})
 	if ok {
 		t.Error("a grant with an unverifiable signature must fail closed")
+	}
+}
+
+// TestVerifyAuthorizationGrantRejectsOversizedBody pins the byte-length cap the
+// Go verifier applies before json.Unmarshal, mirroring the pre-parse complexity
+// bound the reference runs. A body past the cap is rejected as schema without
+// parsing, so a pathological blob cannot be handed to the decoder at all.
+func TestVerifyAuthorizationGrantRejectsOversizedBody(t *testing.T) {
+	if MaxGrantBodyBytes != 65536 {
+		t.Errorf("MaxGrantBodyBytes: got %d, want 65536 (spec byte bound)", MaxGrantBodyBytes)
+	}
+	raw := make([]byte, MaxGrantBodyBytes+1)
+	for i := range raw {
+		raw[i] = 'x'
+	}
+	pub := make([]byte, 32)
+	pub[0] = 1
+	ok, reason := VerifyAuthorizationGrant(raw, pub, AuthorizationGrantContext{
+		Audience: "did:web:service.example",
+		Now:      "2026-07-11T12:02:00.000Z",
+	})
+	if ok || reason != GrantReasonSchema {
+		t.Errorf("oversized body: got ok=%v reason=%q, want reject schema", ok, reason)
+	}
+}
+
+// TestVerifyAuthorizationGrantRejectsOverDeepBody pins the post-parse structural
+// bounds walk. A grant that stays under the byte cap but nests an object past the
+// depth cap is rejected as schema, matching the reference node/depth walk, so both
+// implementations reject the same pathological structure.
+func TestVerifyAuthorizationGrantRejectsOverDeepBody(t *testing.T) {
+	deep := strings.Repeat(`{"a":`, maxGrantDepth+2)
+	deep += "1"
+	deep += strings.Repeat(`}`, maxGrantDepth+2)
+	// A grant whose subject value is replaced by a deeply nested object. The
+	// wrong type also fails the schema, but the bounds walk runs first and short
+	// circuits before the field-type checks.
+	raw := []byte(strings.Replace(grantObject(`["profile:read"]`, ""), `"subject":"did:web:subject.example"`, `"subject":`+deep, 1))
+	pub := make([]byte, 32)
+	pub[0] = 1
+	ok, reason := VerifyAuthorizationGrant(raw, pub, AuthorizationGrantContext{
+		Audience: "did:web:service.example",
+		Now:      "2026-07-11T12:02:00.000Z",
+	})
+	if ok || reason != GrantReasonSchema {
+		t.Errorf("over-deep body: got ok=%v reason=%q, want reject schema", ok, reason)
+	}
+}
+
+// TestVerifyAuthorizationGrantRejectsNonJcsSafeNumber pins number parity between
+// withinGrantBounds and the reference isWithinBounds walk. A grant carrying a
+// non-JCS-safe number (here an exponential-magnitude value in the scope array) is
+// rejected as schema during the bounds walk, before schema validation or any
+// signature work, so both implementations reject the same body. The bounds walk
+// visits the scope array member, so the bad number is caught even though the
+// field type would also fail schema.
+func TestVerifyAuthorizationGrantRejectsNonJcsSafeNumber(t *testing.T) {
+	raw := []byte(strings.Replace(grantObject(`["profile:read"]`, ""), `["profile:read"]`, `["profile:read",1e21]`, 1))
+	pub := make([]byte, 32)
+	pub[0] = 1
+	ok, reason := VerifyAuthorizationGrant(raw, pub, AuthorizationGrantContext{
+		Audience: "did:web:service.example",
+		Now:      "2026-07-11T12:02:00.000Z",
+	})
+	if ok || reason != GrantReasonSchema {
+		t.Errorf("non-JCS-safe number: got ok=%v reason=%q, want reject schema", ok, reason)
+	}
+	// Direct assertion on the bounds walk: a fractional value and a magnitude past
+	// the safe-integer range are both rejected, matching isJcsSafeNumber.
+	for _, bad := range []interface{}{1e21, 3.14, float64(1) / float64(3)} {
+		if withinGrantBounds(map[string]interface{}{"n": bad}) {
+			t.Errorf("withinGrantBounds accepted a non-JCS-safe number %v", bad)
+		}
+	}
+	// A safe integer stays within bounds.
+	if !withinGrantBounds(map[string]interface{}{"n": float64(42)}) {
+		t.Error("withinGrantBounds rejected a safe integer")
+	}
+}
+
+// TestVerifyAuthorizationGrantNegativeCallerLifetimeRejects pins that a negative
+// MaxLifetimeMs is a verifier input error that fails closed as schema, after the
+// signature, while a zero value means unset and the grant still verifies. It
+// signs a real grant so the caller-tightened lifetime check is reached.
+func TestVerifyAuthorizationGrantNegativeCallerLifetimeRejects(t *testing.T) {
+	priv, pub := grantSeed(t)
+	unsigned := map[string]interface{}{
+		"protocol":  "ink/0.1",
+		"type":      "network.tulpa.authorization_grant",
+		"issuer":    "tulpa:issuer",
+		"subject":   "did:web:subject.example",
+		"audience":  "did:web:service.example",
+		"scope":     []interface{}{"profile:read"},
+		"grantId":   "conformance-grant-000000001",
+		"issuedAt":  "2026-07-11T12:00:00.000Z",
+		"expiresAt": "2026-07-11T12:05:00.000Z",
+	}
+	sig := signGrantForTest(t, unsigned, priv)
+	signed := make(map[string]interface{}, len(unsigned)+1)
+	for k, v := range unsigned {
+		signed[k] = v
+	}
+	signed["signature"] = sig
+	raw, err := json.Marshal(signed)
+	if err != nil {
+		t.Fatalf("marshal signed grant: %v", err)
+	}
+	base := AuthorizationGrantContext{Audience: "did:web:service.example", Now: "2026-07-11T12:02:00.000Z"}
+
+	negative := base
+	negative.MaxLifetimeMs = -1
+	if ok, reason := VerifyAuthorizationGrant(raw, pub, negative); ok || reason != GrantReasonSchema {
+		t.Errorf("negative MaxLifetimeMs: got ok=%v reason=%q, want reject schema", ok, reason)
+	}
+
+	zero := base
+	zero.MaxLifetimeMs = 0
+	if ok, reason := VerifyAuthorizationGrant(raw, pub, zero); !ok {
+		t.Errorf("zero MaxLifetimeMs: got ok=%v reason=%q, want accept (unset)", ok, reason)
 	}
 }

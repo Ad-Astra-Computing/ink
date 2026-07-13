@@ -480,6 +480,118 @@
       }
     },
     {
+      "caseId": "presenter-matches-subject-accepts",
+      "description": "A grant presented by the authenticated principal named as its subject verifies; the presentation binding holds.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "presenter": "did:web:subject.example"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "presenter-absent-accepts",
+      "description": "A grant with no presenter supplied is a bearer artifact inside its window; the binding check is skipped.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "presenter-empty-accepts",
+      "description": "An empty-string presenter means no presenter was established, so the binding check is skipped just as when it is absent; Go cannot tell an unset field from an empty one, so an empty presenter is no presenter across implementations.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "presenter": ""
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "presenter-not-subject-rejects",
+      "description": "A grant presented by a principal other than its signed subject is rejected on the presentation binding, so a stolen grant is not presentable by another principal.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "presenter": "did:web:thief.example"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "subject"
+      }
+    },
+    {
       "caseId": "expired-rejects",
       "description": "A grant presented after expiresAt is rejected.",
       "input": {
@@ -1196,6 +1308,63 @@
         "audience": "did:web:service.example",
         "now": "2026-07-11T12:02:00.000Z",
         "maxLifetimeMs": 60000
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "caller-lifetime-zero-accepts",
+      "description": "A caller-tightened maxLifetimeMs of exactly 0 means unset and uses the profile default, so a grant inside the profile window still verifies; Go cannot tell a zero-value integer from an unset one, so 0 is no caller cap across implementations.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "maxLifetimeMs": 0
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "negative-caller-lifetime-rejects",
+      "description": "A negative caller-tightened maxLifetimeMs is a verifier input error that fails closed as schema, not a policy that admits every window, after the signature.",
+      "input": {
+        "grant": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_grant",
+          "issuer": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "audience": "did:web:service.example",
+          "scope": [
+            "profile:read",
+            "messages:send"
+          ],
+          "grantId": "conformance-grant-000000001",
+          "issuedAt": "2026-07-11T12:00:00.000Z",
+          "expiresAt": "2026-07-11T12:05:00.000Z",
+          "signature": "Qc1tqr-i_wPwVAS-cHuSnNsmJKTIuyfhcXRxku7idnNHR5HxUFct8C4l403hb2MxVUkSYUfJJadh6X7uF85_AA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:02:00.000Z",
+        "maxLifetimeMs": -1
       },
       "expect": {
         "result": "reject",
