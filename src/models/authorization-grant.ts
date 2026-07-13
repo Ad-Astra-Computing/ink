@@ -35,6 +35,20 @@ const SCOPE_MAX = 64;
 // bound, independent of the verifier clock.
 export const MAX_GRANT_LIFETIME_MS = 10 * 60 * 1000;
 
+/**
+ * Byte-length ceiling on a raw grant body, the byte-layer counterpart to the
+ * structural schema bounds. A receiver holding raw grant bytes MUST reject a body
+ * longer than this as `schema` before it decodes the bytes, per the *Byte bound*
+ * rule in the spec: the largest well-formed grant is around 12 KiB, so a body
+ * padded past 65536 bytes is not a legitimate presentation and need not be
+ * decoded. This reference `verifyAuthorizationGrant` takes an already-decoded
+ * object and applies the structural bounds instead, so this constant is the
+ * contract for whatever layer received the bytes, the same rule the Go
+ * `MaxGrantBodyBytes` enforces on its bytes API. See
+ * [`specs/ink-authorization-grant.md`](../../specs/ink-authorization-grant.md).
+ */
+export const MAX_GRANT_BODY_BYTES = 65536;
+
 // A scope is a non-empty array of distinct opaque tokens. Distinctness is
 // enforced so a grant cannot smuggle a larger apparent scope through repetition,
 // and so two implementations count the same set. The tokens are not parsed here:
@@ -134,6 +148,7 @@ export type AuthorizationGrantReason =
   | "schema"
   | "signature"
   | "audience"
+  | "subject"
   | "expired"
   | "not_yet_valid"
   | "replay"
@@ -181,18 +196,36 @@ export interface GrantKey {
  * Everything a verifier needs beyond the issuer key. `audience` is the service
  * checking the grant, compared against the signed `audience` to reject a grant
  * minted for a different service (confused deputy). `now` is the verifier clock,
- * a strict INK timestamp. `seenGrants` and `isRevoked` are the two receiver
- * policy hooks for replay and revocation; both are keyed by the
- * `(issuer, grantId)` pair, both optional, and default to "not seen" and "not
- * revoked". `verifiedOwner` is the owner-verification composition hook, consulted
- * only when the grant requires it. `maxLifetimeMs` optionally tightens the
- * maximum grant lifetime for this check; it is clamped to at most
- * `MAX_GRANT_LIFETIME_MS`, so a caller can only shorten the ceiling, never raise
- * it.
+ * a strict INK timestamp. `presenter` is the authenticated identity of the
+ * principal presenting the grant, as the transport established it (for INK, the
+ * signed envelope sender); a presenter is a non-empty string, and when it is
+ * supplied it must equal the signed `subject`, so a stolen grant is not
+ * presentable by another principal inside its window. An empty or absent
+ * presenter means no authenticated presenter was established: the binding check
+ * is skipped and the grant is a bearer artifact whose presentation the audience
+ * must bind out of band. Treating `""` as absent matches Go's `Presenter != ""`
+ * gate, since Go cannot distinguish an unset string field from `""`; a service
+ * MUST NOT pass an empty string as an authenticated identity.
+ * `seenGrants` and `isRevoked` are the two receiver policy hooks for replay and
+ * revocation; both are keyed by the `(issuer, grantId)` pair, both optional, and
+ * default to "not seen" and "not revoked". `seenGrants` only reports what a prior
+ * acceptance recorded: a service MUST record the accepted `(issuer, grantId)`
+ * pair atomically with acceptance (check-and-insert under one guard) so two
+ * concurrent presentations of the same pair cannot both be accepted; this
+ * verifier reads the set but does not record into it. `verifiedOwner` is the
+ * owner-verification composition hook, consulted only when the grant requires it.
+ * `maxLifetimeMs` optionally tightens the maximum grant lifetime for this check.
+ * A value of exactly 0 means unset and uses the profile default, matching the Go
+ * `MaxLifetimeMs == 0` gate; a negative or non-finite value is a verifier input
+ * error and fails closed as `schema`, like a malformed clock (non-finite is
+ * TS-only, since a Go integer cannot express it). A supplied positive value is
+ * clamped to at most `MAX_GRANT_LIFETIME_MS`, so a caller can only shorten the
+ * ceiling, never raise it.
  */
 export interface AuthorizationGrantVerifyContext {
   audience: string;
   now: string;
+  presenter?: string;
   seenGrants?: Iterable<GrantKey>;
   isRevoked?: (key: GrantKey) => boolean;
   verifiedOwner?: VerifiedOwnerStatus;
@@ -240,17 +273,18 @@ export async function buildAuthorizationGrant(
  *   1. structural schema + byte safety + lifetime cap    -> "schema"
  *   2. issuer signature over the canonical grant         -> "signature"
  *   3. audience binding (confused-deputy defense)         -> "audience"
- *   4. caller-tightened lifetime cap                      -> "schema"
- *   5. validity window (not_yet_valid / expired)          -> "not_yet_valid" | "expired"
- *   6. replay (issuer + grantId already seen)             -> "replay"
- *   7. revocation (issuer + grantId on the denylist)      -> "revoked"
- *   8. owner verification, only when the grant requires   -> "owner_unverified"
+ *   4. presentation binding (presenter equals subject)    -> "subject"
+ *   5. caller-tightened lifetime cap                      -> "schema"
+ *   6. validity window (not_yet_valid / expired)          -> "not_yet_valid" | "expired"
+ *   7. replay (issuer + grantId already seen)             -> "replay"
+ *   8. revocation (issuer + grantId on the denylist)      -> "revoked"
+ *   9. owner verification, only when the grant requires   -> "owner_unverified"
  *
  * The default maximum lifetime is enforced in step 1, before the signature, so a
  * grant whose window exceeds the profile ceiling is rejected structurally on the
- * signed bytes alone. A caller-tightened `maxLifetimeMs` is enforced in step 4,
- * after the signature, so a verifier-local policy value is never observable on an
- * unauthenticated grant. A `now` that is not a strict INK timestamp is a verifier
+ * signed bytes alone. A caller-tightened `maxLifetimeMs` is enforced in step 5,
+ * after the signature and the presentation binding, so a verifier-local policy
+ * value is never observable on an unauthenticated grant. A `now` that is not a strict INK timestamp is a verifier
  * input error and rejects as "schema", not a window verdict the verifier never
  * computed.
  */
@@ -293,6 +327,22 @@ export async function verifyAuthorizationGrant(
       return { ok: false, reason: "audience" };
     }
 
+    // Presentation binding. The grant is a bearer artifact within its window, so
+    // a caller that authenticated the presenting principal supplies it here to
+    // bind the presentation to the signed subject: a presenter that is not the
+    // subject is rejected before the window even opens, so a stolen grant is not
+    // presentable by another principal. An empty or absent presenter means no
+    // authenticated presenter was established, so the check is skipped and the
+    // audience is responsible for binding presentation out of band. The empty
+    // guard matches Go's `Presenter != ""` gate, since Go cannot tell an unset
+    // field from "": the cross-implementation contract is that an empty presenter
+    // is no presenter. This runs after the audience check and before the lifetime
+    // and window checks so a stolen grant rejects on the binding rather than on
+    // its clock.
+    if (context.presenter !== undefined && context.presenter !== "" && context.presenter !== grant.subject) {
+      return { ok: false, reason: "subject" };
+    }
+
     const start = parseInkTimestampMs(grant.issuedAt);
     const end = parseInkTimestampMs(grant.expiresAt);
     if (start === null || end === null) {
@@ -306,7 +356,19 @@ export async function verifyAuthorizationGrant(
     // window past the tightened cap is out of the caller's policy and rejects as
     // "schema", checked after the signature so the policy value is not observable
     // on an unauthenticated grant.
-    if (context.maxLifetimeMs !== undefined) {
+    //
+    // A value of exactly 0 means unset: use the profile default, no tightening.
+    // This matches Go's `MaxLifetimeMs == 0` gate, since a Go zero-value integer
+    // is indistinguishable from an unset one, so the cross-implementation contract
+    // is that 0 is "no caller cap". Only a negative or non-finite value is a
+    // verifier input error: a NaN would make Math.min return NaN and silently
+    // disable the comparison, and a negative cap admits no window at all, so both
+    // fail closed as "schema", the same as a malformed clock (non-finite is
+    // TS-only, since a Go integer cannot express it).
+    if (context.maxLifetimeMs !== undefined && context.maxLifetimeMs !== 0) {
+      if (!(Number.isFinite(context.maxLifetimeMs) && context.maxLifetimeMs > 0)) {
+        return { ok: false, reason: "schema" };
+      }
       const cap = Math.min(context.maxLifetimeMs, MAX_GRANT_LIFETIME_MS);
       if (end - start > cap) {
         return { ok: false, reason: "schema" };

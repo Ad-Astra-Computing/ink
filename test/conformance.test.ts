@@ -80,6 +80,7 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         issuerPublicKeyHex,
         audience,
         now,
+        presenter,
         seenGrants,
         revokedGrants,
         verifiedOwner,
@@ -89,6 +90,7 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         issuerPublicKeyHex: string;
         audience: string;
         now: string;
+        presenter?: string;
         seenGrants?: GrantKey[];
         revokedGrants?: GrantKey[];
         verifiedOwner?: VerifiedOwnerStatus;
@@ -96,12 +98,13 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       };
       // Reconstruct the receiver context from the vector: the revocation list
       // becomes a denylist predicate keyed by the (issuer, grantId) pair, and the
-      // seen set and owner status pass through. A verifier accepts iff the result
-      // is ok; on reject the typed reason is pinned too.
+      // seen set, presenter, and owner status pass through. A verifier accepts iff
+      // the result is ok; on reject the typed reason is pinned too.
       const revoked = revokedGrants ?? [];
       const result = await verifyAuthorizationGrant(grant, hexToBytes(issuerPublicKeyHex), {
         audience,
         now,
+        presenter,
         seenGrants,
         isRevoked: (key) => revoked.some((r) => r.issuer === key.issuer && r.grantId === key.grantId),
         verifiedOwner,

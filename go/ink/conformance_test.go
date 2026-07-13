@@ -620,9 +620,14 @@ func TestAuthorizationGrant(t *testing.T) {
 		if raw, ok := c.Input["maxLifetimeMs"]; ok {
 			_ = json.Unmarshal(raw, &maxLifetimeMs)
 		}
+		presenter := ""
+		if raw, ok := c.Input["presenter"]; ok {
+			_ = json.Unmarshal(raw, &presenter)
+		}
 		ctx := AuthorizationGrantContext{
 			Audience:            audience,
 			Now:                 now,
+			Presenter:           presenter,
 			SeenGrants:          seen,
 			IsRevoked:           func(key GrantKey) bool { return revoked[key] },
 			VerifiedOwnerStatus: ownerStatus,
