@@ -215,6 +215,16 @@ func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, reci
 	// 12. Parse plaintext: must be a non-null JSON object (not array or
 	// scalar). The ciphertext is now authenticated, but the inner shape
 	// is still validated before field access.
+	//
+	// No structural walk runs here, matching the reference: the TypeScript
+	// decryptInkPayload in src/crypto/ink.ts applies no node/depth/character
+	// bound to the authenticated plaintext, so a Go walk would reject inner
+	// bodies the reference accepts. The decode cost is already bounded by the
+	// step-9 ciphertext cap (a ciphertext string over 1,400,000 UTF-16 code
+	// units is rejected before base64url decode, bounding the plaintext to
+	// about 1,050,000 bytes), and Go's encoding/json enforces its own hard
+	// nesting limit (about 10000) as a stack backstop, so no separate depth
+	// guard is needed.
 	var decryptedRaw any
 	if err := json.Unmarshal(plaintext, &decryptedRaw); err != nil {
 		return nil, errDecrypt

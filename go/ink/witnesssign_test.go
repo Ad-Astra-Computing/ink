@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"testing"
 )
 
@@ -53,6 +54,78 @@ func TestSignReceiptCoreReproducesFrozenVector(t *testing.T) {
 	}
 	if !found {
 		t.Fatal("valid-signature-only-accepts vector not found")
+	}
+}
+
+// TestSignReceiptCoreRefusesOversizedCore pins the emitter-side canonical
+// ceiling: the Go witness refuses to sign a receipt core whose canonical form
+// exceeds maxCanonicalBodyBytes UTF-16 code units, mirroring the reference
+// jcsCanonicalize post-canonicalize check that the TS receipt-signing path runs
+// through. The reference caps result.length, a JS string length in UTF-16 code
+// units, so Go measures the same units (utf16Len), not bytes, despite the
+// byte-named constant. Without this bound a Go witness could mint a receipt its
+// own ParseInclusionReceipt/MaxInclusionReceiptBytes boundary rejects, and the
+// MaxInclusionReceiptBytes derivation comment would be false.
+func TestSignReceiptCoreRefusesOversizedCore(t *testing.T) {
+	priv, _ := conformanceWitnessKey()
+	const root = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	const ts = "2026-06-15T12:00:00.000Z"
+
+	// An eventId over the code-unit cap. The core is {eventId, leafIndex,
+	// treeSize, rootHash, timestamp}; a plain-ASCII eventId of
+	// maxCanonicalBodyBytes+1 code units alone exceeds the cap once the other
+	// members are added.
+	huge := strings.Repeat("x", maxCanonicalBodyBytes)
+	if _, err := signReceiptCore(huge, 0, 1, root, ts, priv); err == nil {
+		t.Error("signReceiptCore signed an oversized core")
+	}
+	if _, err := SignInclusionReceipt([]string{"leaf"}, 0, huge, ts, priv); err == nil {
+		t.Error("SignInclusionReceipt signed an oversized core")
+	}
+
+	// A core comfortably under the cap still signs.
+	if _, err := signReceiptCore("evt", 0, 1, root, ts, priv); err != nil {
+		t.Errorf("signReceiptCore rejected a well-formed core: %v", err)
+	}
+}
+
+// TestSignReceiptCoreNonASCIIUnderCodeUnitCap is the parity pin for the round-4
+// finding: the reference caps the canonical string length in UTF-16 code units,
+// not UTF-8 bytes. A non-ASCII eventId can sit under the code-unit ceiling while
+// its UTF-8 encoding runs well over maxCanonicalBodyBytes bytes (a BMP character
+// like U+00E9 is 1 code unit that JCS emits unescaped as 2 UTF-8 bytes). TS
+// signs such a core and both object verifiers accept it, so the Go emitter must
+// sign it too. A byte-measured Go guard would refuse it, reintroducing the
+// issuer-side parity regression.
+func TestSignReceiptCoreNonASCIIUnderCodeUnitCap(t *testing.T) {
+	priv, pub := conformanceWitnessKey()
+	const root = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	const ts = "2026-06-15T12:00:00.000Z"
+
+	// U+00E9 is 1 UTF-16 code unit that the canonicalizer emits unescaped as 2
+	// UTF-8 bytes per code unit, not the 6-byte-per-code-unit worst case of
+	// non-canonical wire escaping. 700_000 code units is under the 1_048_576
+	// code-unit cap but at 2 bytes per unit its canonical byte length exceeds
+	// maxCanonicalBodyBytes, so a byte-measured guard would wrongly refuse it.
+	eventID := strings.Repeat("é", 700_000)
+	if utf16Len(eventID) > maxCanonicalBodyBytes {
+		t.Fatalf("test eventId over the code-unit cap: %d", utf16Len(eventID))
+	}
+	sig, err := signReceiptCore(eventID, 0, 1, root, ts, priv)
+	if err != nil {
+		t.Fatalf("signReceiptCore refused a core under the code-unit cap: %v", err)
+	}
+	if sig == "" {
+		t.Fatal("empty signature")
+	}
+
+	r, err := SignInclusionReceipt(buildLeaves("receipt-leaf", 1), 0, eventID, ts, priv)
+	if err != nil {
+		t.Fatalf("SignInclusionReceipt refused a core under the code-unit cap: %v", err)
+	}
+	// The object verifier must accept what the emitter signed.
+	if !VerifyInclusionReceipt(r, pub, ReceiptVerifyOptions{}) {
+		t.Error("object verifier rejected a receipt the emitter signed under the code-unit cap")
 	}
 }
 

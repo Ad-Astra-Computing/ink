@@ -1,6 +1,7 @@
 package ink
 
 import (
+	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/hex"
 	"testing"
@@ -79,6 +80,99 @@ func TestScalarNewlineRejected(t *testing.T) {
 		if _, err := BuildSignatureBase(in); err == nil {
 			t.Errorf("expected error for scalar containing a newline: %+v", in)
 		}
+	}
+}
+
+// TestSignatureBaseRejectsOverCapBody pins that BuildSignatureBase rejects a body
+// whose canonical output exceeds the post-canonicalize cap, mirroring the
+// reference buildSignatureBase in src/crypto/ink.ts: jcsCanonicalize caps
+// result.length (UTF-16 code units) at MAX_SIGBASE_BODY_BYTES, and buildSignatureBase
+// then caps the TextEncoder-encoded (UTF-8) length at the same constant. A single
+// ~1.1M-char string value passes the pre-canonicalize walk (maxBodyChars is
+// 1,200,000) yet its canonical form exceeds 1,048,576 code units, so only the
+// post-canonicalize cap can reject it. Without the cap a Go verifier would spend
+// signature work on a body the TS verifier refuses before verifying.
+func TestSignatureBaseRejectsOverCapBody(t *testing.T) {
+	b := make([]byte, maxCanonicalBodyBytes+50_000)
+	for i := range b {
+		b[i] = 'a'
+	}
+	in := InkSignInput{
+		Method:       "POST",
+		Path:         "/x",
+		RecipientDid: "tulpa:z",
+		Body:         map[string]interface{}{"d": string(b)},
+		Timestamp:    "2026-06-11T00:00:00.000Z",
+	}
+	if !withinBodyBounds(in.Body) {
+		t.Fatal("fixture body should pass the pre-canonicalize walk so only the post-cap can reject it")
+	}
+	if _, err := BuildSignatureBase(in); err == nil {
+		t.Error("BuildSignatureBase accepted a body whose canonical output exceeds the cap")
+	}
+}
+
+// TestSignatureBaseRejectsOverComplexBody pins the pre-canonicalize structural
+// walk on BuildSignatureBase, mirroring isWithinCanonicalizeBounds in
+// src/crypto/ink.ts (buildSignatureBase runs it before jcsCanonicalize). An
+// over-deep body is rejected before any canonicalization.
+func TestSignatureBaseRejectsOverComplexBody(t *testing.T) {
+	// Build a nesting deeper than maxBodyDepth (32).
+	var body interface{} = "leaf"
+	for i := 0; i < maxBodyDepth+5; i++ {
+		body = map[string]interface{}{"n": body}
+	}
+	in := InkSignInput{
+		Method:       "POST",
+		Path:         "/x",
+		RecipientDid: "tulpa:z",
+		Body:         body,
+		Timestamp:    "2026-06-11T00:00:00.000Z",
+	}
+	if _, err := BuildSignatureBase(in); err == nil {
+		t.Error("BuildSignatureBase accepted an over-deep body")
+	}
+}
+
+// TestVerifyInkSignatureRejectsOverCapBody pins that the verify entry point
+// inherits the post-canonicalize cap, so a Go receiver rejects an over-cap body
+// the same way verifyInkSignature does in the reference.
+func TestVerifyInkSignatureRejectsOverCapBody(t *testing.T) {
+	pub, _, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	b := make([]byte, maxCanonicalBodyBytes+50_000)
+	for i := range b {
+		b[i] = 'a'
+	}
+	in := InkSignInput{
+		Method:       "POST",
+		Path:         "/x",
+		RecipientDid: "tulpa:z",
+		Body:         map[string]interface{}{"d": string(b)},
+		Timestamp:    "2026-06-11T00:00:00.000Z",
+	}
+	// An 86-char base64url string is a well-formed-shape signature; the body cap
+	// must reject before any Ed25519 work, so verification returns false.
+	fakeSig := base64.RawURLEncoding.EncodeToString(make([]byte, 64))
+	if VerifyInkSignature(in, fakeSig, pub) {
+		t.Error("VerifyInkSignature accepted an over-cap body")
+	}
+}
+
+// TestSignatureBaseAcceptsUnderCapBody pins that a body under the cap still builds
+// a signature base, so the added caps are reject-only.
+func TestSignatureBaseAcceptsUnderCapBody(t *testing.T) {
+	in := InkSignInput{
+		Method:       "POST",
+		Path:         "/x",
+		RecipientDid: "tulpa:z",
+		Body:         map[string]interface{}{"hello": "world"},
+		Timestamp:    "2026-06-11T00:00:00.000Z",
+	}
+	if _, err := BuildSignatureBase(in); err != nil {
+		t.Errorf("BuildSignatureBase rejected a small under-cap body: %v", err)
 	}
 }
 

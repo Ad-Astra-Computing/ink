@@ -8,6 +8,47 @@ import (
 	"unicode/utf8"
 )
 
+// MaxInclusionReceiptBytes is a raw-bytes edge guard applied at the layer that
+// receives receipt bytes: an oversized blob is rejected by a len check before
+// json.Unmarshal decodes it into the struct. The decoded-object reference in
+// src/audit/inclusion-receipt.ts defines no byte bound, so this cap has no
+// counterpart there; it only bounds decode allocation on the raw-bytes boundary.
+// There is no structural walk here because the receipt decodes into a fixed
+// struct with no open-ended map, and the one array field (inclusionProof) is
+// length-bounded by checkReceiptShape.
+//
+// The cap is set comfortably above the ceiling a conforming witness can emit,
+// after accounting for wire escape expansion. A receipt's signed core {eventId,
+// leafIndex, treeSize, rootHash, timestamp} flows through JCS canonicalization on
+// the emitter (signReceiptCore), which enforces maxCanonicalBodyBytes (1,048,576)
+// UTF-16 code units of canonical output before signing, mirroring the reference
+// jcsCanonicalize post-canonicalize check on result.length (a JS string length in
+// code units). So no witness can sign a receipt whose signed core exceeds
+// 1,048,576 code units of canonical output. The eventId carries no schema length
+// bound of its own but is bounded by that canonicalize ceiling.
+//
+// That bound is on canonical code units, but the receipt on the wire is not
+// canonical JSON: a sender may escape any character, and the signature verifies
+// against the re-canonicalized core, not the raw bytes. Worst-case wire escape is
+// 6 raw bytes per code unit: an ASCII character is 1 code unit written as \uXXXX
+// (6 bytes), and a surrogate pair is 2 code units written as \uXXXX\uXXXX (12
+// bytes, still 6 per unit). So a validly signed core at the 1,048,576 code-unit
+// ceiling can legitimately occupy up to about 6 MiB of raw wire bytes. The
+// unsigned members (inclusionProof up to 64 hashes, serviceSignature, timestamp)
+// are all small and add only tens of KiB even fully escaped. 8 MiB clears the
+// ~6 MiB signed-core worst case plus that unsigned overhead with headroom, while
+// still rejecting a blob far past anything a conforming witness can emit.
+const MaxInclusionReceiptBytes = 8 * 1024 * 1024
+
+// MaxCheckpointRefBytes is a raw-bytes edge guard on a checkpoint reference
+// before it is parsed. A checkpoint reference carries only a treeSize integer and
+// a 64-char rootHash, so a well-formed ref is under 200 bytes. Both the Go parser
+// and the reference shape check ignore unknown extra members, so a valid ref can
+// legitimately carry additional fields; the headroom to 64 KiB exists only
+// because that tolerance is shared, not because the two known fields need it. As
+// with the receipt, the fixed struct means no structural walk is needed.
+const MaxCheckpointRefBytes = 64 * 1024
+
 // parseReceiptInt converts a JSON number token to an int under the reference's
 // Number.isInteger rule: any integer-valued finite number in [min, 2^53-1],
 // regardless of spelling (so 1, 1.0, and 1e0 are all the integer 1, while 1.5
@@ -37,6 +78,9 @@ func parseReceiptInt(n json.Number, min int) (int, bool) {
 // rather than requiring a specific spelling. A receiver MUST verify a receipt
 // through this parse, the way the signed-body path goes through ParseSignedBody.
 func ParseInclusionReceipt(raw []byte) (InclusionReceipt, bool) {
+	if len(raw) > MaxInclusionReceiptBytes {
+		return InclusionReceipt{}, false
+	}
 	if !utf8.Valid(raw) {
 		return InclusionReceipt{}, false
 	}
@@ -80,6 +124,9 @@ func ParseInclusionReceipt(raw []byte) (InclusionReceipt, bool) {
 // identical to the wire. It returns ok=false for a malformed reference, which
 // the caller treats as a failed cross-check.
 func ParseCheckpointRef(raw []byte) (CheckpointRef, bool) {
+	if len(raw) > MaxCheckpointRefBytes {
+		return CheckpointRef{}, false
+	}
 	if !utf8.Valid(raw) {
 		return CheckpointRef{}, false
 	}
@@ -191,6 +238,21 @@ func verifyReceiptSignature(r InclusionReceipt, witnessPublicKey []byte) bool {
 	}
 	canonical, err := canonicalizeJSON(payload)
 	if err != nil {
+		return false
+	}
+	// Post-canonicalize output cap, mirroring the reference verify path in
+	// src/audit/inclusion-receipt.ts: it builds the signature base with
+	// jcsCanonicalize, which rejects a canonical result whose result.length (a JS
+	// string length in UTF-16 code units) exceeds MAX_SIGBASE_BODY_BYTES
+	// (1,048,576). The receipt's signed core carries a free-form eventId, so its
+	// canonical form can exceed that ceiling while the raw receipt still fits the
+	// 8 MiB MaxInclusionReceiptBytes parser cap. Without this a Go receiver would
+	// verify a receipt the reference refuses. Measured in code units (utf16Len),
+	// the same measurement signReceiptCore applies on the issue side, not bytes,
+	// so a receipt with a large non-ASCII eventId under the code-unit ceiling is
+	// treated identically by both sides. Checked over the canonical output, not
+	// the version prefix, matching where the reference caps.
+	if utf16Len(canonical) > maxCanonicalBodyBytes {
 		return false
 	}
 	sigBase := "ink/audit-inclusion/v1\n" + canonical

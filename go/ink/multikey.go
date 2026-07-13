@@ -4,6 +4,19 @@ import "encoding/json"
 
 const maxCandidateKeys = 20
 
+// maxTimestampTokenBytes caps the raw JSON token an OptionalTimestamp will decode.
+// The well-formed check (windowBoundMs -> ParseInkTimestampMs) bounds a bound's
+// decoded length only by maxTimestampLength (64 characters); the strict RFC 3339
+// grammar admits unbounded fractional digits, so the longest string it can accept
+// is 64 characters (for example a full date-time with an offset and 38 fractional
+// digits). A JSON string may write each of those characters as a six-byte \uXXXX
+// escape, so the worst-case raw token for a still-valid timestamp is 64*6 + 2
+// quotes = 386 bytes. 512 sits above that worst case, so this cap rejects only
+// tokens that cannot decode to any valid RFC 3339 bound; a rejected token is
+// recorded as present but not well-formed, which fails closed under the window
+// rule without decoding the oversized string.
+const maxTimestampTokenBytes = 512
+
 // OptionalTimestamp is a key-window field (validFrom, validUntil, revokedAt)
 // that distinguishes absent from present. Presence is semantic: a present field
 // constrains the key even when its value is empty, null, or not a string. The
@@ -41,6 +54,11 @@ func (o *OptionalTimestamp) UnmarshalJSON(b []byte) error {
 	// previous decode must not survive a later null or non-string.
 	*o = OptionalTimestamp{Present: true}
 	if string(b) == "null" {
+		return nil
+	}
+	// A token past the cap cannot be a valid short RFC 3339 timestamp; leave it
+	// present but not well-formed rather than decode an oversized string.
+	if len(b) > maxTimestampTokenBytes {
 		return nil
 	}
 	var s string

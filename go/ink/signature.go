@@ -48,9 +48,32 @@ func BuildSignatureBase(in InkSignInput) (string, error) {
 	if containsCRLF(in.Method) || containsCRLF(in.Path) || containsCRLF(in.RecipientDid) || containsCRLF(in.Timestamp) {
 		return "", errors.New("newline or CR not allowed in a scalar field")
 	}
+	// Pre-canonicalize structural walk, mirroring buildSignatureBase in
+	// src/crypto/ink.ts, which runs isWithinCanonicalizeBounds(input.body) before
+	// jcsCanonicalize. It bails on an over-deep, over-wide, or over-long body
+	// before the recursive sort-and-serialize runs, so a Go verifier spends no
+	// canonicalize work on a body the reference rejects up front. withinBodyBounds
+	// already mirrors the reference node/depth/char budgets (10000 / 32 / 1,200,000).
+	if !withinBodyBounds(in.Body) {
+		return "", errors.New("signature base body exceeds maximum allowed complexity")
+	}
 	canonical, err := canonicalizeJSON(in.Body)
 	if err != nil {
 		return "", err
+	}
+	// Post-canonicalize output caps, mirroring the two size checks the reference
+	// applies on the same path. jcsCanonicalize caps result.length (a JS string
+	// length in UTF-16 code units) at MAX_SIGBASE_BODY_BYTES (1,048,576), then
+	// buildSignatureBase additionally caps new TextEncoder().encode(canonical).length
+	// (UTF-8 bytes) at the same constant. Both apply so a body whose canonical form
+	// stays under the code-unit ceiling but exceeds it in UTF-8 bytes is still
+	// rejected, matching the reference. Without these a Go verifier accepts and
+	// spends signature work on a body the reference refuses before verifying.
+	if utf16Len(canonical) > maxCanonicalBodyBytes {
+		return "", errors.New("signature base body exceeds maximum allowed size")
+	}
+	if len(canonical) > maxCanonicalBodyBytes {
+		return "", errors.New("signature base body exceeds maximum allowed size")
 	}
 	return "ink/0.1\n" + in.Method + "\n" + in.Path + "\n" + in.RecipientDid + "\n" + canonical + "\n" + in.Timestamp, nil
 }

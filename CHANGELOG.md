@@ -25,6 +25,40 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   durably refuses further submissions. The `-max-leaves` bound applies to replay
   too. This is a Go-implementation server feature only, with no wire or protocol
   change.
+- Extended the pre-parse byte caps and the post-parse structural walk to the
+  remaining Go verifiers. The discovery query verifier now caps the raw envelope
+  and runs the shared node, depth and character walk, matching the reference
+  isWithinBounds call. The decrypted payload path adds no bound to the
+  authenticated plaintext, matching the reference decrypt, which applies no
+  structural walk; the plaintext size is already bounded by the step-9 ciphertext
+  encoded-length cap and Go's encoding/json nesting limit is the stack backstop.
+  The inclusion receipt, checkpoint reference and multi-key timestamp paths carry
+  raw-bytes edge guards with headroom derived from the emitter ceiling and the
+  wire escape-expansion worst case: a conforming witness signs a receipt core
+  through canonicalization, which caps the signed portion at 1,048,576 UTF-16 code
+  units of canonical output (mirroring the reference jcsCanonicalize string-length
+  check), but that core can escape to about six mebibytes on the wire at six raw
+  bytes per code unit, so the receipt cap is eight mebibytes; a well-formed
+  checkpoint reference is under
+  200 bytes but both parsers tolerate
+  unknown members, so the cap is 64 kibibytes; the multi-key timestamp cap is 512
+  bytes, above the worst-case fully escaped encoding of the longest well-formed
+  RFC 3339 bound. These are Go-implementation changes only, with no wire or
+  protocol change.
+- Applied the canonical-output caps on the Go verify side, closing an
+  accept-side parity gap where a Go verifier accepted signed input the reference
+  verifier rejects. The inclusion-receipt signature verifier now caps the
+  canonical signed core at 1,048,576 UTF-16 code units after canonicalization and
+  before any signature work, mirroring the reference jcsCanonicalize string-length
+  check the receipt verify path runs through, so a receipt whose canonical core
+  exceeds one mebibyte of code units is rejected rather than verified. The INK
+  signature base builder now runs the shared structural walk before
+  canonicalizing and caps the canonical output at 1,048,576 both in UTF-16 code
+  units and in UTF-8 bytes, mirroring the reference buildSignatureBase, so every
+  caller of the signature-base builder, the single and multi-key request-signature
+  verifiers, rejects an over-complex or over-cap body before spending signature
+  work. Both are reject-only additions: input within bounds verifies unchanged.
+  These are Go-implementation changes only, with no wire or protocol change.
 
 ## 0.13.0, minimal authorization grant primitive
 

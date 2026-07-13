@@ -132,7 +132,7 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 	// over-wide object. This runs before schema validation walks the fields, so a
 	// pathological structure short circuits here rather than deep inside field
 	// checks or canonicalization.
-	if !withinGrantBounds(obj) {
+	if !withinBodyBounds(obj) {
 		return false, GrantReasonSchema
 	}
 	signature, ok := validateAuthorizationGrant(obj)

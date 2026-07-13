@@ -149,9 +149,9 @@ func TestVerifyAuthorizationGrantRejectsOversizedBody(t *testing.T) {
 // depth cap is rejected as schema, matching the reference node/depth walk, so both
 // implementations reject the same pathological structure.
 func TestVerifyAuthorizationGrantRejectsOverDeepBody(t *testing.T) {
-	deep := strings.Repeat(`{"a":`, maxGrantDepth+2)
+	deep := strings.Repeat(`{"a":`, maxBodyDepth+2)
 	deep += "1"
-	deep += strings.Repeat(`}`, maxGrantDepth+2)
+	deep += strings.Repeat(`}`, maxBodyDepth+2)
 	// A grant whose subject value is replaced by a deeply nested object. The
 	// wrong type also fails the schema, but the bounds walk runs first and short
 	// circuits before the field-type checks.
@@ -168,7 +168,7 @@ func TestVerifyAuthorizationGrantRejectsOverDeepBody(t *testing.T) {
 }
 
 // TestVerifyAuthorizationGrantRejectsNonJcsSafeNumber pins number parity between
-// withinGrantBounds and the reference isWithinBounds walk. A grant carrying a
+// withinBodyBounds and the reference isWithinBounds walk. A grant carrying a
 // non-JCS-safe number (here an exponential-magnitude value in the scope array) is
 // rejected as schema during the bounds walk, before schema validation or any
 // signature work, so both implementations reject the same body. The bounds walk
@@ -188,13 +188,13 @@ func TestVerifyAuthorizationGrantRejectsNonJcsSafeNumber(t *testing.T) {
 	// Direct assertion on the bounds walk: a fractional value and a magnitude past
 	// the safe-integer range are both rejected, matching isJcsSafeNumber.
 	for _, bad := range []interface{}{1e21, 3.14, float64(1) / float64(3)} {
-		if withinGrantBounds(map[string]interface{}{"n": bad}) {
-			t.Errorf("withinGrantBounds accepted a non-JCS-safe number %v", bad)
+		if withinBodyBounds(map[string]interface{}{"n": bad}) {
+			t.Errorf("withinBodyBounds accepted a non-JCS-safe number %v", bad)
 		}
 	}
 	// A safe integer stays within bounds.
-	if !withinGrantBounds(map[string]interface{}{"n": float64(42)}) {
-		t.Error("withinGrantBounds rejected a safe integer")
+	if !withinBodyBounds(map[string]interface{}{"n": float64(42)}) {
+		t.Error("withinBodyBounds rejected a safe integer")
 	}
 }
 
