@@ -4,6 +4,28 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Additions
+
+- Optional durable storage for the Go `ink-witness-server`. Passing `-data-dir`
+  keeps an append-only record file, one JSON line per accepted leaf holding the
+  raw event bytes, and replays it on startup so the log survives a restart. An
+  empty `-data-dir` keeps the log in memory, unchanged from before. The record
+  for a leaf is fsynced to stable storage before its inclusion receipt is signed,
+  so a receipt can never attest to a leaf a crash could lose; replay re-runs the
+  submit-path validation and rebuilds the tree byte-identically, so the recovered
+  checkpoint has the same root at the same size and prior receipts still verify.
+  Recovery is fail-closed: a failed write or fsync is truncated away durably, so
+  the only tail replay discards is an unterminated partial line a crash left mid
+  write; a complete record with no receipt is a valid leaf replay keeps
+  (at-least-once), and any newline-terminated record that fails to decode refuses
+  start at any position. The record file's directory entry is fsynced on creation
+  so a fresh log survives a crash, and a failed append that cannot roll back
+  durably refuses further submissions. The `-max-leaves` bound applies to replay
+  too. This is a Go-implementation server feature only, with no wire or protocol
+  change.
+
 ## 0.13.0, minimal authorization grant primitive
 
 ### Additions
