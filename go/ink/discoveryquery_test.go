@@ -100,3 +100,46 @@ func TestVerifyDiscoveryQueryEnvelopeRejectsInvalidUTF8(t *testing.T) {
 		t.Error("invalid UTF-8 envelope verified")
 	}
 }
+
+// TestVerifyDiscoveryQueryEnvelopeRejectsOversizedBody pins the byte-length cap
+// the Go verifier applies before json.Unmarshal. A body one byte past the cap is
+// rejected without decoding.
+func TestVerifyDiscoveryQueryEnvelopeRejectsOversizedBody(t *testing.T) {
+	if MaxDiscoveryQueryBodyBytes != 64*1024 {
+		t.Errorf("MaxDiscoveryQueryBodyBytes: got %d, want %d", MaxDiscoveryQueryBodyBytes, 64*1024)
+	}
+	raw := make([]byte, MaxDiscoveryQueryBodyBytes+1)
+	for i := range raw {
+		raw[i] = 'x'
+	}
+	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+		t.Error("oversized discovery query body verified")
+	}
+}
+
+// TestVerifyDiscoveryQueryEnvelopeAcceptsBodyUnderCap pins that a body under the
+// cap is still handed to the decoder (rejected here only because its content is
+// not a valid envelope, not because of the byte cap).
+func TestVerifyDiscoveryQueryEnvelopeAcceptsBodyUnderCap(t *testing.T) {
+	raw := []byte(discoveryEnvelope(`{}`, ""))
+	if len(raw) > MaxDiscoveryQueryBodyBytes {
+		t.Fatalf("fixture envelope %d bytes exceeds cap %d", len(raw), MaxDiscoveryQueryBodyBytes)
+	}
+	// A valid-shaped envelope under the cap reaches signature verification and
+	// fails there (dummy signature, zero key), not at the byte cap.
+	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+		t.Error("dummy-signed envelope unexpectedly verified")
+	}
+}
+
+// TestVerifyDiscoveryQueryEnvelopeRejectsOverDeepBody pins the post-parse
+// structural walk, which is parity with the TypeScript verifyDiscoveryQueryEnvelope
+// isWithinBounds call. A body under the byte cap that nests past the depth cap is
+// rejected before schema validation.
+func TestVerifyDiscoveryQueryEnvelopeRejectsOverDeepBody(t *testing.T) {
+	deep := strings.Repeat(`{"a":`, maxBodyDepth+2) + "1" + strings.Repeat(`}`, maxBodyDepth+2)
+	raw := []byte(strings.Replace(discoveryEnvelope(`{}`, ""), `"query":{}`, `"query":`+deep, 1))
+	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+		t.Error("over-deep discovery query body verified")
+	}
+}

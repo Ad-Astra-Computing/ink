@@ -30,6 +30,21 @@ func signReceiptCore(eventID string, leafIndex, treeSize int, rootHash, timestam
 	if err != nil {
 		return "", err
 	}
+	// Enforce the canonical ceiling on the emit side, mirroring the reference
+	// jcsCanonicalize post-canonicalize check the TS receipt-signing path runs
+	// through. The reference caps result.length, a JS string length in UTF-16
+	// code units, against MAX_SIGBASE_BODY_BYTES; the constant is byte-named but
+	// on this path it bounds a string length, so Go mirrors the applied semantics
+	// (utf16Len) not the name. Measuring bytes here would refuse a core with a
+	// large non-ASCII eventId that stays under the code-unit ceiling but exceeds
+	// it in UTF-8 bytes, which TS signs and both object verifiers accept.
+	// Without any bound a Go witness could mint a receipt whose signed core
+	// exceeds the parser's MaxInclusionReceiptBytes boundary, and its own
+	// ParseInclusionReceipt would reject it. Checked over the canonical output
+	// (not the version prefix), matching where the reference caps.
+	if utf16Len(canonical) > maxCanonicalBodyBytes {
+		return "", errors.New("inclusion-receipt core exceeds maximum allowed size")
+	}
 	sig := ed25519.Sign(witnessPrivateKey, []byte("ink/audit-inclusion/v1\n"+canonical))
 	return base64.RawURLEncoding.EncodeToString(sig), nil
 }

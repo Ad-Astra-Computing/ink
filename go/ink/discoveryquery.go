@@ -19,6 +19,31 @@ var discoveryQueryTopLevelKeys = map[string]bool{
 // carry. Every one is optional, but an unknown key rejects.
 var discoveryQueryInnerKeys = map[string]bool{"tags": true, "scope": true, "limit": true}
 
+// MaxDiscoveryQueryBodyBytes is the byte-length ceiling on a raw discovery query
+// envelope before it is parsed, following the MaxGrantBodyBytes precedent: an
+// oversized blob is rejected by a len check before json.Unmarshal runs. The
+// reference verifyDiscoveryQueryEnvelope in src/models/discovery-query.ts takes
+// an already-decoded object and applies the isWithinBounds structural walk, so
+// this Go byte cap is the decode-layer edge the TypeScript side never sees; the
+// structural walk below is the actual parity with the reference.
+//
+// The value is derived from the schema bounds, counted at the wire escape-
+// expansion worst case rather than the UTF-8 encoded length. A well-formed
+// envelope carries a from, a to (512 UTF-16 code units each), a nonce (256), a
+// timestamp, a scope literal, a signature (86 chars), a protocol and a type
+// literal, and a query with up to 32 tags of up to 64 code units each. Tags
+// dominate at 32*64 = 2048 code units; from, to and nonce add ~1280 more, for
+// about 3,300 schema-bounded code units. The envelope on the wire is not
+// canonical JSON, so a sender may escape any character: an ASCII code unit is 1
+// UTF-8 byte but 6 raw bytes as \uXXXX, and the signature verifies against the
+// re-canonicalized envelope, not the raw bytes. At 6 raw bytes per escaped
+// character plus a small constant of JSON structural overhead, a maximal envelope
+// is roughly 20 KiB of wire bytes. Rounding to a flat 64 KiB (the same figure the
+// grant schema, which is comparably small, rounds to) leaves headroom for a valid
+// escaped envelope while rejecting a blob orders of magnitude past the schema
+// before the decoder touches it.
+const MaxDiscoveryQueryBodyBytes = 64 * 1024
+
 // VerifyDiscoveryQueryEnvelope verifies a requester-signed discovery query
 // envelope against the requester's public key. It mirrors the TypeScript
 // verifyDiscoveryQueryEnvelope byte for byte: strict schema validation, then a
@@ -32,6 +57,12 @@ var discoveryQueryInnerKeys = map[string]bool{"tags": true, "scope": true, "limi
 // validated and canonicalized, so the validated bytes and the signed bytes can
 // never disagree.
 func VerifyDiscoveryQueryEnvelope(raw []byte, requesterPublicKey []byte) bool {
+	// Byte cap before the decoder runs: a body past the schema-derived ceiling is
+	// rejected outright, so a pathological blob is never unmarshaled. See the
+	// MaxDiscoveryQueryBodyBytes derivation.
+	if len(raw) > MaxDiscoveryQueryBodyBytes {
+		return false
+	}
 	// The envelope is a signed artifact: encoding/json rewrites invalid UTF-8 or
 	// a lone surrogate to U+FFFD, so a body that is not byte-identical to the
 	// signed one could canonicalize to the signed bytes. Reject both up front.
@@ -40,6 +71,13 @@ func VerifyDiscoveryQueryEnvelope(raw []byte, requesterPublicKey []byte) bool {
 	}
 	var obj map[string]interface{}
 	if err := json.Unmarshal(raw, &obj); err != nil {
+		return false
+	}
+	// Post-parse structural bounds walk. This is parity with the reference: the
+	// TypeScript verifyDiscoveryQueryEnvelope runs isWithinBounds on the decoded
+	// object before schema validation, so both implementations reject the same
+	// over-deep or over-wide envelope before any signature work.
+	if !withinBodyBounds(obj) {
 		return false
 	}
 	signature, ok := validateDiscoveryQueryEnvelope(obj)

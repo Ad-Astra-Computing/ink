@@ -13,20 +13,33 @@ import "math"
 //
 // The bounds are two layers. MaxGrantBodyBytes is a byte-length cap applied to
 // the raw bytes before json.Unmarshal runs at all, so an oversized blob is never
-// handed to the decoder. maxGrantNodes/maxGrantDepth/maxGrantChars are a walk over
+// handed to the decoder. maxBodyNodes/maxBodyDepth/maxBodyChars are a walk over
 // the decoded value that mirrors the reference node, depth, and character budgets.
 //
-// The gap is shared: discoveryquery.go, receipt.go, agentcardfetch.go,
-// encryption.go, and multikey.go also json.Unmarshal a body with no structural
-// cap, so this helper is written to be reusable across them. This change wires it
-// only into the authorization-grant path; extending the other verifiers is left
-// as a follow-up so each carries its own byte-cap constant and test.
+// The verifiers split by how their reference receives a body. Where the
+// reference walks a decoded value, the Go verifier applies the same structural
+// walk: authorizationgrant.go and discoveryquery.go call withinBodyBounds on the
+// decoded value. Where the reference receives an already-decoded value and
+// applies no structural walk, the Go verifier applies only a byte cap as a
+// decode-layer resource guard: receipt.go (inclusion receipt and checkpoint
+// reference) and multikey.go. The decrypt path (encryption.go) deliberately runs
+// no structural walk over the authenticated plaintext: the reference
+// decryptInkPayload applies none, so a walk would reject inner bodies it accepts;
+// the plaintext size is instead bounded by the step-9 ciphertext encoded-length
+// cap. Agent-card fetch is bounded at the fetch layer instead, by the
+// MaxAgentCardBytes Content-Length and read-length cap in agentcardfetch.go, so
+// it needs no separate parse-time cap.
+// The structural walk and the node, depth and character caps below are
+// body-generic so every verifier that walks a decoded body reuses the one
+// implementation rather than duplicating it. Each raw-body verifier still
+// carries its own exported byte-cap constant, derived from that body's own
+// schema bounds, because the byte boundary is per body type.
 const (
 	// The node, depth, and character caps are the reference values from
 	// src/crypto/sign.ts, kept in sync so a peer cannot pick the softer path.
-	maxGrantNodes = 10000
-	maxGrantDepth = 32
-	maxGrantChars = 1200000
+	maxBodyNodes = 10000
+	maxBodyDepth = 32
+	maxBodyChars = 1200000
 )
 
 // MaxGrantBodyBytes is the byte-length ceiling on a raw grant body before it is
@@ -53,34 +66,34 @@ const (
 // general INK message.
 const MaxGrantBodyBytes = 64 * 1024
 
-// withinGrantBounds walks a decoded JSON value and reports whether it stays
+// withinBodyBounds walks a decoded JSON value and reports whether it stays
 // within the node, depth, and character budgets. It mirrors isWithinBounds in
 // src/crypto/sign.ts: every object and array member is a node, a member name
 // counts toward both the node and character budgets, and a string value counts
 // its length in UTF-16 code units toward the character budget. A value that
 // exceeds any budget returns false, so the caller rejects it as schema before any
 // signature or canonicalization work.
-func withinGrantBounds(v interface{}) bool {
+func withinBodyBounds(v interface{}) bool {
 	nodes := 0
 	chars := 0
 	var walk func(v interface{}, depth int) bool
 	walk = func(v interface{}, depth int) bool {
-		if depth > maxGrantDepth {
+		if depth > maxBodyDepth {
 			return false
 		}
 		nodes++
-		if nodes > maxGrantNodes {
+		if nodes > maxBodyNodes {
 			return false
 		}
 		switch x := v.(type) {
 		case map[string]interface{}:
 			for key, val := range x {
 				nodes++
-				if nodes > maxGrantNodes {
+				if nodes > maxBodyNodes {
 					return false
 				}
 				chars += utf16Len(key)
-				if chars > maxGrantChars {
+				if chars > maxBodyChars {
 					return false
 				}
 				if !walk(val, depth+1) {
@@ -97,7 +110,7 @@ func withinGrantBounds(v interface{}) bool {
 			return true
 		case string:
 			chars += utf16Len(x)
-			return chars <= maxGrantChars
+			return chars <= maxBodyChars
 		case float64:
 			// Number parity with the reference isWithinBounds in src/crypto/sign.ts,
 			// which rejects a number that is not JCS-safe during the walk. A number is
