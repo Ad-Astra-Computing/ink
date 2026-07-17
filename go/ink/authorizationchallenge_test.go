@@ -53,9 +53,10 @@ func TestDeriveChallengeGrantIDParity(t *testing.T) {
 // two implementations derive the same origin (or reject) for the same input.
 func TestDeriveRPOriginParity(t *testing.T) {
 	accept := map[string]string{
-		"did:web:rp.example":        "https://rp.example",
-		"did:web:rp.example%3A8443": "https://rp.example:8443",
-		"did:web:a.b.c.example":     "https://a.b.c.example",
+		"did:web:rp.example":         "https://rp.example",
+		"did:web:rp.example%3A8443":  "https://rp.example:8443",
+		"did:web:a.b.c.example":      "https://a.b.c.example",
+		"did:web:rp.example%3A65535": "https://rp.example:65535",
 	}
 	for in, want := range accept {
 		got, ok := deriveRPOrigin(in)
@@ -75,6 +76,11 @@ func TestDeriveRPOriginParity(t *testing.T) {
 		"did:web:rp.example.",
 		"web:rp.example",
 		"did:web:",
+		"did:web:rp.example%3A8443%3A9000",
+		"did:web:rp.example%3A0",
+		"did:web:rp.example%3A65536",
+		"did:web:[2001:db8::1]",
+		"did:web:rp%2Eexample",
 	}
 	for _, in := range reject {
 		if got, ok := deriveRPOrigin(in); ok {

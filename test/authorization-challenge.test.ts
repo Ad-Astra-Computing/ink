@@ -54,6 +54,24 @@ describe("authorization challenge build and verify", () => {
     if (!result.ok) expect(result.reason).toBe("signature");
   });
 
+  it("treats the active-key validity window as inclusive at both ends (evaluated at now)", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    const atUpper: CandidateKey[] = [{ keyId: "rp-active", publicKey: kp.publicKey, status: "active", validUntil: clockInWindow }];
+    const atLower: CandidateKey[] = [{ keyId: "rp-active", publicKey: kp.publicKey, status: "active", validFrom: clockInWindow }];
+    expect((await verifyAuthorizationChallenge(challenge, atUpper, { now: clockInWindow })).ok).toBe(true);
+    expect((await verifyAuthorizationChallenge(challenge, atLower, { now: clockInWindow })).ok).toBe(true);
+  });
+
+  it("checks the signature before the window (bad signature outranks expiry)", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    const tampered = { ...challenge, nonce: "nonce-challenge-999999999" };
+    const result = await verifyAuthorizationChallenge(tampered, activeKeys(kp), { now: "2026-07-16T12:06:00.000Z" });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe("signature");
+  });
+
   it("evaluates the key window at now, not at issuedAt", async () => {
     const kp = await generateKeypair();
     const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
@@ -132,6 +150,17 @@ describe("rp origin derivation (parser-independent)", () => {
     expect(deriveRpOrigin("did:web:rp.example%3A443")).toBeNull();
     expect(deriveRpOrigin("did:web:rp.example%3a8443")).toBeNull();
     expect(deriveRpOrigin("did:web:rp.example%3A08443")).toBeNull();
+  });
+
+  it("rejects the parser-edge forms (trailing dot, repeated marker, port 0/65536, IPv6 bracket, percent host)", () => {
+    expect(deriveRpOrigin("did:web:rp.example.")).toBeNull();
+    expect(deriveRpOrigin("did:web:rp.example%3A8443%3A9000")).toBeNull();
+    expect(deriveRpOrigin("did:web:rp.example%3A0")).toBeNull();
+    expect(deriveRpOrigin("did:web:rp.example%3A65536")).toBeNull();
+    expect(deriveRpOrigin("did:web:[2001:db8::1]")).toBeNull();
+    expect(deriveRpOrigin("did:web:rp%2Eexample")).toBeNull();
+    // The maximum in-range port is accepted.
+    expect(deriveRpOrigin("did:web:rp.example%3A65535")).toBe("https://rp.example:65535");
   });
 });
 

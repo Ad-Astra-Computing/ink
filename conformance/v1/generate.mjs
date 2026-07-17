@@ -2500,6 +2500,10 @@ vectorFile("private-hostname", [
     redirectUri: "https://rp.example:8443/callback",
   };
   const portChallenge = await buildAuthorizationChallenge(portBase, seed);
+  // A redirectUri that is the origin plus / plus a query only (no path segment):
+  // the literal prefix rule admits it because the path and query after the / are
+  // optional.
+  const queryRedirectChallenge = await buildAuthorizationChallenge({ ...challengeBase, redirectUri: "https://rp.example/?ref=xyz" }, seed);
   const otherPublicKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(9)));
 
   // The RP card's active signing key set. Every accept case shares it; the
@@ -2583,6 +2587,35 @@ vectorFile("private-hostname", [
     rej("expiry-upper-bound-rejects", "A challenge verified at exactly expiresAt is rejected (exclusive upper bound).", { challenge, keys: activeKeys, now: challengeBase.expiresAt }, "expired"),
     rej("not-yet-valid-rejects", "A challenge verified before issuedAt is rejected.", { challenge, keys: activeKeys, now: "2026-07-16T11:59:00.000Z" }, "not_yet_valid"),
     rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.", { challenge, keys: activeKeys, now: "not-a-timestamp" }, "schema"),
+
+    // Verify-order pins: the signature is checked before the window, so a bad
+    // signature outranks a window verdict. Paired with expired-rejects and
+    // not-yet-valid-rejects (good signature) above, these prove signature precedes
+    // window in both directions.
+    rej("expired-with-bad-signature-rejects-signature", "A challenge with a tampered body verified after expiry rejects on the signature, not on expiry, pinning signature-before-window order.", { challenge: { ...challenge, nonce: "nonce-challenge-999999999" }, keys: activeKeys, now: "2026-07-16T12:06:00.000Z" }, "signature"),
+    rej("not-yet-valid-with-bad-signature-rejects-signature", "A challenge with a tampered body verified before issuedAt rejects on the signature, not on the window.", { challenge: { ...challenge, nonce: "nonce-challenge-999999999" }, keys: activeKeys, now: "2026-07-16T11:59:00.000Z" }, "signature"),
+
+    // Key-window boundary pins. The active-key validity window is inclusive at
+    // both ends, evaluated at the verifier clock, matching the rotation verifier;
+    // this is deliberately distinct from the challenge validity window, whose
+    // upper bound is exclusive (expiry-upper-bound-rejects above).
+    acc("key-valid-until-equals-now-accepts", "An active signing key whose validUntil equals the verifier clock is still usable (inclusive upper bound), so the challenge verifies.", { challenge, keys: [{ keyId: "rp-active", publicKeyHex, status: "active", validUntil: nowInWindow }], now: nowInWindow }, idBase),
+    acc("key-valid-from-equals-now-accepts", "An active signing key whose validFrom equals the verifier clock is usable (inclusive lower bound), so the challenge verifies.", { challenge, keys: [{ keyId: "rp-active", publicKeyHex, status: "active", validFrom: nowInWindow }], now: nowInWindow }, idBase),
+
+    // RP bare-host did:web parser edges. Each rejects as schema on the signed bytes
+    // alone, by explicit string rules with no URL parsing, and TS and Go decide
+    // identically (a divergence here would be a real interop bug).
+    rej("rp-trailing-dot-host-rejects", "A trailing dot leaves an empty final label, which fails the label grammar, so the rp rejects.", { challenge: { ...challenge, rp: "did:web:rp.example." }, ...ctx }, "schema"),
+    rej("rp-repeated-port-marker-rejects", "A second %3A in the port position is a malformed identifier and rejects.", { challenge: { ...challenge, rp: "did:web:rp.example%3A8443%3A9000" }, ...ctx }, "schema"),
+    rej("rp-port-zero-rejects", "Port 0 is out of the 1..65535 range and rejects.", { challenge: { ...challenge, rp: "did:web:rp.example%3A0" }, ...ctx }, "schema"),
+    rej("rp-port-65536-rejects", "Port 65536 is one past the maximum and rejects.", { challenge: { ...challenge, rp: "did:web:rp.example%3A65536" }, ...ctx }, "schema"),
+    rej("rp-ipv6-bracket-rejects", "A bracketed IPv6 literal fails the label grammar (brackets and colons are not LDH), so it rejects without a separate exclusion.", { challenge: { ...challenge, rp: "did:web:[2001:db8::1]" }, ...ctx }, "schema"),
+    rej("rp-percent-encoded-host-rejects", "A percent escape in the host (a percent-encoded dot) is malformed: the host carries no percent-encoding, so it rejects.", { challenge: { ...challenge, rp: "did:web:rp%2Eexample" }, ...ctx }, "schema"),
+
+    // redirectUri parser edges under the literal-prefix rule with no URL parsing.
+    rej("redirect-uppercase-origin-rejects", "The literal-prefix match is case-sensitive: an uppercase host in the redirectUri does not equal the derived lowercase origin and rejects.", { challenge: { ...challenge, redirectUri: "https://RP.EXAMPLE/callback" }, ...ctx }, "schema"),
+    rej("redirect-trailing-dot-host-rejects", "A trailing dot on the redirectUri host breaks the literal prefix (the character after the origin is a dot, not /) and rejects.", { challenge: { ...challenge, redirectUri: "https://rp.example./callback" }, ...ctx }, "schema"),
+    acc("redirect-query-only-accepts", "A redirectUri that is the origin plus / plus a query only (no path segment) satisfies the prefix rule and verifies.", { challenge: queryRedirectChallenge, ...ctx }),
 
     der("derived-id-determinism", "The derived grantId over the four binding fields is deterministic and matches the pinned base64url-nopad SHA-256 digest.", challengeBase, idBase),
     der("derived-id-ignores-other-fields", "A challenge sharing the four binding fields but differing in requestedScope and redirectUri derives the identical id, so the binding is over exactly rp, nonce, issuedAt, and expiresAt.", { ...challengeBase, requestedScope: ["identity.assert"], redirectUri: "https://rp.example/other" }, idBase),
