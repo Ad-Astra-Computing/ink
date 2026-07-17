@@ -4,63 +4,7 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
-## Unreleased
-
-### Additions
-
-- Optional durable storage for the Go `ink-witness-server`. Passing `-data-dir`
-  keeps an append-only record file, one JSON line per accepted leaf holding the
-  raw event bytes, and replays it on startup so the log survives a restart. An
-  empty `-data-dir` keeps the log in memory, unchanged from before. The record
-  for a leaf is fsynced to stable storage before its inclusion receipt is signed,
-  so a receipt can never attest to a leaf a crash could lose; replay re-runs the
-  submit-path validation and rebuilds the tree byte-identically, so the recovered
-  checkpoint has the same root at the same size and prior receipts still verify.
-  Recovery is fail-closed: a failed write or fsync is truncated away durably, so
-  the only tail replay discards is an unterminated partial line a crash left mid
-  write; a complete record with no receipt is a valid leaf replay keeps
-  (at-least-once), and any newline-terminated record that fails to decode refuses
-  start at any position. The record file's directory entry is fsynced on creation
-  so a fresh log survives a crash, and a failed append that cannot roll back
-  durably refuses further submissions. The `-max-leaves` bound applies to replay
-  too. This is a Go-implementation server feature only, with no wire or protocol
-  change.
-- Extended the pre-parse byte caps and the post-parse structural walk to the
-  remaining Go verifiers. The discovery query verifier now caps the raw envelope
-  and runs the shared node, depth and character walk, matching the reference
-  isWithinBounds call. The decrypted payload path adds no bound to the
-  authenticated plaintext, matching the reference decrypt, which applies no
-  structural walk; the plaintext size is already bounded by the step-9 ciphertext
-  encoded-length cap and Go's encoding/json nesting limit is the stack backstop.
-  The inclusion receipt, checkpoint reference and multi-key timestamp paths carry
-  raw-bytes edge guards with headroom derived from the emitter ceiling and the
-  wire escape-expansion worst case: a conforming witness signs a receipt core
-  through canonicalization, which caps the signed portion at 1,048,576 UTF-16 code
-  units of canonical output (mirroring the reference jcsCanonicalize string-length
-  check), but that core can escape to about six mebibytes on the wire at six raw
-  bytes per code unit, so the receipt cap is eight mebibytes; a well-formed
-  checkpoint reference is under
-  200 bytes but both parsers tolerate
-  unknown members, so the cap is 64 kibibytes; the multi-key timestamp cap is 512
-  bytes, above the worst-case fully escaped encoding of the longest well-formed
-  RFC 3339 bound. These are Go-implementation changes only, with no wire or
-  protocol change.
-- Applied the canonical-output caps on the Go verify side, closing an
-  accept-side parity gap where a Go verifier accepted signed input the reference
-  verifier rejects. The inclusion-receipt signature verifier now caps the
-  canonical signed core at 1,048,576 UTF-16 code units after canonicalization and
-  before any signature work, mirroring the reference jcsCanonicalize string-length
-  check the receipt verify path runs through, so a receipt whose canonical core
-  exceeds one mebibyte of code units is rejected rather than verified. The INK
-  signature base builder now runs the shared structural walk before
-  canonicalizing and caps the canonical output at 1,048,576 both in UTF-16 code
-  units and in UTF-8 bytes, mirroring the reference buildSignatureBase, so every
-  caller of the signature-base builder, the single and multi-key request-signature
-  verifiers, rejects an over-complex or over-cap body before spending signature
-  work. Both are reject-only additions: input within bounds verifies unchanged.
-  These are Go-implementation changes only, with no wire or protocol change.
-
-## 0.13.0, minimal authorization grant primitive
+## 0.13.0, authorization grant primitive and sign-in challenge conformance
 
 ### Additions
 
@@ -155,6 +99,89 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   presentations of the same pair cannot both be accepted. Replay recording is
   receiver state the verifier reads but does not own; the `seenGrants` docs carry
   the same rule.
+- The sign-in challenge, the one artifact the "Sign in with INK" flow profile
+  adds on top of the grant. A relying party signs a challenge to request sign-in,
+  the user's agent verifies it against an active RP signing key before minting the
+  grant that answers it and the answering identity assertion adopts the `grantId`
+  derived from the verified challenge. New `AuthorizationChallengeSchema`, a
+  `buildAuthorizationChallenge` signer, a `verifyAuthorizationChallenge` verifier
+  that fails closed and a `deriveChallengeGrantId` that binds the answering grant
+  to the challenge. The `AuthorizationChallengeError` class and the
+  `AuthorizationChallengeReason` type (`schema`, `signature`, `not_yet_valid`,
+  `expired`) are exported from the package root alongside the challenge
+  verify-context and result types. See
+  [`specs/ink-agent-authorization.md`](specs/ink-agent-authorization.md).
+- The `rp` is a bare-host `did:web`, and its origin is derived by explicit string
+  rules rather than a URL parser so two implementations never disagree on the
+  origin that gates redirect acceptance. The `redirectUri` MUST start with that
+  derived origin followed by `/` under a literal prefix match and MUST contain no
+  fragment, backslash, ASCII control character or ASCII whitespace. The
+  `requestedScope` MUST draw from the closed registry (`identity.assert`,
+  `profile.read`, `agent.message.send`) with `identity.assert` present. The validity window is capped at the same ten-minute
+  ceiling as the grant and exported as `MAX_CHALLENGE_LIFETIME_MS`. A raw
+  challenge body longer than `MAX_CHALLENGE_BODY_BYTES` rejects as `schema` before
+  it is decoded.
+- The rule is pinned by the new `agent-authorization` conformance category under
+  the capability-gated `authorization` profile, verified by both the TypeScript
+  reference and the Go implementation over the same vectors, with each reject
+  vector pinning its typed reason so the two agree on verify order. The corpus
+  covers an accepting case, an active-key-only RP signature evaluated at the
+  verifier clock, non-bare-host `rp` and non-conforming `redirectUri` cases,
+  scope and window bounds and derive-only vectors that pin the exact
+  challenge-derived `grantId` for fixed inputs so both implementations compute
+  the identical id.
+
+- Optional durable storage for the Go `ink-witness-server`. Passing `-data-dir`
+  keeps an append-only record file, one JSON line per accepted leaf holding the
+  raw event bytes, and replays it on startup so the log survives a restart. An
+  empty `-data-dir` keeps the log in memory, unchanged from before. The record
+  for a leaf is fsynced to stable storage before its inclusion receipt is signed,
+  so a receipt can never attest to a leaf a crash could lose; replay re-runs the
+  submit-path validation and rebuilds the tree byte-identically, so the recovered
+  checkpoint has the same root at the same size and prior receipts still verify.
+  Recovery is fail-closed: a failed write or fsync is truncated away durably, so
+  the only tail replay discards is an unterminated partial line a crash left mid
+  write; a complete record with no receipt is a valid leaf replay keeps
+  (at-least-once), and any newline-terminated record that fails to decode refuses
+  start at any position. The record file's directory entry is fsynced on creation
+  so a fresh log survives a crash, and a failed append that cannot roll back
+  durably refuses further submissions. The `-max-leaves` bound applies to replay
+  too. This is a Go-implementation server feature only, with no wire or protocol
+  change.
+- Extended the pre-parse byte caps and the post-parse structural walk to the
+  remaining Go verifiers. The discovery query verifier now caps the raw envelope
+  and runs the shared node, depth and character walk, matching the reference
+  isWithinBounds call. The decrypted payload path adds no bound to the
+  authenticated plaintext, matching the reference decrypt, which applies no
+  structural walk; the plaintext size is already bounded by the step-9 ciphertext
+  encoded-length cap and Go's encoding/json nesting limit is the stack backstop.
+  The inclusion receipt, checkpoint reference and multi-key timestamp paths carry
+  raw-bytes edge guards with headroom derived from the emitter ceiling and the
+  wire escape-expansion worst case: a conforming witness signs a receipt core
+  through canonicalization, which caps the signed portion at 1,048,576 UTF-16 code
+  units of canonical output (mirroring the reference jcsCanonicalize string-length
+  check), but that core can escape to about six mebibytes on the wire at six raw
+  bytes per code unit, so the receipt cap is eight mebibytes; a well-formed
+  checkpoint reference is under
+  200 bytes but both parsers tolerate
+  unknown members, so the cap is 64 kibibytes; the multi-key timestamp cap is 512
+  bytes, above the worst-case fully escaped encoding of the longest well-formed
+  RFC 3339 bound. These are Go-implementation changes only, with no wire or
+  protocol change.
+- Applied the canonical-output caps on the Go verify side, closing an
+  accept-side parity gap where a Go verifier accepted signed input the reference
+  verifier rejects. The inclusion-receipt signature verifier now caps the
+  canonical signed core at 1,048,576 UTF-16 code units after canonicalization and
+  before any signature work, mirroring the reference jcsCanonicalize string-length
+  check the receipt verify path runs through, so a receipt whose canonical core
+  exceeds one mebibyte of code units is rejected rather than verified. The INK
+  signature base builder now runs the shared structural walk before
+  canonicalizing and caps the canonical output at 1,048,576 both in UTF-16 code
+  units and in UTF-8 bytes, mirroring the reference buildSignatureBase, so every
+  caller of the signature-base builder, the single and multi-key request-signature
+  verifiers, rejects an over-complex or over-cap body before spending signature
+  work. Both are reject-only additions: input within bounds verifies unchanged.
+  These are Go-implementation changes only, with no wire or protocol change.
 
 ## 0.12.0, raw-body UTF-8 conformance rule
 
