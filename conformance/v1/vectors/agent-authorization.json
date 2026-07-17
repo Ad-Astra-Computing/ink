@@ -1,0 +1,1543 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "agent-authorization",
+  "cases": [
+    {
+      "caseId": "valid-challenge-accepts",
+      "description": "A challenge signed by the RP's active key, verified at a clock inside its window, verifies and derives its grantId.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "khO3xHkJYag2j3aA3SCi_hRGnzqf1dNmgKC224Ogd54"
+      }
+    },
+    {
+      "caseId": "issued-at-lower-bound-accepts",
+      "description": "A challenge verified at exactly issuedAt is inside the window (inclusive lower bound).",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "khO3xHkJYag2j3aA3SCi_hRGnzqf1dNmgKC224Ogd54"
+      }
+    },
+    {
+      "caseId": "bare-host-with-port-accepts",
+      "description": "A bare-host did:web rp carrying a non-default port derives an origin with that port, and a redirectUri under it verifies.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example%3A8443",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example:8443/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "y_4SQf8R30Wfq-hc1FWBbGlJqMKZ1YUBf4AL2MksRpayaemOmcVMBwOZOx5-wUOdfHoXdA5AKW9wqQZcwFcNBQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "in-window-active-key-accepts",
+      "description": "An active key whose validFrom/validUntil bracket the verifier clock verifies the challenge.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active",
+            "validFrom": "2026-07-16T11:00:00.000Z",
+            "validUntil": "2026-07-16T13:00:00.000Z"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "khO3xHkJYag2j3aA3SCi_hRGnzqf1dNmgKC224Ogd54"
+      }
+    },
+    {
+      "caseId": "retired-key-rejects-signature",
+      "description": "A retired RP key MUST NOT verify a live challenge, so the signature step rejects even though the key material matches.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-retired",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "retired"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "revoked-key-rejects-signature",
+      "description": "A revoked RP key never verifies a challenge.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-revoked",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "revoked"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "expired-active-key-rejects-signature",
+      "description": "An active key whose validUntil precedes the verifier clock is out of window and does not verify; usability is evaluated at now, not at the RP-chosen issuedAt.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active",
+            "validUntil": "2026-07-16T11:00:00.000Z"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "not-yet-valid-active-key-rejects-signature",
+      "description": "An active key whose validFrom is after the verifier clock is not yet usable and does not verify.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active",
+            "validFrom": "2026-07-16T13:00:00.000Z"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "wrong-key-rejects-signature",
+      "description": "A candidate active key that is not the signing key cannot verify the signature.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-wrong",
+            "publicKeyHex": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "no-usable-key-rejects-signature",
+      "description": "An empty candidate key set yields no usable active signing key, so the signature step rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "tampered-redirect-rejects-signature",
+      "description": "Changing redirectUri after signing to another value under the same origin keeps the schema valid but breaks the signature.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/other",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "tampered-nonce-rejects-signature",
+      "description": "Changing the nonce after signing breaks the signature.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-999999999",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "unknown-top-level-key-rejects",
+      "description": "An unknown top-level field is rejected by the strict schema before verification.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ",
+          "extra": 1
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "legacy-grant-type-rejects",
+      "description": "The challenge type is a single new spelling; the grant type is not accepted.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_grant",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "tulpa-challenge-type-rejects",
+      "description": "There is no legacy network.tulpa spelling of the challenge type; only network.ink.authorization_challenge is accepted.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "invalid-protocol-rejects",
+      "description": "A protocol other than ink/0.1 is out of profile and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.2",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "lone-surrogate-rejects",
+      "description": "A lone UTF-16 surrogate in a string field is not portable and rejects as schema before the signature.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-\ud800-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "rp-path-segment-rejects",
+      "description": "A path-bearing did:web has no unambiguous origin and rejects as schema before the signature.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example:path",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "rp-uppercase-host-rejects",
+      "description": "An uppercase host label is not a bytewise-comparable A-label and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:RP.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "rp-all-digit-final-label-rejects",
+      "description": "A final label that is all digits is excluded, matching the hostname rule that a top-level label is never all-numeric.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.123",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "rp-ipv4-literal-rejects",
+      "description": "A dotted-quad IPv4 literal fails the label grammar (its final label is all-numeric) and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:192.168.0.1",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://192.168.0.1/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "rp-explicit-443-rejects",
+      "description": "An explicit port 443 is out of profile because its derived origin would collide with the default.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example%3A443",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example:443/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "rp-lowercase-port-marker-rejects",
+      "description": "The port marker MUST be an uppercase %3A; a lowercase %3a leaves a percent in the host and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example%3a8443",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example:8443/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "scope-missing-identity-assert-rejects",
+      "description": "A requestedScope that does not include identity.assert is not a sign-in request and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "scope-unregistered-token-rejects",
+      "description": "A requestedScope entry outside the registry is malformed on the request side and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "admin:all"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "scope-duplicate-rejects",
+      "description": "A repeated requestedScope entry is rejected; entries must be distinct so two implementations count the same set.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "identity.assert"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "scope-empty-rejects",
+      "description": "A requestedScope with no entries is out of profile and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "scope-non-string-entry-rejects",
+      "description": "A requestedScope with a non-string entry rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            1
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-non-prefix-rejects",
+      "description": "A redirectUri that is not the derived RP origin plus / rejects under the literal prefix rule.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://evil.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-host-suffix-extension-rejects",
+      "description": "A redirectUri whose host merely extends the RP host is not the origin plus /, because the / defeats suffix extension, and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example.evil.com/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-no-slash-rejects",
+      "description": "A redirectUri equal to the origin with no trailing / rejects; the prefix is the origin followed immediately by /.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-fragment-rejects",
+      "description": "A redirectUri containing # is malformed: a fragment never reaches the completion endpoint.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback#frag",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-backslash-rejects",
+      "description": "A redirectUri containing a backslash is rejected; parsers disagree on backslash normalization.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/call\\back",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-control-char-rejects",
+      "description": "A redirectUri containing an ASCII control character is rejected; a control char that survives into a Location header is an injection primitive.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/call\u0001back",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "redirect-whitespace-rejects",
+      "description": "A redirectUri containing ASCII whitespace is rejected; the string is not trimmed first.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/call back",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "nonce-too-short-rejects",
+      "description": "A nonce shorter than 16 code units is out of profile and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "short-nonce",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "inverted-window-rejects",
+      "description": "A challenge whose expiresAt is not after issuedAt is malformed and rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:00:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "over-maximum-lifetime-rejects",
+      "description": "A window exceeding the ten-minute maximum lifetime is out of profile and rejects structurally, before the signature, even against a wrong key.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:10:01.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-wrong",
+            "publicKeyHex": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "malformed-signature-rejects",
+      "description": "A signature that is not valid base64url of the right length is rejected.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OA+"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "missing-signature-rejects",
+      "description": "A challenge with no signature field rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "invalid-issued-at-rejects",
+      "description": "A challenge whose issuedAt is not a strict INK timestamp rejects.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16 12:00",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "expired-rejects",
+      "description": "A challenge verified after expiresAt is rejected.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "expiry-upper-bound-rejects",
+      "description": "A challenge verified at exactly expiresAt is rejected (exclusive upper bound).",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:05:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "not-yet-valid-rejects",
+      "description": "A challenge verified before issuedAt is rejected.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T11:59:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "not_yet_valid"
+      }
+    },
+    {
+      "caseId": "invalid-now-rejects",
+      "description": "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.",
+      "input": {
+        "challenge": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_challenge",
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z",
+          "signature": "kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ"
+        },
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "not-a-timestamp"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "derived-id-determinism",
+      "description": "The derived grantId over the four binding fields is deterministic and matches the pinned base64url-nopad SHA-256 digest.",
+      "input": {
+        "challenge": {
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "khO3xHkJYag2j3aA3SCi_hRGnzqf1dNmgKC224Ogd54"
+      }
+    },
+    {
+      "caseId": "derived-id-ignores-other-fields",
+      "description": "A challenge sharing the four binding fields but differing in requestedScope and redirectUri derives the identical id, so the binding is over exactly rp, nonce, issuedAt, and expiresAt.",
+      "input": {
+        "challenge": {
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert"
+          ],
+          "redirectUri": "https://rp.example/other",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "khO3xHkJYag2j3aA3SCi_hRGnzqf1dNmgKC224Ogd54"
+      }
+    },
+    {
+      "caseId": "derived-id-differs-on-rp",
+      "description": "A challenge differing only in rp derives a distinct id, so the same nonce at two RPs cannot collide.",
+      "input": {
+        "challenge": {
+          "rp": "did:web:rp2.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "IlaOqzQnyfmJssaectiLZnjCOeI-pVBham61aMxSN8U"
+      }
+    },
+    {
+      "caseId": "derived-id-differs-on-nonce",
+      "description": "A challenge differing only in nonce derives a distinct id.",
+      "input": {
+        "challenge": {
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000002",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:05:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "mEH-NiLmHb0axzCOw10kt8NYXB7I3eWpi94uIGfW28U"
+      }
+    },
+    {
+      "caseId": "derived-id-differs-on-window",
+      "description": "A challenge differing only in its window derives a distinct id, so a reused nonce in a fresh window cannot collide.",
+      "input": {
+        "challenge": {
+          "rp": "did:web:rp.example",
+          "nonce": "nonce-challenge-000000001",
+          "requestedScope": [
+            "identity.assert",
+            "profile.read"
+          ],
+          "redirectUri": "https://rp.example/callback",
+          "issuedAt": "2026-07-16T12:00:00.000Z",
+          "expiresAt": "2026-07-16T12:06:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "derivedGrantId": "Vc2W-XqrXwVU2X9NlLsO7CEfU1w1y6IwqvmTGn1JvEE"
+      }
+    }
+  ]
+}

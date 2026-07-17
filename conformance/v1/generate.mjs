@@ -27,6 +27,8 @@ import {
   base64urlEncode,
   buildDiscoveryQueryEnvelope,
   buildAuthorizationGrant,
+  buildAuthorizationChallenge,
+  deriveChallengeGrantId,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -74,6 +76,7 @@ const CATEGORY_META = {
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
   "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds and requester-key signature verification." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
+  "agent-authorization": { profile: "authorization", spec: "specs/ink-agent-authorization.md", summary: "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -2466,6 +2469,126 @@ vectorFile("private-hostname", [
     rej("missing-signature-rejects", "A grant with no signature field rejects.", { grant: (() => { const { signature, ...rest } = grant; return rest; })(), issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
     rej("short-grant-id-rejects", "A grantId shorter than 16 code units is out of profile and rejects.", { grant: { ...grant, grantId: "short" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
     rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "not-a-timestamp" }, "schema"),
+  ]);
+}
+
+// ── agent-authorization ──────────────────────────────────────────────────────
+// The sign-in challenge artifact the Agent Authorization flow profile adds on top
+// of the grant (specs/ink-agent-authorization.md). An RP signs a challenge; the
+// user's agent verifies it against an active RP signing key before minting the
+// grant that answers it. Each verify case carries the challenge, the RP card's
+// candidate signing keys, and the verifier clock; a verifier accepts iff
+// verifyAuthorizationChallenge returns ok, and a reject pins the typed reason so
+// two implementations agree on verify order (schema -> signature -> window). A
+// case with no `keys` is a derive-only case: it pins the exact challenge-derived
+// grantId for fixed inputs, the cross-impl contract for the nonce-binding
+// derivation. Accept cases also pin the derived id.
+{
+  const challengeBase = {
+    rp: "did:web:rp.example",
+    nonce: "nonce-challenge-000000001",
+    requestedScope: ["identity.assert", "profile.read"],
+    redirectUri: "https://rp.example/callback",
+    issuedAt: "2026-07-16T12:00:00.000Z",
+    expiresAt: "2026-07-16T12:05:00.000Z",
+  };
+  const nowInWindow = "2026-07-16T12:02:00.000Z";
+  const challenge = await buildAuthorizationChallenge(challengeBase, seed);
+  const portBase = {
+    ...challengeBase,
+    rp: "did:web:rp.example%3A8443",
+    redirectUri: "https://rp.example:8443/callback",
+  };
+  const portChallenge = await buildAuthorizationChallenge(portBase, seed);
+  const otherPublicKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(9)));
+
+  // The RP card's active signing key set. Every accept case shares it; the
+  // signature cases vary the status or window to pin the active-key-only rule.
+  const activeKeys = [{ keyId: "rp-active", publicKeyHex, status: "active" }];
+
+  // A backslash const keeps a literal lone-surrogate escape out of a JSON string
+  // the generator would otherwise write as U+FFFD.
+  const loneSurrogateNonce = "nonce-\uD800-000000001";
+  // A window exactly one second past the ten-minute ceiling, signed with a key the
+  // vector never verifies against, so the over-long window is the reason it rejects
+  // structurally, before the signature.
+  const overCapExpiresAt = new Date(Date.parse(challengeBase.issuedAt) + 10 * 60 * 1000 + 1000).toISOString();
+  // A redirectUri carrying a literal U+0001 control character, kept out of the
+  // source text via fromCharCode so the generator file stays control-char clean.
+  const controlCharRedirect = "https://rp.example/call" + String.fromCharCode(1) + "back";
+
+  // The derived grantId is the base64url-nopad SHA-256 over the domain string, a
+  // newline, and the JCS of the four binding fields. Pinned for fixed inputs so
+  // both implementations compute the identical id.
+  const idBase = await deriveChallengeGrantId(challengeBase);
+  const idDiffRp = await deriveChallengeGrantId({ ...challengeBase, rp: "did:web:rp2.example" });
+  const idDiffNonce = await deriveChallengeGrantId({ ...challengeBase, nonce: "nonce-challenge-000000002" });
+  const idDiffWindow = await deriveChallengeGrantId({ ...challengeBase, expiresAt: "2026-07-16T12:06:00.000Z" });
+
+  const ctx = { keys: activeKeys, now: nowInWindow };
+  const acc = (caseId, description, input, derivedGrantId) => ({ caseId, description, input, expect: derivedGrantId ? { result: "accept", derivedGrantId } : { result: "accept" } });
+  const rej = (caseId, description, input, reason) => ({ caseId, description, input, expect: { result: "reject", reason } });
+  const der = (caseId, description, challengeObj, derivedGrantId) => ({ caseId, description, input: { challenge: challengeObj }, expect: { result: "accept", derivedGrantId } });
+
+  vectorFile("agent-authorization", [
+    acc("valid-challenge-accepts", "A challenge signed by the RP's active key, verified at a clock inside its window, verifies and derives its grantId.", { challenge, ...ctx }, idBase),
+    acc("issued-at-lower-bound-accepts", "A challenge verified at exactly issuedAt is inside the window (inclusive lower bound).", { challenge, keys: activeKeys, now: challengeBase.issuedAt }, idBase),
+    acc("bare-host-with-port-accepts", "A bare-host did:web rp carrying a non-default port derives an origin with that port, and a redirectUri under it verifies.", { challenge: portChallenge, ...ctx }),
+    acc("in-window-active-key-accepts", "An active key whose validFrom/validUntil bracket the verifier clock verifies the challenge.", { challenge, keys: [{ keyId: "rp-active", publicKeyHex, status: "active", validFrom: "2026-07-16T11:00:00.000Z", validUntil: "2026-07-16T13:00:00.000Z" }], now: nowInWindow }, idBase),
+
+    rej("retired-key-rejects-signature", "A retired RP key MUST NOT verify a live challenge, so the signature step rejects even though the key material matches.", { challenge, keys: [{ keyId: "rp-retired", publicKeyHex, status: "retired" }], now: nowInWindow }, "signature"),
+    rej("revoked-key-rejects-signature", "A revoked RP key never verifies a challenge.", { challenge, keys: [{ keyId: "rp-revoked", publicKeyHex, status: "revoked" }], now: nowInWindow }, "signature"),
+    rej("expired-active-key-rejects-signature", "An active key whose validUntil precedes the verifier clock is out of window and does not verify; usability is evaluated at now, not at the RP-chosen issuedAt.", { challenge, keys: [{ keyId: "rp-active", publicKeyHex, status: "active", validUntil: "2026-07-16T11:00:00.000Z" }], now: nowInWindow }, "signature"),
+    rej("not-yet-valid-active-key-rejects-signature", "An active key whose validFrom is after the verifier clock is not yet usable and does not verify.", { challenge, keys: [{ keyId: "rp-active", publicKeyHex, status: "active", validFrom: "2026-07-16T13:00:00.000Z" }], now: nowInWindow }, "signature"),
+    rej("wrong-key-rejects-signature", "A candidate active key that is not the signing key cannot verify the signature.", { challenge, keys: [{ keyId: "rp-wrong", publicKeyHex: otherPublicKeyHex, status: "active" }], now: nowInWindow }, "signature"),
+    rej("no-usable-key-rejects-signature", "An empty candidate key set yields no usable active signing key, so the signature step rejects.", { challenge, keys: [], now: nowInWindow }, "signature"),
+    rej("tampered-redirect-rejects-signature", "Changing redirectUri after signing to another value under the same origin keeps the schema valid but breaks the signature.", { challenge: { ...challenge, redirectUri: "https://rp.example/other" }, ...ctx }, "signature"),
+    rej("tampered-nonce-rejects-signature", "Changing the nonce after signing breaks the signature.", { challenge: { ...challenge, nonce: "nonce-challenge-999999999" }, ...ctx }, "signature"),
+
+    rej("unknown-top-level-key-rejects", "An unknown top-level field is rejected by the strict schema before verification.", { challenge: { ...challenge, extra: 1 }, ...ctx }, "schema"),
+    rej("legacy-grant-type-rejects", "The challenge type is a single new spelling; the grant type is not accepted.", { challenge: { ...challenge, type: "network.ink.authorization_grant" }, ...ctx }, "schema"),
+    rej("tulpa-challenge-type-rejects", "There is no legacy network.tulpa spelling of the challenge type; only network.ink.authorization_challenge is accepted.", { challenge: { ...challenge, type: "network.tulpa.authorization_challenge" }, ...ctx }, "schema"),
+    rej("invalid-protocol-rejects", "A protocol other than ink/0.1 is out of profile and rejects.", { challenge: { ...challenge, protocol: "ink/0.2" }, ...ctx }, "schema"),
+    rej("lone-surrogate-rejects", "A lone UTF-16 surrogate in a string field is not portable and rejects as schema before the signature.", { challenge: { ...challenge, nonce: loneSurrogateNonce }, ...ctx }, "schema"),
+
+    rej("rp-path-segment-rejects", "A path-bearing did:web has no unambiguous origin and rejects as schema before the signature.", { challenge: { ...challenge, rp: "did:web:rp.example:path" }, ...ctx }, "schema"),
+    rej("rp-uppercase-host-rejects", "An uppercase host label is not a bytewise-comparable A-label and rejects.", { challenge: { ...challenge, rp: "did:web:RP.example" }, ...ctx }, "schema"),
+    rej("rp-all-digit-final-label-rejects", "A final label that is all digits is excluded, matching the hostname rule that a top-level label is never all-numeric.", { challenge: { ...challenge, rp: "did:web:rp.123" }, ...ctx }, "schema"),
+    rej("rp-ipv4-literal-rejects", "A dotted-quad IPv4 literal fails the label grammar (its final label is all-numeric) and rejects.", { challenge: { ...challenge, rp: "did:web:192.168.0.1", redirectUri: "https://192.168.0.1/callback" }, ...ctx }, "schema"),
+    rej("rp-explicit-443-rejects", "An explicit port 443 is out of profile because its derived origin would collide with the default.", { challenge: { ...challenge, rp: "did:web:rp.example%3A443", redirectUri: "https://rp.example:443/callback" }, ...ctx }, "schema"),
+    rej("rp-lowercase-port-marker-rejects", "The port marker MUST be an uppercase %3A; a lowercase %3a leaves a percent in the host and rejects.", { challenge: { ...challenge, rp: "did:web:rp.example%3a8443", redirectUri: "https://rp.example:8443/callback" }, ...ctx }, "schema"),
+
+    rej("scope-missing-identity-assert-rejects", "A requestedScope that does not include identity.assert is not a sign-in request and rejects.", { challenge: { ...challenge, requestedScope: ["profile.read"] }, ...ctx }, "schema"),
+    rej("scope-unregistered-token-rejects", "A requestedScope entry outside the registry is malformed on the request side and rejects.", { challenge: { ...challenge, requestedScope: ["identity.assert", "admin:all"] }, ...ctx }, "schema"),
+    rej("scope-duplicate-rejects", "A repeated requestedScope entry is rejected; entries must be distinct so two implementations count the same set.", { challenge: { ...challenge, requestedScope: ["identity.assert", "identity.assert"] }, ...ctx }, "schema"),
+    rej("scope-empty-rejects", "A requestedScope with no entries is out of profile and rejects.", { challenge: { ...challenge, requestedScope: [] }, ...ctx }, "schema"),
+    rej("scope-non-string-entry-rejects", "A requestedScope with a non-string entry rejects.", { challenge: { ...challenge, requestedScope: ["identity.assert", 1] }, ...ctx }, "schema"),
+
+    rej("redirect-non-prefix-rejects", "A redirectUri that is not the derived RP origin plus / rejects under the literal prefix rule.", { challenge: { ...challenge, redirectUri: "https://evil.example/callback" }, ...ctx }, "schema"),
+    rej("redirect-host-suffix-extension-rejects", "A redirectUri whose host merely extends the RP host is not the origin plus /, because the / defeats suffix extension, and rejects.", { challenge: { ...challenge, redirectUri: "https://rp.example.evil.com/callback" }, ...ctx }, "schema"),
+    rej("redirect-no-slash-rejects", "A redirectUri equal to the origin with no trailing / rejects; the prefix is the origin followed immediately by /.", { challenge: { ...challenge, redirectUri: "https://rp.example" }, ...ctx }, "schema"),
+    rej("redirect-fragment-rejects", "A redirectUri containing # is malformed: a fragment never reaches the completion endpoint.", { challenge: { ...challenge, redirectUri: "https://rp.example/callback#frag" }, ...ctx }, "schema"),
+    rej("redirect-backslash-rejects", "A redirectUri containing a backslash is rejected; parsers disagree on backslash normalization.", { challenge: { ...challenge, redirectUri: "https://rp.example/call\\back" }, ...ctx }, "schema"),
+    rej("redirect-control-char-rejects", "A redirectUri containing an ASCII control character is rejected; a control char that survives into a Location header is an injection primitive.", { challenge: { ...challenge, redirectUri: controlCharRedirect }, ...ctx }, "schema"),
+    rej("redirect-whitespace-rejects", "A redirectUri containing ASCII whitespace is rejected; the string is not trimmed first.", { challenge: { ...challenge, redirectUri: "https://rp.example/call back" }, ...ctx }, "schema"),
+
+    rej("nonce-too-short-rejects", "A nonce shorter than 16 code units is out of profile and rejects.", { challenge: { ...challenge, nonce: "short-nonce" }, ...ctx }, "schema"),
+    rej("inverted-window-rejects", "A challenge whose expiresAt is not after issuedAt is malformed and rejects.", { challenge: { ...challenge, expiresAt: challengeBase.issuedAt }, ...ctx }, "schema"),
+    rej("over-maximum-lifetime-rejects", "A window exceeding the ten-minute maximum lifetime is out of profile and rejects structurally, before the signature, even against a wrong key.", { challenge: { ...challenge, expiresAt: overCapExpiresAt }, keys: [{ keyId: "rp-wrong", publicKeyHex: otherPublicKeyHex, status: "active" }], now: challengeBase.issuedAt }, "schema"),
+    rej("malformed-signature-rejects", "A signature that is not valid base64url of the right length is rejected.", { challenge: { ...challenge, signature: challenge.signature.slice(0, 85) + "+" }, ...ctx }, "schema"),
+    rej("missing-signature-rejects", "A challenge with no signature field rejects.", { challenge: (() => { const { signature, ...rest } = challenge; return rest; })(), ...ctx }, "schema"),
+    rej("invalid-issued-at-rejects", "A challenge whose issuedAt is not a strict INK timestamp rejects.", { challenge: { ...challenge, issuedAt: "2026-07-16 12:00" }, ...ctx }, "schema"),
+
+    rej("expired-rejects", "A challenge verified after expiresAt is rejected.", { challenge, keys: activeKeys, now: "2026-07-16T12:06:00.000Z" }, "expired"),
+    rej("expiry-upper-bound-rejects", "A challenge verified at exactly expiresAt is rejected (exclusive upper bound).", { challenge, keys: activeKeys, now: challengeBase.expiresAt }, "expired"),
+    rej("not-yet-valid-rejects", "A challenge verified before issuedAt is rejected.", { challenge, keys: activeKeys, now: "2026-07-16T11:59:00.000Z" }, "not_yet_valid"),
+    rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.", { challenge, keys: activeKeys, now: "not-a-timestamp" }, "schema"),
+
+    der("derived-id-determinism", "The derived grantId over the four binding fields is deterministic and matches the pinned base64url-nopad SHA-256 digest.", challengeBase, idBase),
+    der("derived-id-ignores-other-fields", "A challenge sharing the four binding fields but differing in requestedScope and redirectUri derives the identical id, so the binding is over exactly rp, nonce, issuedAt, and expiresAt.", { ...challengeBase, requestedScope: ["identity.assert"], redirectUri: "https://rp.example/other" }, idBase),
+    der("derived-id-differs-on-rp", "A challenge differing only in rp derives a distinct id, so the same nonce at two RPs cannot collide.", { ...challengeBase, rp: "did:web:rp2.example" }, idDiffRp),
+    der("derived-id-differs-on-nonce", "A challenge differing only in nonce derives a distinct id.", { ...challengeBase, nonce: "nonce-challenge-000000002" }, idDiffNonce),
+    der("derived-id-differs-on-window", "A challenge differing only in its window derives a distinct id, so a reused nonce in a fresh window cannot collide.", { ...challengeBase, expiresAt: "2026-07-16T12:06:00.000Z" }, idDiffWindow),
   ]);
 }
 

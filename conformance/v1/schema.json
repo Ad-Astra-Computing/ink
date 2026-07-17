@@ -46,12 +46,14 @@
             "additionalProperties": false,
             "properties": {
               "result": { "type": "string", "enum": ["accept", "reject"] },
+              "reason": { "type": "string" },
               "canonicalPrincipal": { "type": "string" },
               "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] },
               "keyId": { "type": "string" },
               "epochMs": { "type": "integer" },
               "canonicalString": { "type": "string" },
-              "leafHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              "leafHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "derivedGrantId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
             }
           }
         }
