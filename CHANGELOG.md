@@ -9,9 +9,9 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 ### Additions
 
 - Minimal authorization grant, the "Sign in with INK" primitive. An issuer signs
-  a scoped grant bound to one subject, one audience, and a fixed validity window,
+  a scoped grant bound to one subject, one audience and a fixed validity window,
   and a service verifies it against the issuer key and its own context. New
-  `AuthorizationGrantSchema`, a `buildAuthorizationGrant` signer, and a
+  `AuthorizationGrantSchema`, a `buildAuthorizationGrant` signer and a
   `verifyAuthorizationGrant` verifier that fails closed. The `type` accepts both
   the `network.tulpa.*` and `network.ink.*` spellings; the signature binds every
   field including the audience, so a grant minted for one service cannot be
@@ -25,7 +25,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   without matching on prose, the same error-design pattern as
   `parseSignedBodyBytes`. The `AuthorizationGrantError` class and the
   `AuthorizationGrantReason` type are exported from the package root, alongside
-  the `AuthorizationGrantVerifyContext`, `GrantKey`, and `VerifiedOwnerStatus`
+  the `AuthorizationGrantVerifyContext`, `GrantKey` and `VerifiedOwnerStatus`
   types.
 - The validity window is capped at a normative ten-minute maximum lifetime,
   exported as `MAX_GRANT_LIFETIME_MS`. A grant whose window is longer is out of
@@ -58,14 +58,14 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   in a verified owner status; the status itself comes from the service's own
   owner-verification pipeline.
 - The rule is pinned by the new `authorization-grant` conformance category, a
-  capability-gated `authorization` profile, and is verified by both the
+  capability-gated `authorization` profile and is verified by both the
   TypeScript reference and the Go implementation over the same vectors. Each
   reject vector pins its typed reason so the two implementations agree on verify
   order. The corpus carries positive and negative cases: confused-deputy
   audience, replay and revocation keyed by `(issuer, grantId)`, a cross-issuer
   case where another issuer's entry for the same `grantId` does not interfere,
   expiry and clock-skew bounds, the maximum-lifetime and caller-tightened bounds,
-  signature-first ordering under hostile context, a lone surrogate, and scope and
+  signature-first ordering under hostile context, a lone surrogate and scope and
   field-length fuzzing.
 - Presentation is bound to the subject. The verify context takes an optional
   `presenter`, the authenticated identity of the principal presenting the grant as
@@ -76,7 +76,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   the audience verifies the authenticated envelope sender equals the subject, and
   grant bytes are confidential in transit. The check runs after the audience check
   and before the window checks in both implementations, and is pinned by
-  presenter-matches, presenter-absent, and presenter-mismatch conformance vectors.
+  presenter-matches, presenter-absent and presenter-mismatch conformance vectors.
 - The caller-tightened `maxLifetimeMs` treats zero as unset and fails closed on a
   negative or non-finite value. A value of exactly zero uses the profile default,
   matching the Go context where a zero-value integer is indistinguishable from an
@@ -91,7 +91,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   bytes and enforces the bound itself through the exported `MaxGrantBodyBytes`; the
   reference verifier receives an already-decoded object and applies the structural
   bounds instead, so the exported `MAX_GRANT_BODY_BYTES` constant is the contract
-  for whatever layer received its bytes. A post-parse node, depth, and character
+  for whatever layer received its bytes. A post-parse node, depth and character
   walk mirrors the reference complexity bounds, so both implementations reject the
   same pathological structure.
 - The spec pins that a service MUST record an accepted `(issuer, grantId)` pair
