@@ -3,6 +3,15 @@
   "corpus": "ink.conformance.v1",
   "categories": [
     {
+      "id": "agent-authorization",
+      "vector": "vectors/agent-authorization.json",
+      "profile": "authorization",
+      "spec": "specs/ink-agent-authorization.md",
+      "summary": "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId.",
+      "caseCount": 63,
+      "sha256": "7c565fe347b9307d819f84893799496603f3e9d878c5d05acba98ea737bdabc7"
+    },
+    {
       "id": "agent-card",
       "vector": "vectors/agent-card.json",
       "profile": "base",

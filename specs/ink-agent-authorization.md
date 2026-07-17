@@ -600,6 +600,34 @@ against a consent decision that names the RP, so the principal is never revealed
 without the user deciding to reveal it. Pairwise or per-RP principals are a
 possible later refinement and are out of scope here.
 
+## Conformance
+
+The `agent-authorization` category of the
+[`ink.conformance.v1`](../conformance/v1) corpus pins the challenge artifact and
+its verification. It is a capability-gated profile (`authorization`), the same
+profile the grant carries, required only when an implementation accepts
+challenges (see [`ink-conformance-profile.md`](ink-conformance-profile.md)). Each
+verify vector carries the challenge, the RP card's candidate signing keys, and
+the verifier clock; both the TypeScript reference and the Go implementation must
+make the same accept or reject decision, and each reject vector pins the typed
+reason (`schema`, `signature`, `not_yet_valid`, `expired`) so the two agree on
+verify order. The corpus covers the happy path, a bare-host `did:web` with a
+non-default port, an active in-window key, and the negative cases: a retired,
+revoked, out-of-window, wrong, or absent signing key (each `signature`, pinning
+the active-key-only rule and that key usability is evaluated at the verifier
+clock); a tampered body; a non-bare-host `rp` (path segment, uppercase host,
+all-digit final label, IPv4 literal, explicit port 443, lowercase `%3a` marker);
+a `requestedScope` missing `identity.assert`, carrying an unregistered token, or
+otherwise malformed; a `redirectUri` that is not the derived origin plus `/` or
+that carries a fragment, backslash, control character, or whitespace; an inverted
+or over-ceiling window; a malformed or missing signature; and the window verdicts
+at the inclusive lower and exclusive upper bounds. A separate set of derive-only
+vectors pins the exact challenge-derived `grantId` for fixed inputs, so both
+implementations compute the identical id, and pins its determinism, its
+independence from non-binding fields, and its distinctness across `rp`, `nonce`,
+and window. The grant that answers a challenge is pinned separately by the
+`authorization-grant` category.
+
 ## Out of scope
 
 - Multi-hop delegation. Chaining a grant through more than one hop is the separate
@@ -617,6 +645,3 @@ possible later refinement and are out of scope here.
   the bytes travel, the same stance the grant takes on revocation state and the
   discovery query takes on freshness. A carrier that delivers the exact signed
   bytes is conformant.
-- Conformance vectors. This is a docs-only increment with no reference
-  implementation yet. A later increment adds an `agent-authorization` conformance
-  category once an implementation exists to pin against.
