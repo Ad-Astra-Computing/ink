@@ -198,10 +198,10 @@ If a sender requires a capability the receiver does not advertise (e.g. encrypti
 The signature base format is the most stability-critical element of INK:
 
 ```
-ink/<version>\n<METHOD>\n<PATH>\n<recipientDid>\n<JCS(body)>\n<timestamp>
+ink/0.1\n<METHOD>\n<PATH>\n<recipientDid>\n<JCS(body)>\n<timestamp>
 ```
 
-Any change to this format, field order, separator, domain prefix, canonicalization algorithm, is a breaking change.
+The first line is the fixed literal `ink/0.1` for every message, including `ink/0.2` traffic; the transport base does not track the message `protocol` value. Version selection happens only in the body-signature domain (see [`ink-protocol.md`](ink-protocol.md) §3.6). Any change to this format, field order, separator, domain prefix, canonicalization algorithm, is a breaking change.
 
 ### 5.2 Auth Header
 
@@ -222,10 +222,23 @@ These conventions are fixed for the lifetime of INK v1:
 | Ed25519/X25519 signatures | base64url (no padding, RFC 4648 §5) |
 | Public keys in Agent Card | multibase (base58btc with multicodec prefix) |
 | Hashes (SHA-256) | lowercase hex |
-| Timestamps | ISO 8601 (e.g. `2026-03-25T12:00:00Z`) |
-| Nonces | UUID without hyphens (hex) or base64url |
+| Timestamps | strict RFC 3339 profile (e.g. `2026-03-25T12:00:00Z`) |
+| Nonces | `[A-Za-z0-9_-]{16,256}` |
 | AES-GCM nonces | base64url |
 | Body canonicalization | JCS (RFC 8785) |
+
+The timestamp encoding is not full ISO 8601. INK enforces the narrower strict
+RFC 3339 profile (an uppercase `T`, a `Z` or numeric `±HH:MM` zone, no leap
+second, no space separator, no lowercase `t`/`z`) with whole-millisecond
+precision. The grammar and its vectors are in
+[`ink-timestamp-grammar.md`](ink-timestamp-grammar.md). That grammar governs the
+signed-body timestamp only; the handshake message timestamp uses a distinct,
+narrower grammar (literal `Z`, no numeric offset) pinned by
+[`ink-handshake-message.md`](ink-handshake-message.md). The replay nonce is the
+enforced `[A-Za-z0-9_-]{16,256}` charset (§3.5 of
+[`ink-protocol.md`](ink-protocol.md)); a UUID without hyphens or a base64url
+token both satisfy it, but the enforced grammar is the charset shown, not either
+example form.
 
 ### 5.4 Multicodec Prefixes
 
@@ -276,11 +289,13 @@ Agent Cards MAY include additional top-level or nested fields. Unknown fields MU
 
 ### 8.1 Version Checking
 
-Implementations MUST check `protocol` on every inbound message. The check SHOULD compare only the major version for forward compatibility:
+Implementations MUST check `protocol` on every inbound message. The check SHOULD compare only the major version for forward compatibility, rejecting a major this build does not implement (§1.1) rather than testing against a single hardcoded value, so a build that later implements major 1 accepts it without an edit:
 
 ```
+// SUPPORTED_MAJOR_VERSIONS is the set of majors this build implements,
+// e.g. new Set(["0"]) today, new Set(["0", "1"]) once 1.0 ships.
 const [major] = protocol.split("/")[1].split(".");
-if (major !== "0") reject("unsupported_protocol_version");
+if (!SUPPORTED_MAJOR_VERSIONS.has(major)) reject("unsupported_protocol_version");
 ```
 
 ### 8.2 Forward Compatibility
