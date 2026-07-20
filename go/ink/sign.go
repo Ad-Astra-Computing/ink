@@ -20,6 +20,53 @@ import (
 // header built here round-trips through it.
 var keyIDRe = regexp.MustCompile(`^[A-Za-z0-9_:.-]{1,128}$`)
 
+// authHeaderRe is the whole INK-Ed25519 Authorization header grammar from §3.3,
+// mirroring the reference parser's regex
+// `^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$`. RE2 has
+// no backtracking and no `\s` here, so single literal spaces and the anchored,
+// bounded groups decide every input identically to the JavaScript RegExp: the
+// 86-char base64url signature in group 1 and the optional 1-128 char keyId in
+// group 2, with an embedded CR/LF or any trailing data failing the `$` anchor.
+var authHeaderRe = regexp.MustCompile(`^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$`)
+
+// InkAuthHeaderParse is the outcome of parsing an INK-Ed25519 Authorization
+// header value. On OK the Signature (and optional KeyID) are set; otherwise
+// Reason carries the rejection code.
+type InkAuthHeaderParse struct {
+	OK        bool
+	Signature string
+	KeyID     string // empty when the header carries no keyId parameter
+	Reason    string // "missing_authorization" or "invalid_auth_scheme" when !OK
+}
+
+// ParseInkAuthHeader parses an INK-Ed25519 Authorization header value into its
+// signature and optional keyId, purely from the §3.3 grammar. It is the parse
+// half of transport auth with no key resolution, timestamp, or signature work:
+// the grammar the reference parseInkAuthHeader in src/middleware/ink-auth.ts
+// must agree with byte for byte, exercised by the authorization-header
+// conformance category.
+//
+// An empty header is "missing_authorization"; any value that does not match the
+// grammar (wrong scheme, wrong signature length or alphabet, stray whitespace,
+// an embedded CR/LF, an empty or over-long or ill-formed keyId, or trailing
+// data) is "invalid_auth_scheme". It never errors.
+func ParseInkAuthHeader(header string) InkAuthHeaderParse {
+	if len(header) == 0 {
+		return InkAuthHeaderParse{OK: false, Reason: "missing_authorization"}
+	}
+	// A fast-path length cap before the regex: any header this long cannot match
+	// the bounded grammar anyway, so it rejects as invalid_auth_scheme, the same
+	// verdict the regex would give.
+	if len(header) > 512 {
+		return InkAuthHeaderParse{OK: false, Reason: "invalid_auth_scheme"}
+	}
+	m := authHeaderRe.FindStringSubmatch(header)
+	if m == nil {
+		return InkAuthHeaderParse{OK: false, Reason: "invalid_auth_scheme"}
+	}
+	return InkAuthHeaderParse{OK: true, Signature: m[1], KeyID: m[2]}
+}
+
 // SignInkMessage signs an INK transport request. It builds the §3.3 signature
 // base with BuildSignatureBase (the same builder VerifyInkSignature uses, so the
 // signer and verifier agree on the signed bytes), signs the UTF-8 base bytes
