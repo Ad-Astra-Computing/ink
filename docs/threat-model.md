@@ -375,8 +375,9 @@ eliminate it, and it is not forward secrecy and must not be called that.
 The suite is effectively pinned: Ed25519 signatures, X25519 key agreement,
 HKDF-SHA256, AES-256-GCM and SHA-256 for hashing, the audit chain and the
 witness Merkle tree. The compatibility policy classifies a signing, encryption
-or hashing algorithm change as a major-version break, and no negotiation exists
-to run a second suite alongside the first. There is no post-quantum path and no
+or hashing algorithm change as a major-version break, and the current wire runs
+a single suite with no second suite to negotiate (the additive negotiation seam
+described below is reserved but unpopulated). There is no post-quantum path and no
 hash-break path: if Ed25519 or X25519 falls to a quantum attack, or SHA-256 is
 broken, there is no in-band way to migrate. The SHA-256 transparency log is the
 sharpest case, an append-only log has no story for rehashing history under a new

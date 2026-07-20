@@ -105,8 +105,8 @@ envelope.
 
 String length bounds are measured in UTF-16 code units. Unknown fields on the
 intent envelope are rejected by the strict schema; unknown fields on other
-top-level INK objects (handshake, receipt, audit) MUST be preserved through
-canonicalization, not rejected, per
+top-level INK objects (handshake, receipt, audit) are accepted, not rejected; the
+reference validators strip unknown keys from the parsed object, per
 [`ink-compatibility-policy.md`](ink-compatibility-policy.md) §3.1.
 
 INK has two families of top-level object. **Intent messages** carry the action
@@ -116,8 +116,8 @@ carry a reverse-domain `type` field from the §6 registry. Both families sign
 their bytes under §3.3 for transport and, where they carry an embedded
 `signature`, under §3.6.
 
-A receiver MUST check `protocol` on every inbound object and MUST reject an
-unrecognized major version (§8).
+A receiver MUST check `protocol` on every inbound object and MUST reject any
+value outside the closed set accepted for that surface (§8).
 
 ### 3.2 Canonicalization
 
@@ -211,9 +211,13 @@ the 86-character signature. A single optional ` keyId=<keyId>` parameter MAY
 follow, where `<keyId>` matches `[A-Za-z0-9_:.-]{1,128}`. The reference parses
 the header with `^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$`,
 using literal single spaces (not `\s`) so CR/LF/TAB cannot enter a parsed value.
-Future parameters MUST use the same space-separated `key=value` syntax after the
-signature. When both a header `keyId` and a body `signingKeyId` are present, the
-header `keyId` takes precedence.
+Future parameters would use the same space-separated `key=value` syntax after the
+signature, but a deployed verifier rejects any unrecognized parameter (a second
+unknown parameter is rejected, pinned by the `authorization-header` category), so
+a new parameter is a reserved syntax slot rather than an additively deployable
+change and ships only behind a negotiated capability or a version gate. When both
+a header `keyId` and a body `signingKeyId` are present, the header `keyId` takes
+precedence.
 
 **Verification (Frozen for 1.0).** A verifier reconstructs the identical base
 from the request and checks the Ed25519 signature under **RFC 8032 strict**
@@ -514,8 +518,11 @@ the raw agentId. Full vectors: the `principal-normalization` category of
 INK carries a single version string in the `protocol` field of every top-level
 object, formatted `ink/<major>.<minor>`. A **major** bump is an incompatible
 wire change; a **minor** bump is a backward-compatible addition. An
-implementation MUST reject an unrecognized major version and SHOULD accept a
-recognized major with an unrecognized minor by ignoring unknown optional fields.
+implementation MUST reject any `protocol` value outside the closed set of wire
+versions it implements; an unrecognized version is rejected outright, never
+inferred from its major (this is the strict envelope enum of §3.1). A new minor
+version deploys receiver-first through the negotiation below, not by receivers
+accepting an unknown value.
 
 Two wire versions are defined:
 

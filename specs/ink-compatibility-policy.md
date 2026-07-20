@@ -27,7 +27,7 @@ The version string appears in the `protocol` field of every top-level INK object
 - **Major**: incremented for incompatible wire changes
 - **Minor**: incremented for backward-compatible additions
 
-Implementations MUST reject messages with an unrecognized major version. Implementations SHOULD accept messages with a recognized major version and an unrecognized minor version by ignoring unknown optional fields.
+The `protocol` value is a closed enum and a value outside it is rejected outright, never inferred from its major. The accepted set is per-surface: the intent envelope accepts `ink/0.1` and `ink/0.2` (the body-signature minor of §1.4), while the handshake, Agent Card, receipt and audit objects accept `ink/0.1` only, so `ink/0.2` on those objects is rejected (`ink-protocol.md` §3.1; `handshake-message/wrong-protocol-rejects` and `agent-card/wrong-protocol-rejects`). A new minor version does not deploy by receivers ignoring it; it deploys receiver-first, the receiver advertising it in `supportedProtocolVersions` and the sender emitting it only after that advertisement, exactly as `ink/0.2` did (§1.4). "Ignore unknown optional fields" applies only to the tolerant surfaces of §3.1, not to the `protocol` value.
 
 ### 1.2 Audit Version
 
@@ -113,9 +113,9 @@ The following changes MAY be made under the same major version:
 
 | Change | Constraint |
 |--------|-----------|
-| New optional field on existing message type | Receivers MUST ignore unknown fields |
-| New intent type | Receivers respond with `unsupported_intent` rejection |
-| New receipt disposition | Receivers MUST accept unknown dispositions gracefully |
+| New optional field on a tolerance-pinned surface (§3.1) | Receivers ignore the unknown field. On a strict schema (intent envelope, intent payloads, auth-header parameters) a new field is not additive; it ships receiver-first, advertised then emitted, the same pattern as §2.4 |
+| New intent type | Receivers respond with `unsupported_intent` rejection. The intent-type set is closed in both the envelope schema and the card capability arrays, so a new intent lands receiver-first via the enum-extension path of §7.1 |
+| New receipt disposition | The disposition enum is closed under major 1 on both the receipt message (an unknown value is `malformed_receipt`) and the card `capabilities.receipts.dispositions` array (a card advertising a new value is rejected wholesale), so a new disposition takes the receiver-first enum-extension path on both |
 | New audit event type | Processors MUST ignore unknown event types |
 | New handshake challenge type | Receivers respond with appropriate rejection |
 | Second cryptographic suite added additively (new optional top-level card member, receiver-first negotiation) | 1.0 receivers ignore the unknown top-level member; see §2.4 |
@@ -157,7 +157,11 @@ receivers verify only the base suite.
 
 ### 3.1 Unknown Fields
 
-Implementations MUST preserve unknown fields during canonicalization (JCS handles this correctly). Implementations MUST NOT reject messages containing unknown fields.
+Tolerance of an unknown field is per-surface, not blanket, and the two regimes are pinned by the frozen corpus.
+
+Most INK schemas are strict: an unknown member is rejected outright. This holds for the intent envelope (`ink-protocol.md` §3.1 states a receiver MUST reject an unknown top-level key on the envelope), every intent payload including the connection payloads (`connection-payload/request-unknown-key-rejects`, `connection-payload/response-unknown-key-rejects`, `first-contact-transcript/response-payload-unknown-key`), the profile-snapshot object and its nested availability config wherever the snapshot is embedded, whether in a connection payload or the Agent Card `profileSnapshot` (`connection-payload/profile-unknown-key-rejects`, `connection-payload/availability-unknown-key-rejects`) and the Authorization-header parameters (`authorization-header/second-unknown-param-rejects`). A field added to any strict surface is not additive; it ships receiver-first, advertised then emitted, the same pattern as §2.4.
+
+A small set of surfaces is tolerant and ignores an unknown member: the Agent Card top level (including its top-level `availability` member), the nested `discovery` descriptor (`discovery-unknown-key-ignored-accepts`), the encrypted-envelope outer object (`payload-encryption/unknown-outer-field-ignored`, where an ignored field is not AAD-bound), the handshake and receipt objects (accepted, not rejected; the reference validators strip unknown keys from the parsed object) and unknown audit event types in chain processing (§3.4). On a tolerant surface an implementation MUST NOT reject on an unknown field's presence.
 
 ### 3.2 Unknown Message Types
 
@@ -243,9 +247,9 @@ The first line is the fixed literal `ink/0.1` for every message, including `ink/
 INK-Ed25519 <base64url(signature)> [keyId=<keyId>]
 ```
 
-The `keyId` parameter is optional and was added in a backward-compatible way. The regex `/^INK-Ed25519\s+(\S+)(?:\s+keyId=(\S+))?$/` accepts both forms.
+The `keyId` parameter is optional and was added in a backward-compatible way. The normative grammar is the strict one in [`ink-protocol.md`](ink-protocol.md) §3.3, `^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$`, with literal single spaces, an exact 86-character base64url signature and a bounded `keyId` charset. It is not the looser `\s+`/`\S+` form; the corpus rejects the inputs a loose regex would accept (double spaces, off-length or off-charset signatures, over-length or illegal-character key ids), pinned by the `authorization-header` category.
 
-Future parameters MUST use the same `key=value` syntax after the signature, space-separated.
+Future parameters would use the same `key=value` syntax after the signature, space-separated, but a deployed 1.0 receiver rejects any unrecognized parameter (pinned by `authorization-header/second-unknown-param-rejects`). A new parameter is therefore a reserved syntax slot, not an additively deployable change; it ships only behind a negotiated capability or a version gate.
 
 ### 5.3 Encoding Conventions
 
@@ -305,9 +309,9 @@ A major version MAY be sunset after:
 
 ### 7.1 Intent Types
 
-New intent types can be added without a version bump. They follow the same envelope format and signing rules.
+Under major 1 the intent-type set is a closed enum, in both the envelope `intent` field and the Agent Card `capabilities.intentsAccepted` and `capabilities.intentsSent` arrays. A card advertising an intent outside the enum is rejected wholesale (pinned by `agent-card/bad-intent-enum-rejects`), and both reference implementations enforce the same closed set. A new intent type therefore is not added freely; it lands via a spec revision that extends the enum, deployed receiver-first so a card carrying it is not rejected by peers that predate the revision.
 
-Custom intent types SHOULD use reverse-domain naming (e.g. `network.tulpa.custom_intent`) to avoid collisions.
+Free-form reverse-domain extensibility belongs to the protocol-message `type` registry (`ink-protocol.md` §6), not the intent enum. `network.tulpa.custom_intent` appears there as the registry's naming example, a message `type` in a namespace distinct from the intent enum. It MUST NOT be placed in an envelope `intent` field or a card capability array under major 1.
 
 ### 7.2 Audit Event Types
 
@@ -323,19 +327,21 @@ Agent Cards MAY include additional top-level or nested fields. Unknown fields MU
 
 ### 8.1 Version Checking
 
-Implementations MUST check `protocol` on every inbound message. The check SHOULD compare only the major version for forward compatibility, rejecting a major this build does not implement (§1.1) rather than testing against a single hardcoded value, so a build that later implements major 1 accepts it without an edit:
+Implementations MUST check `protocol` on every inbound object against the closed set of wire versions accepted for that surface and reject any value outside it (§1.1). The check tests the full version string, not the major alone, so an unknown minor such as `ink/0.3` is rejected rather than accepted. The accepted set is per-surface: the intent envelope accepts `ink/0.1` and `ink/0.2`, while the handshake, Agent Card, receipt and audit objects accept `ink/0.1` only (`handshake-message/wrong-protocol-rejects`, `agent-card/wrong-protocol-rejects`):
 
 ```
-// SUPPORTED_MAJOR_VERSIONS is the set of majors this build implements,
-// e.g. new Set(["0"]) today, new Set(["0", "1"]) once 1.0 ships.
-const [major] = protocol.split("/")[1].split(".");
-if (!SUPPORTED_MAJOR_VERSIONS.has(major)) reject("unsupported_protocol_version");
+// SUPPORTED_WIRE_VERSIONS is the closed set accepted on this surface,
+// e.g. new Set(["ink/0.1", "ink/0.2"]) on the intent envelope,
+// new Set(["ink/0.1"]) on the other top-level objects.
+if (!SUPPORTED_WIRE_VERSIONS.has(protocol)) reject("unsupported_protocol_version");
 ```
+
+A new wire version is deployed receiver-first (advertised in `supportedProtocolVersions`, emitted only after advertisement), not by senders assuming a receiver will tolerate an unknown value.
 
 ### 8.2 Forward Compatibility
 
 Implementations SHOULD be written to tolerate:
-- Unknown optional fields on any message type
+- Unknown optional fields on the tolerant surfaces of §3.1 (the strict surfaces reject them, by design)
 - Unknown intent types (reject gracefully)
 - Unknown audit event types (include in chain, skip processing)
 - Unknown top-level Agent Card members (ignore; see the reserved `suites` seam in §3.3)
