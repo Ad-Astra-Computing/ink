@@ -20,14 +20,14 @@ Core principle:
 
 ## 1. Problem
 
-Today Tulpa implementations derive `agentId` from the signing public key.
+Early Tulpa implementations derived `agentId` directly from the current signing public key.
 
-That creates a protocol problem:
-- rotating the signing key changes the apparent agent identity
-- counterparties cannot safely distinguish key rotation from impersonation
-- old receipts, audit events, and witness records still need verification
+That coupling was a protocol problem:
+- rotating the signing key changed the apparent agent identity
+- counterparties could not safely distinguish key rotation from impersonation
+- old receipts, audit events, and witness records still needed verification
 
-Therefore key rotation MUST be handled as a protocol concern, not a local storage concern.
+INK resolves the coupling. For a key-derived principal (`tulpa:`/`ink:`, see [`ink-protocol.md`](ink-protocol.md) §7) the Ed25519 key embedded in the `agentId` is retained as the permanent genesis root of the identity, not its current signing key. The current signing key is decoupled from the `agentId` and rotates under one stable identifier, and trust in each new signing key flows through the Agent Card rotation chain rooted in the genesis key (see [`ink-agent-card-signature.md`](ink-agent-card-signature.md)). Key rotation is therefore a protocol concern, not a local storage concern. §4.1 states the resolved identity model.
 
 ---
 
@@ -64,7 +64,15 @@ Those may reuse the same patterns later, but are not required here.
 
 INK v1 SHALL treat `agentId` as a stable logical identifier, not as a direct encoding of the current signing key.
 
-`agentId` MUST remain stable across key rotation.
+`agentId` MUST remain stable across key rotation. It is frozen at genesis and MUST NOT change when keys rotate.
+
+For a key-derived principal (`tulpa:`/`ink:`, see [`ink-protocol.md`](ink-protocol.md) §7) the Ed25519 key embedded in the `agentId` is the permanent genesis root of that identity, not its current signing key. The current signing key is decoupled from the `agentId` and rotates under the same identifier arbitrarily many times. Trust in each new signing key flows through the Agent Card rotation chain, which is rooted in the genesis key, rather than through re-deriving a new `agentId`. See [`ink-agent-card-signature.md`](ink-agent-card-signature.md) §4.1 for the rotation-chain construction.
+
+Holding the genesis key authorizes attesting rotations, that is signing the card rotation-chain links that establish each new signing key. It does NOT authorize signing live messages once the key set has rotated away from it. The message-verification bootstrap rule is unchanged: bootstrap key extraction from the `agentId` MUST remain disabled for message verification once any Agent Card signing set has been observed (see [`docs/key-rotation-rule.md`](../docs/key-rotation-rule.md) invariant 4). The genesis key's role is card-chain authority, not live-message signing.
+
+Account recovery preserves the `agentId` and re-establishes a fresh keypair as a rotated signing key under the same identity. It is expressed as an ordinary rotation-chain link, `keySetVersion` N+1 signed by a key from version N or by a pre-declared offline recovery key, and it MUST NOT derive a new `agentId`. A pre-declared offline recovery key is RECOMMENDED so that the loss of the online signing set is still recoverable under the same identity. Loss of ALL chain-capable keys for a key-derived id is identity loss; this is inherent, because nothing in the identifier can attest a new key without a prior key to sign for it. The recoverable form is `did:web`, whose root is the DID document and can name a fresh key out of band.
+
+The distinguished status taxonomy for a pre-declared recovery-key entry is a deferred implementation detail. Any distinguished status is an addition to the card status enum and MUST land through [`ink-agent-card.md`](ink-agent-card.md) plus both validators plus conformance vectors when it arrives, consistent with [`ink-agent-card-signature.md`](ink-agent-card-signature.md) §9.
 
 ## 4.2 Key Material
 
@@ -538,7 +546,10 @@ Minimum required cases:
 
 ## 20. Open Questions
 
-- Should `agentId` become DID-fragment-based, handle-based, or another stable logical identifier?
+**Resolved: agentId form.** The question of whether `agentId` should become DID-fragment-based, handle-based or another stable logical identifier is settled. `agentId` is a stable logical identifier frozen at genesis. For a key-derived principal (`tulpa:`/`ink:`) the Ed25519 key embedded in the `agentId` is the permanent genesis root of the identity, not its current signing key; the current signing key is decoupled and rotates under the same `agentId`, with trust in each new key flowing through the Agent Card rotation chain rooted in the genesis key. Account recovery preserves the `agentId` and re-establishes a fresh keypair as a rotated signing key under the same identity, and it does not derive a new `agentId`. This decision is specified by [`ink-agent-card-signature.md`](ink-agent-card-signature.md) and stated in §4.1. The recovery-key distinguished status taxonomy is a deferred implementation detail.
+
+Remaining open questions:
+
 - Should historical keys live only in Agent Card, or also in ATP-linked records for verifiable history?
 - Should `keyId` live in the signed JSON body or an authenticated transport header?
 - What exact overlap duration should be mandatory for planned encryption-key rotation?
@@ -548,11 +559,12 @@ Minimum required cases:
 
 ## 21. Recommendation
 
-The recommended v1 direction is:
-- stable logical `agentId`
+The recommended v1 direction, now realized, is:
+- stable logical `agentId`, frozen at genesis, with the embedded key retained as the identity's genesis root
+- decoupled signing keys that rotate under the stable `agentId`, with trust rooted in the genesis key through the Agent Card rotation chain (see [`ink-agent-card-signature.md`](ink-agent-card-signature.md))
 - explicit role-based key sets in the Agent Card
 - current + retired + revoked key lifecycle states
 - rotation-aware verification
 - historical verification continuity
 
-This is the main remaining protocol design required to make INK feel finished.
+The stable-agentId design is settled; the self-authenticating Agent Card gives it a concrete trust root.
