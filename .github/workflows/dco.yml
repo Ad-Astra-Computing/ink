@@ -32,8 +32,22 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
           set -euo pipefail
+
+          # Automated pull requests opened by GitHub App bot accounts (whose
+          # login GitHub reserves with a "[bot]" suffix) are exempt: the DCO is
+          # a human-contributor IP attestation, and a bot's dependency-bump
+          # commits carry no sign-off. The authenticated PR-opener login is used
+          # rather than the spoofable git author. The fixed-string case glob
+          # avoids regex-escaping the brackets.
+          case "$PR_AUTHOR" in
+            *'[bot]')
+              echo "PR opened by a bot account (${PR_AUTHOR}); DCO sign-off is not required for automated commits."
+              exit 0
+              ;;
+          esac
 
           # Non-merge commits introduced by this PR. Merge commits created by
           # GitHub carry no author sign-off and are not authored by a
