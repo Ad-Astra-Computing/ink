@@ -18,7 +18,9 @@ import { decryptInkPayload, base64urlEncode, hexToBytes, jcsCanonicalize } from 
 const GO_DIR = fileURLToPath(new URL("../go", import.meta.url).href);
 
 // RFC 7748 §6.1 recipient (Alice): the public key drives the Go seal, the
-// private key drives the reference decrypt.
+// private key drives the reference decrypt. These hex constants are published
+// RFC 7748 §6.1 fixtures (public standard test vectors, not secrets) and are
+// allowlisted for gitleaks' generic-api-key rule in .gitleaks.toml.
 const RECIPIENT_PUB_HEX = "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a";
 const RECIPIENT_PRIV_HEX = "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a";
 
