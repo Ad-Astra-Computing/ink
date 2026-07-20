@@ -1,6 +1,6 @@
 # INK Signed String Safety Specification v0.1
 
-**Status:** Draft
+**Status:** Stable base-profile spec; formal 1.0 freeze pending governance sign-off (see [`../GOVERNANCE.md`](../GOVERNANCE.md), [`../governance/releases/1.0-readiness-evidence.md`](../governance/releases/1.0-readiness-evidence.md)).
 **Authors:** Ad Astra Computing
 **Last updated:** 2026-06-15
 

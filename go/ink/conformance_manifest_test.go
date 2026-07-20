@@ -53,7 +53,7 @@ var goProfileCategories = map[string][]string{
 	"witness":       {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
 	"containment":   {"handshake-message"},
 	"discovery":     {"discovery-query-envelope"},
-	"authorization": {"authorization-grant"},
+	"authorization": {"agent-authorization", "authorization-grant"},
 }
 
 type conformanceManifest struct {
@@ -69,6 +69,7 @@ type conformanceManifest struct {
 // below fails. It is a drift tripwire, not proof that a verifier runs (that is
 // what the per-category tests in conformance_test.go provide).
 var goVerifiedCategories = []string{
+	"agent-authorization",
 	"agent-card",
 	"agent-card-fetch",
 	"audit-query-response",
