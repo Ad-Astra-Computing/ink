@@ -30,6 +30,7 @@ const FROZEN_PROFILES = {
   base: [
     "agent-card",
     "agent-card-fetch",
+    "agent-card-signature",
     "connection-payload",
     "first-contact-transcript",
     "jcs-number",

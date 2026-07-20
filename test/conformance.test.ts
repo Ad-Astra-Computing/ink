@@ -33,7 +33,9 @@ import {
   verifyAuthorizationGrant,
   verifyAuthorizationChallenge,
   deriveChallengeGrantId,
+  verifyAgentCardSignature,
 } from "../src/index.js";
+import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -48,10 +50,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
+  expect: { result: "accept" | "reject"; reason?: string; auditEvent?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
+type Outcome = { result: "accept" | "reject"; reason?: string; auditEvents?: string[]; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -255,6 +257,11 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "agent-card-fetch": {
       return { result: evaluateAgentCardFetch(input as unknown as AgentCardFetchInput).accepted ? "accept" : "reject" };
     }
+    case "agent-card-signature": {
+      const { card, agentId, options } = input as { card: AgentCard; agentId: string; options: AgentCardVerifyOptions };
+      const r = await verifyAgentCardSignature(card, agentId, options);
+      return { result: r.rejected ? "reject" : "accept", reason: r.reason, auditEvents: r.auditEvents };
+    }
     case "private-hostname": {
       // accept = public/safe (isPrivateHostname false); reject = private/unsafe.
       return { result: isPrivateHostname(input.hostname as string) ? "reject" : "accept" };
@@ -389,6 +396,9 @@ describe("ink/1 conformance vectors", () => {
           expect(actual.result, c.caseId).toBe(c.expect.result);
           if (c.expect.reason !== undefined) {
             expect(actual.reason, c.caseId).toBe(c.expect.reason);
+          }
+          if (c.expect.auditEvent !== undefined) {
+            expect(actual.auditEvents ?? [], c.caseId).toContain(c.expect.auditEvent);
           }
           if (c.expect.canonicalPrincipal !== undefined) {
             expect(actual.canonicalPrincipal, c.caseId).toBe(c.expect.canonicalPrincipal);

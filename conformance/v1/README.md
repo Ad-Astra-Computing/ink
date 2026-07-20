@@ -172,6 +172,17 @@ additive field then.
   bind to the requested agentId. The request-side SSRF gate and card-content
   host checks are out of scope. See
   [`../../specs/ink-agent-card-discovery-fetch.md`](../../specs/ink-agent-card-discovery-fetch.md).
+- **agent-card-signature**: the self-authenticating card verifier. The
+  `cardSignature` proof binds the full card under `ink/agent-card`, resolved to
+  the current active signing key or the legacy `bootstrap` key. Rooting is by
+  principal kind: a key-derived id walks its rotation chain from the embedded
+  genesis key and binds the head to `keys.signing`, and a did:web id anchors the
+  signing key in the resolved DID document. An unsigned card ratchets once a
+  signed one has been observed, and a cached card drives the continuity and
+  rollback rules, including the cold chain-extension residual and its warm
+  reject. Profile-keyed cases carry `pre-1.0` or `1.0` and a continuity or anchor
+  case names the `auditEvent` it emits. See
+  [`../../specs/ink-agent-card-signature.md`](../../specs/ink-agent-card-signature.md).
 - **private-hostname**: the SSRF host-safety gate over a hostname string:
   accept means a public destination, reject means loopback, private, link-local,
   IANA special-use, or a malformed IP-shaped name (an over-range octet, a
