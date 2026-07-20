@@ -340,6 +340,83 @@ func validateDiscovery(m map[string]interface{}, upperBound string) bool {
 	return true
 }
 
+// validateCardSignature mirrors CardSignatureSchema (agent-card.ts §3.1): a
+// required `keyId` of 1..128 UTF-16 code units and a required `signature` that is
+// exactly 86 base64url no-padding characters. Optional and backward-compatible.
+func validateCardSignature(m map[string]interface{}) bool {
+	kid, ok := m["keyId"].(string)
+	if !ok || utf16Len(kid) < 1 || utf16Len(kid) > 128 {
+		return false
+	}
+	sig, ok := m["signature"].(string)
+	return ok && signatureRe.MatchString(sig)
+}
+
+// validateRotationChainSigningEntry mirrors RotationChainSigningEntrySchema
+// (§4.1): a committed `{keyId, publicKeyMultibase, status}` entry with no
+// `algorithm` and no key-window timestamps.
+func validateRotationChainSigningEntry(m map[string]interface{}) bool {
+	kid, ok := m["keyId"].(string)
+	if !ok || utf16Len(kid) < 1 || utf16Len(kid) > 128 {
+		return false
+	}
+	pk, ok := m["publicKeyMultibase"].(string)
+	if !ok || !strings.HasPrefix(pk, "z") || utf16Len(pk) > 128 {
+		return false
+	}
+	st, ok := m["status"].(string)
+	return ok && inEnum(st, "active", "retired", "revoked")
+}
+
+// validateRotationLink mirrors RotationChainLinkSchema (§4.1): a positive integer
+// `keySetVersion`, a `signing` set of 1..32 keyId-unique entries, a `prevKeyId`
+// of 1..128 code units and an 86-char base64url `signature`.
+func validateRotationLink(m map[string]interface{}) bool {
+	kv, present := m["keySetVersion"]
+	f, ok := kv.(float64)
+	if !present || !ok || f != math.Trunc(f) || f < 1 || f > maxSafeInteger {
+		return false
+	}
+	signing, ok := m["signing"].([]interface{})
+	if !ok || len(signing) < 1 || len(signing) > 32 {
+		return false
+	}
+	seen := make(map[string]bool, len(signing))
+	for _, e := range signing {
+		em, ok := e.(map[string]interface{})
+		if !ok || !validateRotationChainSigningEntry(em) {
+			return false
+		}
+		kid := em["keyId"].(string)
+		if seen[kid] {
+			return false
+		}
+		seen[kid] = true
+	}
+	prev, ok := m["prevKeyId"].(string)
+	if !ok || utf16Len(prev) < 1 || utf16Len(prev) > 128 {
+		return false
+	}
+	sig, ok := m["signature"].(string)
+	return ok && signatureRe.MatchString(sig)
+}
+
+// validateRotationChain mirrors RotationChainSchema (§4.1): an array of at most
+// 32 links, each validated by validateRotationLink.
+func validateRotationChain(v interface{}) bool {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) > 32 {
+		return false
+	}
+	for _, e := range arr {
+		link, ok := e.(map[string]interface{})
+		if !ok || !validateRotationLink(link) {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidateAgentCard validates the canonical .well-known/ink/agent.json document
 // against AgentCardSchema (src/models/agent-card.ts). The card and its inner
 // objects are not strict (unknown keys are ignored) except the embedded profile
@@ -420,6 +497,26 @@ func ValidateAgentCard(m map[string]interface{}) bool {
 	if v, present := m["governance"]; present {
 		g, ok := v.(map[string]interface{})
 		if !ok || !validateGovernance(g) {
+			return false
+		}
+	}
+	// Self-authenticating Agent Card members (ink-agent-card-signature.md, Phase
+	// A). All three are OPTIONAL and backward-compatible; a card without them
+	// validates exactly as before.
+	if v, present := m["cardSignature"]; present {
+		cs, ok := v.(map[string]interface{})
+		if !ok || !validateCardSignature(cs) {
+			return false
+		}
+	}
+	if v, present := m["rotationChain"]; present {
+		if !validateRotationChain(v) {
+			return false
+		}
+	}
+	if v, present := m["updatedAt"]; present {
+		s, ok := v.(string)
+		if !ok || !isStrictInkTimestamp(s) {
 			return false
 		}
 	}
