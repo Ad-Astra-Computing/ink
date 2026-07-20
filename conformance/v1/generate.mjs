@@ -54,7 +54,7 @@ const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment", "discovery", "authorization"]);
 const CATEGORY_META = {
   "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
-  "signature-base": { profile: "base", spec: "specs/ink-jcs-number-profile.md", summary: "Ed25519 verification over the canonical signature base." },
+  "signature-base": { profile: "base", spec: "specs/ink-protocol.md", summary: "Ed25519 verification over the canonical signature base." },
   "jcs-number": { profile: "base", spec: "specs/ink-jcs-number-profile.md", summary: "RFC 8785 JCS canonicalization and the safe-integer number profile." },
   "key-rotation": { profile: "base", spec: "specs/ink-key-rotation-spec.md", summary: "Key-window verification across active, retired, and revoked keys." },
   "replay-freshness": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
@@ -105,6 +105,60 @@ function writeManifest() {
     });
   const manifest = { format: "ink.conformance.manifest.v1", corpus: "ink.conformance.v1", categories };
   writeFileSync(`${here}manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
+}
+
+// Emit the JSON Schema for a vector file. The `category` enum is DERIVED from
+// the categories just written, sorted, never hand-listed, so it cannot silently
+// under-list as the corpus grows the way a maintained enum did. The rest is the
+// stable shape of a vector file; test/conformance-schema.test.ts validates every
+// vector against it and asserts the enum set equals the manifest category set.
+function writeSchema() {
+  const categoryEnum = writtenVectors
+    .map(({ category }) => category)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const schema = {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    $id: "https://ink.tulpa.network/conformance/v1/schema.json",
+    title: "INK conformance vector file (ink.conformance.v1)",
+    type: "object",
+    required: ["format", "category", "cases"],
+    additionalProperties: false,
+    properties: {
+      format: { const: "ink.conformance.v1" },
+      category: { type: "string", enum: categoryEnum },
+      cases: {
+        type: "array",
+        minItems: 1,
+        items: {
+          type: "object",
+          required: ["caseId", "description", "input", "expect"],
+          additionalProperties: false,
+          properties: {
+            caseId: { type: "string", pattern: "^[a-z0-9-]+$" },
+            description: { type: "string" },
+            input: { type: "object" },
+            expect: {
+              type: "object",
+              required: ["result"],
+              additionalProperties: false,
+              properties: {
+                result: { type: "string", enum: ["accept", "reject"] },
+                reason: { type: "string" },
+                canonicalPrincipal: { type: "string" },
+                keyStatus: { type: "string", enum: ["active", "retired", "revoked"] },
+                keyId: { type: "string" },
+                epochMs: { type: "integer" },
+                canonicalString: { type: "string" },
+                leafHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
+                derivedGrantId: { type: "string", pattern: "^[A-Za-z0-9_-]{43}$" },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
+  writeFileSync(`${here}schema.json`, JSON.stringify(schema, null, 2) + "\n");
 }
 
 // ── principal-normalization ────────────────────────────────────────────────
@@ -2626,5 +2680,6 @@ vectorFile("private-hostname", [
 }
 
 writeManifest();
+writeSchema();
 
-console.log(`Wrote conformance/v1/vectors + manifest for principal (key ${mb.slice(0, 12)}...).`);
+console.log(`Wrote conformance/v1/vectors + manifest + schema for principal (key ${mb.slice(0, 12)}...).`);

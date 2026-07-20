@@ -1,5 +1,7 @@
 # INK private-hostname classification
 
+**Status:** Stable base-profile spec; formal 1.0 freeze pending governance sign-off (see [`../GOVERNANCE.md`](../GOVERNANCE.md), [`../governance/releases/1.0-readiness-evidence.md`](../governance/releases/1.0-readiness-evidence.md)).
+
 This document pins the host-safety decision an implementation makes before
 fetching from a hostname: is the hostname a public destination, or a loopback,
 private, link-local, IANA special-use, or malformed IP-shaped name that must not

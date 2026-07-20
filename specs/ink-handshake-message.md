@@ -39,10 +39,14 @@ calendar and clock fields are range-validated, so an out-of-range value such as
 month `13` is rejected. A numeric offset (`+00:00`), a missing zone, a space
 separator, or a lowercase `t` is rejected.
 
-Note this is the handshake-message grammar specifically. It is intentionally
-narrower than the signed-body timestamp grammar (`ink-timestamp-grammar`), which
-also accepts a numeric offset; a 1.0 decision to unify the two would be a
-separate, vectored tightening.
+Note this is the handshake-message grammar specifically. INK has two distinct
+timestamp surfaces with two distinct grammars: this handshake grammar (literal
+`Z` only) and the signed-body timestamp grammar
+([`ink-timestamp-grammar.md`](ink-timestamp-grammar.md)), which also accepts a
+numeric `±HH:MM` offset. Neither grammar covers the other surface, so an
+implementer MUST NOT assume a value valid on one is valid on the other. The
+divergence is intentional and pinned by separate vectors; a 1.0 decision to
+unify the two would be a separate, vectored tightening.
 
 ## Per-message fields
 

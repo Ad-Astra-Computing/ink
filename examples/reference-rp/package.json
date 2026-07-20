@@ -1,0 +1,27 @@
+{
+  "name": "@adastracomputing/ink-reference-rp-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable relying-party half of the Sign in with INK flow, built solely on the @adastracomputing/ink public surface. Signs an authorization challenge, consumes the answering identity assertion at a completion endpoint, and upholds the profile's fail-closed acceptance rules.",
+  "type": "module",
+  "main": "src/index.ts",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "ink-rp-demo": "bin/ink-rp-demo.mjs"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "demo": "node bin/ink-rp-demo.mjs"
+  },
+  "dependencies": {
+    "@adastracomputing/ink": "^0.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "typescript": "^5.0.0",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,5 +1,7 @@
 # INK Agent Card discovery fetch contract
 
+**Status:** Stable base-profile spec; formal 1.0 freeze pending governance sign-off (see [`../GOVERNANCE.md`](../GOVERNANCE.md), [`../governance/releases/1.0-readiness-evidence.md`](../governance/releases/1.0-readiness-evidence.md)).
+
 This document pins the response-handling contract for retrieving an Agent Card
 over HTTP, so the decision is identical across implementations and does not
 drift with the runtime. It is verified by the `agent-card-fetch` conformance
