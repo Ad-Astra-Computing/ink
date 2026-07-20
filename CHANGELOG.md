@@ -4,6 +4,65 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.14.0, self-authenticating Agent Card trust root and Go sender parity
+
+### Additions
+
+- Self-authenticating Agent Card. A card MAY carry a `cardSignature` proof and a
+  `rotationChain` so a consumer can establish key authority from the card itself
+  rather than resting on TLS and registry honesty alone. A conforming receiver
+  verifies the proof if present, rejects a card whose present proof is invalid,
+  ratchets forward on a valid proof and roots the rotation chain by principal
+  kind. The members are OPTIONAL and backward compatible: an unsigned card from
+  an existing deployment still validates, and a consumer unaware of the new
+  members ignores them. New `CardSignatureSchema` and a `verifyAgentCardSignature`
+  verifier in the TypeScript reference, a matching Go verifier and a shared vector
+  set. See
+  [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md).
+- The rule is pinned by the new `agent-card-signature` conformance category, a
+  `base`-profile category verified by both the TypeScript reference and the Go
+  implementation over the same vectors. The corpus covers the `cardSignature`
+  proof, the rotation-chain rooting by principal kind, head binding, the
+  unsigned-card ratchet and the continuity and rollback rules, including
+  head-mismatch and chain-link-signature vectors.
+- Go sender parity for INK transport. The Go implementation gains an INK
+  transport request signer and encryption sealing, so a Go agent can now emit
+  signed requests and seal encrypted payloads, not only verify and open them.
+  New interop tests exercise the Go sender against the reference receiver and the
+  reference sender against the Go receiver, so the two implementations agree on
+  the bytes in both directions of the path.
+- An `authorization-header` conformance category that pins the
+  `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]` Authorization header grammar. A
+  sender emits the header in the exact signature-base grammar and a receiver
+  parses it under the same grammar, rejecting stray whitespace, an embedded CR or
+  LF and a malformed keyId. It is a `base`-profile category verified by both
+  implementations.
+- This grows the mandatory base profile from thirteen to fifteen categories,
+  adding `agent-card-signature` and `authorization-header`. The base set stays
+  frozen by the drift tripwires in both implementations. See
+  [`specs/ink-conformance-profile.md`](specs/ink-conformance-profile.md).
+
+### Changes
+
+- The key-rotation spec resolves the stable-agentId question: an agent keeps a
+  stable `agentId` across a key rotation, and the rotation chain carries key
+  authority forward rather than minting a new identity. See
+  [`specs/ink-key-rotation-spec.md`](specs/ink-key-rotation-spec.md).
+
+### Documentation and governance
+
+- A canonical protocol specification,
+  [`specs/ink-protocol.md`](specs/ink-protocol.md), that gathers the wire
+  contract into one normative document, alongside a reworked self-describing
+  conformance corpus and its generator.
+- An expanded threat model in [`docs/threat-model.md`](docs/threat-model.md).
+- Project governance and a contributor sign-off gate: a `GOVERNANCE.md` and a
+  Developer Certificate of Origin requirement recorded in `CONTRIBUTING.md` and
+  [`governance/DCO.txt`](governance/DCO.txt), with bot-opened pull requests
+  exempt from the check.
+- A relying-party reference example for Sign in with INK under
+  `examples/reference-rp`.
+
 ## 0.13.0, authorization grant primitive and sign-in challenge conformance
 
 ### Additions

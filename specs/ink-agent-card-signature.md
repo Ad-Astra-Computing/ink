@@ -1,6 +1,6 @@
 # INK Agent Card Signature Specification
 
-**Status:** Draft. A proposed backward-compatible extension for the next minor, staged with 0.14. Not frozen; the constructions below stabilize when the `agent-card-signature` conformance category ships and governance signs off.
+**Status:** Stable in the 0.14 conformance corpus. Phase A has shipped; Phases B and C are staged for a later minor.
 **Authors:** Ad Astra Computing
 **Last updated:** 2026-07-20
 
@@ -555,7 +555,7 @@ value.
 
 The rollout is three phases.
 
-**Phase A (next minor, staged with 0.14, optional and backward-compatible).** The
+**Phase A (shipped in 0.14, optional and backward-compatible).** The
 schema lands `cardSignature` and `rotationChain` as OPTIONAL top-level members. A
 conforming receiver verifies them if present, rejects a card whose present proof
 is invalid and ratchets on a valid proof (§7). The `agent-card-signature`
