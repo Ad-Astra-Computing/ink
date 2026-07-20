@@ -130,7 +130,7 @@ export default {
       return jsonResponse(buildDidDocument({ did: id.did, host: id.host, identity: id.identity }));
     }
     if (method === "GET" && path === "/.well-known/ink/agent.json") {
-      return jsonResponse(buildAgentCard({ did: id.did, host: id.host, identity: id.identity }));
+      return jsonResponse(await buildAgentCard({ did: id.did, host: id.host, identity: id.identity }));
     }
     if (method === "POST" && path === "/ink/v1/inbound") {
       return handleInbound(req, env, ctx, id);
