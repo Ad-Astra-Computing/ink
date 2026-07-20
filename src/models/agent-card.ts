@@ -2,7 +2,7 @@ import { z } from "zod";
 import { IntentTypeSchema } from "./intent.js";
 import { InkReceiptDispositionSchema } from "./ink-audit.js";
 import { ProfileSnapshotSchema } from "./profile.js";
-import { KeyEntrySchema } from "./key-entry.js";
+import { KeyEntrySchema, KeyStatusSchema } from "./key-entry.js";
 import { InkTransportSchema, AgentCardVisibilitySchema, type AgentCardVisibility } from "./ink-handshake.js";
 import { isInkEndpointUrl } from "./endpoint-url.js";
 import { isInkTimestamp } from "../crypto/timestamp.js";
@@ -49,6 +49,68 @@ export const ThirdPartyAuditServiceSchema = z.object({
   did: z.string().max(512),
   publicKey: z.string().max(256),
 });
+
+// Base64url no-padding Ed25519 signature: exactly 86 characters `[A-Za-z0-9_-]`
+// (64 raw bytes), per ink-agent-card-signature.md §3.1 and Protocol §3.3.
+const base64urlSignature = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{86}$/, "must be 86-char base64url (no padding)");
+
+// OPTIONAL self-authenticating card proof (ink-agent-card-signature.md §3.1).
+// `keyId` names the signing key resolved under §3.3; `signature` covers
+// `ink/agent-card\n` + JCS(card without `cardSignature`). Optional and
+// backward-compatible: a card without it validates exactly as before.
+export const CardSignatureSchema = z.object({
+  keyId: z.string().min(1).max(128),
+  signature: base64urlSignature,
+});
+
+export type CardSignature = z.infer<typeof CardSignatureSchema>;
+
+// A single committed signing-key entry inside a rotation-chain link
+// (ink-agent-card-signature.md §4.1). It carries NO `algorithm` (Ed25519 is
+// pinned for chain-capable keys) and NO key-window timestamps: a link commits
+// the complete `{keyId, publicKeyMultibase, status}` set at its `keySetVersion`.
+export const RotationChainSigningEntrySchema = z.object({
+  keyId: z.string().min(1).max(128),
+  publicKeyMultibase: z.string().startsWith("z").max(128),
+  status: KeyStatusSchema,
+});
+
+export type RotationChainSigningEntry = z.infer<typeof RotationChainSigningEntrySchema>;
+
+// A rotation-chain link (ink-agent-card-signature.md §4.1). `signature` covers
+// `ink/card-rotation\n` + JCS(link without `signature`). Every `keyId` within
+// a link's `signing` set MUST be unique so the head-binding correspondence of
+// §4.1 step 3b is unambiguous.
+export const RotationChainLinkSchema = z
+  .object({
+    keySetVersion: z.number().int().positive(),
+    signing: z.array(RotationChainSigningEntrySchema).min(1).max(32),
+    prevKeyId: z.string().min(1).max(128),
+    signature: base64urlSignature,
+  })
+  .superRefine((link, ctx) => {
+    const seen = new Set<string>();
+    for (const entry of link.signing) {
+      if (seen.has(entry.keyId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["signing"],
+          message: "keyId MUST be unique within a rotation link's signing set (§4.1).",
+        });
+      }
+      seen.add(entry.keyId);
+    }
+  });
+
+export type RotationChainLink = z.infer<typeof RotationChainLinkSchema>;
+
+// OPTIONAL rotation chain (ink-agent-card-signature.md §4.1): at most 32 links
+// walked genesis-to-head. A verifier MUST reject a chain longer than 32 links.
+export const RotationChainSchema = z.array(RotationChainLinkSchema).max(32);
+
+export type RotationChain = z.infer<typeof RotationChainSchema>;
 
 export const AgentCardSchema = z.object({
   protocol: z.literal("ink/0.1"),
@@ -124,6 +186,21 @@ export const AgentCardSchema = z.object({
       maxIntentsPerMinute: z.number().int().positive().optional(),
     }).optional(),
   }).optional(),
+  // Self-authenticating Agent Card (ink-agent-card-signature.md, Phase A).
+  // All three members are OPTIONAL and backward-compatible: an existing card
+  // without them still validates, and a consumer that predates the spec ignores
+  // them as unknown top-level fields (Protocol §2). A card that carries a
+  // `cardSignature` becomes the authoritative key set only after the §5 verifier
+  // (verifyAgentCardSignature) accepts it.
+  cardSignature: CardSignatureSchema.optional(),
+  rotationChain: RotationChainSchema.optional(),
+  // Informational strict RFC 3339 timestamp (§6). MUST-present on publish when
+  // the card is signed; carries no comparison rule (keySetVersion is the sole
+  // monotonic quantity the continuity rules compare).
+  updatedAt: z
+    .string()
+    .refine(isInkTimestamp, { message: "must be a strict RFC 3339 timestamp" })
+    .optional(),
 }).superRefine((card, ctx) => {
   // v0.1.1: when both endpoint and inboxEndpoint are present they
   // MUST refer to the same URL. The spec rationale is that the alias

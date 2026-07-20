@@ -2,7 +2,7 @@
 
 **Status:** Stable base-profile spec; formal 1.0 freeze pending governance sign-off (see [`../GOVERNANCE.md`](../GOVERNANCE.md), [`../governance/releases/1.0-readiness-evidence.md`](../governance/releases/1.0-readiness-evidence.md)).
 **Authors:** Ad Astra Computing
-**Last updated:** 2026-06-16
+**Last updated:** 2026-07-20
 
 ## Purpose
 
@@ -65,6 +65,25 @@ The card is an object (unknown keys are ignored) with:
   `visibility`, and `governance`: optional.
 - `discovery`: an optional opt-in discoverability descriptor whose `scope` may
   not exceed `visibility`; see [`ink-discovery-descriptor`](ink-discovery-descriptor.md).
+- `cardSignature`: optional. The self-authenticating card proof (see
+  [`ink-agent-card-signature`](ink-agent-card-signature.md) §3.1), an object with
+  a `keyId` (<=128) and a `signature` (base64url no-padding, exactly 86
+  characters `[A-Za-z0-9_-]`).
+- `rotationChain`: optional. An array of at most 32 rotation links that root the
+  card key against the identity (see [`ink-agent-card-signature`](ink-agent-card-signature.md)
+  §4.1). Each link has a positive-integer `keySetVersion`, a `signing` array
+  (1 to 32 of `{keyId, publicKeyMultibase, status}`, each `keyId` unique within
+  the link), a `prevKeyId` (<=128), and a `signature` (86-char base64url). A link
+  entry carries no `algorithm` (Ed25519 is pinned) and no key-window timestamps.
+- `updatedAt`: optional. An informational strict RFC 3339 timestamp (see
+  [`ink-timestamp-grammar`](ink-timestamp-grammar.md)); it carries no comparison
+  rule.
+
+The `cardSignature`, `rotationChain`, and `updatedAt` members are all optional
+and backward-compatible: a card without them validates exactly as before, and a
+consumer that predates the signature spec ignores them as unknown top-level
+fields. A receiver that enforces the signature spec verifies a present proof and
+roots it per [`ink-agent-card-signature`](ink-agent-card-signature.md) §5.
 
 String length bounds are measured in UTF-16 code units, matching the reference
 schema's `.max()`, except the endpoint byte length above.
@@ -79,6 +98,12 @@ three endpoint fields. The Go implementation mirrors them in `ValidateAgentCard`
 and `isInkEndpointUrl` (in [`go/ink/agentcard.go`](../go/ink/agentcard.go)),
 reusing the strict timestamp parser for key windows and the strict profile
 snapshot validator.
+
+The `cardSignature` and `rotationChain` schemas and the card-proof verifier
+`verifyAgentCardSignature` live in
+[`src/crypto/agent-card-signature.ts`](../src/crypto/agent-card-signature.ts) in
+the TypeScript reference; a Go parity implementation and the
+`agent-card-signature` conformance vectors follow.
 
 ## Conformance
 
