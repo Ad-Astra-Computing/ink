@@ -49,6 +49,19 @@ paths = [
   '''go/internal/.*_test\.go$''',
 ]
 
+# The Go encryption test suite and its TypeScript interop counterpart embed
+# the public RFC 7748 section 6.1 X25519 test vectors and an HKDF key derived
+# from them. They are published RFC fixtures, not secrets, and are the whole
+# point of the sealing interop check. Suppress ONLY the generic-api-key rule
+# on those files so other secret classes still get caught if they ever slip in.
+[[allowlists]]
+description = "RFC 7748 X25519 encryption test vectors, generic-api-key only"
+targetRules = ["generic-api-key"]
+paths = [
+  '''go/ink/.*_test\.go$''',
+  '''test/go-encryption-sealing-interop\.test\.ts$''',
+]
+
 [[rules]]
 id = "cloudflare-api-token"
 description = "Cloudflare API token"

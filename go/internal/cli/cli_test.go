@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Ad-Astra-Computing/ink/go/ink"
 )
 
 const validCard = `{"protocol":"ink/0.1","agentId":"did:web:a.example","handle":"alice","displayName":"Alice","endpoint":"https://a.example/ink/inbox","publicKeyMultibase":"z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX","capabilities":{"intentsAccepted":["ask"],"intentsSent":["ask"]},"availability":{"timezone":"UTC"}}`
@@ -131,6 +133,45 @@ func TestSignRequestRoundTripsThroughVerify(t *testing.T) {
 	// A malformed sign request is bad input (exit 2), not a silent signature.
 	if bc, _, berr := run(t, `{"signInput":{}}`, "sign-request"); bc != 2 || !strings.Contains(berr, "bad_input") {
 		t.Fatalf("bad sign-request exit = %d (err %q), want 2 bad_input", bc, berr)
+	}
+}
+
+func TestSealPayloadRoundTripsThroughDecrypt(t *testing.T) {
+	// RFC 7748 recipient (Alice): public key drives the seal, private key drives
+	// the library decrypt of the emitted envelope.
+	const recipientPubHex = "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
+	const recipientPrivHex = "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
+	const to = "did:web:recipient.example"
+	sealReq := `{"recipientPublicKeyHex":"` + recipientPubHex + `",` +
+		`"senderDid":"did:web:sender.example","timestamp":"2026-07-11T12:00:00.000Z",` +
+		`"messageNonce":"0123456789abcdef0123456789abcdef",` +
+		`"plaintext":{"from":"did:web:sender.example","to":"` + to + `","body":"hi"},` +
+		`"messageType":"network.ink.encrypted"}`
+
+	code, out, errOut := run(t, sealReq, "seal-payload")
+	if code != 0 {
+		t.Fatalf("seal-payload exit = %d (err %q), want 0", code, errOut)
+	}
+	var sealed struct {
+		Envelope map[string]any `json:"envelope"`
+	}
+	if err := json.Unmarshal([]byte(out), &sealed); err != nil {
+		t.Fatalf("seal-payload output not JSON: %v (%q)", err, out)
+	}
+	if sealed.Envelope["type"] != "network.ink.encrypted" {
+		t.Errorf("envelope type = %v, want network.ink.encrypted", sealed.Envelope["type"])
+	}
+	got, err := ink.DecryptInkPayload(sealed.Envelope, recipientPrivHex, to)
+	if err != nil {
+		t.Fatalf("library decrypt of a seal-payload envelope rejected: %v", err)
+	}
+	if got["body"] != "hi" {
+		t.Errorf("decrypted body = %v, want hi", got["body"])
+	}
+
+	// A malformed seal request is bad input (exit 2), not a silent envelope.
+	if bc, _, berr := run(t, `{"senderDid":"x"}`, "seal-payload"); bc != 2 || !strings.Contains(berr, "bad_input") {
+		t.Fatalf("bad seal-payload exit = %d (err %q), want 2 bad_input", bc, berr)
 	}
 }
 

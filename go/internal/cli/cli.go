@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/Ad-Astra-Computing/ink/go/internal/sealcmd"
 	"github.com/Ad-Astra-Computing/ink/go/internal/signcmd"
 	"github.com/Ad-Astra-Computing/ink/go/internal/verify"
 )
@@ -39,6 +40,7 @@ Usage:
 Commands:
   verify-card            Validate an Agent Card document
   sign-request           Sign an INK transport request (emit signature + Authorization header)
+  seal-payload           Seal an INK payload into an ECIES encrypted envelope
   verify-signature       Verify a detached Ed25519 signature over a signed request
   verify-receipt         Verify a witness inclusion receipt
   verify-audit-response  Verify a witness audit-query response
@@ -94,6 +96,24 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return badInput(stderr, err.Error())
 		}
 		res, err := signcmd.Request(data)
+		if err != nil {
+			return badInput(stderr, err.Error())
+		}
+		enc(stdout, res, pretty)
+		return 0
+	case "seal-payload":
+		// The producing side of §3.4: read a seal request and emit the ECIES
+		// envelope. Like sign-request it has no accept/reject outcome, so it maps
+		// only bad input (2) to a nonzero exit; a well-formed request always seals.
+		file, pretty, err := parseFlags(rest)
+		if err != nil {
+			return badInput(stderr, err.Error())
+		}
+		data, err := readInput(file, stdin)
+		if err != nil {
+			return badInput(stderr, err.Error())
+		}
+		res, err := sealcmd.Seal(data)
 		if err != nil {
 			return badInput(stderr, err.Error())
 		}
