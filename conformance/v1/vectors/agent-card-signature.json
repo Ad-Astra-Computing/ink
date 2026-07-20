@@ -1352,6 +1352,135 @@
       }
     },
     {
+      "caseId": "head-set-missing-signer-reject",
+      "description": "A valid chain whose head set does not contain the cardSignature signer: the card carries the active current signer plus a genesis-committed key, so the head omits the very key that signed the card and exact correspondence fails.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "kA",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              },
+              {
+                "keyId": "kB",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "kB",
+          "keySetVersion": 1,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "signature": "IDtnuVDo_PtVbq3JnC4jp54QnynYUHI5BGJvfoQGbzRrjFcbRzuuxvbvS9szEk4drBGEpAEv2vT16dvlsPXxCw"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "kB",
+            "signature": "pbslki2Z2DceHa6ZB43UPfVDZE_2VHS5sp2KJjbjcvrCSheXKjP6NUaSIky2wuE5EgNDqmIvMTqyihxTKa1VDQ"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "head_set_mismatch"
+      }
+    },
+    {
+      "caseId": "head-set-pubkey-disagreement-reject",
+      "description": "A valid chain whose head commits a keyId bound to one public key while the card carries the same keyId and status bound to a different public key, so exact head correspondence fails on the decoded-key byte comparison rather than on an extra entry or a status difference.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "kA",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "kA",
+          "keySetVersion": 1,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "signature": "IDtnuVDo_PtVbq3JnC4jp54QnynYUHI5BGJvfoQGbzRrjFcbRzuuxvbvS9szEk4drBGEpAEv2vT16dvlsPXxCw"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "kA",
+            "signature": "Ega8IshwE5q_taawD0W-RQ833fWnuR0GH_BPmBz0tLRM4oGUb_ZyIA2VyKZMwgUP9p2LwvDr4TOwhD5jJKwuDA"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "head_set_mismatch"
+      }
+    },
+    {
       "caseId": "chain-noncontiguous-version-reject",
       "description": "A chain whose consecutive link versions have a gap (1 then 3).",
       "input": {
@@ -1495,6 +1624,91 @@
       "expect": {
         "result": "reject",
         "reason": "chain_link_signer_not_active"
+      }
+    },
+    {
+      "caseId": "chain-link-invalid-signature-reject",
+      "description": "A chain whose later link carries a corrupted signature that no longer verifies against its prevKeyId signer, even though that signer is active in the prior link's committed set.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "kA",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                "status": "retired",
+                "validFrom": "2026-01-01T00:00:00Z"
+              },
+              {
+                "keyId": "kB",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "kB",
+          "keySetVersion": 2,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "signature": "IDtnuVDo_PtVbq3JnC4jp54QnynYUHI5BGJvfoQGbzRrjFcbRzuuxvbvS9szEk4drBGEpAEv2vT16dvlsPXxCw"
+            },
+            {
+              "keySetVersion": 2,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "retired"
+                },
+                {
+                  "keyId": "kB",
+                  "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "kA",
+              "signature": "kF_fubDMUHPEaEtc_0TsQFGJKIeRQx9sIUEyccgdUqBQ0t1Y0nHNqs3p-ZsPpdvd7-FHN7PEcAtJgv4NgyEyDA"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "kB",
+            "signature": "DB3EtoRDXQV-6OyNbwm4ERzB3wERBF5HVgo_gGhfRg3AaTkfaT4DUIP0rDaXYlxR_341EfcpVU4U8nPFsrtPDQ"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain_link_invalid_signature"
       }
     },
     {
