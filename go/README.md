@@ -187,6 +187,15 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
   `publicKeyHex` (the key derived from the seed), and the echoed `signInput`. The
   signed body is parsed through the surrogate-safe path before signing, so it and
   `verify-signature` build byte-identical bases.
+- `seal-payload` seals a payload into an INK ECIES encrypted envelope (§3.4).
+  Input fields are `recipientPublicKeyHex` (the recipient's 32-byte static X25519
+  public key), `senderDid`, `timestamp`, `messageNonce`, a `plaintext` object,
+  and an optional `messageType` (`network.tulpa.encrypted` by default, or
+  `network.ink.encrypted`). The result carries the outer `envelope`, which
+  decrypts with both `DecryptInkPayload` and the reference `decryptInkPayload`.
+  Every call draws a fresh ephemeral key and a random AES nonce, so the
+  ciphertext is non-deterministic and the command exposes no ephemeral/nonce
+  override.
 - `verify-signature` verifies a detached Ed25519 signature over a signed
   request (input fields `signInput` with `method`, `path`, `recipientDid`,
   `body`, `timestamp`, plus `signature` and one of `publicKeyHex` or
