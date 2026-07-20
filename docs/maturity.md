@@ -59,8 +59,11 @@ These hold across major version 0 (`ink/0.1` and `ink/0.2`):
   the future.
 - Encryption envelope AAD composition, the current AAD is
   `ink/0.1:envelope\n` followed by the JCS canonicalization of
-  `{protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce}`.
-  Future versions may include the recipient DID or evolve the field set.
+  `{protocol, type, from, recipientKey, ephemeralKey, nonce, timestamp, messageNonce}`.
+  `recipientKey` is the recipient's static X25519 public key (base64url),
+  recomputed locally by the receiver from its own private key and never carried
+  on the wire, so a ciphertext encrypted for a different recipient fails the tag.
+  Future versions may evolve the field set.
 
 ## Versioning
 

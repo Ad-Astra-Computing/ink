@@ -229,6 +229,31 @@ export type {
   GrantKey,
   VerifiedOwnerStatus,
 } from "./models/authorization-grant.js";
+
+// INK Agent Authorization sign-in challenge (#198). The one artifact the flow
+// profile adds on top of the grant: an RP signs a challenge to request sign-in,
+// the user's agent verifies it against an active RP signing key before minting
+// the grant that answers it, and the answering identity assertion adopts the
+// grantId derived from the verified challenge.
+export {
+  AuthorizationChallengeSchema,
+  buildAuthorizationChallenge,
+  verifyAuthorizationChallenge,
+  deriveChallengeGrantId,
+  deriveRpOrigin,
+  isChallengeRedirect,
+  AuthorizationChallengeError,
+  CHALLENGE_SCOPE_REGISTRY,
+  MAX_CHALLENGE_LIFETIME_MS,
+  MAX_CHALLENGE_BODY_BYTES,
+} from "./models/authorization-challenge.js";
+export type {
+  AuthorizationChallenge,
+  AuthorizationChallengeInput,
+  AuthorizationChallengeReason,
+  AuthorizationChallengeVerifyContext,
+  AuthorizationChallengeVerifyResult,
+} from "./models/authorization-challenge.js";
 export type {
   BudgetCheckResult,
   HandshakeBudgetConfig,

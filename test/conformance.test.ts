@@ -31,6 +31,8 @@ import {
   hexToBytes,
   verifyDiscoveryQueryEnvelope,
   verifyAuthorizationGrant,
+  verifyAuthorizationChallenge,
+  deriveChallengeGrantId,
 } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
@@ -46,10 +48,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
+  expect: { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string };
+type Outcome = { result: "accept" | "reject"; reason?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -111,6 +113,35 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         maxLifetimeMs,
       });
       return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
+    }
+    case "agent-authorization": {
+      const { challenge } = input as { challenge: Record<string, unknown> };
+      // A case with no `keys` is a derive-only case: it pins the exact
+      // challenge-derived grantId for fixed inputs, independent of signature.
+      if (input.keys === undefined) {
+        const derivedGrantId = await deriveChallengeGrantId(
+          challenge as { rp: string; nonce: string; issuedAt: string; expiresAt: string },
+        );
+        return { result: "accept", derivedGrantId };
+      }
+      const { keys, now } = input as {
+        keys: Array<{ keyId: string; publicKeyHex: string; status: CandidateKey["status"]; validFrom?: string; validUntil?: string; revokedAt?: string }>;
+        now: string;
+      };
+      const candidates: CandidateKey[] = keys.map((k) => ({
+        keyId: k.keyId,
+        publicKey: hexToBytes(k.publicKeyHex),
+        status: k.status,
+        validFrom: k.validFrom,
+        validUntil: k.validUntil,
+        revokedAt: k.revokedAt,
+      }));
+      const result = await verifyAuthorizationChallenge(challenge, candidates, { now });
+      if (!result.ok) return { result: "reject", reason: result.reason };
+      // On accept, also derive the grantId so a vector can pin it: the answering
+      // identity assertion adopts exactly this id as its grantId.
+      const derivedGrantId = await deriveChallengeGrantId(result.challenge);
+      return { result: "accept", derivedGrantId };
     }
     case "jcs-number": {
       try {
@@ -376,6 +407,9 @@ describe("ink/1 conformance vectors", () => {
           }
           if (c.expect.leafHash !== undefined) {
             expect(actual.leafHash, c.caseId).toBe(c.expect.leafHash);
+          }
+          if (c.expect.derivedGrantId !== undefined) {
+            expect(actual.derivedGrantId, c.caseId).toBe(c.expect.derivedGrantId);
           }
         });
       }

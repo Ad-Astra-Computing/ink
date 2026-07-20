@@ -26,7 +26,7 @@ const manifest = JSON.parse(readFileSync(v1Dir + "manifest.json", "utf8")) as Ma
 
 const FROZEN_PROFILES = {
   audit: ["audit-query-response", "inclusion-receipt", "merkle-leaf"],
-  authorization: ["authorization-grant"],
+  authorization: ["agent-authorization", "authorization-grant"],
   base: [
     "agent-card",
     "agent-card-fetch",

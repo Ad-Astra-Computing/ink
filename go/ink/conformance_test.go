@@ -30,6 +30,7 @@ type conformanceCase struct {
 		EpochMs            *int64 `json:"epochMs"`
 		CanonicalString    string `json:"canonicalString"`
 		LeafHash           string `json:"leafHash"`
+		DerivedGrantID     string `json:"derivedGrantId"`
 	} `json:"expect"`
 }
 
@@ -640,6 +641,77 @@ func TestAuthorizationGrant(t *testing.T) {
 		}
 		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
 			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
+		}
+	}
+}
+
+func TestAgentAuthorization(t *testing.T) {
+	vf := loadVectors(t, "agent-authorization")
+	for _, c := range vf.Cases {
+		// Extract the four binding fields from the challenge for the derived id.
+		var ch struct {
+			RP        string `json:"rp"`
+			Nonce     string `json:"nonce"`
+			IssuedAt  string `json:"issuedAt"`
+			ExpiresAt string `json:"expiresAt"`
+		}
+		if err := json.Unmarshal(c.Input["challenge"], &ch); err != nil {
+			t.Fatalf("%s: bad challenge: %v", c.CaseID, err)
+		}
+
+		// A case with no keys is a derive-only case: it pins the exact
+		// challenge-derived grantId for fixed inputs, independent of signature.
+		if _, hasKeys := c.Input["keys"]; !hasKeys {
+			id := DeriveChallengeGrantID(ch.RP, ch.Nonce, ch.IssuedAt, ch.ExpiresAt)
+			if c.Expect.Result != "accept" {
+				t.Errorf("%s: derive-only case must expect accept", c.CaseID)
+			}
+			if c.Expect.DerivedGrantID != "" && id != c.Expect.DerivedGrantID {
+				t.Errorf("%s: derivedGrantId = %q, want %q", c.CaseID, id, c.Expect.DerivedGrantID)
+			}
+			continue
+		}
+
+		var now string
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		var rawKeys []struct {
+			KeyID        string            `json:"keyId"`
+			PublicKeyHex string            `json:"publicKeyHex"`
+			Status       string            `json:"status"`
+			ValidFrom    OptionalTimestamp `json:"validFrom"`
+			ValidUntil   OptionalTimestamp `json:"validUntil"`
+			RevokedAt    OptionalTimestamp `json:"revokedAt"`
+		}
+		if err := json.Unmarshal(c.Input["keys"], &rawKeys); err != nil {
+			t.Fatalf("%s: bad keys: %v", c.CaseID, err)
+		}
+		keys := make([]CandidateKey, 0, len(rawKeys))
+		for _, k := range rawKeys {
+			pub, err := hex.DecodeString(k.PublicKeyHex)
+			if err != nil {
+				t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+			}
+			keys = append(keys, CandidateKey{
+				KeyID: k.KeyID, PublicKey: pub, Status: k.Status,
+				ValidFrom: k.ValidFrom, ValidUntil: k.ValidUntil, RevokedAt: k.RevokedAt,
+			})
+		}
+		ok, reason := VerifyAuthorizationChallenge(c.Input["challenge"], keys, AuthorizationChallengeContext{Now: now})
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v (reason %q)", c.CaseID, ok, want, reason)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
+		}
+		// An accept case pins the derived grantId the answering assertion adopts.
+		if ok && c.Expect.DerivedGrantID != "" {
+			id := DeriveChallengeGrantID(ch.RP, ch.Nonce, ch.IssuedAt, ch.ExpiresAt)
+			if id != c.Expect.DerivedGrantID {
+				t.Errorf("%s: derivedGrantId = %q, want %q", c.CaseID, id, c.Expect.DerivedGrantID)
+			}
 		}
 	}
 }
