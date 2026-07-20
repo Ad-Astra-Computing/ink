@@ -354,6 +354,9 @@ func TestEncryptInkPayloadRejectsBadInput(t *testing.T) {
 // set, its JCS ordering, and the key schedule are the cross-implementation contract.
 func TestEncryptInkPayloadAADPin(t *testing.T) {
 	// RFC 7748 §6.1 test vectors: recipient is Alice, ephemeral is Bob.
+	// These hex constants are published RFC 7748 §6.1 fixtures (public standard
+	// test vectors, not secrets) and are allowlisted for gitleaks' generic-api-key
+	// rule in .gitleaks.toml.
 	const recipientPrivHex = "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"
 	const recipientPubHex = "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a"
 	const ephemeralPrivHex = "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"
