@@ -143,6 +143,35 @@ export type {
 export { AgentCardSchema } from "./models/agent-card.js";
 export { isInkEndpointUrl } from "./models/endpoint-url.js";
 
+// Self-authenticating Agent Card (ink-agent-card-signature.md, Phase A). The
+// OPTIONAL card proof and its rotation-chain schemas, the producer signing
+// helpers, and the pure §5 verifier a receiver enforces.
+export {
+  CardSignatureSchema,
+  RotationChainSigningEntrySchema,
+  RotationChainLinkSchema,
+  RotationChainSchema,
+} from "./models/agent-card.js";
+export type {
+  CardSignature,
+  RotationChainSigningEntry,
+  RotationChainLink,
+  RotationChain,
+} from "./models/agent-card.js";
+export {
+  signAgentCard,
+  signRotationLink,
+  verifyAgentCardSignature,
+  CARD_SIGNATURE_DOMAIN,
+  CARD_ROTATION_DOMAIN,
+} from "./crypto/agent-card-signature.js";
+export type {
+  AgentCardVerifyResult,
+  AgentCardVerifyReason,
+  AgentCardVerifyOptions,
+  DidResolution,
+} from "./crypto/agent-card-signature.js";
+
 // Envelope validation: full Zod-backed parse of the canonical
 // MessageEnvelope shape. Adopters building receivers need this to
 // reject malformed envelopes before signature verification; without
