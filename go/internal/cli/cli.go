@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/Ad-Astra-Computing/ink/go/internal/signcmd"
 	"github.com/Ad-Astra-Computing/ink/go/internal/verify"
 )
 
@@ -37,6 +38,7 @@ Usage:
 
 Commands:
   verify-card            Validate an Agent Card document
+  sign-request           Sign an INK transport request (emit signature + Authorization header)
   verify-signature       Verify a detached Ed25519 signature over a signed request
   verify-receipt         Verify a witness inclusion receipt
   verify-audit-response  Verify a witness audit-query response
@@ -77,6 +79,25 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			}
 		}
 		enc(stdout, map[string]string{"version": Version}, hasFlag(rest, "--pretty"))
+		return 0
+	case "sign-request":
+		// The producing side of §3.3: read a sign request and emit the
+		// signature plus Authorization header. Unlike the verifiers it has no
+		// accept/reject outcome, so it maps only bad input (2) to a nonzero
+		// exit; a well-formed request always signs.
+		file, pretty, err := parseFlags(rest)
+		if err != nil {
+			return badInput(stderr, err.Error())
+		}
+		data, err := readInput(file, stdin)
+		if err != nil {
+			return badInput(stderr, err.Error())
+		}
+		res, err := signcmd.Request(data)
+		if err != nil {
+			return badInput(stderr, err.Error())
+		}
+		enc(stdout, res, pretty)
 		return 0
 	}
 
