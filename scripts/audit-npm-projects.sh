@@ -17,6 +17,7 @@ projects=(
   "examples/foreign-sender-receiver"
   "examples/reference-receiver"
   "examples/reference-sender"
+  "examples/reference-rp"
   "examples/docker-receiver"
 )
 

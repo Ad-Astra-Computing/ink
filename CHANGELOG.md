@@ -4,9 +4,132 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
-## Unreleased
+## 0.13.0, authorization grant primitive and sign-in challenge conformance
 
 ### Additions
+
+- Minimal authorization grant, the "Sign in with INK" primitive. An issuer signs
+  a scoped grant bound to one subject, one audience and a fixed validity window,
+  and a service verifies it against the issuer key and its own context. New
+  `AuthorizationGrantSchema`, a `buildAuthorizationGrant` signer and a
+  `verifyAuthorizationGrant` verifier that fails closed. The `type` accepts both
+  the `network.tulpa.*` and `network.ink.*` spellings; the signature binds every
+  field including the audience, so a grant minted for one service cannot be
+  presented at another. This is a primitive, not a permissions framework: there
+  is no delegation chain or policy language, and a scope entry is an opaque token
+  the service interprets. See
+  [`specs/ink-authorization-grant.md`](specs/ink-authorization-grant.md).
+- The verifier returns a typed rejection reason (`schema`, `signature`,
+  `audience`, `subject`, `expired`, `not_yet_valid`, `replay`, `revoked`,
+  `owner_unverified`) so a service can map each failure to its own response
+  without matching on prose, the same error-design pattern as
+  `parseSignedBodyBytes`. The `AuthorizationGrantError` class and the
+  `AuthorizationGrantReason` type are exported from the package root, alongside
+  the `AuthorizationGrantVerifyContext`, `GrantKey` and `VerifiedOwnerStatus`
+  types.
+- The validity window is capped at a normative ten-minute maximum lifetime,
+  exported as `MAX_GRANT_LIFETIME_MS`. A grant whose window is longer is out of
+  profile and rejects as `schema` on the signed bytes alone, before the signature
+  and independent of the verifier clock, so the short-window revocation control
+  cannot be undercut by a long-lived grant. A verifier caller may tighten the
+  ceiling per check through a `maxLifetimeMs` context value, which is clamped so
+  it can only shorten and never raise the cap; the tightened check runs after the
+  signature so the policy value is not observable on an unauthenticated grant.
+- Replay and revocation key on the `(issuer, grantId)` pair, not `grantId` alone.
+  Because `grantId` is issuer-chosen, two issuers can pick the same string, so
+  keying on the pair keeps one issuer's seen or revoked ids from colliding with
+  another's. The verify context takes `seenGrants` and an `isRevoked` predicate
+  over the exported `GrantKey` shape.
+- Revocation is a receiver-side denylist keyed by `(issuer, grantId)`, checked by
+  a caller-supplied predicate at verify time, with short validity windows as the
+  primary control. INK grants carry no protocol-level revocation list or
+  endpoint, matching how the discovery query envelope leaves replay windows to
+  receiver policy. The rationale is recorded in the spec.
+- String safety is structural. A grant carrying a lone UTF-16 surrogate rejects
+  as `schema` before the signature check, not as a signature failure. A malformed
+  base64url signature rejects as `schema` in both implementations, and a verifier
+  clock that is not a strict INK timestamp rejects as `schema` rather than
+  reporting a window verdict the verifier never computed.
+- A scope token's meaning is audience-local. A receiver interprets a token only
+  under its own audience policy, and an unrecognized token implies no authority.
+  The spec records the portability rule.
+- Owner verification is a composition hook, not a computed signal. A grant may
+  set `requireVerifiedOwner`, and the verifier then requires the service to pass
+  in a verified owner status; the status itself comes from the service's own
+  owner-verification pipeline.
+- The rule is pinned by the new `authorization-grant` conformance category, a
+  capability-gated `authorization` profile and is verified by both the
+  TypeScript reference and the Go implementation over the same vectors. Each
+  reject vector pins its typed reason so the two implementations agree on verify
+  order. The corpus carries positive and negative cases: confused-deputy
+  audience, replay and revocation keyed by `(issuer, grantId)`, a cross-issuer
+  case where another issuer's entry for the same `grantId` does not interfere,
+  expiry and clock-skew bounds, the maximum-lifetime and caller-tightened bounds,
+  signature-first ordering under hostile context, a lone surrogate and scope and
+  field-length fuzzing.
+- Presentation is bound to the subject. The verify context takes an optional
+  `presenter`, the authenticated identity of the principal presenting the grant as
+  the transport establishes it; when it is supplied and does not equal the signed
+  `subject` the grant rejects with the new `subject` reason, so a stolen grant is
+  not presentable by another principal inside its window. When no presenter is
+  supplied the grant is a bearer artifact the audience binds out of band. Over INK
+  the audience verifies the authenticated envelope sender equals the subject, and
+  grant bytes are confidential in transit. The check runs after the audience check
+  and before the window checks in both implementations, and is pinned by
+  presenter-matches, presenter-absent and presenter-mismatch conformance vectors.
+- The caller-tightened `maxLifetimeMs` treats zero as unset and fails closed on a
+  negative or non-finite value. A value of exactly zero uses the profile default,
+  matching the Go context where a zero-value integer is indistinguishable from an
+  unset one. A `NaN` would make the tightened-cap comparison silently false and
+  disable the policy, so a negative or non-finite value rejects as `schema`, the
+  same as a malformed clock. The Go context uses an integer type, so it cannot
+  carry a non-finite value and enforces the rule by construction.
+- The byte bound on a raw grant body is a shared byte-layer rule. A grant
+  presented as raw bytes rejects as `schema` when longer than 65536 bytes, before
+  it is decoded, since the largest well-formed grant is around 12 KiB and a body
+  padded past the bound is not a legitimate presentation. The Go verifier receives
+  bytes and enforces the bound itself through the exported `MaxGrantBodyBytes`; the
+  reference verifier receives an already-decoded object and applies the structural
+  bounds instead, so the exported `MAX_GRANT_BODY_BYTES` constant is the contract
+  for whatever layer received its bytes. A post-parse node, depth and character
+  walk mirrors the reference complexity bounds, so both implementations reject the
+  same pathological structure.
+- The spec pins that a service MUST record an accepted `(issuer, grantId)` pair
+  atomically with acceptance, as a single check-and-insert, so two concurrent
+  presentations of the same pair cannot both be accepted. Replay recording is
+  receiver state the verifier reads but does not own; the `seenGrants` docs carry
+  the same rule.
+- The sign-in challenge, the one artifact the "Sign in with INK" flow profile
+  adds on top of the grant. A relying party signs a challenge to request sign-in,
+  the user's agent verifies it against an active RP signing key before minting the
+  grant that answers it and the answering identity assertion adopts the `grantId`
+  derived from the verified challenge. New `AuthorizationChallengeSchema`, a
+  `buildAuthorizationChallenge` signer, a `verifyAuthorizationChallenge` verifier
+  that fails closed and a `deriveChallengeGrantId` that binds the answering grant
+  to the challenge. The `AuthorizationChallengeError` class and the
+  `AuthorizationChallengeReason` type (`schema`, `signature`, `not_yet_valid`,
+  `expired`) are exported from the package root alongside the challenge
+  verify-context and result types. See
+  [`specs/ink-agent-authorization.md`](specs/ink-agent-authorization.md).
+- The `rp` is a bare-host `did:web`, and its origin is derived by explicit string
+  rules rather than a URL parser so two implementations never disagree on the
+  origin that gates redirect acceptance. The `redirectUri` MUST start with that
+  derived origin followed by `/` under a literal prefix match and MUST contain no
+  fragment, backslash, ASCII control character or ASCII whitespace. The
+  `requestedScope` MUST draw from the closed registry (`identity.assert`,
+  `profile.read`, `agent.message.send`) with `identity.assert` present. The validity window is capped at the same ten-minute
+  ceiling as the grant and exported as `MAX_CHALLENGE_LIFETIME_MS`. A raw
+  challenge body longer than `MAX_CHALLENGE_BODY_BYTES` rejects as `schema` before
+  it is decoded.
+- The rule is pinned by the new `agent-authorization` conformance category under
+  the capability-gated `authorization` profile, verified by both the TypeScript
+  reference and the Go implementation over the same vectors, with each reject
+  vector pinning its typed reason so the two agree on verify order. The corpus
+  covers an accepting case, an active-key-only RP signature evaluated at the
+  verifier clock, non-bare-host `rp` and non-conforming `redirectUri` cases,
+  scope and window bounds and derive-only vectors that pin the exact
+  challenge-derived `grantId` for fixed inputs so both implementations compute
+  the identical id.
 
 - Optional durable storage for the Go `ink-witness-server`. Passing `-data-dir`
   keeps an append-only record file, one JSON line per accepted leaf holding the
@@ -59,102 +182,6 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   verifiers, rejects an over-complex or over-cap body before spending signature
   work. Both are reject-only additions: input within bounds verifies unchanged.
   These are Go-implementation changes only, with no wire or protocol change.
-
-## 0.13.0, minimal authorization grant primitive
-
-### Additions
-
-- Minimal authorization grant, the "Sign in with INK" primitive. An issuer signs
-  a scoped grant bound to one subject, one audience, and a fixed validity window,
-  and a service verifies it against the issuer key and its own context. New
-  `AuthorizationGrantSchema`, a `buildAuthorizationGrant` signer, and a
-  `verifyAuthorizationGrant` verifier that fails closed. The `type` accepts both
-  the `network.tulpa.*` and `network.ink.*` spellings; the signature binds every
-  field including the audience, so a grant minted for one service cannot be
-  presented at another. This is a primitive, not a permissions framework: there
-  is no delegation chain or policy language, and a scope entry is an opaque token
-  the service interprets. See
-  [`specs/ink-authorization-grant.md`](specs/ink-authorization-grant.md).
-- The verifier returns a typed rejection reason (`schema`, `signature`,
-  `audience`, `subject`, `expired`, `not_yet_valid`, `replay`, `revoked`,
-  `owner_unverified`) so a service can map each failure to its own response
-  without matching on prose, the same error-design pattern as
-  `parseSignedBodyBytes`. The `AuthorizationGrantError` class and the
-  `AuthorizationGrantReason` type are exported from the package root, alongside
-  the `AuthorizationGrantVerifyContext`, `GrantKey`, and `VerifiedOwnerStatus`
-  types.
-- The validity window is capped at a normative ten-minute maximum lifetime,
-  exported as `MAX_GRANT_LIFETIME_MS`. A grant whose window is longer is out of
-  profile and rejects as `schema` on the signed bytes alone, before the signature
-  and independent of the verifier clock, so the short-window revocation control
-  cannot be undercut by a long-lived grant. A verifier caller may tighten the
-  ceiling per check through a `maxLifetimeMs` context value, which is clamped so
-  it can only shorten and never raise the cap; the tightened check runs after the
-  signature so the policy value is not observable on an unauthenticated grant.
-- Replay and revocation key on the `(issuer, grantId)` pair, not `grantId` alone.
-  Because `grantId` is issuer-chosen, two issuers can pick the same string, so
-  keying on the pair keeps one issuer's seen or revoked ids from colliding with
-  another's. The verify context takes `seenGrants` and an `isRevoked` predicate
-  over the exported `GrantKey` shape.
-- Revocation is a receiver-side denylist keyed by `(issuer, grantId)`, checked by
-  a caller-supplied predicate at verify time, with short validity windows as the
-  primary control. INK grants carry no protocol-level revocation list or
-  endpoint, matching how the discovery query envelope leaves replay windows to
-  receiver policy. The rationale is recorded in the spec.
-- String safety is structural. A grant carrying a lone UTF-16 surrogate rejects
-  as `schema` before the signature check, not as a signature failure. A malformed
-  base64url signature rejects as `schema` in both implementations, and a verifier
-  clock that is not a strict INK timestamp rejects as `schema` rather than
-  reporting a window verdict the verifier never computed.
-- A scope token's meaning is audience-local. A receiver interprets a token only
-  under its own audience policy, and an unrecognized token implies no authority.
-  The spec records the portability rule.
-- Owner verification is a composition hook, not a computed signal. A grant may
-  set `requireVerifiedOwner`, and the verifier then requires the service to pass
-  in a verified owner status; the status itself comes from the service's own
-  owner-verification pipeline.
-- The rule is pinned by the new `authorization-grant` conformance category, a
-  capability-gated `authorization` profile, and is verified by both the
-  TypeScript reference and the Go implementation over the same vectors. Each
-  reject vector pins its typed reason so the two implementations agree on verify
-  order. The corpus carries positive and negative cases: confused-deputy
-  audience, replay and revocation keyed by `(issuer, grantId)`, a cross-issuer
-  case where another issuer's entry for the same `grantId` does not interfere,
-  expiry and clock-skew bounds, the maximum-lifetime and caller-tightened bounds,
-  signature-first ordering under hostile context, a lone surrogate, and scope and
-  field-length fuzzing.
-- Presentation is bound to the subject. The verify context takes an optional
-  `presenter`, the authenticated identity of the principal presenting the grant as
-  the transport establishes it; when it is supplied and does not equal the signed
-  `subject` the grant rejects with the new `subject` reason, so a stolen grant is
-  not presentable by another principal inside its window. When no presenter is
-  supplied the grant is a bearer artifact the audience binds out of band. Over INK
-  the audience verifies the authenticated envelope sender equals the subject, and
-  grant bytes are confidential in transit. The check runs after the audience check
-  and before the window checks in both implementations, and is pinned by
-  presenter-matches, presenter-absent, and presenter-mismatch conformance vectors.
-- The caller-tightened `maxLifetimeMs` treats zero as unset and fails closed on a
-  negative or non-finite value. A value of exactly zero uses the profile default,
-  matching the Go context where a zero-value integer is indistinguishable from an
-  unset one. A `NaN` would make the tightened-cap comparison silently false and
-  disable the policy, so a negative or non-finite value rejects as `schema`, the
-  same as a malformed clock. The Go context uses an integer type, so it cannot
-  carry a non-finite value and enforces the rule by construction.
-- The byte bound on a raw grant body is a shared byte-layer rule. A grant
-  presented as raw bytes rejects as `schema` when longer than 65536 bytes, before
-  it is decoded, since the largest well-formed grant is around 12 KiB and a body
-  padded past the bound is not a legitimate presentation. The Go verifier receives
-  bytes and enforces the bound itself through the exported `MaxGrantBodyBytes`; the
-  reference verifier receives an already-decoded object and applies the structural
-  bounds instead, so the exported `MAX_GRANT_BODY_BYTES` constant is the contract
-  for whatever layer received its bytes. A post-parse node, depth, and character
-  walk mirrors the reference complexity bounds, so both implementations reject the
-  same pathological structure.
-- The spec pins that a service MUST record an accepted `(issuer, grantId)` pair
-  atomically with acceptance, as a single check-and-insert, so two concurrent
-  presentations of the same pair cannot both be accepted. Replay recording is
-  receiver state the verifier reads but does not own; the `seenGrants` docs carry
-  the same rule.
 
 ## 0.12.0, raw-body UTF-8 conformance rule
 

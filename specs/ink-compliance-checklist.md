@@ -10,6 +10,8 @@ This checklist lets an independent implementer verify INK conformance without re
 
 For the normative cross-implementation floor keyed to the `conformance/v1` corpus, see [`ink-conformance-profile.md`](ink-conformance-profile.md): it freezes which conformance categories a base sender and base receiver MUST satisfy versus the capability-gated profiles. This checklist is the broader, Tulpa-specific implementation matrix; the profile document is authoritative for what the corpus requires of any conforming implementation.
 
+**"Protocol §X" citations** in the Spec column resolve to [`ink-protocol.md`](ink-protocol.md), the in-repo normative core wire spec. Its sections are: §2 discovery and the Agent Card, §3.1 message envelope, §3.3 transport signing, §3.4 payload encryption, §3.5 replay and freshness, §4 rate limiting, §5 handshake messages, §6 message-type namespace. Other Spec-column names (Key Rotation, Auditability, Containment, Auth Chain, Compat Policy) resolve to the matching `ink-*.md` spec in this directory.
+
 ---
 
 ## How to Read This Document
@@ -88,8 +90,8 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| M1 | Envelope includes `protocol`, `type`, `from`, `to`, `timestamp`, `nonce` (handshake messages also include `correlationId`) | MUST | Required | Protocol §3.1 | `signing.json` | `test/security-fixes.test.ts` |
-| M2 | `protocol` field is `"ink/0.1"` | MUST | Required | Protocol §3.1 | `signing.json` | `test/security-fixes.test.ts` |
+| M1 | Intent envelope includes `protocol`, `id`, `correlationId`, `createdAt`, `from`, `to`, `intent`, `payload`, `signature`; `timestamp` and `nonce` are optional in the schema and required at receipt for the replay checks (§3.5). Intent messages carry `intent` and have no `type`; the reverse-domain `type` field is on protocol messages (encrypted, handshake, receipt, audit) in the `network.tulpa.*`/`network.ink.*` namespace (§6) | MUST | Required | Protocol §3.1, §6 | `signing.json` | `test/security-fixes.test.ts` |
+| M2 | `protocol` field is `"ink/0.1"` or `"ink/0.2"`; an unknown value is rejected, never inferred | MUST | Required | Protocol §3.1, §8 | `signing.json` | `test/security-fixes.test.ts` |
 | M3 | `signingKeyId` optional field for key rotation | SHOULD | Required | Key Rotation §13 | `key-rotation.json` | `test/ink-auth-header.test.ts` |
 | M4 | Unknown fields preserved during canonicalization | MUST | Required | Compat Policy §3.1 | `jcs.json` | `test/security-fixes.test.ts` |
 

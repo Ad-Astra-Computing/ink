@@ -10,7 +10,9 @@ INK advertises "Sign in with INK". This profile pins the smallest artifact that
 claim needs: a scoped, signed authorization grant. An issuer signs a bounded
 capability for one subject to present to one named service, valid for a fixed
 window. A service verifies the grant against the issuer key and its own context
-before acting on it.
+before acting on it. The flow that turns this grant into a sign-in, how a relying
+party requests one and how the grant answers, is the profile in
+[`ink-agent-authorization.md`](ink-agent-authorization.md).
 
 This is a primitive, not a permissions framework. There is no delegation chain,
 no capability algebra, and no policy language. A `scope` entry is an opaque token

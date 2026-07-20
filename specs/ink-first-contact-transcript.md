@@ -1,5 +1,7 @@
 # INK first-contact transcript
 
+**Status:** Stable base-profile spec; formal 1.0 freeze pending governance sign-off (see [`../GOVERNANCE.md`](../GOVERNANCE.md), [`../governance/releases/1.0-readiness-evidence.md`](../governance/releases/1.0-readiness-evidence.md)).
+
 This document pins the decision a receiver makes on a complete stranger
 first-contact exchange: a sender discovers an agent, selects a protocol version
 from the card, signs a `connection_request`, and the sender in turn verifies the

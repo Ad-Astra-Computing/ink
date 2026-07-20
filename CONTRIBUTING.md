@@ -6,6 +6,28 @@ INK is an experimental pre-1.0 protocol. Bug reports, spec feedback and test con
 
 Contributions are accepted under the project's dual license: MIT OR Apache-2.0 (see [`LICENSE-MIT`](LICENSE-MIT) and [`LICENSE-APACHE`](LICENSE-APACHE)). By submitting a pull request you agree that your contribution may be distributed under either license.
 
+## Sign your commits (DCO)
+
+Every commit must carry a `Signed-off-by:` line. This is a Developer Certificate of Origin: by signing off you certify that you wrote the change or otherwise have the right to submit it under the project's license. The full text you are certifying is in [`governance/DCO.txt`](governance/DCO.txt).
+
+Add the trailer with the `-s` flag:
+
+```bash
+git commit -s -m "Reject empty key window"
+```
+
+That appends a line matching your commit author identity:
+
+```
+Signed-off-by: Jane Doe <jane@example.com>
+```
+
+Use a real name and a reachable email. The email in the sign-off must match the commit author email. The [`dco`](.github/workflows/dco.yml) workflow checks every non-merge commit in your PR and fails if one is missing a matching sign-off. If you forgot on an earlier commit, sign off the whole range in place:
+
+```bash
+git rebase --exec 'git commit --amend --no-edit -s' <base>
+```
+
 ## Before you open an issue or PR
 
 - **Security issues**: do not open a public issue. Report privately per [`SECURITY.md`](SECURITY.md).
