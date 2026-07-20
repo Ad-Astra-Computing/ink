@@ -100,6 +100,40 @@ func TestVerifySignature(t *testing.T) {
 	}
 }
 
+func TestSignRequestRoundTripsThroughVerify(t *testing.T) {
+	const seedHex = "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+	const signInput = `{"method":"POST","path":"/ink/v1/tulpa:z/intent","recipientDid":"tulpa:z","body":{"protocol":"ink/0.1","intent":"ping"},"timestamp":"2026-06-11T00:00:00.000Z"}`
+	signReq := `{"privateKeyHex":"` + seedHex + `","signInput":` + signInput + `,"keyId":"key-2026"}`
+
+	code, out, errOut := run(t, signReq, "sign-request")
+	if code != 0 {
+		t.Fatalf("sign-request exit = %d (err %q), want 0", code, errOut)
+	}
+	var signed struct {
+		Signature    string          `json:"signature"`
+		AuthHeader   string          `json:"authHeader"`
+		PublicKeyHex string          `json:"publicKeyHex"`
+		SignInput    json.RawMessage `json:"signInput"`
+	}
+	if err := json.Unmarshal([]byte(out), &signed); err != nil {
+		t.Fatalf("sign-request output not JSON: %v (%q)", err, out)
+	}
+	if !strings.HasPrefix(signed.AuthHeader, "INK-Ed25519 ") || !strings.HasSuffix(signed.AuthHeader, " keyId=key-2026") {
+		t.Errorf("unexpected auth header %q", signed.AuthHeader)
+	}
+
+	// Feed the Go-signed output straight back into the Go verifier command.
+	verifyReq := `{"publicKeyHex":"` + signed.PublicKeyHex + `","signInput":` + string(signed.SignInput) + `,"signature":"` + signed.Signature + `"}`
+	if vc, vout, verr := run(t, verifyReq, "verify-signature"); vc != 0 || !strings.Contains(vout, `"ok":true`) {
+		t.Fatalf("verify-signature of a signed request exit = %d out = %q (err %q), want 0 ok:true", vc, vout, verr)
+	}
+
+	// A malformed sign request is bad input (exit 2), not a silent signature.
+	if bc, _, berr := run(t, `{"signInput":{}}`, "sign-request"); bc != 2 || !strings.Contains(berr, "bad_input") {
+		t.Fatalf("bad sign-request exit = %d (err %q), want 2 bad_input", bc, berr)
+	}
+}
+
 func TestVerifyReceipt(t *testing.T) {
 	const witnessHex = "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
 	const receipt = `{"eventId":"evt-1","leafIndex":1,"treeSize":4,"rootHash":"af29b338fe8fb49e6dfccfb826b605d9fc4db9fb6b1b5f65d4b8717af8cde32f","timestamp":"2026-06-15T12:00:00.000Z","inclusionProof":["03f7a68e23dc6ec76d76e4c345fa64fedffb6f26ddd0233f952a02005cf62749","1a01d742673069afdd4ae9b6643939e94935869dcfb605bc71624469c2a54dd0"],"serviceSignature":"_10wmxv3DiY1Xg7dn7aiyASpaNn9goteTliq_gcen4YzcMXypHmTQrFpK7cMUIqYIcpMbeMMgXpmYWecySeWCQ"}`

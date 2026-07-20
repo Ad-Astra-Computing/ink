@@ -14,9 +14,11 @@ shared vectors:
 - **Principal normalization** (`principal.go`, `multibase.go`) — base58btc
   multibase encode/decode and the canonical agent-principal rules, with string
   lengths measured in UTF-16 code units to match the reference contract.
-- **Signature base** (`jcs.go`, `signature.go`) — RFC 8785 JCS canonicalization
-  (object members sorted by UTF-16 code unit, minimal string escaping), the INK
-  signature-base construction, and RFC 8032 strict Ed25519 verification.
+- **Signature base** (`jcs.go`, `signature.go`, `sign.go`) — RFC 8785 JCS
+  canonicalization (object members sorted by UTF-16 code unit, minimal string
+  escaping), the INK signature-base construction, RFC 8032 strict Ed25519
+  verification, and the producing side: signing a transport request and building
+  the `INK-Ed25519` Authorization header (§3.3).
 - **Replay and freshness** (`replay.go`) — the timestamp freshness window and
   nonce de-duplication.
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
@@ -177,6 +179,14 @@ Commands read the artifact JSON from `--file PATH`, or from stdin when `--file`
 is omitted, and print a JSON result object (`--pretty` for indented output):
 
 - `verify-card` validates an Agent Card document.
+- `sign-request` signs an INK transport request (§3.3) and emits the signature
+  and Authorization header. Input fields are `privateKeyHex` (a 32-byte Ed25519
+  seed), `signInput` with `method`, `path`, `recipientDid`, `body`, `timestamp`
+  (the same shape `verify-signature` reads), and an optional `keyId`. The result
+  carries `base` (the signed signature base), `signature`, `authHeader`,
+  `publicKeyHex` (the key derived from the seed), and the echoed `signInput`. The
+  signed body is parsed through the surrogate-safe path before signing, so it and
+  `verify-signature` build byte-identical bases.
 - `verify-signature` verifies a detached Ed25519 signature over a signed
   request (input fields `signInput` with `method`, `path`, `recipientDid`,
   `body`, `timestamp`, plus `signature` and one of `publicKeyHex` or
