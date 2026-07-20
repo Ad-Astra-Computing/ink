@@ -415,6 +415,46 @@ describe("verifyAgentCardSignature — chain-extension fork (honest residual)", 
     expect(result.reason).toBe("continuity_unreachable_key");
     expect(result.auditEvents).toContain("card.continuity_violation");
   });
+
+  it("WARM verifier rejects a committed-set-stuffing forgery via verified-signer continuity", async () => {
+    // Committed-set stuffing: the attacker holds the leaked, now-revoked kA
+    // (active in genuine link1). It forges link2' SIGNED BY kA that STUFFS the
+    // genuine current key kB into its committed set alongside the attacker key
+    // kX — kB signs NOTHING in the forged chain. The head binds to {kX, kB} and
+    // the card is signed by kX. Continuity must NOT bridge through kB's mere
+    // presence in a committed set: kB never exercised signing authority in this
+    // chain, so the only verified signers are the genesis G, kA (leaked, revoked)
+    // and the card signer kX — none of which is in the cached non-revoked set.
+    const agentId = deriveAgentId(G.pub);
+    const link1Body = { keySetVersion: 1, signing: [signingEntry("kA", A, "active")], prevKeyId: "g" };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, G.priv) };
+    const forgedLink2Body = {
+      keySetVersion: 2,
+      signing: [signingEntry("kX", X, "active"), signingEntry("kB", B, "active")],
+      prevKeyId: "kA",
+    };
+    const forgedLink2 = { ...forgedLink2Body, signature: await signRotationLink(forgedLink2Body, A.priv) };
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("kX", X, "active"), signingEntry("kB", B, "active")], encryption: [] };
+    card.currentSigningKeyId = "kX";
+    card.keySetVersion = 2;
+    card.rotationChain = [link1, forgedLink2];
+    const signed = await attachCardSignature(card, "kX", X.priv);
+
+    // Cached genuine v2: kA revoked, kB the active current key.
+    const cachedCard = baseCard(agentId, G.multibase);
+    cachedCard.keys = {
+      signing: [signingEntry("kA", A, "revoked"), signingEntry("kB", B, "active")],
+      encryption: [],
+    };
+    cachedCard.currentSigningKeyId = "kB";
+    cachedCard.keySetVersion = 2;
+
+    const result = await verifyAgentCardSignature(signed, agentId, { profile: "1.0", cachedCard });
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("continuity_unreachable_key");
+    expect(result.auditEvents).toContain("card.continuity_violation");
+  });
 });
 
 describe("verifyAgentCardSignature — did:web anchoring", () => {

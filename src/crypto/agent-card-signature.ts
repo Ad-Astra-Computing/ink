@@ -226,7 +226,7 @@ export async function verifyAgentCardSignature(
 
     // ── §5 step 4: continuity and rollback ──
     if (cachedCard) {
-      const continuity = checkContinuity(card, cachedCard, proof.signerKey);
+      const continuity = checkContinuity(card, cachedCard, proof.signerKey, rooting.verifiedSigners);
       if (continuity.rejected) {
         return {
           authenticated: false,
@@ -345,13 +345,20 @@ interface RootResult {
   rejected: boolean;
   reason: AgentCardVerifyReason;
   auditEvents: string[];
+  // The ordered key bytes that ACTUALLY exercised signing authority while the
+  // chain was verified: link 1's resolved root (the genesis key, or the
+  // DID-document key it verified against) and every later link's verified
+  // signer. This is the ONLY basis §6 continuity may bridge through — a key that
+  // merely appears in some link's committed `signing` set signed nothing and
+  // carries no authority. Empty for a no-chain root (the card signer covers it).
+  verifiedSigners: Uint8Array[];
 }
 
-function rootOk(auditEvents: string[] = []): RootResult {
-  return { rejected: false, reason: "signed_authenticated", auditEvents };
+function rootOk(auditEvents: string[] = [], verifiedSigners: Uint8Array[] = []): RootResult {
+  return { rejected: false, reason: "signed_authenticated", auditEvents, verifiedSigners };
 }
 function rootReject(reason: AgentCardVerifyReason, auditEvents: string[] = []): RootResult {
-  return { rejected: true, reason, auditEvents };
+  return { rejected: true, reason, auditEvents, verifiedSigners: [] };
 }
 
 async function rootSigner(
@@ -428,6 +435,9 @@ async function rootChained(
 
   let prevSet: Array<{ keyId: string; key: Uint8Array; status: string }> | null = null;
   let prevVersion: number | null = null;
+  // The keys that actually verified a link signature, collected genesis-to-head.
+  // §6 continuity bridges through THIS basis, never through committed-set members.
+  const verifiedSigners: Uint8Array[] = [];
 
   for (let i = 0; i < chain.length; i++) {
     const link = chain[i]!;
@@ -459,14 +469,17 @@ async function rootChained(
     if (i === 0) {
       // Link 1's signer must be a root candidate (§4.1 / §4.2). Its signature
       // verifying under a candidate key IS the byte-equality to that root.
-      let rooted = false;
+      let rootedKey: Uint8Array | null = null;
       for (const cand of rootCandidates) {
         if (await verifyOverDomain(CARD_ROTATION_DOMAIN, unsignedLink, link.signature, cand)) {
-          rooted = true;
+          rootedKey = cand;
           break;
         }
       }
-      if (!rooted) return rootReject(link1FailureReason);
+      if (!rootedKey) return rootReject(link1FailureReason);
+      // Link 1's verified signer is the root candidate its signature verified
+      // against (the genesis key, or the DID-document key for a did:web chain).
+      verifiedSigners.push(rootedKey);
     } else {
       // Link-signer rule (§4.1): the signer named by prevKeyId MUST appear in
       // the prior link's committed set with status active.
@@ -478,6 +491,9 @@ async function rootChained(
       }
       const ok = await verifyOverDomain(CARD_ROTATION_DOMAIN, unsignedLink, link.signature, signerEntry.key);
       if (!ok) return rootReject("chain_link_invalid_signature");
+      // This link's verified signer is the prevKeyId key resolved (and now
+      // signature-verified) from the PRIOR link's committed set.
+      verifiedSigners.push(signerEntry.key);
     }
 
     prevSet = committed;
@@ -510,7 +526,7 @@ async function rootChained(
     }
   }
 
-  return rootOk();
+  return rootOk([], verifiedSigners);
 }
 
 // ── §6: continuity and rollback ──
@@ -523,7 +539,8 @@ interface ContinuityResult {
 function checkContinuity(
   card: AgentCard,
   cachedCard: AgentCard,
-  newSignerKey: Uint8Array,
+  cardSignerKey: Uint8Array,
+  verifiedSigners: Uint8Array[],
 ): ContinuityResult {
   // Reject a new card whose keySetVersion is lower than the cached one (§6).
   if (
@@ -551,38 +568,28 @@ function checkContinuity(
     return { rejected: false, reason: "signed_authenticated" };
   }
 
-  // Direct hit: the no-chain (or genesis-rooted) case, where the new card's own
-  // signer is a cached non-revoked key.
-  if (cachedNonRevoked.some((k) => bytesEqual(k, newSignerKey))) {
-    return { rejected: false, reason: "signed_authenticated" };
-  }
-
-  // Multi-hop walk. The new card's `rotationChain` was already fully verified in
-  // rooting: every link is signed by a key active in its predecessor and the
-  // head binds to `keys.signing`, so the chain carries authority forward from any
-  // committed point to the head. Reachability therefore holds iff SOME link's
-  // committed `signing` set contains a cached NON-REVOKED key: that is the point
-  // the chain connects to the cached trust, and authority flows from there to the
-  // head. This is what closes the chain-extension fork for a WARM verifier — the
-  // forged head branches from a key that is REVOKED in the cached set, so the
-  // fork's connecting key is absent from `cachedNonRevoked` and no genuine link
-  // bridges the cached set to the forged head. A one-hop check on the new signer
-  // or the head-link signer alone does NOT imply completeness: an honest agent
-  // that rotated twice between two warm fetches connects only at an interior link.
-  const chain = card.rotationChain;
-  if (chain) {
-    for (const link of chain) {
-      for (const entry of link.signing) {
-        let raw: Uint8Array;
-        try {
-          raw = decodePublicKeyMultibase(entry.publicKeyMultibase);
-        } catch {
-          continue;
-        }
-        if (cachedNonRevoked.some((k) => bytesEqual(k, raw))) {
-          return { rejected: false, reason: "signed_authenticated" };
-        }
-      }
+  // Reachability bridges ONLY through keys that actually EXERCISED SIGNING
+  // AUTHORITY in the already-verified chain, never through committed-set
+  // membership. A link's committed `signing` set is attacker-chosen JSON: only a
+  // link's SIGNATURE is cryptographically constrained (to a key active in the
+  // predecessor link), and listing a public key in a committed set requires no
+  // secret. So the verified-signer basis is exactly the genesis / link-1 root
+  // and each link's resolved-and-verified signer (`rooting.verifiedSigners`),
+  // plus the card's own `cardSignature` signer (which subsumes the no-chain
+  // direct-hit case). Iterating committed members instead lets an attacker with a
+  // leaked, now-revoked historical key STUFF the genuine current key into a forged
+  // link's committed set and bridge continuity through a key that signed nothing.
+  //
+  // This still ACCEPTS an honest agent that rotated twice between two warm
+  // fetches: the cached interior key is the verified signer of the link it signed,
+  // so it is in the basis. It REJECTS the chain-extension fork and the
+  // committed-set-stuffing fork alike: the forged head branches from a key that is
+  // REVOKED in the cached set, and the genuine cached key signed nothing in the
+  // forged chain, so no basis key meets the cached non-revoked set.
+  const basis = [cardSignerKey, ...verifiedSigners];
+  for (const signer of basis) {
+    if (cachedNonRevoked.some((k) => bytesEqual(k, signer))) {
+      return { rejected: false, reason: "signed_authenticated" };
     }
   }
 
