@@ -11,6 +11,7 @@ import * as ed from "@noble/ed25519";
 import {
   deriveAgentId,
   encodePublicKeyMultibase,
+  encodeEncryptionKeyMultibase,
   jcsCanonicalize,
   signAgentCard,
   signRotationLink,
@@ -472,5 +473,241 @@ describe("verifyAgentCardSignature — did:web anchoring", () => {
     });
     expect(result.authenticated).toBe(true);
     expect(result.auditEvents).toContain("card.anchor_unverified");
+  });
+
+  it("did:web card carrying a rotationChain re-rooted on a DID-document key, accept", async () => {
+    const agentId = "did:web:example.com";
+    // Link 1 is re-rooted on the DID-document key D (§4.2). It rotates to kB,
+    // which is also a DID-document verification method so it anchors the card.
+    const link1Body = { keySetVersion: 1, signing: [signingEntry("kA", A, "active")], prevKeyId: "did-root" };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, D.priv) };
+    const link2Body = {
+      keySetVersion: 2,
+      signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")],
+      prevKeyId: "kA",
+    };
+    const link2 = { ...link2Body, signature: await signRotationLink(link2Body, A.priv) };
+    const card = baseCard(agentId, D.multibase);
+    card.keys = { signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")], encryption: [] };
+    card.currentSigningKeyId = "kB";
+    card.keySetVersion = 2;
+    card.rotationChain = [link1, link2];
+    const signed = await attachCardSignature(card, "kB", B.priv);
+
+    const result = await verifyAgentCardSignature(signed, agentId, {
+      profile: "1.0",
+      didVerificationKeys: { status: "resolved", verificationKeys: [D.multibase, B.multibase] },
+    });
+    expect(result.authenticated).toBe(true);
+    expect(result.reason).toBe("signed_authenticated");
+  });
+
+  it("did:web card carrying a rotationChain whose link 1 is not a DID-document key, reject", async () => {
+    const agentId = "did:web:example.com";
+    // The card signer kB is anchored, but link 1 is signed by G, which is NOT a
+    // DID-document verification method, so link-1 re-rooting fails (§4.2).
+    const link1Body = { keySetVersion: 1, signing: [signingEntry("kB", B, "active")], prevKeyId: "did-root" };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, G.priv) };
+    const card = baseCard(agentId, B.multibase);
+    card.keys = { signing: [signingEntry("kB", B, "active")], encryption: [] };
+    card.currentSigningKeyId = "kB";
+    card.keySetVersion = 1;
+    card.rotationChain = [link1];
+    const signed = await attachCardSignature(card, "kB", B.priv);
+
+    const result = await verifyAgentCardSignature(signed, agentId, {
+      profile: "1.0",
+      didVerificationKeys: { status: "resolved", verificationKeys: [B.multibase] },
+    });
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("didweb_signer_not_anchored");
+  });
+});
+
+describe("verifyAgentCardSignature — unrooted principal (forgery fix)", () => {
+  it("did:key card self-signed by a key in its own keys.signing, reject", async () => {
+    // A did:key principal is neither key-derived (tulpa:/ink:) nor did:web, so §4
+    // defines no trust root for it. A valid self-signed cardSignature must NOT be
+    // accepted with no anchor, and must NOT be demoted to unsigned (§3.4).
+    const agentId = `did:key:${G.multibase}`;
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    card.currentSigningKeyId = "g1";
+    card.keySetVersion = 1;
+    const signed = await attachCardSignature(card, "g1", G.priv);
+
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.authenticated).toBe(false);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("unrooted_principal");
+  });
+});
+
+describe("verifyAgentCardSignature — keySetVersion enforcement (§6)", () => {
+  it("signed card lacking keySetVersion, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    card.currentSigningKeyId = "g1";
+    // No keySetVersion: a signed card MUST carry it (the sole monotonic quantity).
+    const signed = await attachCardSignature(card, "g1", G.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("missing_key_set_version");
+  });
+});
+
+describe("verifyAgentCardSignature — multi-hop continuity", () => {
+  // The agent rotated TWICE between two warm fetches: cached v1 holds kB; the new
+  // v3 card carries a genesis→kB→kC→kD chain. The new signer kD is not a cached
+  // key and the head-link signer is kC, also not cached, so a one-hop check would
+  // wrongly reject. Reachability holds because an INTERIOR link commits kB.
+  async function twoHopCard() {
+    const agentId = deriveAgentId(G.pub);
+    const link1Body = { keySetVersion: 1, signing: [signingEntry("kB", B, "active")], prevKeyId: "g" };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, G.priv) };
+    const link2Body = {
+      keySetVersion: 2,
+      signing: [signingEntry("kB", B, "retired"), signingEntry("kC", H, "active")],
+      prevKeyId: "kB",
+    };
+    const link2 = { ...link2Body, signature: await signRotationLink(link2Body, B.priv) };
+    const link3Body = {
+      keySetVersion: 3,
+      signing: [signingEntry("kC", H, "retired"), signingEntry("kD", D, "active")],
+      prevKeyId: "kC",
+    };
+    const link3 = { ...link3Body, signature: await signRotationLink(link3Body, H.priv) };
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("kC", H, "retired"), signingEntry("kD", D, "active")], encryption: [] };
+    card.currentSigningKeyId = "kD";
+    card.keySetVersion = 3;
+    card.rotationChain = [link1, link2, link3];
+    const signed = await attachCardSignature(card, "kD", D.priv);
+    return { agentId, card: signed };
+  }
+
+  it("multi-hop warm rotation reachable through an interior link, accept", async () => {
+    const { agentId, card } = await twoHopCard();
+    const cachedCard = baseCard(agentId, G.multibase);
+    cachedCard.keys = { signing: [signingEntry("kB", B, "active")], encryption: [] };
+    cachedCard.currentSigningKeyId = "kB";
+    cachedCard.keySetVersion = 1;
+
+    const result = await verifyAgentCardSignature(card, agentId, { profile: "1.0", cachedCard });
+    expect(result.authenticated).toBe(true);
+    expect(result.rejected).toBe(false);
+    expect(result.reason).toBe("signed_authenticated");
+  });
+});
+
+describe("verifyAgentCardSignature — additional rooting and proof coverage", () => {
+  it("rotation chain longer than 32 links, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    card.currentSigningKeyId = "g1";
+    card.keySetVersion = 1;
+    card.rotationChain = Array.from({ length: 33 }, (_, i) => ({
+      keySetVersion: i + 1,
+      signing: [signingEntry(`k${i}`, G, "active")],
+      prevKeyId: "g",
+      signature: "A".repeat(86),
+    }));
+    const signed = await attachCardSignature(card, "g1", G.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("chain_too_long");
+  });
+
+  it("card-level duplicate keyId in keys.signing, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("g1", G, "active"), signingEntry("g1", H, "active")], encryption: [] };
+    card.currentSigningKeyId = "g1";
+    card.keySetVersion = 1;
+    const signed = await attachCardSignature(card, "g1", G.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("duplicate_key_id");
+  });
+
+  it("link-level duplicate keyId in a rotation link, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const link1Body = {
+      keySetVersion: 1,
+      signing: [signingEntry("kA", A, "active"), signingEntry("kA", B, "active")],
+      prevKeyId: "g",
+    };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, G.priv) };
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("kA", A, "active")], encryption: [] };
+    card.currentSigningKeyId = "kA";
+    card.keySetVersion = 1;
+    card.rotationChain = [link1];
+    const signed = await attachCardSignature(card, "kA", A.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("chain_duplicate_key_id");
+  });
+
+  it("invalid key encoding (wrong multicodec) on the signer entry, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const card = baseCard(agentId, G.multibase);
+    // An X25519 (0xec01) multibase where an Ed25519 (0xed01) key is required.
+    card.keys = {
+      signing: [{ keyId: "g1", algorithm: "Ed25519", publicKeyMultibase: encodeEncryptionKeyMultibase(G.pub), status: "active", validFrom: VALID_FROM }],
+      encryption: [],
+    } as AgentCard["keys"];
+    card.currentSigningKeyId = "g1";
+    card.keySetVersion = 1;
+    const signed = { ...card, cardSignature: { keyId: "g1", signature: "A".repeat(86) } } as AgentCard;
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("invalid_key_encoding");
+  });
+
+  it("signed key-set card with no currentSigningKeyId, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    card.keySetVersion = 1;
+    // currentSigningKeyId omitted.
+    const signed = await attachCardSignature(card, "g1", G.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("missing_current_signing_key_id");
+  });
+
+  it("legacy single-key card whose keyId is not the literal bootstrap, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    // No keys.signing → legacy single-key card; keyId MUST be `bootstrap` (§3.3).
+    const card = baseCard(agentId, G.multibase);
+    card.keySetVersion = 1;
+    const signed = await attachCardSignature(card, "g1", G.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("legacy_bootstrap_mismatch");
+  });
+
+  it("head-set status disagreement with keys.signing, reject", async () => {
+    const agentId = deriveAgentId(G.pub);
+    // Head link commits kB active; the card carries kB as retired, so the status
+    // disagrees and the exact head correspondence (§4.1 step 3b) fails.
+    const link1Body = {
+      keySetVersion: 1,
+      signing: [signingEntry("kA", A, "active"), signingEntry("kB", B, "active")],
+      prevKeyId: "g",
+    };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, G.priv) };
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("kA", A, "active"), signingEntry("kB", B, "retired")], encryption: [] };
+    card.currentSigningKeyId = "kA";
+    card.keySetVersion = 1;
+    card.rotationChain = [link1];
+    const signed = await attachCardSignature(card, "kA", A.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, PROFILE_A);
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("head_set_mismatch");
   });
 });
