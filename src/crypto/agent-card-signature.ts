@@ -90,12 +90,13 @@ export type AgentCardVerifyReason =
   | "unsigned_after_authenticated"
   | "unsigned_key_derived_1_0"
   | "unsigned_1_0_profile"
-  // proof rejects (§3.3, §3.4)
+  // proof rejects (§3.3, §3.4, §6)
   | "invalid_signature"
   | "signer_not_active"
   | "signer_not_current"
   | "signer_absent_from_signing"
   | "missing_current_signing_key_id"
+  | "missing_key_set_version"
   | "legacy_bootstrap_mismatch"
   | "duplicate_key_id"
   // rooting rejects (§4)
@@ -107,6 +108,7 @@ export type AgentCardVerifyReason =
   | "head_version_mismatch"
   | "head_set_mismatch"
   | "genesis_key_mismatch"
+  | "unrooted_principal"
   | "didweb_signer_not_anchored"
   | "didweb_resolver_unavailable"
   // continuity rejects (§6)
@@ -201,6 +203,15 @@ export async function verifyAgentCardSignature(
       return verifyUnsigned(kind, cachedCard, options.profile);
     }
 
+    // §6: when `cardSignature` is present, `keySetVersion` is a MUST. It is the
+    // SOLE monotonic quantity the continuity rules compare, so a signed card that
+    // omits it would silently skip the version-regression check. The schema keeps
+    // it optional for backward-compat with unsigned cards; the enforcement is
+    // verifier-side. (`updatedAt` stays unenforced in Phase A.)
+    if (typeof card.keySetVersion !== "number") {
+      return reject("missing_key_set_version");
+    }
+
     // ── §5 step 2: proof ──
     const proof = await verifyProof(card, cardSignature);
     if (!proof.ok) {
@@ -215,7 +226,7 @@ export async function verifyAgentCardSignature(
 
     // ── §5 step 4: continuity and rollback ──
     if (cachedCard) {
-      const continuity = checkContinuity(card, cachedCard, proof.signerKey, rooting.headLinkSigner);
+      const continuity = checkContinuity(card, cachedCard, proof.signerKey);
       if (continuity.rejected) {
         return {
           authenticated: false,
@@ -333,17 +344,14 @@ type PrincipalKind = "key-derived" | "did:web" | "other";
 interface RootResult {
   rejected: boolean;
   reason: AgentCardVerifyReason;
-  /** Signer of the head (last) rotation link, or the card signer for a no-chain
-   * card. Used by the continuity reachability check (§6). */
-  headLinkSigner: Uint8Array;
   auditEvents: string[];
 }
 
-function rootOk(headLinkSigner: Uint8Array, auditEvents: string[] = []): RootResult {
-  return { rejected: false, reason: "signed_authenticated", headLinkSigner, auditEvents };
+function rootOk(auditEvents: string[] = []): RootResult {
+  return { rejected: false, reason: "signed_authenticated", auditEvents };
 }
 function rootReject(reason: AgentCardVerifyReason, auditEvents: string[] = []): RootResult {
-  return { rejected: true, reason, headLinkSigner: new Uint8Array(0), auditEvents };
+  return { rejected: true, reason, auditEvents };
 }
 
 async function rootSigner(
@@ -370,7 +378,7 @@ async function rootSigner(
     if (!bytesEqual(signerKey, genesis)) {
       return rootReject("genesis_key_mismatch");
     }
-    return rootOk(signerKey);
+    return rootOk();
   }
 
   if (kind === "did:web") {
@@ -382,7 +390,7 @@ async function rootSigner(
       if (options.profile === "1.0" && !cachedCard) {
         return rootReject("didweb_resolver_unavailable");
       }
-      return rootOk(signerKey, ["card.anchor_unverified"]);
+      return rootOk(["card.anchor_unverified"]);
     }
     const didKeys = resolution.keys;
     // The cardSignature key MUST be anchored in the DID document (§4.2).
@@ -393,14 +401,16 @@ async function rootSigner(
       // Link 1 re-roots on a DID-document key rather than a genesis key (§4.2).
       return await rootChained(card, chain, didKeys, "didweb_signer_not_anchored");
     }
-    return rootOk(signerKey);
+    return rootOk();
   }
 
-  // Other principal kinds: this spec defines rooting only for key-derived and
-  // did:web ids. The proof (§3) still verified against the card's own
-  // keys.signing, so a well-formed self-signed card is accepted, but there is
-  // no external anchor to root it. Flagged for Fable (see the return report).
-  return rootOk(signerKey);
+  // Other principal kinds: §4 defines rooting for EXACTLY two principal kinds,
+  // key-derived (§4.1) and did:web (§4.2). Anything else has no trust root. A
+  // signed card whose proof verified against its own `keys.signing` is otherwise
+  // self-asserting: the key set anchors nothing outside the card. Such a card
+  // MUST be rejected with a dedicated reason, NOT accepted with no anchor and NOT
+  // fallen through to the unsigned path (a signed card is never demoted, §3.4).
+  return rootReject("unrooted_principal");
 }
 
 // Walk a rotation chain genesis-to-head and bind the head to the card (§4.1
@@ -418,7 +428,6 @@ async function rootChained(
 
   let prevSet: Array<{ keyId: string; key: Uint8Array; status: string }> | null = null;
   let prevVersion: number | null = null;
-  let headSignerKey: Uint8Array | null = null;
 
   for (let i = 0; i < chain.length; i++) {
     const link = chain[i]!;
@@ -447,17 +456,17 @@ async function rootChained(
     }
 
     const unsignedLink = { keySetVersion: link.keySetVersion, signing: link.signing, prevKeyId: link.prevKeyId };
-    let signerKey: Uint8Array | null = null;
     if (i === 0) {
       // Link 1's signer must be a root candidate (§4.1 / §4.2). Its signature
       // verifying under a candidate key IS the byte-equality to that root.
+      let rooted = false;
       for (const cand of rootCandidates) {
         if (await verifyOverDomain(CARD_ROTATION_DOMAIN, unsignedLink, link.signature, cand)) {
-          signerKey = cand;
+          rooted = true;
           break;
         }
       }
-      if (!signerKey) return rootReject(link1FailureReason);
+      if (!rooted) return rootReject(link1FailureReason);
     } else {
       // Link-signer rule (§4.1): the signer named by prevKeyId MUST appear in
       // the prior link's committed set with status active.
@@ -469,12 +478,10 @@ async function rootChained(
       }
       const ok = await verifyOverDomain(CARD_ROTATION_DOMAIN, unsignedLink, link.signature, signerEntry.key);
       if (!ok) return rootReject("chain_link_invalid_signature");
-      signerKey = signerEntry.key;
     }
 
     prevSet = committed;
     prevVersion = link.keySetVersion;
-    headSignerKey = signerKey;
   }
 
   // Head-binding (§4.1 step 3). Both must hold.
@@ -503,7 +510,7 @@ async function rootChained(
     }
   }
 
-  return rootOk(headSignerKey as Uint8Array);
+  return rootOk();
 }
 
 // ── §6: continuity and rollback ──
@@ -517,7 +524,6 @@ function checkContinuity(
   card: AgentCard,
   cachedCard: AgentCard,
   newSignerKey: Uint8Array,
-  headLinkSigner: Uint8Array,
 ): ContinuityResult {
   // Reject a new card whose keySetVersion is lower than the cached one (§6).
   if (
@@ -529,11 +535,8 @@ function checkContinuity(
   }
 
   // Reject a new card whose signing key is not reachable from the cached card's
-  // non-revoked signing set, directly or through the rotation-chain links that
-  // connect the cached set to the new head (§6). This is the check that closes
-  // the chain-extension fork for a WARM verifier: a forged head branches from a
-  // key that is revoked in the cached set, so neither the new signer nor the
-  // head-link signer is reachable from the cached non-revoked set.
+  // non-revoked signing set, directly OR through the rotation-chain links that
+  // connect the cached set to the new head (§6).
   const cachedSigning = cachedCard.keys?.signing ?? [];
   const cachedNonRevoked: Uint8Array[] = [];
   for (const entry of cachedSigning) {
@@ -544,15 +547,46 @@ function checkContinuity(
       // A cached entry that cannot decode contributes no reachable key.
     }
   }
-  if (cachedNonRevoked.length > 0) {
-    const directlyReachable = cachedNonRevoked.some((k) => bytesEqual(k, newSignerKey));
-    const reachableViaHead = cachedNonRevoked.some((k) => bytesEqual(k, headLinkSigner));
-    if (!directlyReachable && !reachableViaHead) {
-      return { rejected: true, reason: "continuity_unreachable_key" };
+  if (cachedNonRevoked.length === 0) {
+    return { rejected: false, reason: "signed_authenticated" };
+  }
+
+  // Direct hit: the no-chain (or genesis-rooted) case, where the new card's own
+  // signer is a cached non-revoked key.
+  if (cachedNonRevoked.some((k) => bytesEqual(k, newSignerKey))) {
+    return { rejected: false, reason: "signed_authenticated" };
+  }
+
+  // Multi-hop walk. The new card's `rotationChain` was already fully verified in
+  // rooting: every link is signed by a key active in its predecessor and the
+  // head binds to `keys.signing`, so the chain carries authority forward from any
+  // committed point to the head. Reachability therefore holds iff SOME link's
+  // committed `signing` set contains a cached NON-REVOKED key: that is the point
+  // the chain connects to the cached trust, and authority flows from there to the
+  // head. This is what closes the chain-extension fork for a WARM verifier — the
+  // forged head branches from a key that is REVOKED in the cached set, so the
+  // fork's connecting key is absent from `cachedNonRevoked` and no genuine link
+  // bridges the cached set to the forged head. A one-hop check on the new signer
+  // or the head-link signer alone does NOT imply completeness: an honest agent
+  // that rotated twice between two warm fetches connects only at an interior link.
+  const chain = card.rotationChain;
+  if (chain) {
+    for (const link of chain) {
+      for (const entry of link.signing) {
+        let raw: Uint8Array;
+        try {
+          raw = decodePublicKeyMultibase(entry.publicKeyMultibase);
+        } catch {
+          continue;
+        }
+        if (cachedNonRevoked.some((k) => bytesEqual(k, raw))) {
+          return { rejected: false, reason: "signed_authenticated" };
+        }
+      }
     }
   }
 
-  return { rejected: false, reason: "signed_authenticated" };
+  return { rejected: true, reason: "continuity_unreachable_key" };
 }
 
 // ── Low-level primitives ──
