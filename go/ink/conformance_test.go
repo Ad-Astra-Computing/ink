@@ -28,6 +28,7 @@ type conformanceCase struct {
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
 		KeyStatus          string `json:"keyStatus"`
 		KeyID              string `json:"keyId"`
+		Signature          string `json:"signature"`
 		EpochMs            *int64 `json:"epochMs"`
 		CanonicalString    string `json:"canonicalString"`
 		LeafHash           string `json:"leafHash"`
@@ -93,6 +94,37 @@ func TestJCSStringSafety(t *testing.T) {
 		}
 		if got != c.Expect.Result {
 			t.Errorf("%s: got %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
+func TestAuthorizationHeader(t *testing.T) {
+	vf := loadVectors(t, "authorization-header")
+	for _, c := range vf.Cases {
+		var header string
+		if err := json.Unmarshal(c.Input["header"], &header); err != nil {
+			t.Fatalf("%s: bad header: %v", c.CaseID, err)
+		}
+		parsed := ParseInkAuthHeader(header)
+		got := "accept"
+		if !parsed.OK {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: got %s, want %s (reason=%q)", c.CaseID, got, c.Expect.Result, parsed.Reason)
+			continue
+		}
+		if !parsed.OK {
+			if c.Expect.Reason != "" && parsed.Reason != c.Expect.Reason {
+				t.Errorf("%s: reason = %q, want %q", c.CaseID, parsed.Reason, c.Expect.Reason)
+			}
+			continue
+		}
+		if c.Expect.Signature != "" && parsed.Signature != c.Expect.Signature {
+			t.Errorf("%s: signature = %q, want %q", c.CaseID, parsed.Signature, c.Expect.Signature)
+		}
+		if c.Expect.KeyID != "" && parsed.KeyID != c.Expect.KeyID {
+			t.Errorf("%s: keyId = %q, want %q", c.CaseID, parsed.KeyID, c.Expect.KeyID)
 		}
 	}
 }

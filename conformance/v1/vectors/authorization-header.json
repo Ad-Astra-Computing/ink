@@ -1,0 +1,262 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "authorization-header",
+  "cases": [
+    {
+      "caseId": "valid-no-keyid-accepts",
+      "description": "A well-formed header with no keyId parameter parses; the 86-char base64url signature is extracted.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      },
+      "expect": {
+        "result": "accept",
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      }
+    },
+    {
+      "caseId": "valid-with-keyid-accepts",
+      "description": "A well-formed header with a keyId parameter extracts both the signature and the keyId.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId=rp-2026-07"
+      },
+      "expect": {
+        "result": "accept",
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keyId": "rp-2026-07"
+      }
+    },
+    {
+      "caseId": "keyid-with-allowed-punctuation-accepts",
+      "description": "A keyId using every allowed punctuation class ([_:.-]) is accepted and extracted verbatim.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId=did:web:rp.example.com_key-2026.07"
+      },
+      "expect": {
+        "result": "accept",
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keyId": "did:web:rp.example.com_key-2026.07"
+      }
+    },
+    {
+      "caseId": "keyid-128-chars-accepts",
+      "description": "A keyId of exactly 128 characters is at the upper bound and is accepted.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId=kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+      },
+      "expect": {
+        "result": "accept",
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keyId": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+      }
+    },
+    {
+      "caseId": "empty-header-rejects",
+      "description": "An empty header value carries no authorization and is rejected as missing_authorization, distinct from a malformed scheme.",
+      "input": {
+        "header": ""
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "missing_authorization"
+      }
+    },
+    {
+      "caseId": "wrong-scheme-bearer-rejects",
+      "description": "A Bearer scheme is not INK-Ed25519 and is rejected.",
+      "input": {
+        "header": "Bearer ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "lowercase-scheme-rejects",
+      "description": "The scheme is case-sensitive; lowercase ink-ed25519 does not match and is rejected.",
+      "input": {
+        "header": "ink-ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "signature-85-chars-rejects",
+      "description": "A signature one character short of 86 is the wrong length and is rejected before any verification.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaC"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "signature-87-chars-rejects",
+      "description": "A signature one character over 86 is the wrong length and is rejected; the anchors forbid a longer run.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCAi"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "signature-plus-char-rejects",
+      "description": "A '+' is base64 but not base64url; an 86-char value containing it is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaC+"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "signature-slash-char-rejects",
+      "description": "A '/' is base64 but not base64url; an 86-char value containing it is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaC/"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "signature-padding-equals-rejects",
+      "description": "A '=' padding character is not part of the unpadded base64url alphabet and is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaC="
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "missing-space-rejects",
+      "description": "The scheme and signature run together with no separating space; the grammar requires a single space and rejects.",
+      "input": {
+        "header": "INK-Ed25519ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "double-space-rejects",
+      "description": "Two spaces between the scheme and signature is not the single-space grammar and is rejected.",
+      "input": {
+        "header": "INK-Ed25519  ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "leading-space-rejects",
+      "description": "A leading space before the scheme breaks the start anchor and is rejected; the value is not trimmed first.",
+      "input": {
+        "header": " INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "trailing-space-rejects",
+      "description": "A trailing space after the signature breaks the end anchor and is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA "
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "trailing-data-rejects",
+      "description": "Unparsed trailing data after the signature is rejected; the end anchor admits no extra tokens.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA extra"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "keyid-empty-rejects",
+      "description": "A keyId= parameter with no value is below the 1-char minimum and is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId="
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "keyid-illegal-char-rejects",
+      "description": "A keyId containing a '/' is outside [A-Za-z0-9_:.-] and is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId=bad/id"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "keyid-129-chars-rejects",
+      "description": "A keyId of 129 characters is one over the maximum and is rejected.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId=kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "embedded-lf-rejects",
+      "description": "A line feed embedded after the signature is rejected: the header is single-line and the end anchor does not match before a newline, so a parser cannot be tricked into a multiline value.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA\nkeyId=rp-2026-07"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "embedded-cr-rejects",
+      "description": "A carriage return after the signature is rejected; CR is not admitted by the single-space grammar or the end anchor.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA\rkeyId=rp-2026-07"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    },
+    {
+      "caseId": "second-unknown-param-rejects",
+      "description": "A second, unknown key=value parameter after a valid keyId is rejected; the grammar admits only the one optional keyId.",
+      "input": {
+        "header": "INK-Ed25519 ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA keyId=rp-2026-07 foo=bar"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_auth_scheme"
+      }
+    }
+  ]
+}

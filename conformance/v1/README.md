@@ -49,6 +49,13 @@ additive field then.
 - **signature-base**: a signature over the canonical signature base verifies;
   reordering JSON members of the signed body does not change the canonical bytes;
   altering a signed field or the key fails verification.
+- **authorization-header**: the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]`
+  transport Authorization header (§3.3). A well-formed header extracts the 86-char
+  signature and the optional keyId; a wrong scheme, a wrong signature length or
+  alphabet, stray or missing whitespace, an embedded CR/LF, an empty or over-long
+  or ill-formed keyId, a second parameter, or trailing data are all rejected. An
+  empty header is `missing_authorization`; every other malformed value is
+  `invalid_auth_scheme`.
 - **jcs-number**: a signed-body number must be a safe integer (`|v| <= 2^53-1`,
   not negative zero); an accepted body pins the exact canonical bytes. A safe
   integer, including one written with an exponent (`1e2` to `100`), is accepted;

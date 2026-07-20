@@ -23,18 +23,20 @@ a role MUST satisfy every base obligation for that role.
 ## Base profile (MUST)
 
 Every conforming INK implementation MUST satisfy the base profile categories for
-the roles it performs. The base profile is the fourteen categories tagged
+the roles it performs. The base profile is the fifteen categories tagged
 `profile: "base"` in the manifest:
 
-`agent-card`, `agent-card-fetch`, `agent-card-signature`, `connection-payload`,
-`first-contact-transcript`, `jcs-number`, `jcs-string-safety`, `key-rotation`,
-`principal-normalization`, `private-hostname`, `replay-freshness`,
-`signature-base`, `signed-body-utf8`, `timestamp-validity`.
+`agent-card`, `agent-card-fetch`, `agent-card-signature`,
+`authorization-header`, `connection-payload`, `first-contact-transcript`,
+`jcs-number`, `jcs-string-safety`, `key-rotation`, `principal-normalization`,
+`private-hostname`, `replay-freshness`, `signature-base`, `signed-body-utf8`,
+`timestamp-validity`.
 
 | Category | Base sender MUST | Base receiver MUST |
 |---|---|---|
 | principal-normalization | Canonicalize its own and the peer's agentId before any identity comparison. | Canonicalize the sender's agentId the same way before authorizing it. |
 | signature-base | Build the §3.3 signature base and produce the Ed25519 signature over its UTF-8 bytes. | Reconstruct the same base and verify the signature, failing closed on any mismatch. |
+| authorization-header | Emit the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]` Authorization header in the exact §3.3 grammar. | Parse the header under the same grammar, extracting the signature and optional keyId and rejecting stray whitespace, an embedded CR/LF, or a malformed keyId. |
 | jcs-number | Canonicalize signed bodies under RFC 8785 with the safe-integer number profile. | Canonicalize the body the same way before verifying, rejecting an unsafe number. |
 | jcs-string-safety | Reject a lone UTF-16 surrogate in any body it signs. | Reject a lone UTF-16 surrogate in any signed body it verifies, scanning the raw text before parsing. |
 | signed-body-utf8 | Emit a signed body whose raw bytes are valid UTF-8. | Reject a signed body whose raw bytes are not valid UTF-8, before parsing. |

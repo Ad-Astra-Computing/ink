@@ -59,6 +59,7 @@ const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "conta
 const CATEGORY_META = {
   "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
   "signature-base": { profile: "base", spec: "specs/ink-protocol.md", summary: "Ed25519 verification over the canonical signature base." },
+  "authorization-header": { profile: "base", spec: "specs/ink-protocol.md", summary: "INK-Ed25519 transport Authorization-header grammar (§3.3): signature and optional keyId extraction, whitespace and CR/LF rejection." },
   "jcs-number": { profile: "base", spec: "specs/ink-jcs-number-profile.md", summary: "RFC 8785 JCS canonicalization and the safe-integer number profile." },
   "key-rotation": { profile: "base", spec: "specs/ink-key-rotation-spec.md", summary: "Key-window verification across active, retired, and revoked keys." },
   "replay-freshness": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
@@ -153,6 +154,7 @@ function writeSchema() {
                 canonicalPrincipal: { type: "string" },
                 keyStatus: { type: "string", enum: ["active", "retired", "revoked"] },
                 keyId: { type: "string" },
+                signature: { type: "string", pattern: "^[A-Za-z0-9_-]{86}$" },
                 epochMs: { type: "integer" },
                 canonicalString: { type: "string" },
                 leafHash: { type: "string", pattern: "^[0-9a-f]{64}$" },
@@ -3181,6 +3183,162 @@ vectorFile("private-hostname", [
     der("derived-id-differs-on-window", "A challenge differing only in its window derives a distinct id, so a reused nonce in a fresh window cannot collide.", { ...challengeBase, expiresAt: "2026-07-16T12:06:00.000Z" }, idDiffWindow),
   ]);
 }
+
+// ── authorization-header ───────────────────────────────────────────────────
+// The INK-Ed25519 transport Authorization-header grammar (§3.3):
+//   INK-Ed25519 <base64url(signature)> [keyId=<keyId>]
+// The signature is exactly 86 base64url chars; keyId is optional, 1-128 chars
+// from [A-Za-z0-9_:.-]. A runner parses the raw header value with the pure
+// parser (parseInkAuthHeader / ParseInkAuthHeader) and pins the accept/reject
+// decision, and on accept the extracted signature and any keyId. Both parsers
+// use the identical anchored regex, so every input is decided byte for byte the
+// same. `authSig` reuses the 86-char signature minted above; the variants below
+// perturb exactly one aspect of the grammar so each vector isolates one rule.
+const authSig = signature;
+const authKeyId = "rp-2026-07";
+const authKeyIdPunct = "did:web:rp.example.com_key-2026.07";
+const authKeyId128 = "k".repeat(128);
+const authKeyId129 = "k".repeat(129);
+vectorFile("authorization-header", [
+  {
+    caseId: "valid-no-keyid-accepts",
+    description: "A well-formed header with no keyId parameter parses; the 86-char base64url signature is extracted.",
+    input: { header: `INK-Ed25519 ${authSig}` },
+    expect: { result: "accept", signature: authSig },
+  },
+  {
+    caseId: "valid-with-keyid-accepts",
+    description: "A well-formed header with a keyId parameter extracts both the signature and the keyId.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=${authKeyId}` },
+    expect: { result: "accept", signature: authSig, keyId: authKeyId },
+  },
+  {
+    caseId: "keyid-with-allowed-punctuation-accepts",
+    description: "A keyId using every allowed punctuation class ([_:.-]) is accepted and extracted verbatim.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=${authKeyIdPunct}` },
+    expect: { result: "accept", signature: authSig, keyId: authKeyIdPunct },
+  },
+  {
+    caseId: "keyid-128-chars-accepts",
+    description: "A keyId of exactly 128 characters is at the upper bound and is accepted.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=${authKeyId128}` },
+    expect: { result: "accept", signature: authSig, keyId: authKeyId128 },
+  },
+  {
+    caseId: "empty-header-rejects",
+    description: "An empty header value carries no authorization and is rejected as missing_authorization, distinct from a malformed scheme.",
+    input: { header: "" },
+    expect: { result: "reject", reason: "missing_authorization" },
+  },
+  {
+    caseId: "wrong-scheme-bearer-rejects",
+    description: "A Bearer scheme is not INK-Ed25519 and is rejected.",
+    input: { header: `Bearer ${authSig}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "lowercase-scheme-rejects",
+    description: "The scheme is case-sensitive; lowercase ink-ed25519 does not match and is rejected.",
+    input: { header: `ink-ed25519 ${authSig}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "signature-85-chars-rejects",
+    description: "A signature one character short of 86 is the wrong length and is rejected before any verification.",
+    input: { header: `INK-Ed25519 ${authSig.slice(0, 85)}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "signature-87-chars-rejects",
+    description: "A signature one character over 86 is the wrong length and is rejected; the anchors forbid a longer run.",
+    input: { header: `INK-Ed25519 ${authSig}${authSig.slice(0, 1)}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "signature-plus-char-rejects",
+    description: "A '+' is base64 but not base64url; an 86-char value containing it is rejected.",
+    input: { header: `INK-Ed25519 ${authSig.slice(0, 85)}+` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "signature-slash-char-rejects",
+    description: "A '/' is base64 but not base64url; an 86-char value containing it is rejected.",
+    input: { header: `INK-Ed25519 ${authSig.slice(0, 85)}/` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "signature-padding-equals-rejects",
+    description: "A '=' padding character is not part of the unpadded base64url alphabet and is rejected.",
+    input: { header: `INK-Ed25519 ${authSig.slice(0, 85)}=` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "missing-space-rejects",
+    description: "The scheme and signature run together with no separating space; the grammar requires a single space and rejects.",
+    input: { header: `INK-Ed25519${authSig}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "double-space-rejects",
+    description: "Two spaces between the scheme and signature is not the single-space grammar and is rejected.",
+    input: { header: `INK-Ed25519  ${authSig}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "leading-space-rejects",
+    description: "A leading space before the scheme breaks the start anchor and is rejected; the value is not trimmed first.",
+    input: { header: ` INK-Ed25519 ${authSig}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "trailing-space-rejects",
+    description: "A trailing space after the signature breaks the end anchor and is rejected.",
+    input: { header: `INK-Ed25519 ${authSig} ` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "trailing-data-rejects",
+    description: "Unparsed trailing data after the signature is rejected; the end anchor admits no extra tokens.",
+    input: { header: `INK-Ed25519 ${authSig} extra` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "keyid-empty-rejects",
+    description: "A keyId= parameter with no value is below the 1-char minimum and is rejected.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "keyid-illegal-char-rejects",
+    description: "A keyId containing a '/' is outside [A-Za-z0-9_:.-] and is rejected.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=bad/id` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "keyid-129-chars-rejects",
+    description: "A keyId of 129 characters is one over the maximum and is rejected.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=${authKeyId129}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "embedded-lf-rejects",
+    description: "A line feed embedded after the signature is rejected: the header is single-line and the end anchor does not match before a newline, so a parser cannot be tricked into a multiline value.",
+    input: { header: `INK-Ed25519 ${authSig}\nkeyId=${authKeyId}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "embedded-cr-rejects",
+    description: "A carriage return after the signature is rejected; CR is not admitted by the single-space grammar or the end anchor.",
+    input: { header: `INK-Ed25519 ${authSig}\rkeyId=${authKeyId}` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+  {
+    caseId: "second-unknown-param-rejects",
+    description: "A second, unknown key=value parameter after a valid keyId is rejected; the grammar admits only the one optional keyId.",
+    input: { header: `INK-Ed25519 ${authSig} keyId=${authKeyId} foo=bar` },
+    expect: { result: "reject", reason: "invalid_auth_scheme" },
+  },
+]);
 
 writeManifest();
 writeSchema();

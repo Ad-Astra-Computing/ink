@@ -34,6 +34,7 @@ import {
   verifyAuthorizationChallenge,
   deriveChallengeGrantId,
   verifyAgentCardSignature,
+  parseInkAuthHeader,
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey } from "../src/index.js";
@@ -50,10 +51,10 @@ interface VectorCase {
   caseId: string;
   description: string;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; reason?: string; auditEvent?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
+  expect: { result: "accept" | "reject"; reason?: string; auditEvent?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; reason?: string; auditEvents?: string[]; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
+type Outcome = { result: "accept" | "reject"; reason?: string; auditEvents?: string[]; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -144,6 +145,13 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       // identity assertion adopts exactly this id as its grantId.
       const derivedGrantId = await deriveChallengeGrantId(result.challenge);
       return { result: "accept", derivedGrantId };
+    }
+    case "authorization-header": {
+      const parsed = parseInkAuthHeader(input.header as string);
+      if (!parsed.ok) return { result: "reject", reason: parsed.reason };
+      return parsed.keyId !== undefined
+        ? { result: "accept", signature: parsed.signature, keyId: parsed.keyId }
+        : { result: "accept", signature: parsed.signature };
     }
     case "jcs-number": {
       try {
@@ -408,6 +416,9 @@ describe("ink/1 conformance vectors", () => {
           }
           if (c.expect.keyId !== undefined) {
             expect(actual.keyId, c.caseId).toBe(c.expect.keyId);
+          }
+          if (c.expect.signature !== undefined) {
+            expect(actual.signature, c.caseId).toBe(c.expect.signature);
           }
           if (c.expect.epochMs !== undefined) {
             expect(actual.epochMs, c.caseId).toBe(c.expect.epochMs);

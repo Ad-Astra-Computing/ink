@@ -22,6 +22,7 @@
         "agent-card-signature",
         "audit-query-response",
         "authorization-grant",
+        "authorization-header",
         "connection-payload",
         "discovery-query-envelope",
         "first-contact-transcript",
@@ -99,6 +100,10 @@
               },
               "keyId": {
                 "type": "string"
+              },
+              "signature": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{86}$"
               },
               "epochMs": {
                 "type": "integer"
