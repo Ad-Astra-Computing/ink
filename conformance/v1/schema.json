@@ -3,30 +3,43 @@
   "$id": "https://ink.tulpa.network/conformance/v1/schema.json",
   "title": "INK conformance vector file (ink.conformance.v1)",
   "type": "object",
-  "required": ["format", "category", "cases"],
+  "required": [
+    "format",
+    "category",
+    "cases"
+  ],
   "additionalProperties": false,
   "properties": {
-    "format": { "const": "ink.conformance.v1" },
+    "format": {
+      "const": "ink.conformance.v1"
+    },
     "category": {
       "type": "string",
       "enum": [
-        "principal-normalization",
-        "signature-base",
-        "jcs-number",
-        "key-rotation",
-        "replay-freshness",
-        "timestamp-validity",
-        "jcs-string-safety",
-        "signed-body-utf8",
-        "merkle-inclusion",
-        "merkle-consistency",
-        "merkle-checkpoint",
-        "merkle-leaf",
-        "inclusion-receipt",
+        "agent-authorization",
+        "agent-card",
+        "agent-card-fetch",
         "audit-query-response",
-        "handshake-message",
+        "authorization-grant",
         "connection-payload",
-        "agent-card"
+        "discovery-query-envelope",
+        "first-contact-transcript",
+        "handshake-message",
+        "inclusion-receipt",
+        "jcs-number",
+        "jcs-string-safety",
+        "key-rotation",
+        "merkle-checkpoint",
+        "merkle-consistency",
+        "merkle-inclusion",
+        "merkle-leaf",
+        "payload-encryption",
+        "principal-normalization",
+        "private-hostname",
+        "replay-freshness",
+        "signature-base",
+        "signed-body-utf8",
+        "timestamp-validity"
       ]
     },
     "cases": {
@@ -34,26 +47,69 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["caseId", "description", "input", "expect"],
+        "required": [
+          "caseId",
+          "description",
+          "input",
+          "expect"
+        ],
         "additionalProperties": false,
         "properties": {
-          "caseId": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-          "description": { "type": "string" },
-          "input": { "type": "object" },
+          "caseId": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]+$"
+          },
+          "description": {
+            "type": "string"
+          },
+          "input": {
+            "type": "object"
+          },
           "expect": {
             "type": "object",
-            "required": ["result"],
+            "required": [
+              "result"
+            ],
             "additionalProperties": false,
             "properties": {
-              "result": { "type": "string", "enum": ["accept", "reject"] },
-              "reason": { "type": "string" },
-              "canonicalPrincipal": { "type": "string" },
-              "keyStatus": { "type": "string", "enum": ["active", "retired", "revoked"] },
-              "keyId": { "type": "string" },
-              "epochMs": { "type": "integer" },
-              "canonicalString": { "type": "string" },
-              "leafHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-              "derivedGrantId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{43}$" }
+              "result": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "reject"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "canonicalPrincipal": {
+                "type": "string"
+              },
+              "keyStatus": {
+                "type": "string",
+                "enum": [
+                  "active",
+                  "retired",
+                  "revoked"
+                ]
+              },
+              "keyId": {
+                "type": "string"
+              },
+              "epochMs": {
+                "type": "integer"
+              },
+              "canonicalString": {
+                "type": "string"
+              },
+              "leafHash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "derivedGrantId": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{43}$"
+              }
             }
           }
         }

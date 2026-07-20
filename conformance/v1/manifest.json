@@ -195,7 +195,7 @@
       "id": "signature-base",
       "vector": "vectors/signature-base.json",
       "profile": "base",
-      "spec": "specs/ink-jcs-number-profile.md",
+      "spec": "specs/ink-protocol.md",
       "summary": "Ed25519 verification over the canonical signature base.",
       "caseCount": 8,
       "sha256": "e38e8a6ac7578321dc83343f7271f19afbebcfb3bd12a798fed2c9c15608ec12"

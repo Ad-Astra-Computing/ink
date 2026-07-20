@@ -1,6 +1,6 @@
 # INK Timestamp Grammar Specification v0.1
 
-**Status:** Draft
+**Status:** Stable base-profile spec; formal 1.0 freeze pending governance sign-off (see [`../GOVERNANCE.md`](../GOVERNANCE.md), [`../governance/releases/1.0-readiness-evidence.md`](../governance/releases/1.0-readiness-evidence.md)).
 **Authors:** Ad Astra Computing
 **Last updated:** 2026-06-15
 
@@ -55,6 +55,14 @@ A conforming implementation MUST reject lenient forms that some date parsers
 accept, including but not limited to: a date with no time component; a date-time
 with no zone designator; a space instead of the `T` separator; and a lowercase
 `t` or `z`.
+
+This grammar governs the signed-body timestamp surface only (the message
+`timestamp` and key validity instants). The handshake-message `timestamp` is a
+distinct surface with a distinct, narrower grammar that accepts a literal `Z`
+only and no numeric offset, pinned by
+[`ink-handshake-message.md`](ink-handshake-message.md). Neither grammar covers
+the other, so an implementer MUST NOT assume a value valid on one surface is
+valid on the other. The divergence is intentional and vector-pinned.
 
 An implementation MUST cap the accepted length (64 characters is sufficient for
 any conforming timestamp) before parsing, so an oversized input cannot consume
