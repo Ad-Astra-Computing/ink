@@ -35,8 +35,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card-signature.md",
       "summary": "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules.",
-      "caseCount": 41,
-      "sha256": "e00c148071ba6776e762c36d75c405ca09bf1f5869948ac56160aa564d63c885"
+      "caseCount": 44,
+      "sha256": "ab677432cbd9980ddfd533416c4fe6c72fd76d49f50cc339c902b5a6dfc8e3ec"
     },
     {
       "id": "audit-query-response",

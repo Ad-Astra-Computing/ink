@@ -1893,6 +1893,13 @@ vectorFile("agent-card-fetch", [
   const linkEntry = (keyId, k, status) => ({ keyId, publicKeyMultibase: k.mb, status });
   const attach = async (card, keyId, priv) => ({ ...card, cardSignature: { keyId, signature: await signAgentCard(card, priv) } });
   const mkLink = async (body, priv) => ({ ...body, signature: await signRotationLink(body, priv) });
+  // Corrupt a base64url signature deterministically by flipping the low bit of
+  // its FIRST character, which always changes the decoded bytes (a trailing char
+  // in an unpadded encoding can carry unused low bits whose flip is a no-op).
+  const flipCardSig = (sig) => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    return alphabet[alphabet.indexOf(sig[0]) ^ 1] + sig.slice(1);
+  };
 
   const acsAccept = (caseId, description, input, extra = {}) => ({ caseId, description, input, expect: { result: "accept", ...extra } });
   const acsReject = (caseId, description, input, extra = {}) => ({ caseId, description, input, expect: { result: "reject", ...extra } });
@@ -2018,6 +2025,34 @@ vectorFile("agent-card-fetch", [
     c.rotationChain = [l1];
     return attach(c, "kA", A.priv);
   })();
+  const headSetMissingSigner = await (async () => {
+    // The head link commits only kA; the card carries kA PLUS the signer kB, so
+    // the head set omits the very key that signed cardSignature. The proof passes
+    // (kB is an active, current entry of keys.signing), and head-binding rejects
+    // because the head set does not correspond to keys.signing (§4.1 step 3b: exact
+    // correspondence is what guarantees the signer is present in the head set).
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "active"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "kB", B.priv);
+  })();
+  const headPubkeyDisagreement = await (async () => {
+    // The head link commits kA bound to A's key; the card carries kA with the SAME
+    // keyId and the SAME status but B's public key, a byte-level key disagreement
+    // (not an extra entry, not a status difference). The proof passes because the
+    // card self-signs with B, so this rejects in head-binding on the decoded-key
+    // byte comparison, not in proof verification (§4.1 step 3b, §3.5).
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kA";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "kA", B.priv);
+  })();
 
   // ── chain-shape rejects ──
   const noncontiguous = await (async () => {
@@ -2039,6 +2074,21 @@ vectorFile("agent-card-fetch", [
     c.currentSigningKeyId = "kB";
     c.keySetVersion = 2;
     c.rotationChain = [l1, l2];
+    return attach(c, "kB", B.priv);
+  })();
+  const chainLinkInvalidSig = await (async () => {
+    // A valid two-link chain whose SECOND link signature is corrupted, so it no
+    // longer verifies against its prevKeyId (kA) signer even though kA is active
+    // in link 1's committed set. Rejected at the interior link-signature check,
+    // distinct from the link-1 root-failure path.
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const l2 = await mkLink({ keySetVersion: 2, signing: [linkEntry("kA", A, "retired"), linkEntry("kB", B, "active")], prevKeyId: "kA" }, A.priv);
+    const corrupted = { ...l2, signature: flipCardSig(l2.signature) };
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, corrupted];
     return attach(c, "kB", B.priv);
   })();
   const chainTooLong = await (async () => {
@@ -2263,10 +2313,13 @@ vectorFile("agent-card-fetch", [
     acsReject("head-version-mismatch-reject", "A valid chain whose head link commits a keySetVersion different from the card's top-level keySetVersion.", { card: headVersionMismatch, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_version_mismatch" }),
     acsReject("head-set-correspondence-mismatch-reject", "A valid chain whose head set does not correspond exactly to keys.signing (the card carries an extra entry the head omits).", { card: headSetMismatch, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_set_mismatch" }),
     acsReject("head-set-status-disagreement-reject", "A valid chain whose head commits a key as active while the card carries it as retired, so the exact head correspondence fails on status.", { card: headStatusMismatch, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_set_mismatch" }),
+    acsReject("head-set-missing-signer-reject", "A valid chain whose head set does not contain the cardSignature signer: the card carries the active current signer plus a genesis-committed key, so the head omits the very key that signed the card and exact correspondence fails.", { card: headSetMissingSigner, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_set_mismatch" }),
+    acsReject("head-set-pubkey-disagreement-reject", "A valid chain whose head commits a keyId bound to one public key while the card carries the same keyId and status bound to a different public key, so exact head correspondence fails on the decoded-key byte comparison rather than on an extra entry or a status difference.", { card: headPubkeyDisagreement, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_set_mismatch" }),
 
     // ── chain-shape rejects ──
     acsReject("chain-noncontiguous-version-reject", "A chain whose consecutive link versions have a gap (1 then 3).", { card: noncontiguous, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_noncontiguous_version" }),
     acsReject("chain-link-signer-not-active-reject", "A chain whose later link names a prevKeyId that is retired in the prior link's committed set.", { card: linkSignerNotActive, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_signer_not_active" }),
+    acsReject("chain-link-invalid-signature-reject", "A chain whose later link carries a corrupted signature that no longer verifies against its prevKeyId signer, even though that signer is active in the prior link's committed set.", { card: chainLinkInvalidSig, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_invalid_signature" }),
     acsReject("chain-too-long-reject", "A rotationChain longer than the 32-link cap.", { card: chainTooLong, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_too_long" }),
     acsReject("chain-duplicate-key-id-reject", "A rotation link whose committed signing set repeats a keyId.", { card: linkDuplicateKeyId, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_duplicate_key_id" }),
 
