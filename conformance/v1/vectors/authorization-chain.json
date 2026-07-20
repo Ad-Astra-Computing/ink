@@ -1,0 +1,3165 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "authorization-chain",
+  "cases": [
+    {
+      "caseId": "valid-2link-accepts",
+      "description": "A 2-link chain whose root carries delegation.extend, whose head scope and window narrow the root, signed by each issuer's active key and presented inside every window to the named audience, verifies.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "valid-4link-accepts",
+      "description": "A 4-link chain narrowing scope and window at every hop, each intermediate carrying delegation.extend, verifies at the maximum depth.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-4link-l0-0000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "zzOtwMXLp_nKJW4AjEfV2EUHSbOek-mftMggonoVZlxrSW68_LALk1zqWRDI1mqMYRGYdW7-EJnYTQ0tt98QBA"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-4link-l1-0000000001",
+              "issuedAt": "2026-07-11T12:01:00.000Z",
+              "expiresAt": "2026-07-11T12:20:00.000Z",
+              "parent": "qWhI4csgn172WmvHOCGrdYPQpPRDF7qe7cDct_92jOA",
+              "signature": "aX9AjLJBflq7ZHc8fDlkUYJ_12qh2AeeVZsnoE6Ux0nkpbwBvVasaSVFxmO05AwktYxiVS0j6Vad4ypLFUSCCw"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-2.example",
+              "subject": "did:web:delegate-3.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-4link-l2-0000000001",
+              "issuedAt": "2026-07-11T12:02:00.000Z",
+              "expiresAt": "2026-07-11T12:15:00.000Z",
+              "parent": "YJUKUaQeBrUFcvoMZ7L7qUFJtKRQ0qyK3qIIVTi6Tn0",
+              "signature": "HloQdfFYmaFl3i19IRj9Nk7SAzow_v4MrnU0PT4bi1YafH2yC5KfVG3OV79Ah_qM8APH6Er3XNHlDvzFL8eHBw"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-3.example",
+              "subject": "did:web:delegate-4.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-4link-l3-0000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:12:00.000Z",
+              "parent": "Jn1Zse8AR8IJeXbrdMPwq8fwE4GCqFNDgTF8cuEbsmA",
+              "signature": "35kzljOC9Bk0mazRvxcT3hN5eVfBzYIdKfzbMSPUte2e0bOKvdKVmPNAnF_ursljCL6f3MDTh81ey_F6tviIAA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "48e6a8b99b133a0a80816b6e5e1bcf6525c0850c382383257a321f7aa89e3a75",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "47dfb1da308de36ac049a879934158579fdd7d60ba5b8b29860a38a6a2899e79",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "presenter-matches-final-subject-accepts",
+      "description": "A chain presented by the authenticated principal named as the FINAL link's subject verifies; the presentation binding holds across the whole chain.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "presenter": "did:web:delegate-2.example"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "presenter-empty-accepts",
+      "description": "An empty-string presenter means no presenter was established, so the binding check is skipped just as when it is absent.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "presenter": ""
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "intermediate-seen-not-replay-accepts",
+      "description": "The root (an intermediate link) pair already in the seen set does NOT reject: only the final link is replay-checked, so a shared prefix can seat many distinct chains.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "seenGrants": [
+          {
+            "issuer": "did:web:origin.example",
+            "grantId": "chain-2link-root-000000001"
+          }
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "cross-issuer-same-grant-id-accepts",
+      "description": "A different issuer's seen and revoked entry for the same grantId string as the head does not block the chain; replay and revocation key on the (issuer, grantId) pair.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "seenGrants": [
+          {
+            "issuer": "did:web:other.example",
+            "grantId": "chain-2link-head-000000001"
+          }
+        ],
+        "revokedGrants": [
+          {
+            "issuer": "did:web:other.example",
+            "grantId": "chain-2link-head-000000001"
+          }
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "required-owner-verified-accepts",
+      "description": "A chain whose root requires a verified owner verifies when the service supplies a verified owner status.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-owner-root-00000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "requireVerifiedOwner": true,
+              "signature": "7wDg6n5efR5adTtFUpYYJgYhK0wJ6dBcBwXLSMupEGVSgC8PvTmNdyBkO7_eORbRG_lubzvdkg5sB12llHSJAQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-owner-head-00000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "uWl28EfxjTvhEwY8l727tbXNWTjvWVIBSH0wCqR038I",
+              "signature": "jMzYPzqDm8QEbY00DYAQwCXljCWB_Nztl8k8B4-chdFl8SzUS_gxNp-8BaV1IfEjD2JehKevNYoxiwryxmRcDA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "verifiedOwner": {
+          "status": "verified"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "owner-not-required-ignores-status-accepts",
+      "description": "A chain no link of which requires a verified owner verifies even when the service supplies an unverified owner status.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "verifiedOwner": {
+          "status": "unverified"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "issued-at-lower-bound-accepts",
+      "description": "A chain presented at exactly the latest link's issuedAt is inside every window (inclusive lower bound).",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:05:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "too-few-links-rejects",
+      "description": "A wrapper carrying a single link is not a chain (a one-link grant is verified by the grant verifier) and rejects on the 2-to-4 depth bound.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "too-many-links-rejects",
+      "description": "A wrapper carrying five links exceeds the depth cap and rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-5link-l0-0000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "FAIKyio8C1fDZ1CFA1pBFtWst1UmS7366c2onqonvaWQmzlvEys3Kr9W6-M-h4GUgNduBIaPyjIEswHqWaxYDA"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-5link-l1-0000000001",
+              "issuedAt": "2026-07-11T12:01:00.000Z",
+              "expiresAt": "2026-07-11T12:20:00.000Z",
+              "parent": "Xc1YlXyYN2PLgibp1uSwdjwbEjLCow5-bZvYoXOUlW0",
+              "signature": "FqDNtcI1XTZSwZtdiV5bOLcu8muMnIi1PFwp03YdXF_IlW8gJOt-4QsduDAQLbTOXkvl_Nap4_1K8KS4l4YhBA"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-2.example",
+              "subject": "did:web:delegate-3.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-5link-l2-0000000001",
+              "issuedAt": "2026-07-11T12:02:00.000Z",
+              "expiresAt": "2026-07-11T12:15:00.000Z",
+              "parent": "OpQ0v5KMnVvkmREh6rgLKB-RlqzBQ4xILuGX-0iovRk",
+              "signature": "nDu6yQwfmVaeDoLGjL-AU2jGYSvvjyNZb1Q4gwb6_815ROxhk4o9mitrdeLVlh4BuadeOF53d4g-qn55MWAlCw"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-3.example",
+              "subject": "did:web:delegate-4.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-5link-l3-0000000001",
+              "issuedAt": "2026-07-11T12:03:00.000Z",
+              "expiresAt": "2026-07-11T12:13:00.000Z",
+              "parent": "NHwVi-sG5-qmjCdbLDXXsYgcVK5kPmOclhPUBHSytmY",
+              "signature": "Lceru0ukwrKYw3WK_YgXJWi8XXqnuNwtOYe4o7_nQdqgLDD7LsZ9-xIijjHIr1N3o0rY4yVLMbUTqoDnyytvCw"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-4.example",
+              "subject": "did:web:delegate-5.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-5link-l4-0000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:12:00.000Z",
+              "parent": "YJ4OvsVnZjYrVkIulmtkREFBHMPrW_MTQk0GQ7xtomM",
+              "signature": "x0XMOzI0KAGS4etymG7AzGXFZy09R8W4Rd1TJbWzBlz8jpM7CYMIlceIB-6IKLbjtF25JkSW5E6ICGX1tX9pCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "48e6a8b99b133a0a80816b6e5e1bcf6525c0850c382383257a321f7aa89e3a75",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "47dfb1da308de36ac049a879934158579fdd7d60ba5b8b29860a38a6a2899e79",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "4d928d2bcc8fb34584fab487469389929b1efec4bbb8c06578cfc27814ed4474",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "wrong-wrapper-type-rejects",
+      "description": "A wrapper type other than network.ink.authorization_chain rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_grant",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "unknown-wrapper-field-rejects",
+      "description": "An unknown top-level wrapper field is rejected by the strict schema.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ],
+          "extra": 1
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "unknown-link-field-rejects",
+      "description": "An unknown field on a link is rejected by the strict delegation-link schema.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA",
+              "extra": 1
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "wrong-link-type-rejects",
+      "description": "A link typed network.ink.authorization_grant is not a delegation link and rejects; a grant is never accepted as a chain link.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.authorization_grant",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "bad-parent-shape-rejects",
+      "description": "A parent that is not 43 base64url characters is a malformed digest and rejects on the delegation-link schema.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "tooshort",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "root-with-parent-rejects",
+      "description": "The root link MUST NOT carry a parent; a root that does rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ",
+              "parent": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "non-root-missing-parent-rejects",
+      "description": "A non-root link MUST carry a parent; a non-root link with none rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "intermediate-over-24h-rejects",
+      "description": "An intermediate (non-final) link whose lifetime exceeds 24 hours is over its position ceiling and rejects structurally on the signed bytes.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-12T13:00:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "final-over-10min-rejects",
+      "description": "A final link whose lifetime exceeds 10 minutes is over its position ceiling and rejects structurally on the signed bytes.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:16:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "empty-scope-rejects",
+      "description": "A link with no scope entries is out of profile and rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "duplicate-scope-rejects",
+      "description": "A link with a repeated scope entry rejects; scope entries must be distinct so two implementations count the same set.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "inverted-window-rejects",
+      "description": "A link whose expiresAt is not after issuedAt is malformed and rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:05:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "malformed-now-rejects",
+      "description": "A verifier clock that is not a strict INK timestamp is a verifier input error consulted in pass 2 and fails closed as schema, not signature and not a window verdict.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "not-a-timestamp"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "continuity-seam-mismatch-rejects",
+      "description": "A non-root link whose issuer does not byte-equal its parent's subject breaks continuity and rejects as chain.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:stranger.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain"
+      }
+    },
+    {
+      "caseId": "spliced-parent-hash-rejects",
+      "description": "A non-root link whose parent hash does not equal the digest of the link above it (a spliced parent) rejects as chain.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain"
+      }
+    },
+    {
+      "caseId": "edited-parent-breaks-hash-rejects",
+      "description": "Editing a signed ancestor (here the root grantId) changes its canonical bytes, so the child's parent digest no longer matches and the chain rejects as chain before the signature check.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000099",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain"
+      }
+    },
+    {
+      "caseId": "scope-widening-rejects",
+      "description": "A child scope token absent from its parent is a widening and rejects the chain as attenuation.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "admin:all"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "attenuation"
+      }
+    },
+    {
+      "caseId": "window-not-nested-rejects",
+      "description": "A child whose window starts before its parent's escapes the parent window and rejects as attenuation.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T11:58:00.000Z",
+              "expiresAt": "2026-07-11T12:06:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "attenuation"
+      }
+    },
+    {
+      "caseId": "window-exceeds-parent-expiry-rejects",
+      "description": "A child whose issuedAt still satisfies parent.issuedAt <= child.issuedAt but whose expiresAt runs past the parent's expiresAt violates the child.expiresAt <= parent.expiresAt conjunct of window nesting; the head keeps a strictly positive window and a 10-minute lifetime so pass-1 schema does not fire first, isolating the upper-bound nesting violation as attenuation.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:25:00.000Z",
+              "expiresAt": "2026-07-11T12:35:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "attenuation"
+      }
+    },
+    {
+      "caseId": "tokenless-root-2link-rejects",
+      "description": "A 2-link chain whose root lacks delegation.extend cannot seat the re-delegation below it and rejects as attenuation; a two-link chain requires the token in the root.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-tokenless-root-00001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "rgDIpK3eyXNyQFxwEjuZ3hMafeuYgjPefddx6dKnd6O7tpDN_JAqI-Ieiv304LZUE9ZeP4LtxZdvZzvklyWcDQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-tokenless-head-00001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "cLPO9xo6WW0liWXmlgmrUvpvjORninxJHhXMEK4YrZg",
+              "signature": "JiFuFw-rleODwRI-Cw1bO_erGdDXy7f7UQrmvzL5KTtMiau-z2gboMuR9qsEGay6e73Gmkt2OyCv6KqMmS-oAw"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "attenuation"
+      }
+    },
+    {
+      "caseId": "missing-token-mid-seam-rejects",
+      "description": "A 3-link chain whose middle link drops delegation.extend cannot seat the third link, so the deeper seam rejects as attenuation even though the root seats the middle link.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-midless-l0-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "1J7RGYfhSrW4B6_q2_VLqf5sZigBVAiuie1geHKkI6bk_RUoSYNIk9e_QDA4OyvHIpQQGEdHGaXFytyRaExkCw"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-midless-l1-000000001",
+              "issuedAt": "2026-07-11T12:01:00.000Z",
+              "expiresAt": "2026-07-11T12:20:00.000Z",
+              "parent": "MytkthZxCFPd1zqUZPJ-MATydlAgUNxFeY0rXoGtIRE",
+              "signature": "Vqb7uK5VF1fIaP3syZHN2AAjkl5TCZRbyNGL1CxhgKnkWLWdFaNPJFrdnjQst4THb5hvlcWtnKiHLsQcDMh-Bw"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-2.example",
+              "subject": "did:web:delegate-3.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-midless-l2-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:12:00.000Z",
+              "parent": "5hl8YG10Wgxp0cIeNm6dMjrBwDEZVeTVgm5vidGEgE8",
+              "signature": "HB4SM6k0XEUHPIWcLkYy8Wtk0zfgQVwAWqbld7hj4PcnWU27DWZER7TDTP0PTeo9ISOfkUQu30JCGzE3m6fFCg"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "48e6a8b99b133a0a80816b6e5e1bcf6525c0850c382383257a321f7aa89e3a75",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "attenuation"
+      }
+    },
+    {
+      "caseId": "bad-signature-rejects",
+      "description": "A link whose signature does not verify against its resolved issuer key rejects as signature.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "AFVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "retired-key-rejects",
+      "description": "A retired signing key never verifies a link, the chain's fast revocation lever for a compromised delegate; the chain rejects as signature.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "retired"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "revoked-key-rejects",
+      "description": "A revoked signing key never verifies a link; the chain rejects as signature.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "revoked"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "wrong-key-rejects",
+      "description": "A link resolved to the wrong active issuer key does not verify and rejects as signature.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "48e6a8b99b133a0a80816b6e5e1bcf6525c0850c382383257a321f7aa89e3a75",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "confused-deputy-audience-rejects",
+      "description": "A chain minted for one service presented to a different verifying service rejects on the audience check even though every signature is valid.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:other-service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "audience"
+      }
+    },
+    {
+      "caseId": "mismatched-link-audience-rejects",
+      "description": "A chain whose final link names a different audience than the root rejects on the audience check at the mismatched link; the audience is fixed by the origin and identical on every link.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-splitaud-root-00001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "-EKMbIAkpsbw2vosbYXdZAzLBDZjc_koRMQdsvCbqVCThrau_RtF1hXi1yAh9pxBp-X6UZmwjagovbptTBfBDA"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:evil.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-splitaud-head-00001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "9xVWawj6yp_6F-ul6819hIFi6xzwf7pjD8wRxks-qx4",
+              "signature": "inpAcIWaKaVDg60KrOXmeHQ0kRA6kke44pgfZy7lUX0AdOLv8BRXPXzsqjbaoseoVQLWAECMp7KBG8HRguYrDA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "audience"
+      }
+    },
+    {
+      "caseId": "presenter-not-final-subject-rejects",
+      "description": "A chain presented by a principal other than its final link's subject rejects on the presentation binding.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "presenter": "did:web:thief.example"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "subject"
+      }
+    },
+    {
+      "caseId": "not-yet-valid-rejects",
+      "description": "A chain presented before the final link's issuedAt is not yet valid at that link and rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:04:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "not_yet_valid"
+      }
+    },
+    {
+      "caseId": "expired-rejects",
+      "description": "A chain presented after the final link's expiresAt is expired at that link and rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:11:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "presented-at-expiry-upper-bound-rejects",
+      "description": "A chain presented at exactly the final link's expiresAt is expired: the validity window is [issuedAt, expiresAt), so now == expiresAt is outside it. This pins the exclusive upper bound, the symmetric counterpart to issued-at-lower-bound-accepts pinning the inclusive lower bound.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:10:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "final-pair-seen-replay-rejects",
+      "description": "The final link's (issuer, grantId) pair already in the seen set is a replay and rejects.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "seenGrants": [
+          {
+            "issuer": "did:web:delegate-1.example",
+            "grantId": "chain-2link-head-000000001"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "replay"
+      }
+    },
+    {
+      "caseId": "final-seen-and-revoked-rejects-replay",
+      "description": "The final link's (issuer, grantId) pair is both in the seen set and on the revocation denylist; because pass 3 reads replay before revocation under first-failure-wins, a final link that is both replayed and revoked rejects as replay, not revoked.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "seenGrants": [
+          {
+            "issuer": "did:web:delegate-1.example",
+            "grantId": "chain-2link-head-000000001"
+          }
+        ],
+        "revokedGrants": [
+          {
+            "issuer": "did:web:delegate-1.example",
+            "grantId": "chain-2link-head-000000001"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "replay"
+      }
+    },
+    {
+      "caseId": "head-revoked-rejects",
+      "description": "The final link's (issuer, grantId) pair on the revocation list rejects the chain even inside its window; an unseen head that passes the replay read still rejects on revocation and nothing is recorded.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "revokedGrants": [
+          {
+            "issuer": "did:web:delegate-1.example",
+            "grantId": "chain-2link-head-000000001"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "revoked"
+      }
+    },
+    {
+      "caseId": "intermediate-revoked-rejects",
+      "description": "A revoked intermediate (root) pair rejects the whole chain; every link is revocation-checked even though only the head is replay-checked.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "revokedGrants": [
+          {
+            "issuer": "did:web:origin.example",
+            "grantId": "chain-2link-root-000000001"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "revoked"
+      }
+    },
+    {
+      "caseId": "required-owner-unverified-rejects",
+      "description": "A chain whose root requires a verified owner rejects when the owner status is unverified.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-owner-root-00000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "requireVerifiedOwner": true,
+              "signature": "7wDg6n5efR5adTtFUpYYJgYhK0wJ6dBcBwXLSMupEGVSgC8PvTmNdyBkO7_eORbRG_lubzvdkg5sB12llHSJAQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-owner-head-00000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "uWl28EfxjTvhEwY8l727tbXNWTjvWVIBSH0wCqR038I",
+              "signature": "jMzYPzqDm8QEbY00DYAQwCXljCWB_Nztl8k8B4-chdFl8SzUS_gxNp-8BaV1IfEjD2JehKevNYoxiwryxmRcDA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z",
+        "verifiedOwner": {
+          "status": "unverified"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "owner_unverified"
+      }
+    },
+    {
+      "caseId": "required-owner-absent-rejects",
+      "description": "A chain whose root requires a verified owner rejects when the service supplies no owner status; absent is not verified.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "delegation.extend"
+              ],
+              "grantId": "chain-owner-root-00000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "requireVerifiedOwner": true,
+              "signature": "7wDg6n5efR5adTtFUpYYJgYhK0wJ6dBcBwXLSMupEGVSgC8PvTmNdyBkO7_eORbRG_lubzvdkg5sB12llHSJAQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-owner-head-00000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "uWl28EfxjTvhEwY8l727tbXNWTjvWVIBSH0wCqR038I",
+              "signature": "jMzYPzqDm8QEbY00DYAQwCXljCWB_Nztl8k8B4-chdFl8SzUS_gxNp-8BaV1IfEjD2JehKevNYoxiwryxmRcDA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "owner_unverified"
+      }
+    },
+    {
+      "caseId": "bad-sig-and-wrong-audience-rejects-signature",
+      "description": "A chain with a bad final signature presented to the wrong audience rejects on the signature (pass 2) ahead of the audience check (pass 3).",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "AFVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:other-service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "scope-widen-and-expired-rejects-attenuation",
+      "description": "A chain that both widens scope and is presented after expiry rejects on attenuation (pass 1) ahead of the expiry check (pass 3).",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "admin:all"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:11:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "attenuation"
+      }
+    },
+    {
+      "caseId": "malformed-now-and-bad-sig-rejects-schema",
+      "description": "A malformed clock with a bad signature rejects as schema: the clock is consulted at the start of pass 2, ahead of the per-link signature check.",
+      "input": {
+        "chain": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.authorization_chain",
+          "links": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:origin.example",
+              "subject": "did:web:delegate-1.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read",
+                "messages:send",
+                "delegation.extend"
+              ],
+              "grantId": "chain-2link-root-000000001",
+              "issuedAt": "2026-07-11T12:00:00.000Z",
+              "expiresAt": "2026-07-11T12:30:00.000Z",
+              "signature": "r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.delegation_link",
+              "issuer": "did:web:delegate-1.example",
+              "subject": "did:web:delegate-2.example",
+              "audience": "did:web:service.example",
+              "scope": [
+                "profile:read"
+              ],
+              "grantId": "chain-2link-head-000000001",
+              "issuedAt": "2026-07-11T12:05:00.000Z",
+              "expiresAt": "2026-07-11T12:10:00.000Z",
+              "parent": "typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4",
+              "signature": "AFVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA"
+            }
+          ]
+        },
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "not-a-timestamp"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    }
+  ]
+}

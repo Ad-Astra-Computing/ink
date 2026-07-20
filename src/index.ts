@@ -289,6 +289,34 @@ export type {
   AuthorizationChallengeVerifyContext,
   AuthorizationChallengeVerifyResult,
 } from "./models/authorization-challenge.js";
+// Authorization chain, the post-1.0 delegation extension on top of the grant.
+// A linear chain of 2 to 4 delegation links, each the grant field model plus a
+// parent hash, each hop narrowing the last, so a service can verify a presenter
+// holds authority tracing back through bounded re-delegations to an origin it
+// roots. The verifier fails closed with the same typed reasons the grant uses,
+// plus `chain` and `attenuation`.
+export {
+  AuthorizationChainSchema,
+  buildDelegationLink,
+  buildAuthorizationChain,
+  verifyAuthorizationChain,
+  deriveDelegationParentHash,
+  AuthorizationChainError,
+  INTERMEDIATE_LINK_MAX_LIFETIME_MS,
+  FINAL_LINK_MAX_LIFETIME_MS,
+  MAX_CHAIN_BODY_BYTES,
+  DELEGATION_EXTEND_SCOPE,
+} from "./models/authorization-chain.js";
+export type {
+  AuthorizationChain,
+  DelegationLink,
+  DelegationLinkInput,
+  AuthorizationChainReason,
+  ChainIssuerKey,
+  AuthorizationChainVerifyContext,
+  AuthorizationChainVerifyResult,
+} from "./models/authorization-chain.js";
+
 export type {
   BudgetCheckResult,
   HandshakeBudgetConfig,

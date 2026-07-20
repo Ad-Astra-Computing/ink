@@ -733,6 +733,85 @@ func TestAuthorizationGrant(t *testing.T) {
 	}
 }
 
+func TestAuthorizationChain(t *testing.T) {
+	vf := loadVectors(t, "authorization-chain")
+	for _, c := range vf.Cases {
+		var audience, now string
+		if err := json.Unmarshal(c.Input["audience"], &audience); err != nil {
+			t.Fatalf("%s: bad audience: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		var rawKeys []struct {
+			PublicKeyHex string `json:"publicKeyHex"`
+			Status       string `json:"status"`
+		}
+		if err := json.Unmarshal(c.Input["issuerKeys"], &rawKeys); err != nil {
+			t.Fatalf("%s: bad issuerKeys: %v", c.CaseID, err)
+		}
+		keys := make([]ChainIssuerKey, 0, len(rawKeys))
+		for _, k := range rawKeys {
+			pub, err := hex.DecodeString(k.PublicKeyHex)
+			if err != nil {
+				t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+			}
+			keys = append(keys, ChainIssuerKey{PublicKey: pub, Status: k.Status})
+		}
+		var seen []GrantKey
+		if raw, ok := c.Input["seenGrants"]; ok {
+			var list []struct {
+				Issuer  string `json:"issuer"`
+				GrantID string `json:"grantId"`
+			}
+			_ = json.Unmarshal(raw, &list)
+			for _, k := range list {
+				seen = append(seen, GrantKey{Issuer: k.Issuer, GrantID: k.GrantID})
+			}
+		}
+		revoked := map[GrantKey]bool{}
+		if raw, ok := c.Input["revokedGrants"]; ok {
+			var list []struct {
+				Issuer  string `json:"issuer"`
+				GrantID string `json:"grantId"`
+			}
+			_ = json.Unmarshal(raw, &list)
+			for _, k := range list {
+				revoked[GrantKey{Issuer: k.Issuer, GrantID: k.GrantID}] = true
+			}
+		}
+		ownerStatus := ""
+		if raw, ok := c.Input["verifiedOwner"]; ok {
+			var vo struct {
+				Status string `json:"status"`
+			}
+			_ = json.Unmarshal(raw, &vo)
+			ownerStatus = vo.Status
+		}
+		presenter := ""
+		if raw, ok := c.Input["presenter"]; ok {
+			_ = json.Unmarshal(raw, &presenter)
+		}
+		ctx := AuthorizationChainContext{
+			Audience:            audience,
+			Now:                 now,
+			IssuerKeys:          keys,
+			Presenter:           presenter,
+			SeenGrants:          seen,
+			IsRevoked:           func(key GrantKey) bool { return revoked[key] },
+			VerifiedOwnerStatus: ownerStatus,
+		}
+		ok, reason := VerifyAuthorizationChain(c.Input["chain"], ctx)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v (reason %q)", c.CaseID, ok, want, reason)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
+		}
+	}
+}
+
 func TestAgentAuthorization(t *testing.T) {
 	vf := loadVectors(t, "agent-authorization")
 	for _, c := range vf.Cases {

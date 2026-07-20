@@ -31,6 +31,7 @@ import {
   hexToBytes,
   verifyDiscoveryQueryEnvelope,
   verifyAuthorizationGrant,
+  verifyAuthorizationChain,
   verifyAuthorizationChallenge,
   deriveChallengeGrantId,
   verifyAgentCardSignature,
@@ -38,6 +39,7 @@ import {
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey } from "../src/index.js";
+import type { ChainIssuerKey } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
 
@@ -114,6 +116,44 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         isRevoked: (key) => revoked.some((r) => r.issuer === key.issuer && r.grantId === key.grantId),
         verifiedOwner,
         maxLifetimeMs,
+      });
+      return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
+    }
+    case "authorization-chain": {
+      const {
+        chain,
+        issuerKeys,
+        audience,
+        now,
+        presenter,
+        seenGrants,
+        revokedGrants,
+        verifiedOwner,
+      } = input as {
+        chain: unknown;
+        issuerKeys: Array<{ publicKeyHex: string; status: ChainIssuerKey["status"] }>;
+        audience: string;
+        now: string;
+        presenter?: string;
+        seenGrants?: GrantKey[];
+        revokedGrants?: GrantKey[];
+        verifiedOwner?: VerifiedOwnerStatus;
+      };
+      // Reconstruct the receiver context: each link's resolved issuer key is
+      // aligned root-first to `links`, the revocation list becomes a denylist
+      // predicate keyed by the (issuer, grantId) pair, and the seen set, presenter,
+      // and owner status pass through. A verifier accepts iff the result is ok; on
+      // reject the typed reason is pinned too.
+      const keys: ChainIssuerKey[] = issuerKeys.map((k) => ({ publicKey: hexToBytes(k.publicKeyHex), status: k.status }));
+      const revoked = revokedGrants ?? [];
+      const result = await verifyAuthorizationChain(chain, {
+        audience,
+        now,
+        issuerKeys: keys,
+        presenter,
+        seenGrants,
+        isRevoked: (key) => revoked.some((r) => r.issuer === key.issuer && r.grantId === key.grantId),
+        verifiedOwner,
       });
       return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
     }
