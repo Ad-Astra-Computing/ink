@@ -58,7 +58,13 @@ export { evaluateAgentCardFetch, MAX_AGENT_CARD_BYTES } from "./discovery/agent-
 export type { AgentCardFetchInput, AgentCardFetchResult } from "./discovery/agent-card-fetch.js";
 
 // Middleware: transport-level INK auth
-export { verifyInkAuth, type NonceStore } from "./middleware/ink-auth.js";
+export {
+  verifyInkAuth,
+  parseInkAuthHeader,
+  INK_AUTH_HEADER_RE,
+  type NonceStore,
+  type InkAuthHeaderParse,
+} from "./middleware/ink-auth.js";
 
 // Audit: inclusion-receipt + audit-query-response verification
 export {

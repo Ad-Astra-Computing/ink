@@ -30,6 +30,58 @@ export interface NonceStore {
 }
 
 /**
+ * The INK-Ed25519 Authorization header grammar (spec §3.3):
+ *
+ *   INK-Ed25519 <base64url(signature)> [keyId=<keyId>]
+ *
+ * The signature is exactly 86 base64url characters (a 64-byte Ed25519 signature,
+ * no padding). The optional keyId parameter is 1-128 characters from
+ * `[A-Za-z0-9_:.-]`, which excludes spaces and CR/LF so the value cannot inject a
+ * header boundary. Single literal spaces (never `\s`) match the exact bytes
+ * `buildAuthHeader` emits and keep CR/LF/TAB out of a parsed value. This is the
+ * one regex; `parseInkAuthHeader` and `verifyInkAuth` both use it, and the Go
+ * `ParseInkAuthHeader` mirrors it byte for byte.
+ */
+export const INK_AUTH_HEADER_RE = /^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$/;
+
+/** The outcome of parsing an INK-Ed25519 Authorization header value. */
+export type InkAuthHeaderParse =
+  | { ok: true; signature: string; keyId?: string }
+  | { ok: false; reason: "missing_authorization" | "invalid_auth_scheme" };
+
+/**
+ * Parse an INK-Ed25519 Authorization header value into its signature and
+ * optional keyId, purely from the §3.3 grammar. This is the parse half of
+ * transport auth with no key resolution, timestamp, or signature work: it is the
+ * grammar a second implementation must agree with byte for byte, exercised by the
+ * `authorization-header` conformance category. `verifyInkAuth` calls it, so the
+ * live verifier and the pinned grammar never diverge.
+ *
+ * An empty header is `missing_authorization`; any value that does not match the
+ * grammar (wrong scheme, wrong signature length or alphabet, stray whitespace,
+ * an embedded CR/LF, an empty or over-long or ill-formed keyId, or trailing
+ * data) is `invalid_auth_scheme`. It never throws.
+ */
+export function parseInkAuthHeader(header: string): InkAuthHeaderParse {
+  if (header.length === 0) {
+    return { ok: false, reason: "missing_authorization" };
+  }
+  // A fast-path length cap before the regex: any header this long cannot match
+  // the bounded grammar anyway, so it rejects as invalid_auth_scheme, the same
+  // verdict the regex would give, without scanning the whole value.
+  if (header.length > 512) {
+    return { ok: false, reason: "invalid_auth_scheme" };
+  }
+  const match = header.match(INK_AUTH_HEADER_RE);
+  if (!match) {
+    return { ok: false, reason: "invalid_auth_scheme" };
+  }
+  return match[2] !== undefined
+    ? { ok: true, signature: match[1]!, keyId: match[2] }
+    : { ok: true, signature: match[1]! };
+}
+
+/**
  * Parse and verify an INK-Ed25519 Authorization header.
  *
  * The spec (§3.3) defines request signing as:
@@ -99,20 +151,15 @@ export async function verifyInkAuth(opts: {
     return { valid: false, error: "missing_sender" };
   }
 
-  if (opts.authHeader.length > 512) {
-    return { valid: false, error: "invalid_auth_scheme" };
+  // Parse the header against the shared §3.3 grammar. The Ed25519 signature is
+  // exactly 86 base64url chars, so a clearly-wrong length or alphabet is rejected
+  // up front rather than burning CPU on verifyInkSignature for a malformed value.
+  const parsed = parseInkAuthHeader(opts.authHeader);
+  if (!parsed.ok) {
+    return { valid: false, error: parsed.reason };
   }
-  // Ed25519 signatures are exactly 86 base64url chars — tighten the regex to
-  // {86} so clearly-wrong lengths get rejected up front, rather than burning
-  // CPU on verifyInkSignature for a malformed value. Single literal spaces
-  // match the spec grammar and buildAuthHeader's output; `\s` would let
-  // CR/LF/TAB into a parsed header value.
-  const match = opts.authHeader.match(/^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$/);
-  if (!match) {
-    return { valid: false, error: "invalid_auth_scheme" };
-  }
-  const signature = match[1]!;
-  const hintKeyId = match[2] ?? undefined;
+  const signature = parsed.signature;
+  const hintKeyId = parsed.keyId;
 
   const senderDid = opts.body.from;
   if (senderDid !== undefined && typeof senderDid !== "string") {

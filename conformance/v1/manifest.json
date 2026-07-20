@@ -57,6 +57,15 @@
       "sha256": "77c17a75aa3a458a2fb2ee576f2f936d96c506aaeb2d099901c38dba9f730ecb"
     },
     {
+      "id": "authorization-header",
+      "vector": "vectors/authorization-header.json",
+      "profile": "base",
+      "spec": "specs/ink-protocol.md",
+      "summary": "INK-Ed25519 transport Authorization-header grammar (§3.3): signature and optional keyId extraction, whitespace and CR/LF rejection.",
+      "caseCount": 23,
+      "sha256": "ffa600d2b59c788688feb154e487db15124481a00fb031bc9d08f5bd3b530f1a"
+    },
+    {
       "id": "connection-payload",
       "vector": "vectors/connection-payload.json",
       "profile": "base",
