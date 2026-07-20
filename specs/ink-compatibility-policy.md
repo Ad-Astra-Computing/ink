@@ -118,7 +118,7 @@ The following changes MAY be made under the same major version:
 | New receipt disposition | Receivers MUST accept unknown dispositions gracefully |
 | New audit event type | Processors MUST ignore unknown event types |
 | New handshake challenge type | Receivers respond with appropriate rejection |
-| New key algorithm added to Agent Card | Receivers skip keys with unknown algorithms |
+| Second cryptographic suite added additively (new optional top-level card member, receiver-first negotiation) | 1.0 receivers ignore the unknown top-level member; see §2.4 |
 | New optional capability in Agent Card | Receivers ignore unknown capability blocks |
 
 ### 2.3 Non-Version Changes
@@ -129,6 +129,27 @@ The following changes do not require a version bump:
 - New test vectors for existing behavior
 - Implementation bug fixes that bring behavior into spec compliance
 - New optional Agent Card metadata fields outside `keys` and `capabilities`
+
+### 2.4 Adding a Cryptographic Suite
+
+The `algorithm` field on a `keys.signing` or `keys.encryption` entry is a closed
+enum (`Ed25519`, `X25519`) for the lifetime of major 1. A key entry that carries
+any other `algorithm` value does not skip; it rejects the whole Agent Card. This
+is pinned by the base conformance vector `key-bad-algorithm-rejects` and enforced
+in both reference implementations. So a second cryptographic suite MUST NOT be
+introduced by adding new values to the `keys.*` `algorithm` enum, and second-suite
+key material MUST NOT be placed in `keys.signing` or `keys.encryption` under major
+1. A deployed 1.0 receiver would reject any card advertising such a key.
+
+A second suite is instead introduced additively as a new optional top-level Agent
+Card member (see the reserved `suites` seam in §3.3) plus receiver-first
+negotiation, following the same pattern `ink/0.2` used: the receiver advertises
+what it verifies and the sender emits the second suite only to a receiver that has
+advertised it, while a 1.0 receiver that does not understand the new member ignores
+it and continues on the base suite. Introduced this way, adding a negotiated
+second suite is a minor change. This is consistent with §2.1: changing or
+retiring the existing base suite remains a major change, because deployed
+receivers verify only the base suite.
 
 ---
 
@@ -144,9 +165,22 @@ When a receiver encounters an unknown `type` value in a handshake or protocol me
 
 When a receiver encounters an unknown `intent` in a message envelope, it MUST respond with a rejection and SHOULD send a `received` receipt if receipt support is advertised.
 
-### 3.3 Unknown Key Algorithms
+### 3.3 Key Algorithms
 
-When building a candidate key set for verification, implementations MUST skip keys with unrecognized `algorithm` values. Verification proceeds with the remaining candidates.
+Within major 1 the key-entry `algorithm` set is closed (`Ed25519`, `X25519`).
+An unrecognized `algorithm` value on a `keys.signing` or `keys.encryption` entry
+is not skipped during verification; it is a whole-card reject (pinned by the base
+vector `key-bad-algorithm-rejects`). A candidate key set built from a validated
+card therefore never contains an unrecognized algorithm, so no skip rule is
+reachable.
+
+To reserve room for a future receiver-first suite negotiation without a
+field-name collision, two names are reserved and MUST NOT be reused for any other
+purpose under major 1: the top-level Agent Card member `suites` and the
+auth-scheme-token pattern `INK-<Alg>` (for example a future transport scheme token
+alongside the existing `INK-Ed25519`). A second suite is introduced
+only additively and receiver-first (see §2.4). The one hard invariant: second-suite
+key material MUST NOT be placed in `keys.signing` or `keys.encryption` under major 1.
 
 ### 3.4 Unknown Audit Event Types
 
@@ -304,7 +338,7 @@ Implementations SHOULD be written to tolerate:
 - Unknown optional fields on any message type
 - Unknown intent types (reject gracefully)
 - Unknown audit event types (include in chain, skip processing)
-- Unknown key algorithms (skip during verification)
+- Unknown top-level Agent Card members (ignore; see the reserved `suites` seam in §3.3)
 - Unknown Agent Card fields (ignore)
 
 ### 8.3 Strict Validation

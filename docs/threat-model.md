@@ -365,7 +365,10 @@ captured traffic to that recipient, not just future traffic. Forward secrecy
 would require an ephemeral-ephemeral agreement or a ratchet, which INK does not
 specify. This makes the encryption private key (asset 2) a higher-value target
 than a signing key: a signing-key compromise forges future messages, a static
-encryption-key compromise retroactively decrypts the past.
+encryption-key compromise retroactively decrypts the past. Rotating the static
+X25519 encryption key and destroying the old private key bounds the
+retroactive-decryption window to traffic sent under the retired key but does not
+eliminate it, and it is not forward secrecy and must not be called that.
 
 ### No cryptographic agility or migration path
 
@@ -377,9 +380,14 @@ to run a second suite alongside the first. There is no post-quantum path and no
 hash-break path: if Ed25519 or X25519 falls to a quantum attack, or SHA-256 is
 broken, there is no in-band way to migrate. The SHA-256 transparency log is the
 sharpest case, an append-only log has no story for rehashing history under a new
-function, so a hash break invalidates historical inclusion and consistency
-proofs with no migration. A future major version might specify agility, the
-current wire does not have it.
+function, so a hash break means a parallel per-suite log lineage and historical
+proofs stay bound to SHA-256. The designated path for adding a second suite is
+an additive minor under major 1: a new optional top-level Agent Card member that
+1.0 receivers ignore, plus receiver-first negotiation of the kind `ink/0.2` used,
+so a second suite runs alongside the first without breaking deployed receivers.
+Only retiring the existing suite or restructuring the transparency log needs a
+major version. The current wire does not yet ship a second suite; the additive
+seam is reserved but unpopulated.
 
 ### The Agent Card is unsigned
 
