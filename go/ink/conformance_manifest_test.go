@@ -36,6 +36,7 @@ var goProfileCategories = map[string][]string{
 	"base": {
 		"agent-card",
 		"agent-card-fetch",
+		"agent-card-signature",
 		"connection-payload",
 		"first-contact-transcript",
 		"jcs-number",
@@ -72,6 +73,7 @@ var goVerifiedCategories = []string{
 	"agent-authorization",
 	"agent-card",
 	"agent-card-fetch",
+	"agent-card-signature",
 	"audit-query-response",
 	"authorization-grant",
 	"connection-payload",

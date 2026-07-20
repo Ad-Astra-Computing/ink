@@ -24,6 +24,7 @@ type conformanceCase struct {
 	Expect      struct {
 		Result             string `json:"result"`
 		Reason             string `json:"reason"`
+		AuditEvent         string `json:"auditEvent"`
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
 		KeyStatus          string `json:"keyStatus"`
 		KeyID              string `json:"keyId"`
@@ -290,6 +291,61 @@ func TestAgentCardFetch(t *testing.T) {
 		_ = json.Unmarshal(c.Input["requestedAgentId"], &reqID)
 		if got := EvaluateAgentCardFetch(status, contentType, contentLength, bodyRaw, reqID); got != want {
 			t.Errorf("%s: EvaluateAgentCardFetch = %v, want %v", c.CaseID, got, want)
+		}
+	}
+}
+
+func TestAgentCardSignature(t *testing.T) {
+	vf := loadVectors(t, "agent-card-signature")
+	for _, c := range vf.Cases {
+		var card map[string]interface{}
+		if err := json.Unmarshal(c.Input["card"], &card); err != nil {
+			t.Fatalf("%s: bad card: %v", c.CaseID, err)
+		}
+		var agentID string
+		if err := json.Unmarshal(c.Input["agentId"], &agentID); err != nil {
+			t.Fatalf("%s: bad agentId: %v", c.CaseID, err)
+		}
+		var opts struct {
+			CachedCard          map[string]interface{} `json:"cachedCard"`
+			DidVerificationKeys *struct {
+				Status           string   `json:"status"`
+				VerificationKeys []string `json:"verificationKeys"`
+			} `json:"didVerificationKeys"`
+			Profile string `json:"profile"`
+		}
+		if err := json.Unmarshal(c.Input["options"], &opts); err != nil {
+			t.Fatalf("%s: bad options: %v", c.CaseID, err)
+		}
+		cardOpts := CardVerifyOptions{CachedCard: opts.CachedCard, Profile: opts.Profile}
+		if opts.DidVerificationKeys != nil {
+			cardOpts.DidVerificationKeys = &DidResolution{
+				Status:           opts.DidVerificationKeys.Status,
+				VerificationKeys: opts.DidVerificationKeys.VerificationKeys,
+			}
+		}
+		res := VerifyAgentCardSignature(card, agentID, cardOpts)
+		got := "accept"
+		if res.Rejected {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: result = %s, want %s (reason %s)", c.CaseID, got, c.Expect.Result, res.Reason)
+		}
+		if c.Expect.Reason != "" && string(res.Reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, res.Reason, c.Expect.Reason)
+		}
+		if c.Expect.AuditEvent != "" {
+			found := false
+			for _, e := range res.AuditEvents {
+				if e == c.Expect.AuditEvent {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("%s: auditEvents %v does not contain %q", c.CaseID, res.AuditEvents, c.Expect.AuditEvent)
+			}
 		}
 	}
 }

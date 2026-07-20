@@ -30,6 +30,15 @@
       "sha256": "b7ec6296addb3f27a25c04a652d363d20032a5a8da722d09dc7f65d60cbd5302"
     },
     {
+      "id": "agent-card-signature",
+      "vector": "vectors/agent-card-signature.json",
+      "profile": "base",
+      "spec": "specs/ink-agent-card-signature.md",
+      "summary": "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules.",
+      "caseCount": 41,
+      "sha256": "e00c148071ba6776e762c36d75c405ca09bf1f5869948ac56160aa564d63c885"
+    },
+    {
       "id": "audit-query-response",
       "vector": "vectors/audit-query-response.json",
       "profile": "audit",

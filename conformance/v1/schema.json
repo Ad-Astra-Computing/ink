@@ -19,6 +19,7 @@
         "agent-authorization",
         "agent-card",
         "agent-card-fetch",
+        "agent-card-signature",
         "audit-query-response",
         "authorization-grant",
         "connection-payload",
@@ -80,6 +81,9 @@
                 ]
               },
               "reason": {
+                "type": "string"
+              },
+              "auditEvent": {
                 "type": "string"
               },
               "canonicalPrincipal": {

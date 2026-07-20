@@ -23,10 +23,10 @@ a role MUST satisfy every base obligation for that role.
 ## Base profile (MUST)
 
 Every conforming INK implementation MUST satisfy the base profile categories for
-the roles it performs. The base profile is the thirteen categories tagged
+the roles it performs. The base profile is the fourteen categories tagged
 `profile: "base"` in the manifest:
 
-`agent-card`, `agent-card-fetch`, `connection-payload`,
+`agent-card`, `agent-card-fetch`, `agent-card-signature`, `connection-payload`,
 `first-contact-transcript`, `jcs-number`, `jcs-string-safety`, `key-rotation`,
 `principal-normalization`, `private-hostname`, `replay-freshness`,
 `signature-base`, `signed-body-utf8`, `timestamp-validity`.
@@ -43,6 +43,7 @@ the roles it performs. The base profile is the thirteen categories tagged
 | key-rotation | Sign with an active key and emit its `keyId`. | Verify against the peer's published key set, honoring active, retired, and revoked status, and accept a legacy single-key card. |
 | agent-card | Parse a peer's Agent Card under the schema and the pinned endpoint URL grammar. | Publish a schema-valid Agent Card at the discovery path. |
 | agent-card-fetch | Apply the discovery response contract (status, content type, size cap, identity binding) to every card it fetches. | Apply the same contract to any card it fetches (for owner or peer resolution). |
+| agent-card-signature | Verify a present card signature, rooting it by principal kind, before treating the card as authoritative. | Verify a present card proof, enforce the unsigned-card ratchet, and apply the continuity and rollback rules against any cached card. |
 | private-hostname | Gate every outbound discovery and delivery URL through the SSRF host-safety check, failing closed on a private, special-use, or malformed host. | Gate any outbound fetch it performs through the same check. |
 | connection-payload | Emit a `connection_request` that satisfies the strict schema and validate the `connection_response` it receives. | Validate an inbound `connection_request` against the strict schema, rejecting an unknown key, and emit a schema-valid `connection_response`. |
 | first-contact-transcript | Drive the send side: fetch the card, select a mutually supported protocol version, sign the request, and verify the response. | Enforce the end-to-end accept rules, rejecting any transcript that fails a step or crosses a cross-field binding. |

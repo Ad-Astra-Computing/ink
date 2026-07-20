@@ -13,6 +13,10 @@ import * as ed from "@noble/ed25519";
 import { x25519 } from "@noble/curves/ed25519.js";
 import {
   encodePublicKeyMultibase,
+  encodeEncryptionKeyMultibase,
+  deriveAgentId,
+  signAgentCard,
+  signRotationLink,
   canonicalAgentPrincipal,
   signInkMessage,
   bytesToHex,
@@ -71,6 +75,7 @@ const CATEGORY_META = {
   "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
   "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
   "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
+  "agent-card-signature": { profile: "base", spec: "specs/ink-agent-card-signature.md", summary: "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
@@ -144,6 +149,7 @@ function writeSchema() {
               properties: {
                 result: { type: "string", enum: ["accept", "reject"] },
                 reason: { type: "string" },
+                auditEvent: { type: "string" },
                 canonicalPrincipal: { type: "string" },
                 keyStatus: { type: "string", enum: ["active", "retired", "revoked"] },
                 keyId: { type: "string" },
@@ -1844,6 +1850,450 @@ vectorFile("agent-card-fetch", [
   // identity binding
   fReject("identity-mismatch-rejects", "A valid card whose agentId differs from the requested id rejects.", fetchInput({ requestedAgentId: "did:web:other.example" })),
 ]);
+
+// ── agent-card-signature ─────────────────────────────────────────────────────
+// The self-authenticating Agent Card verifier (ink-agent-card-signature.md §5):
+// the cardSignature proof (§3), rotation-chain rooting by principal kind (§4),
+// head binding (§4.1 step 3), the unsigned-card ratchet (§7) and the continuity
+// and rollback rules (§6). Every vector is a PURE function of its input: any
+// prior receiver state (a cached authenticated card, a resolved DID document, or
+// its unavailability) and the conformance profile ride in `input.options`, so a
+// stateful or profile-keyed case pins one decision per state. Keypairs are fixed
+// 32-byte seeds so signatures are byte-deterministic. Both implementations MUST
+// reach the same accept-or-reject decision, the same reason, and the same audit
+// mark on every case.
+{
+  const acsKp = async (n) => {
+    const priv = new Uint8Array(32).fill(n);
+    const pub = await ed.getPublicKeyAsync(priv);
+    return { priv, pub, mb: encodePublicKeyMultibase(pub) };
+  };
+  // G genesis, A rotated/leaked historical key, B genuine current key, X attacker,
+  // H a second key, D a did:web key, OTHER an unrelated key, C a third chain key.
+  const [G, A, B, X, H, D, OTHER, C] = await Promise.all([1, 2, 3, 4, 5, 6, 7, 8].map(acsKp));
+
+  const ACS_VALID_FROM = "2026-01-01T00:00:00Z";
+  const ACS_UPDATED_AT = "2026-07-20T00:00:00Z";
+
+  const acsBaseCard = (agentId, topMb) => ({
+    protocol: "ink/0.1",
+    agentId,
+    handle: "agent",
+    displayName: "Agent",
+    endpoint: "https://example.com/ink",
+    publicKeyMultibase: topMb,
+    capabilities: { intentsAccepted: [], intentsSent: [] },
+    availability: { timezone: "UTC" },
+  });
+  // A card `keys.signing` entry carries the full schema shape; a rotation-link
+  // committed entry carries only {keyId, publicKeyMultibase, status} (§4.1, no
+  // algorithm). Head correspondence compares the two by keyId, decoded key bytes
+  // and status, so the extra card-entry fields do not affect the match.
+  const signingEntry = (keyId, k, status) => ({ keyId, algorithm: "Ed25519", publicKeyMultibase: k.mb, status, validFrom: ACS_VALID_FROM });
+  const linkEntry = (keyId, k, status) => ({ keyId, publicKeyMultibase: k.mb, status });
+  const attach = async (card, keyId, priv) => ({ ...card, cardSignature: { keyId, signature: await signAgentCard(card, priv) } });
+  const mkLink = async (body, priv) => ({ ...body, signature: await signRotationLink(body, priv) });
+
+  const acsAccept = (caseId, description, input, extra = {}) => ({ caseId, description, input, expect: { result: "accept", ...extra } });
+  const acsReject = (caseId, description, input, extra = {}) => ({ caseId, description, input, expect: { result: "reject", ...extra } });
+
+  const keyDerivedId = deriveAgentId(G.pub);
+  const DIDWEB = "did:web:example.com";
+
+  // ── no-chain signed key-derived accept, and the byte-exact pin ──
+  const noChainCard = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    c.updatedAt = ACS_UPDATED_AT;
+    return c;
+  })();
+  const noChainSigned = await attach(noChainCard, "g1", G.priv);
+
+  // ── rotated signer, valid two-link chain, accept ──
+  const chainCardSigned = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const l2 = await mkLink({ keySetVersion: 2, signing: [linkEntry("kA", A, "retired"), linkEntry("kB", B, "active")], prevKeyId: "kA" }, A.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, l2];
+    return attach(c, "kB", B.priv);
+  })();
+
+  // ── multi-hop honest double-rotation, warm accept through an interior link ──
+  const twoHopSigned = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kB", B, "active")], prevKeyId: "g" }, G.priv);
+    const l2 = await mkLink({ keySetVersion: 2, signing: [linkEntry("kB", B, "retired"), linkEntry("kC", H, "active")], prevKeyId: "kB" }, B.priv);
+    const l3 = await mkLink({ keySetVersion: 3, signing: [linkEntry("kC", H, "retired"), linkEntry("kD", D, "active")], prevKeyId: "kC" }, H.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kC", H, "retired"), signingEntry("kD", D, "active")], encryption: [] };
+    c.currentSigningKeyId = "kD";
+    c.keySetVersion = 3;
+    c.rotationChain = [l1, l2, l3];
+    return attach(c, "kD", D.priv);
+  })();
+  const twoHopCached = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 1;
+    return c;
+  })();
+
+  // ── chain-extension fork: genuine link1 (kA active, signed by G), OMIT the
+  // genuine revoking link2, append a FORGED link2 signed by the leaked kA that
+  // commits an attacker key kX. Cold verifier accepts (documented residual);
+  // warm verifier rejects via continuity from a cached card that revoked kA. ──
+  const forkSigned = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const forged = await mkLink({ keySetVersion: 2, signing: [linkEntry("kX", X, "active")], prevKeyId: "kA" }, A.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kX", X, "active")], encryption: [] };
+    c.currentSigningKeyId = "kX";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, forged];
+    return attach(c, "kX", X.priv);
+  })();
+  const forkCached = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "revoked"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 2;
+    return c;
+  })();
+
+  // ── committed-set stuffing: the forged link STUFFS the genuine current key kB
+  // into its committed set (kB signs nothing). Warm continuity must bridge only
+  // through verified signers, so it must NOT accept via kB's mere membership. ──
+  const stuffSigned = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const forged = await mkLink({ keySetVersion: 2, signing: [linkEntry("kX", X, "active"), linkEntry("kB", B, "active")], prevKeyId: "kA" }, A.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kX", X, "active"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kX";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, forged];
+    return attach(c, "kX", X.priv);
+  })();
+
+  // ── keySetVersion regression versus a cached authenticated card ──
+  const regressionCached = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 5;
+    return c;
+  })();
+
+  // ── head-binding rejects ──
+  const headVersionMismatch = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "active")], encryption: [] };
+    c.currentSigningKeyId = "kA";
+    c.keySetVersion = 2; // head link commits version 1
+    c.rotationChain = [l1];
+    return attach(c, "kA", A.priv);
+  })();
+  const headSetMismatch = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    // Card carries an extra signing entry the head link does not commit.
+    c.keys = { signing: [signingEntry("kA", A, "active"), signingEntry("kC", H, "active")], encryption: [] };
+    c.currentSigningKeyId = "kA";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "kA", A.priv);
+  })();
+  const headStatusMismatch = await (async () => {
+    // Head link commits kB active; the card carries kB as retired.
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active"), linkEntry("kB", B, "active")], prevKeyId: "g" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "active"), signingEntry("kB", B, "retired")], encryption: [] };
+    c.currentSigningKeyId = "kA";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "kA", A.priv);
+  })();
+
+  // ── chain-shape rejects ──
+  const noncontiguous = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const l2 = await mkLink({ keySetVersion: 3, signing: [linkEntry("kB", B, "active")], prevKeyId: "kA" }, A.priv); // gap 1→3
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 3;
+    c.rotationChain = [l1, l2];
+    return attach(c, "kB", B.priv);
+  })();
+  const linkSignerNotActive = await (async () => {
+    // link1 marks kA retired; forged link2 claims kA as its signer.
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "retired")], prevKeyId: "g" }, G.priv);
+    const l2 = await mkLink({ keySetVersion: 2, signing: [linkEntry("kB", B, "active")], prevKeyId: "kA" }, A.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, l2];
+    return attach(c, "kB", B.priv);
+  })();
+  const chainTooLong = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    c.rotationChain = Array.from({ length: 33 }, (_, i) => ({ keySetVersion: i + 1, signing: [linkEntry(`k${i}`, G, "active")], prevKeyId: "g", signature: "A".repeat(86) }));
+    return attach(c, "g1", G.priv);
+  })();
+  const linkDuplicateKeyId = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active"), linkEntry("kA", B, "active")], prevKeyId: "g" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "active")], encryption: [] };
+    c.currentSigningKeyId = "kA";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "kA", A.priv);
+  })();
+
+  // ── proof rejects ──
+  const retiredSigner = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "retired")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return attach(c, "g1", G.priv);
+  })();
+  const revokedSigner = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "revoked")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return attach(c, "g1", G.priv);
+  })();
+  const signerNotCurrent = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active"), signingEntry("g2", H, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return attach(c, "g2", H.priv); // signed by the non-current active key
+  })();
+  const signerAbsent = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return attach(c, "nope", G.priv);
+  })();
+  const missingCurrent = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.keySetVersion = 1; // no currentSigningKeyId
+    return attach(c, "g1", G.priv);
+  })();
+  const missingKsv = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1"; // no keySetVersion
+    return attach(c, "g1", G.priv);
+  })();
+  const genesisMismatch = await (async () => {
+    // No chain, signed by A, which is not byte-equal to the genesis key G.
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "active")], encryption: [] };
+    c.currentSigningKeyId = "kA";
+    c.keySetVersion = 1;
+    return attach(c, "kA", A.priv);
+  })();
+  const cardDuplicateKeyId = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active"), signingEntry("g1", H, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return attach(c, "g1", G.priv);
+  })();
+  const invalidKeyEncoding = (() => {
+    // An X25519 (0xec01) multibase where an Ed25519 (0xed01) key is required.
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [{ keyId: "g1", algorithm: "Ed25519", publicKeyMultibase: encodeEncryptionKeyMultibase(G.pub), status: "active", validFrom: ACS_VALID_FROM }], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return { ...c, cardSignature: { keyId: "g1", signature: "A".repeat(86) } };
+  })();
+
+  // ── proof rejects that tamper with the signed bytes ──
+  const wrongDomain = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return c;
+  })();
+  // Sign over the body domain `tulpa/sign\n` instead of `ink/agent-card\n`.
+  const wrongDomainSig = base64urlEncode(await ed.signAsync(enc.encode("tulpa/sign\n" + jcsCanonicalize(wrongDomain)), G.priv));
+  const wrongDomainSigned = { ...wrongDomain, cardSignature: { keyId: "g1", signature: wrongDomainSig } };
+  const versionsMutated = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    c.supportedProtocolVersions = ["ink/0.1", "ink/0.2"];
+    const signed = await attach(c, "g1", G.priv);
+    signed.supportedProtocolVersions = ["ink/0.1"]; // strip an entry after signing
+    return signed;
+  })();
+  const keySubstituted = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    const signed = await attach(c, "g1", G.priv);
+    signed.keys.signing[0].publicKeyMultibase = H.mb; // swap key material after signing
+    return signed;
+  })();
+
+  // ── legacy single-key card (§3.3) ──
+  const legacyAccept = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb); // no keys.signing set
+    c.keySetVersion = 1;
+    return attach(c, "bootstrap", G.priv);
+  })();
+  const legacyMismatch = await (async () => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keySetVersion = 1;
+    return attach(c, "g1", G.priv); // keyId is not the literal `bootstrap`
+  })();
+
+  // ── unrooted principal (§4): a did:key card is neither key-derived nor did:web ──
+  const unrootedId = `did:key:${G.mb}`;
+  const unrootedSigned = await (async () => {
+    const c = acsBaseCard(unrootedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return attach(c, "g1", G.priv);
+  })();
+
+  // ── did:web anchoring (§4.2) ──
+  const didCard = (() => {
+    const c = acsBaseCard(DIDWEB, D.mb);
+    c.keys = { signing: [signingEntry("d1", D, "active")], encryption: [] };
+    c.currentSigningKeyId = "d1";
+    c.keySetVersion = 1;
+    return c;
+  })();
+  const didSigned = await attach(didCard, "d1", D.priv);
+  const didCached = (() => {
+    const c = acsBaseCard(DIDWEB, D.mb);
+    c.keys = { signing: [signingEntry("d1", D, "active")], encryption: [] };
+    c.currentSigningKeyId = "d1";
+    c.keySetVersion = 1;
+    return c;
+  })();
+  const didChainSigned = await (async () => {
+    // Link 1 re-rooted on the DID-document key D (§4.2); rotates to kB, also a
+    // DID-document verification method so it anchors the card.
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "did-root" }, D.priv);
+    const l2 = await mkLink({ keySetVersion: 2, signing: [linkEntry("kA", A, "retired"), linkEntry("kB", B, "active")], prevKeyId: "kA" }, A.priv);
+    const c = acsBaseCard(DIDWEB, D.mb);
+    c.keys = { signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, l2];
+    return attach(c, "kB", B.priv);
+  })();
+
+  // ── unsigned ratchet (§7) and profile-keyed first-contact (§8) ──
+  const unsignedKeyDerived = acsBaseCard(keyDerivedId, G.mb);
+  const unsignedDidweb = acsBaseCard(DIDWEB, D.mb);
+  const ratchetCached = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    return c;
+  })();
+
+  // ── schema-invalid: keys.signing is not an array. The verifier assumes schema
+  // step 1 ran, so it must fail closed rather than crash or diverge on a
+  // structurally invalid card. Both implementations reject (the reason differs
+  // by internal path, so only the decision is pinned). ──
+  const nonArraySigning = { ...acsBaseCard(keyDerivedId, G.mb), keys: { signing: { bad: true }, encryption: [] }, currentSigningKeyId: "g1", keySetVersion: 1, cardSignature: { keyId: "g1", signature: "A".repeat(86) } };
+
+  // ── base64url non-canonical trailing bit. The final base64url character of an
+  // 86-char Ed25519 signature carries 4 padding bits that MUST be zero for a
+  // canonical encoding. Both implementations decode the low bits leniently, so a
+  // padding-bit flip decodes to the identical 64-byte signature and still
+  // verifies. The vector pins that the two implementations agree (accept), so a
+  // future strict decoder on one side surfaces as a divergence here. ──
+  const nonCanonSigned = (() => {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    const sig = noChainSigned.cardSignature.signature;
+    const last = sig[85];
+    const flipped = alphabet[alphabet.indexOf(last) ^ 1]; // flip one padding bit
+    return { ...noChainSigned, cardSignature: { keyId: "g1", signature: sig.slice(0, 85) + flipped } };
+  })();
+
+  vectorFile("agent-card-signature", [
+    // ── accepts ──
+    acsAccept("signed-key-derived-no-chain-accept", "A key-derived card signed by an active key byte-equal to the embedded genesis key, no rotationChain.", { card: noChainSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("byte-exact-signature-pin-accept", "A fixed card, key and 86-character signature triple pinning the exact ink/agent-card signed bytes so two implementations agree byte for byte.", { card: noChainSigned, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("rotated-signer-valid-chain-accept", "A rotated signer whose genesis-to-head chain verifies, versions strictly increasing and contiguous, head set corresponding exactly to keys.signing.", { card: chainCardSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("multi-hop-double-rotation-warm-accept", "An agent that rotated twice between two warm fetches: reachability holds through an interior link that committed the cached key.", { card: twoHopSigned, agentId: keyDerivedId, options: { profile: "1.0", cachedCard: twoHopCached } }, { reason: "signed_authenticated" }),
+    acsAccept("chain-extension-fork-cold-accept", "A COLD verifier accepts a forged chain-extension signed by a leaked historical key: with no cached state, the leaked key is active in the prior genuine link, so the forged head binds cleanly. This is the documented cold residual.", { card: forkSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("legacy-bootstrap-accept", "A legacy single-key card with no keys.signing, cardSignature.keyId the literal bootstrap, verifying against the top-level publicKeyMultibase (the genesis key).", { card: legacyAccept, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("didweb-anchor-present-accept", "A did:web card whose cardSignature key is a verification method in the resolved DID document.", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", didVerificationKeys: { status: "resolved", verificationKeys: [D.mb] } } }, { reason: "signed_authenticated" }),
+    acsAccept("didweb-with-chain-accept", "A did:web card carrying a rotationChain whose link 1 is re-rooted on a DID-document key and whose head anchors the card.", { card: didChainSigned, agentId: DIDWEB, options: { profile: "1.0", didVerificationKeys: { status: "resolved", verificationKeys: [D.mb, B.mb] } } }, { reason: "signed_authenticated" }),
+    acsAccept("didweb-resolver-unavailable-warm-continuity-accept", "A WARM did:web verifier at 1.0 continues under signature-plus-continuity when the resolver is unavailable, emitting card.anchor_unverified (the MAY branch of §4.2).", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", cachedCard: didCached, didVerificationKeys: { status: "unavailable" } } }, { reason: "signed_authenticated", auditEvent: "card.anchor_unverified" }),
+    acsAccept("unsigned-first-contact-pre-1-0-accept", "An unsigned first-contact card from a non-key-derived principal, pre-1.0 profile, no cached card.", { card: unsignedDidweb, agentId: DIDWEB, options: { profile: "pre-1.0" } }, { reason: "unsigned_first_contact_accepted" }),
+    acsAccept("base64url-noncanonical-trailing-bit-accept", "A signature whose final base64url character carries a non-canonical padding bit decodes to the identical 64-byte signature in both implementations and still verifies.", { card: nonCanonSigned, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signed_authenticated" }),
+
+    // ── continuity and ratchet rejects ──
+    acsReject("chain-extension-fork-warm-reject", "A WARM verifier rejects the forged chain-extension: the forged head branches from a key that is revoked in the cached non-revoked set.", { card: forkSigned, agentId: keyDerivedId, options: { profile: "1.0", cachedCard: forkCached } }, { reason: "continuity_unreachable_key", auditEvent: "card.continuity_violation" }),
+    acsReject("committed-set-stuffing-warm-reject", "A WARM verifier rejects a forged link that STUFFS the genuine current key into its committed set: continuity bridges only through verified signers, not committed-set membership.", { card: stuffSigned, agentId: keyDerivedId, options: { profile: "1.0", cachedCard: forkCached } }, { reason: "continuity_unreachable_key", auditEvent: "card.continuity_violation" }),
+    acsReject("keyset-version-regression-reject", "A fetched card whose keySetVersion is lower than the cached authenticated card's is rejected and the cached card retained.", { card: noChainSigned, agentId: keyDerivedId, options: { profile: "1.0", cachedCard: regressionCached } }, { reason: "continuity_version_regression", auditEvent: "card.continuity_violation" }),
+    acsReject("unsigned-after-authenticated-reject", "Once a valid authenticated card has been observed, a subsequent unsigned card for the same principal is rejected (the signature-stripping ratchet).", { card: unsignedKeyDerived, agentId: keyDerivedId, options: { profile: "pre-1.0", cachedCard: ratchetCached } }, { reason: "unsigned_after_authenticated" }),
+    acsReject("unsigned-first-contact-1-0-reject", "An unsigned first-contact card from a non-key-derived principal is rejected outright under the 1.0 profile.", { card: unsignedDidweb, agentId: DIDWEB, options: { profile: "1.0" } }, { reason: "unsigned_1_0_profile" }),
+    acsReject("unsigned-key-derived-1-0-reject", "An unsigned card for a key-derived principal is rejected under 1.0 even on first contact, since the identifier intrinsically carries signing authority.", { card: unsignedKeyDerived, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "unsigned_key_derived_1_0" }),
+
+    // ── head-binding rejects ──
+    acsReject("head-version-mismatch-reject", "A valid chain whose head link commits a keySetVersion different from the card's top-level keySetVersion.", { card: headVersionMismatch, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_version_mismatch" }),
+    acsReject("head-set-correspondence-mismatch-reject", "A valid chain whose head set does not correspond exactly to keys.signing (the card carries an extra entry the head omits).", { card: headSetMismatch, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_set_mismatch" }),
+    acsReject("head-set-status-disagreement-reject", "A valid chain whose head commits a key as active while the card carries it as retired, so the exact head correspondence fails on status.", { card: headStatusMismatch, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "head_set_mismatch" }),
+
+    // ── chain-shape rejects ──
+    acsReject("chain-noncontiguous-version-reject", "A chain whose consecutive link versions have a gap (1 then 3).", { card: noncontiguous, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_noncontiguous_version" }),
+    acsReject("chain-link-signer-not-active-reject", "A chain whose later link names a prevKeyId that is retired in the prior link's committed set.", { card: linkSignerNotActive, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_signer_not_active" }),
+    acsReject("chain-too-long-reject", "A rotationChain longer than the 32-link cap.", { card: chainTooLong, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_too_long" }),
+    acsReject("chain-duplicate-key-id-reject", "A rotation link whose committed signing set repeats a keyId.", { card: linkDuplicateKeyId, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_duplicate_key_id" }),
+
+    // ── proof rejects ──
+    acsReject("retired-signer-reject", "cardSignature.keyId names an entry with status retired.", { card: retiredSigner, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signer_not_active" }),
+    acsReject("revoked-signer-reject", "cardSignature.keyId names an entry with status revoked.", { card: revokedSigner, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signer_not_active" }),
+    acsReject("signer-not-current-reject", "A signed key-set card whose cardSignature.keyId names an active entry that is not currentSigningKeyId.", { card: signerNotCurrent, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signer_not_current" }),
+    acsReject("signer-absent-from-signing-reject", "cardSignature.keyId names no entry in the card's own signing set.", { card: signerAbsent, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signer_absent_from_signing" }),
+    acsReject("missing-current-signing-key-id-reject", "A signed key-set card with no currentSigningKeyId.", { card: missingCurrent, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "missing_current_signing_key_id" }),
+    acsReject("missing-key-set-version-reject", "A signed card that omits keySetVersion, the sole monotonic quantity the continuity rules compare.", { card: missingKsv, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "missing_key_set_version" }),
+    acsReject("genesis-key-mismatch-reject", "A no-chain key-derived card whose signing key is not byte-equal to the embedded genesis key.", { card: genesisMismatch, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "genesis_key_mismatch" }),
+    acsReject("card-duplicate-key-id-reject", "The card's own keys.signing set repeats a keyId, making signer resolution ambiguous.", { card: cardDuplicateKeyId, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "duplicate_key_id" }),
+    acsReject("invalid-key-encoding-reject", "The signer entry's publicKeyMultibase is an X25519 (0xec01) key where an Ed25519 (0xed01) key is required.", { card: invalidKeyEncoding, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "invalid_key_encoding" }),
+    acsReject("wrong-domain-signature-reject", "A signature computed over tulpa/sign rather than ink/agent-card; never demoted to unsigned.", { card: wrongDomainSigned, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "invalid_signature" }),
+    acsReject("supported-protocol-versions-mutated-reject", "A supportedProtocolVersions entry stripped after signing so the signature no longer verifies.", { card: versionsMutated, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "invalid_signature" }),
+    acsReject("active-key-substituted-reject", "The active signing key's public material swapped after signing.", { card: keySubstituted, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "invalid_signature" }),
+    acsReject("legacy-bootstrap-mismatch-reject", "A legacy single-key card whose cardSignature.keyId is not the literal bootstrap.", { card: legacyMismatch, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "legacy_bootstrap_mismatch" }),
+
+    // ── rooting rejects ──
+    acsReject("unrooted-principal-reject", "A did:key card self-signed by a key in its own keys.signing: §4 defines no trust root for it, so it is rejected rather than accepted with no anchor or demoted to unsigned.", { card: unrootedSigned, agentId: unrootedId, options: { profile: "pre-1.0" } }, { reason: "unrooted_principal" }),
+    acsReject("didweb-anchor-absent-reject", "A did:web card whose cardSignature key is not a verification method in the resolved DID document.", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", didVerificationKeys: { status: "resolved", verificationKeys: [OTHER.mb] } } }, { reason: "didweb_signer_not_anchored" }),
+    acsReject("didweb-resolver-unavailable-cold-1-0-reject", "A COLD did:web verifier at 1.0 fails closed when the DID document is unreachable.", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", didVerificationKeys: { status: "unavailable" } } }, { reason: "didweb_resolver_unavailable" }),
+
+    // ── structural reject ──
+    acsReject("schema-invalid-non-array-signing-reject", "A card whose keys.signing is not an array fails closed rather than crashing or diverging; the verifier assumes schema validation already ran.", { card: nonArraySigning, agentId: keyDerivedId, options: { profile: "pre-1.0" } }),
+  ]);
+}
 
 // ── private-hostname ───────────────────────────────────────────────────────
 // The SSRF host-safety gate: is a hostname public (accept) or
