@@ -125,11 +125,54 @@ func withinBodyBounds(v interface{}) bool {
 				x != math.Trunc(x) ||
 				math.Abs(x) > maxSafeInteger ||
 				(x == 0 && math.Signbit(x)))
-		default:
+		// A body decoded from JSON only ever yields float64, so the native
+		// integer cases below are unreachable for the raw-body verifiers. They
+		// matter for an in-memory Go body (the seal path passes plaintext
+		// straight to withinBodyBounds), where a native int64/uint64 past the
+		// safe-integer range would otherwise slip past the walk and be sealed as
+		// a value a reference decoder would parse with precision loss. The range
+		// check mirrors canonicalizeJSON's native-integer profile.
+		case int:
+			return withinSafeInteger(int64(x))
+		case int8:
+			return withinSafeInteger(int64(x))
+		case int16:
+			return withinSafeInteger(int64(x))
+		case int32:
+			return withinSafeInteger(int64(x))
+		case int64:
+			return withinSafeInteger(x)
+		case uint:
+			return uint64(x) <= maxSafeInteger
+		case uint8:
+			return true
+		case uint16:
+			return true
+		case uint32:
+			return uint64(x) <= maxSafeInteger
+		case uint64:
+			return x <= maxSafeInteger
+		case bool, nil:
 			// Booleans and null carry no character budget of their own, matching the
 			// reference, which counts only string lengths and member names.
 			return true
+		default:
+			// Any other Go type is not a JSON value. A body decoded from JSON never
+			// reaches here (json.Unmarshal yields only object, array, string,
+			// float64, bool, and nil), so the verifier callers are unaffected. An
+			// in-memory body (the seal path) that carries a struct, a json.Number, a
+			// json.RawMessage, or any other non-JSON type is rejected rather than
+			// marshaled into plaintext a reference producer would never emit.
+			return false
 		}
 	}
 	return walk(v, 0)
+}
+
+// withinSafeInteger reports whether a native Go signed integer is within the JCS
+// safe-integer range (|v| <= 2^53-1), mirroring canonicalizeInt64. A value
+// outside the range does not round-trip through an IEEE-754 double, so a peer
+// decoding the JSON would read a different number.
+func withinSafeInteger(v int64) bool {
+	return v >= -maxSafeInteger && v <= maxSafeInteger
 }
