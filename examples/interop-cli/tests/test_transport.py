@@ -10,6 +10,15 @@ from pytest_httpx import HTTPXMock
 
 from ink_interop import crypto, envelope, transport
 
+# The MUST card members every conformant Agent Card carries (mirrors the
+# frozen `agent-card` minimal-card-accepts vector). Fixtures merge this in
+# so they exercise a card that passes the base-shape validation.
+_CARD_MUST_MEMBERS = {
+    "handle": "agent",
+    "capabilities": {"intentsAccepted": ["ask"], "intentsSent": ["ask"]},
+    "availability": {"timezone": "America/Los_Angeles"},
+}
+
 
 def test_fetch_agent_card_decodes_active_keys(httpx_mock: HTTPXMock) -> None:
     kp = crypto.Keypair.generate()
@@ -19,6 +28,8 @@ def test_fetch_agent_card_decodes_active_keys(httpx_mock: HTTPXMock) -> None:
             "protocol": "ink/0.1",
             "agentId": "did:plc:agent-id",
             "endpoint": "https://example.test/ink/v1/agent-id/intent",
+            "publicKeyMultibase": kp.public_key_multibase,
+            **_CARD_MUST_MEMBERS,
             "keys": {
                 "signing": [
                     {
@@ -68,6 +79,8 @@ def test_plain_http_rejected_except_localhost(httpx_mock: HTTPXMock) -> None:
             "protocol": "ink/0.1",
             "agentId": "x",
             "endpoint": "http://localhost:8787/ink/v1/x/intent",
+            "publicKeyMultibase": crypto.Keypair.generate().public_key_multibase,
+            **_CARD_MUST_MEMBERS,
         },
     )
     card = transport.fetch_agent_card("http://localhost:8787/agent.json")
@@ -177,6 +190,107 @@ def test_verify_response_signature_round_trip(httpx_mock: HTTPXMock) -> None:
     )
 
 
+def test_verify_response_signature_rejects_malformed_auth_header() -> None:
+    """Trailing data or a second parameter breaks the anchored grammar."""
+    kp = crypto.Keypair.generate()
+    body = {"protocol": "ink/0.1", "ok": True}
+    canonical = json.dumps(body, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    timestamp = "2026-06-01T00:00:00Z"
+    sig_base = envelope.build_signature_base(
+        method="POST",
+        path="/ink/v1/x/intent",
+        recipient_did="did:plc:x",
+        canonical_body=canonical,
+        timestamp=timestamp,
+    )
+    sig = crypto.sign_detached(kp, sig_base)
+    import base64
+
+    sig_b64 = base64.urlsafe_b64encode(sig).rstrip(b"=").decode("ascii")
+    for bad_header in (
+        f"INK-Ed25519 {sig_b64} extra",
+        f"INK-Ed25519 {sig_b64} keyId=rp foo=bar",
+        f"INK-Ed25519 {sig_b64} ",
+    ):
+        response = httpx.Response(
+            status_code=200,
+            headers={
+                "authorization": bad_header,
+                "x-ink-timestamp": timestamp,
+                "content-type": "application/json",
+            },
+            content=canonical,
+        )
+        assert (
+            transport.verify_response_signature(
+                response,
+                method="POST",
+                path="/ink/v1/x/intent",
+                recipient_did="did:plc:x",
+                candidate_keys=[kp.public_key_bytes],
+            )
+            is False
+        )
+
+
+def test_fetch_agent_card_rejects_non_json_content_type(httpx_mock: HTTPXMock) -> None:
+    httpx_mock.add_response(
+        url="https://example.test/agent.json",
+        status_code=200,
+        headers={"content-type": "text/plain"},
+        content=b'{"protocol":"ink/0.1"}',
+    )
+    with pytest.raises(transport.DiscoveryError, match="Content-Type is not application/json"):
+        transport.fetch_agent_card("https://example.test/agent.json")
+
+
+def test_fetch_agent_card_rejects_missing_must_member(httpx_mock: HTTPXMock) -> None:
+    # A card with protocol/agentId/endpoint but no capabilities is not a
+    # conformant Agent Card and must be rejected.
+    httpx_mock.add_response(
+        url="https://example.test/agent.json",
+        json={
+            "protocol": "ink/0.1",
+            "agentId": "x",
+            "endpoint": "https://example.test/ink/v1/x/intent",
+            "handle": "x",
+            "publicKeyMultibase": crypto.Keypair.generate().public_key_multibase,
+            "availability": {"timezone": "UTC"},
+        },
+    )
+    with pytest.raises(transport.DiscoveryError, match="capabilities missing"):
+        transport.fetch_agent_card("https://example.test/agent.json")
+
+
+def test_fetch_agent_card_rejects_keys_without_top_level_public_key(
+    httpx_mock: HTTPXMock,
+) -> None:
+    # The frozen schema requires a top-level `publicKeyMultibase`; a `keys`
+    # block is optional and is NOT a substitute. A card carrying only `keys`
+    # must be rejected.
+    kp = crypto.Keypair.generate()
+    httpx_mock.add_response(
+        url="https://example.test/agent.json",
+        json={
+            "protocol": "ink/0.1",
+            "agentId": "x",
+            "endpoint": "https://example.test/ink/v1/x/intent",
+            **_CARD_MUST_MEMBERS,
+            "keys": {
+                "signing": [
+                    {
+                        "keyId": "sig-active",
+                        "publicKeyMultibase": kp.public_key_multibase,
+                        "status": "active",
+                    }
+                ]
+            },
+        },
+    )
+    with pytest.raises(transport.DiscoveryError, match="publicKeyMultibase missing or malformed"):
+        transport.fetch_agent_card("https://example.test/agent.json")
+
+
 def test_verify_response_signature_without_auth_returns_false(httpx_mock: HTTPXMock) -> None:
     response = httpx.Response(status_code=200, content=b"{}")
     assert (
@@ -215,6 +329,8 @@ def test_url_validation_allows_private_ip_with_env_optin(
             "protocol": "ink/0.1",
             "agentId": "x",
             "endpoint": "https://10.0.0.5/ink/v1/x/intent",
+            "publicKeyMultibase": crypto.Keypair.generate().public_key_multibase,
+            **_CARD_MUST_MEMBERS,
         },
     )
     card = transport.fetch_agent_card("https://10.0.0.5/agent.json")
@@ -245,7 +361,10 @@ def test_fetch_agent_card_streams_with_oversized_response_aborted(
     httpx_mock.add_response(
         url="https://example.test/agent.json",
         status_code=200,
-        headers={"content-length": "10"},  # lying about size
+        headers={
+            "content-length": "10",  # lying about size
+            "content-type": "application/json",
+        },
         content=huge,
     )
     with pytest.raises(transport.DiscoveryError, match="exceeded"):

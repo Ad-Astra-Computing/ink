@@ -13,6 +13,7 @@ import base64
 import ipaddress
 import json
 import os
+import re
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -32,6 +33,16 @@ __all__ = [
     "send_signed_request",
     "verify_response_signature",
 ]
+
+# The Authorization header grammar is a single anchored production, mirroring
+# the reference impl's `INK_AUTH_HEADER_RE`: the scheme, exactly one space, an
+# 86-char base64url signature and at most one optional ` keyId=` parameter.
+# `re.fullmatch` against this admits no trailing data and no second parameter,
+# matching the frozen `authorization-header` corpus (trailing-data-rejects,
+# second-unknown-param-rejects).
+_AUTH_HEADER_RE = re.compile(
+    r"^INK-Ed25519 ([A-Za-z0-9_-]{86})(?: keyId=([A-Za-z0-9_:.-]{1,128}))?$"
+)
 
 DEFAULT_TIMEOUT_SECONDS = 10.0
 # The witness reference impl caps card bodies at 64 KB; we mirror that.
@@ -145,8 +156,69 @@ def _read_capped_body(response: httpx.Response, max_bytes: int) -> bytes:
     return bytes(buf)
 
 
+def _require_json_content_type(raw: str | None) -> None:
+    """Reject a discovery response whose Content-Type is not application/json.
+
+    The frozen ``agent-card-fetch`` corpus pins this: a missing, empty,
+    comma-combined or non-JSON media type rejects, and a ``charset``
+    parameter is tolerated only when it is utf-8 (case-insensitively,
+    quotes and surrounding whitespace allowed). This is a small parser
+    for the media type and an optional charset, not a general RFC 7231
+    Content-Type parser.
+    """
+    if raw is None:
+        raise DiscoveryError("agent card response is missing a Content-Type")
+    value = raw.strip()
+    if not value:
+        raise DiscoveryError("agent card response has an empty Content-Type")
+    if "," in value:
+        # A combined or duplicated Content-Type is ambiguous; refuse it.
+        raise DiscoveryError(f"agent card has an ambiguous Content-Type: {raw!r}")
+    parts = value.split(";")
+    media_type = parts[0].strip().lower()
+    if media_type != "application/json":
+        raise DiscoveryError(f"agent card Content-Type is not application/json: {raw!r}")
+    for param in parts[1:]:
+        name, _, param_value = param.partition("=")
+        if name.strip().lower() != "charset":
+            continue
+        charset = param_value.strip().strip('"').lower()
+        if charset != "utf-8":
+            raise DiscoveryError(f"agent card charset is not utf-8: {raw!r}")
+
+
+def _require_card_members(card: dict[str, Any]) -> None:
+    """Assert the MUST members the frozen ``agent-card`` category checks.
+
+    This validates the base card shape an implementer must emit (handle,
+    capabilities with both intent lists, availability and a signing key)
+    but is deliberately NOT a full ``AgentCardSchema`` conformance
+    validator; it checks presence and coarse type, not every field bound.
+    """
+    handle = card.get("handle")
+    if not isinstance(handle, str) or not handle:
+        raise DiscoveryError("card.handle missing")
+    capabilities = card.get("capabilities")
+    if not isinstance(capabilities, dict):
+        raise DiscoveryError("card.capabilities missing")
+    if not isinstance(capabilities.get("intentsAccepted"), list):
+        raise DiscoveryError("card.capabilities.intentsAccepted missing")
+    if not isinstance(capabilities.get("intentsSent"), list):
+        raise DiscoveryError("card.capabilities.intentsSent missing")
+    if not isinstance(card.get("availability"), dict):
+        raise DiscoveryError("card.availability missing")
+    public_key = card.get("publicKeyMultibase")
+    if not (isinstance(public_key, str) and public_key.startswith("z")):
+        raise DiscoveryError("card.publicKeyMultibase missing or malformed")
+
+
 def fetch_agent_card(card_url: str, *, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> AgentCard:
     """GET an agent.json discovery card and decode its signing keys.
+
+    This validates the base Agent Card shape (Content-Type, protocol, and
+    the MUST card members) but is not a full ``AgentCardSchema``
+    conformance validator; an integrator building a receiver should run the
+    frozen ``agent-card`` / ``agent-card-fetch`` corpus for full coverage.
 
     Raises:
         DiscoveryError: card is missing, oversized, or fails schema checks.
@@ -163,6 +235,7 @@ def fetch_agent_card(card_url: str, *, timeout: float = DEFAULT_TIMEOUT_SECONDS)
                 raise DiscoveryError(f"no agent card at {card_url}")
             if resp.status_code != 200:
                 raise DiscoveryError(f"agent card returned HTTP {resp.status_code}")
+            _require_json_content_type(resp.headers.get("content-type"))
             content_length = int(resp.headers.get("content-length") or 0)
             if content_length and content_length > MAX_CARD_BYTES:
                 raise DiscoveryError(f"agent card too large: {content_length} bytes")
@@ -183,6 +256,7 @@ def fetch_agent_card(card_url: str, *, timeout: float = DEFAULT_TIMEOUT_SECONDS)
     endpoint = card.get("endpoint")
     if not isinstance(endpoint, str) or not endpoint:
         raise DiscoveryError("card.endpoint missing")
+    _require_card_members(card)
 
     active_keys: list[tuple[str, bytes]] = []
     signing_block = ((card.get("keys") or {}).get("signing")) or []
@@ -274,9 +348,13 @@ def verify_response_signature(
     request_method = method if method is not None else (response.request.method or "POST")
     request_path = path if path is not None else (response.request.url.raw_path.decode())
     auth_header = response.headers.get("authorization", "")
-    if not auth_header.startswith("INK-Ed25519 "):
+    match = _AUTH_HEADER_RE.fullmatch(auth_header)
+    if match is None:
+        # Anything but the exact grammar (trailing junk, a second
+        # parameter, a wrong-length signature) is rejected before any
+        # verification, matching the frozen `authorization-header` corpus.
         return False
-    sig_b64 = auth_header[len("INK-Ed25519 ") :].split(" ", 1)[0]
+    sig_b64 = match.group(1)
     try:
         sig_bytes = base64.urlsafe_b64decode(sig_b64 + "=" * (-len(sig_b64) % 4))
     except ValueError:

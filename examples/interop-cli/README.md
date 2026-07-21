@@ -54,14 +54,26 @@ ink-interop discover https://api.tulpa.network/ink/v1/<agentId>/agent.json
 Prints the agent id, endpoint, and decoded active signing keys (raw hex
 for easy comparison).
 
+Discovery validates the base card shape (an `application/json`
+Content-Type, the `ink/0.1` protocol and the MUST card members) but is
+not a full `AgentCardSchema` conformance validator; run the frozen
+`agent-card` and `agent-card-fetch` vectors for complete coverage.
+
 ### Build a signed intent (dry run, no network)
 
 ```sh
 ink-interop build \
-  --from-did did:key:zSendersPublicKey \
+  --seed ./alice.seed \
+  --from-did did:key:<multibase-printed-by-keygen> \
   --to-did did:plc:recipient \
   --purpose "Meet at INK day"
 ```
+
+A `did:key:` sender DID must encode the signing key, so pass the `--seed`
+whose `did:key:` form `keygen` printed. Without `--seed` the CLI signs
+with a fresh random key, so a caller-supplied `did:key:` that does not
+match it is refused rather than emitting an envelope no receiver can
+verify.
 
 Outputs JSON containing:
 

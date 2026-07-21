@@ -182,6 +182,20 @@ def build(
     if expires_in_minutes <= 0:
         raise typer.BadParameter("--expires-in must be > 0; an already-expired intent is invalid")
     keypair = _load_keypair(seed)
+    # A did:key `from` MUST encode the signing key: the receiver resolves the
+    # verifier key straight out of the DID, so a did:key that does not match
+    # the keypair (e.g. a caller-supplied did:key with no --seed, where the
+    # key is freshly random) produces an envelope no conforming receiver can
+    # verify. Refuse the mismatch. did:web senders resolve their key via the
+    # agent card, not the DID, so they are left alone.
+    if from_did.startswith("did:key:"):
+        expected_from = f"did:key:{keypair.public_key_multibase}"
+        if from_did != expected_from:
+            raise typer.BadParameter(
+                "--from-did is a did:key that does not encode the signing key; "
+                "pass --seed for that key, or use the derived did:key "
+                f"{expected_from}"
+            )
     timestamp = envelope.utc_timestamp()
     expires_at = datetime.now(tz=UTC) + timedelta(minutes=expires_in_minutes)
     expires_str = envelope.utc_timestamp(expires_at)

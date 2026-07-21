@@ -1,10 +1,13 @@
 # Maturity Notice
 
-> INK is **experimental**. The current defined wire version is `ink/0.2`, a
-> backward-compatible minor over `ink/0.1` (both major version 0). Wire formats,
-> trust semantics and APIs may change without backward-compatible migration
-> before v1.0. Do not use for load-bearing production traffic without your own
-> review.
+> INK is **experimental**. `ink/0.2` is the current defined wire version for the
+> intent envelope only, a backward-compatible minor over `ink/0.1` (both major
+> version 0) that changes only the intent-envelope body-signature domain. Every
+> other wire object (Agent Card, handshake, discovery query, authorization
+> challenge/grant/chain, receipt and audit) has no `ink/0.2` form and MUST carry
+> `protocol: "ink/0.1"`. Wire formats, trust semantics and APIs may change
+> without backward-compatible migration before v1.0. Do not use for load-bearing
+> production traffic without your own review.
 
 ## What "experimental" means here
 
