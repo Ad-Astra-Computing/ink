@@ -7,6 +7,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
+from ink_interop import crypto
 from ink_interop.cli import app
 
 
@@ -116,14 +117,22 @@ def test_load_seed_rejects_partial_hex_without_echoing_bytes(tmp_path: Path) -> 
     assert secret_partial not in result.output
 
 
-def test_build_dry_run_produces_valid_signature_base() -> None:
+def test_build_dry_run_produces_valid_signature_base(tmp_path: Path) -> None:
+    # A did:key sender MUST encode the signing key, so derive the from-did
+    # from the seed's keypair rather than passing an arbitrary label.
+    kp = crypto.Keypair.generate()
+    seed_file = tmp_path / "sender.seed"
+    seed_file.write_text(kp.private_key.private_bytes_raw().hex())
+    from_did = f"did:key:{kp.public_key_multibase}"
     runner = CliRunner()
     result = runner.invoke(
         app,
         [
             "build",
+            "--seed",
+            str(seed_file),
             "--from-did",
-            "did:key:senderxyz",
+            from_did,
             "--to-did",
             "did:plc:recipient",
             "--purpose",
@@ -137,3 +146,24 @@ def test_build_dry_run_produces_valid_signature_base() -> None:
     # Sanity: signature base contains the recipient DID and method.
     assert "did:plc:recipient" in sig_base
     assert sig_base.startswith("ink/0.1\nPOST\n")
+
+
+def test_build_rejects_didkey_from_that_does_not_encode_signing_key() -> None:
+    # No --seed means a fresh random key; a caller-supplied did:key cannot
+    # encode it, so the CLI must refuse rather than emit an unverifiable
+    # envelope.
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        [
+            "build",
+            "--from-did",
+            "did:key:zSenderThatDoesNotMatch",
+            "--to-did",
+            "did:plc:recipient",
+            "--purpose",
+            "Interop test",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "does not encode the signing key" in result.output

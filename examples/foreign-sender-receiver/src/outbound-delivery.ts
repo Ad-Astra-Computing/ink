@@ -143,7 +143,15 @@ export async function deliverInkEnvelopeToForeign(
   }
   const url = validated.url;
 
-  const timestamp = new Date().toISOString();
+  // The §3.3 signature base timestamp MUST equal the envelope's own
+  // `timestamp` field: the receiver's `verifyInkAuth` reconstructs the
+  // base from `body.timestamp`, so signing over any other value yields a
+  // base the receiver cannot reproduce. Fall back to a fresh timestamp
+  // only if the envelope carries none.
+  const timestamp =
+    typeof input.envelope.timestamp === "string"
+      ? input.envelope.timestamp
+      : new Date().toISOString();
   const sig = await signInkMessage(
     {
       method: "POST",
