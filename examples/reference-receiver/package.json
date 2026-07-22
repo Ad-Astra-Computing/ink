@@ -18,7 +18,7 @@
     "@types/node": "^22.20.1",
     "typescript": "^5.0.0",
     "vitest": "^4.1.10",
-    "wrangler": "^4.111.0"
+    "wrangler": "^4.113.0"
   },
   "overrides": {
     "esbuild": "^0.28.1",
