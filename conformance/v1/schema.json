@@ -21,6 +21,7 @@
         "agent-card-fetch",
         "agent-card-signature",
         "audit-query-response",
+        "authorization-chain",
         "authorization-grant",
         "authorization-header",
         "connection-payload",

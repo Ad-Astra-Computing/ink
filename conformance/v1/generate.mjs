@@ -33,6 +33,8 @@ import {
   buildAuthorizationGrant,
   buildAuthorizationChallenge,
   deriveChallengeGrantId,
+  buildDelegationLink,
+  buildAuthorizationChain,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -55,7 +57,7 @@ const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 // `containment` are capability-gated and required only when the implementation
 // advertises that capability. The base set is frozen by drift tripwires in
 // test/conformance-profile.test.ts and go/ink/conformance_manifest_test.go.
-const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment", "discovery", "authorization"]);
+const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment", "discovery", "authorization", "delegation"]);
 const CATEGORY_META = {
   "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
   "signature-base": { profile: "base", spec: "specs/ink-protocol.md", summary: "Ed25519 verification over the canonical signature base." },
@@ -83,6 +85,7 @@ const CATEGORY_META = {
   "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds and requester-key signature verification." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
   "agent-authorization": { profile: "authorization", spec: "specs/ink-agent-authorization.md", summary: "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId." },
+  "authorization-chain": { profile: "delegation", spec: "specs/ink-authorization-chain.md", summary: "Linear delegation chain of 2 to 4 grant-shaped links: parent-hash and issuer-subject continuity, monotonic scope and window attenuation with the delegation.extend gate, per-position lifetime ceilings, active-key-only per-link signatures, and the audience, presenter, window, replay, revocation and owner-verification context checks." },
 };
 
 // Each vectorFile() call records the bytes it wrote so the manifest can pin a
@@ -3028,6 +3031,212 @@ vectorFile("private-hostname", [
     rej("missing-signature-rejects", "A grant with no signature field rejects.", { grant: (() => { const { signature, ...rest } = grant; return rest; })(), issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
     rej("short-grant-id-rejects", "A grantId shorter than 16 code units is out of profile and rejects.", { grant: { ...grant, grantId: "short" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
     rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "not-a-timestamp" }, "schema"),
+  ]);
+}
+
+// ── authorization-chain ──────────────────────────────────────────────────────
+// A linear authorization chain, the post-1.0 delegation extension on top of the
+// grant (specs/ink-authorization-chain.md). A chain is 2 to 4 delegation links,
+// each the grant field model plus a network.ink.delegation_link type and a parent
+// hash, each hop narrowing the last. Each vector carries the presented chain plus
+// the verification context: the per-link resolved issuer keys (aligned root-first
+// to `links`, each an active/retired/revoked signing key), the verifying service
+// audience, the clock, and the optional presenter, replay set, revocation list,
+// and owner status. A verifier accepts iff verifyAuthorizationChain returns ok; a
+// reject pins the typed reason so the two implementations agree on verify order.
+{
+  const enc2 = new TextEncoder();
+  const mkKey = async (label) => {
+    const s = new Uint8Array(await crypto.subtle.digest("SHA-256", enc2.encode(label)));
+    const pub = await ed.getPublicKeyAsync(s);
+    return { seed: s, hex: bytesToHex(pub) };
+  };
+  const kOrigin = await mkKey("ink-conformance-v1-chain-origin");
+  const kD1 = await mkKey("ink-conformance-v1-chain-delegate-1");
+  const kD2 = await mkKey("ink-conformance-v1-chain-delegate-2");
+  const kD3 = await mkKey("ink-conformance-v1-chain-delegate-3");
+  const kD4 = await mkKey("ink-conformance-v1-chain-delegate-4");
+
+  const AUD = "did:web:service.example";
+  const P_ORIGIN = "did:web:origin.example";
+  const P_D1 = "did:web:delegate-1.example";
+  const P_D2 = "did:web:delegate-2.example";
+  const P_D3 = "did:web:delegate-3.example";
+  const P_D4 = "did:web:delegate-4.example";
+  const P_D5 = "did:web:delegate-5.example";
+  const EXT = "delegation.extend";
+
+  // Build a root-first array of signed delegation links from field specs and the
+  // aligned signing seeds, deriving each non-root link's parent hash from the link
+  // above it. The wrapper is assembled inline per case.
+  const buildLinks = async (specs, seeds) => {
+    const links = [];
+    let parent = null;
+    for (let i = 0; i < specs.length; i++) {
+      const link = await buildDelegationLink(specs[i], parent, seeds[i]);
+      links.push(link);
+      parent = link;
+    }
+    return links;
+  };
+  const wrap = (links) => ({ protocol: "ink/0.1", type: "network.ink.authorization_chain", links });
+  const activeKeys = (...hexes) => hexes.map((publicKeyHex) => ({ publicKeyHex, status: "active" }));
+  // A shallow per-link mutation: clone the links and overlay a patch on one link.
+  const patchLink = (links, i, patch) => links.map((l, j) => (j === i ? { ...l, ...patch } : { ...l }));
+  const dropParent = (links, i) => links.map((l, j) => {
+    if (j !== i) return { ...l };
+    const { parent, ...rest } = l;
+    return rest;
+  });
+  // Flip the leading character of an 86-char base64url signature to a different
+  // base64url character: a valid shape that no longer verifies. The leading
+  // character's bits are all significant (unlike the trailing character, whose low
+  // bits are padding), so the decoded signature bytes genuinely change.
+  const breakSig = (sig) => (sig[0] === "A" ? "B" : "A") + sig.slice(1);
+
+  // The canonical valid 2-link chain: origin delegates to d1 (carrying the
+  // delegation.extend token that seats the re-delegation), d1 re-delegates to d2.
+  const twoSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read", "messages:send", EXT], grantId: "chain-2link-root-000000001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z" },
+    { issuer: P_D1, subject: P_D2, audience: AUD, scope: ["profile:read"], grantId: "chain-2link-head-000000001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:10:00.000Z" },
+  ];
+  const twoSeeds = [kOrigin.seed, kD1.seed];
+  const two = await buildLinks(twoSpecs, twoSeeds);
+  const twoKeys = activeKeys(kOrigin.hex, kD1.hex);
+  const nowIn = "2026-07-11T12:06:00.000Z";
+  const rootPair = { issuer: P_ORIGIN, grantId: twoSpecs[0].grantId };
+  const headPair = { issuer: P_D1, grantId: twoSpecs[1].grantId };
+
+  // The canonical valid 4-link chain: origin -> d1 -> d2 -> d3 -> d4, each
+  // intermediate carrying delegation.extend and each window nested in its parent.
+  const fourSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read", "messages:send", EXT], grantId: "chain-4link-l0-0000000001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z" },
+    { issuer: P_D1, subject: P_D2, audience: AUD, scope: ["profile:read", "messages:send", EXT], grantId: "chain-4link-l1-0000000001", issuedAt: "2026-07-11T12:01:00.000Z", expiresAt: "2026-07-11T12:20:00.000Z" },
+    { issuer: P_D2, subject: P_D3, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-4link-l2-0000000001", issuedAt: "2026-07-11T12:02:00.000Z", expiresAt: "2026-07-11T12:15:00.000Z" },
+    { issuer: P_D3, subject: P_D4, audience: AUD, scope: ["profile:read"], grantId: "chain-4link-l3-0000000001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:12:00.000Z" },
+  ];
+  const fourSeeds = [kOrigin.seed, kD1.seed, kD2.seed, kD3.seed];
+  const four = await buildLinks(fourSpecs, fourSeeds);
+  const fourKeys = activeKeys(kOrigin.hex, kD1.hex, kD2.hex, kD3.hex);
+
+  // A five-link chain, built cleanly so only the depth cap is what rejects it.
+  const fiveSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-5link-l0-0000000001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z" },
+    { issuer: P_D1, subject: P_D2, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-5link-l1-0000000001", issuedAt: "2026-07-11T12:01:00.000Z", expiresAt: "2026-07-11T12:20:00.000Z" },
+    { issuer: P_D2, subject: P_D3, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-5link-l2-0000000001", issuedAt: "2026-07-11T12:02:00.000Z", expiresAt: "2026-07-11T12:15:00.000Z" },
+    { issuer: P_D3, subject: P_D4, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-5link-l3-0000000001", issuedAt: "2026-07-11T12:03:00.000Z", expiresAt: "2026-07-11T12:13:00.000Z" },
+    { issuer: P_D4, subject: P_D5, audience: AUD, scope: ["profile:read"], grantId: "chain-5link-l4-0000000001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:12:00.000Z" },
+  ];
+  const five = await buildLinks(fiveSpecs, [kOrigin.seed, kD1.seed, kD2.seed, kD3.seed, kD4.seed]);
+  const fiveKeys = activeKeys(kOrigin.hex, kD1.hex, kD2.hex, kD3.hex, kD4.hex);
+
+  // A tokenless-root 2-link chain: the root carries NO delegation.extend, so it
+  // cannot seat the re-delegation below it. Built cleanly so structure and
+  // signatures pass and only the delegability gate rejects it.
+  const tokenlessSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read"], grantId: "chain-tokenless-root-00001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z" },
+    { issuer: P_D1, subject: P_D2, audience: AUD, scope: ["profile:read"], grantId: "chain-tokenless-head-00001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:10:00.000Z" },
+  ];
+  const tokenless = await buildLinks(tokenlessSpecs, [kOrigin.seed, kD1.seed]);
+
+  // A 3-link chain whose middle link drops delegation.extend, so it cannot seat
+  // the third link even though the root seats the middle one.
+  const midTokenlessSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-midless-l0-000000001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z" },
+    { issuer: P_D1, subject: P_D2, audience: AUD, scope: ["profile:read"], grantId: "chain-midless-l1-000000001", issuedAt: "2026-07-11T12:01:00.000Z", expiresAt: "2026-07-11T12:20:00.000Z" },
+    { issuer: P_D2, subject: P_D3, audience: AUD, scope: ["profile:read"], grantId: "chain-midless-l2-000000001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:12:00.000Z" },
+  ];
+  const midTokenless = await buildLinks(midTokenlessSpecs, [kOrigin.seed, kD1.seed, kD2.seed]);
+  const midTokenlessKeys = activeKeys(kOrigin.hex, kD1.hex, kD2.hex);
+
+  // A chain whose final link names a different audience than the root, built and
+  // signed correctly, so structure and signatures pass and the audience check on
+  // the mismatched link is what rejects it.
+  const splitAudSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-splitaud-root-00001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z" },
+    { issuer: P_D1, subject: P_D2, audience: "did:web:evil.example", scope: ["profile:read"], grantId: "chain-splitaud-head-00001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:10:00.000Z" },
+  ];
+  const splitAud = await buildLinks(splitAudSpecs, [kOrigin.seed, kD1.seed]);
+
+  // A chain whose root requires a verified owner, so the whole chain requires the
+  // conjunction, built cleanly so only the owner-verification hook decides.
+  const ownerSpecs = [
+    { issuer: P_ORIGIN, subject: P_D1, audience: AUD, scope: ["profile:read", EXT], grantId: "chain-owner-root-00000001", issuedAt: "2026-07-11T12:00:00.000Z", expiresAt: "2026-07-11T12:30:00.000Z", requireVerifiedOwner: true },
+    { issuer: P_D1, subject: P_D2, audience: AUD, scope: ["profile:read"], grantId: "chain-owner-head-00000001", issuedAt: "2026-07-11T12:05:00.000Z", expiresAt: "2026-07-11T12:10:00.000Z" },
+  ];
+  const owner = await buildLinks(ownerSpecs, [kOrigin.seed, kD1.seed]);
+
+  const ctx = { audience: AUD, now: nowIn };
+  const acc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
+  const rej = (caseId, description, input, reason) => ({ caseId, description, input, expect: { result: "reject", reason } });
+
+  vectorFile("authorization-chain", [
+    // ── accepts ──
+    acc("valid-2link-accepts", "A 2-link chain whose root carries delegation.extend, whose head scope and window narrow the root, signed by each issuer's active key and presented inside every window to the named audience, verifies.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx }),
+    acc("valid-4link-accepts", "A 4-link chain narrowing scope and window at every hop, each intermediate carrying delegation.extend, verifies at the maximum depth.", { chain: wrap(four), issuerKeys: fourKeys, ...ctx }),
+    acc("presenter-matches-final-subject-accepts", "A chain presented by the authenticated principal named as the FINAL link's subject verifies; the presentation binding holds across the whole chain.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, presenter: P_D2 }),
+    acc("presenter-empty-accepts", "An empty-string presenter means no presenter was established, so the binding check is skipped just as when it is absent.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, presenter: "" }),
+    acc("intermediate-seen-not-replay-accepts", "The root (an intermediate link) pair already in the seen set does NOT reject: only the final link is replay-checked, so a shared prefix can seat many distinct chains.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, seenGrants: [rootPair] }),
+    acc("cross-issuer-same-grant-id-accepts", "A different issuer's seen and revoked entry for the same grantId string as the head does not block the chain; replay and revocation key on the (issuer, grantId) pair.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, seenGrants: [{ issuer: "did:web:other.example", grantId: twoSpecs[1].grantId }], revokedGrants: [{ issuer: "did:web:other.example", grantId: twoSpecs[1].grantId }] }),
+    acc("required-owner-verified-accepts", "A chain whose root requires a verified owner verifies when the service supplies a verified owner status.", { chain: wrap(owner), issuerKeys: twoKeys, ...ctx, verifiedOwner: { status: "verified" } }),
+    acc("owner-not-required-ignores-status-accepts", "A chain no link of which requires a verified owner verifies even when the service supplies an unverified owner status.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, verifiedOwner: { status: "unverified" } }),
+    acc("issued-at-lower-bound-accepts", "A chain presented at exactly the latest link's issuedAt is inside every window (inclusive lower bound).", { chain: wrap(two), issuerKeys: twoKeys, audience: AUD, now: twoSpecs[1].issuedAt }),
+
+    // ── schema (structure, on signed bytes) ──
+    rej("too-few-links-rejects", "A wrapper carrying a single link is not a chain (a one-link grant is verified by the grant verifier) and rejects on the 2-to-4 depth bound.", { chain: wrap([two[0]]), issuerKeys: activeKeys(kOrigin.hex), ...ctx }, "schema"),
+    rej("too-many-links-rejects", "A wrapper carrying five links exceeds the depth cap and rejects.", { chain: wrap(five), issuerKeys: fiveKeys, ...ctx }, "schema"),
+    rej("wrong-wrapper-type-rejects", "A wrapper type other than network.ink.authorization_chain rejects.", { chain: { ...wrap(two), type: "network.ink.authorization_grant" }, issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("unknown-wrapper-field-rejects", "An unknown top-level wrapper field is rejected by the strict schema.", { chain: { ...wrap(two), extra: 1 }, issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("unknown-link-field-rejects", "An unknown field on a link is rejected by the strict delegation-link schema.", { chain: wrap(patchLink(two, 1, { extra: 1 })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("wrong-link-type-rejects", "A link typed network.ink.authorization_grant is not a delegation link and rejects; a grant is never accepted as a chain link.", { chain: wrap(patchLink(two, 1, { type: "network.ink.authorization_grant" })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("bad-parent-shape-rejects", "A parent that is not 43 base64url characters is a malformed digest and rejects on the delegation-link schema.", { chain: wrap(patchLink(two, 1, { parent: "tooshort" })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("root-with-parent-rejects", "The root link MUST NOT carry a parent; a root that does rejects.", { chain: wrap(patchLink(two, 0, { parent: "A".repeat(43) })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("non-root-missing-parent-rejects", "A non-root link MUST carry a parent; a non-root link with none rejects.", { chain: wrap(dropParent(two, 1)), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("intermediate-over-24h-rejects", "An intermediate (non-final) link whose lifetime exceeds 24 hours is over its position ceiling and rejects structurally on the signed bytes.", { chain: wrap(patchLink(two, 0, { expiresAt: "2026-07-12T13:00:00.000Z" })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("final-over-10min-rejects", "A final link whose lifetime exceeds 10 minutes is over its position ceiling and rejects structurally on the signed bytes.", { chain: wrap(patchLink(two, 1, { expiresAt: "2026-07-11T12:16:00.000Z" })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("empty-scope-rejects", "A link with no scope entries is out of profile and rejects.", { chain: wrap(patchLink(two, 1, { scope: [] })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("duplicate-scope-rejects", "A link with a repeated scope entry rejects; scope entries must be distinct so two implementations count the same set.", { chain: wrap(patchLink(two, 1, { scope: ["profile:read", "profile:read"] })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("inverted-window-rejects", "A link whose expiresAt is not after issuedAt is malformed and rejects.", { chain: wrap(patchLink(two, 1, { expiresAt: twoSpecs[1].issuedAt })), issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("malformed-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error consulted in pass 2 and fails closed as schema, not signature and not a window verdict.", { chain: wrap(two), issuerKeys: twoKeys, audience: AUD, now: "not-a-timestamp" }, "schema"),
+
+    // ── chain (continuity: issuer-subject seam and parent hash) ──
+    rej("continuity-seam-mismatch-rejects", "A non-root link whose issuer does not byte-equal its parent's subject breaks continuity and rejects as chain.", { chain: wrap(patchLink(two, 1, { issuer: "did:web:stranger.example" })), issuerKeys: twoKeys, ...ctx }, "chain"),
+    rej("spliced-parent-hash-rejects", "A non-root link whose parent hash does not equal the digest of the link above it (a spliced parent) rejects as chain.", { chain: wrap(patchLink(two, 1, { parent: "A".repeat(43) })), issuerKeys: twoKeys, ...ctx }, "chain"),
+    rej("edited-parent-breaks-hash-rejects", "Editing a signed ancestor (here the root grantId) changes its canonical bytes, so the child's parent digest no longer matches and the chain rejects as chain before the signature check.", { chain: wrap(patchLink(two, 0, { grantId: "chain-2link-root-000000099" })), issuerKeys: twoKeys, ...ctx }, "chain"),
+
+    // ── attenuation (scope subset, window nesting, delegability) ──
+    rej("scope-widening-rejects", "A child scope token absent from its parent is a widening and rejects the chain as attenuation.", { chain: wrap(patchLink(two, 1, { scope: ["profile:read", "admin:all"] })), issuerKeys: twoKeys, ...ctx }, "attenuation"),
+    rej("window-not-nested-rejects", "A child whose window starts before its parent's escapes the parent window and rejects as attenuation.", { chain: wrap(patchLink(two, 1, { issuedAt: "2026-07-11T11:58:00.000Z", expiresAt: "2026-07-11T12:06:00.000Z" })), issuerKeys: twoKeys, ...ctx }, "attenuation"),
+    rej("window-exceeds-parent-expiry-rejects", "A child whose issuedAt still satisfies parent.issuedAt <= child.issuedAt but whose expiresAt runs past the parent's expiresAt violates the child.expiresAt <= parent.expiresAt conjunct of window nesting; the head keeps a strictly positive window and a 10-minute lifetime so pass-1 schema does not fire first, isolating the upper-bound nesting violation as attenuation.", { chain: wrap(patchLink(two, 1, { issuedAt: "2026-07-11T12:25:00.000Z", expiresAt: "2026-07-11T12:35:00.000Z" })), issuerKeys: twoKeys, ...ctx }, "attenuation"),
+    rej("tokenless-root-2link-rejects", "A 2-link chain whose root lacks delegation.extend cannot seat the re-delegation below it and rejects as attenuation; a two-link chain requires the token in the root.", { chain: wrap(tokenless), issuerKeys: twoKeys, ...ctx }, "attenuation"),
+    rej("missing-token-mid-seam-rejects", "A 3-link chain whose middle link drops delegation.extend cannot seat the third link, so the deeper seam rejects as attenuation even though the root seats the middle link.", { chain: wrap(midTokenless), issuerKeys: midTokenlessKeys, ...ctx }, "attenuation"),
+
+    // ── signature (pass 2, root to head) ──
+    rej("bad-signature-rejects", "A link whose signature does not verify against its resolved issuer key rejects as signature.", { chain: wrap(patchLink(two, 1, { signature: breakSig(two[1].signature) })), issuerKeys: twoKeys, ...ctx }, "signature"),
+    rej("retired-key-rejects", "A retired signing key never verifies a link, the chain's fast revocation lever for a compromised delegate; the chain rejects as signature.", { chain: wrap(two), issuerKeys: [{ publicKeyHex: kOrigin.hex, status: "active" }, { publicKeyHex: kD1.hex, status: "retired" }], ...ctx }, "signature"),
+    rej("revoked-key-rejects", "A revoked signing key never verifies a link; the chain rejects as signature.", { chain: wrap(two), issuerKeys: [{ publicKeyHex: kOrigin.hex, status: "revoked" }, { publicKeyHex: kD1.hex, status: "active" }], ...ctx }, "signature"),
+    rej("wrong-key-rejects", "A link resolved to the wrong active issuer key does not verify and rejects as signature.", { chain: wrap(two), issuerKeys: [{ publicKeyHex: kOrigin.hex, status: "active" }, { publicKeyHex: kD2.hex, status: "active" }], ...ctx }, "signature"),
+
+    // ── audience / subject / window (pass 3) ──
+    rej("confused-deputy-audience-rejects", "A chain minted for one service presented to a different verifying service rejects on the audience check even though every signature is valid.", { chain: wrap(two), issuerKeys: twoKeys, audience: "did:web:other-service.example", now: nowIn }, "audience"),
+    rej("mismatched-link-audience-rejects", "A chain whose final link names a different audience than the root rejects on the audience check at the mismatched link; the audience is fixed by the origin and identical on every link.", { chain: wrap(splitAud), issuerKeys: twoKeys, ...ctx }, "audience"),
+    rej("presenter-not-final-subject-rejects", "A chain presented by a principal other than its final link's subject rejects on the presentation binding.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, presenter: "did:web:thief.example" }, "subject"),
+    rej("not-yet-valid-rejects", "A chain presented before the final link's issuedAt is not yet valid at that link and rejects.", { chain: wrap(two), issuerKeys: twoKeys, audience: AUD, now: "2026-07-11T12:04:00.000Z" }, "not_yet_valid"),
+    rej("expired-rejects", "A chain presented after the final link's expiresAt is expired at that link and rejects.", { chain: wrap(two), issuerKeys: twoKeys, audience: AUD, now: "2026-07-11T12:11:00.000Z" }, "expired"),
+    rej("presented-at-expiry-upper-bound-rejects", "A chain presented at exactly the final link's expiresAt is expired: the validity window is [issuedAt, expiresAt), so now == expiresAt is outside it. This pins the exclusive upper bound, the symmetric counterpart to issued-at-lower-bound-accepts pinning the inclusive lower bound.", { chain: wrap(two), issuerKeys: twoKeys, audience: AUD, now: twoSpecs[1].expiresAt }, "expired"),
+
+    // ── replay / revoked / owner (pass 3) ──
+    rej("final-pair-seen-replay-rejects", "The final link's (issuer, grantId) pair already in the seen set is a replay and rejects.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, seenGrants: [headPair] }, "replay"),
+    rej("final-seen-and-revoked-rejects-replay", "The final link's (issuer, grantId) pair is both in the seen set and on the revocation denylist; because pass 3 reads replay before revocation under first-failure-wins, a final link that is both replayed and revoked rejects as replay, not revoked.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, seenGrants: [headPair], revokedGrants: [headPair] }, "replay"),
+    rej("head-revoked-rejects", "The final link's (issuer, grantId) pair on the revocation list rejects the chain even inside its window; an unseen head that passes the replay read still rejects on revocation and nothing is recorded.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, revokedGrants: [headPair] }, "revoked"),
+    rej("intermediate-revoked-rejects", "A revoked intermediate (root) pair rejects the whole chain; every link is revocation-checked even though only the head is replay-checked.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx, revokedGrants: [rootPair] }, "revoked"),
+    rej("required-owner-unverified-rejects", "A chain whose root requires a verified owner rejects when the owner status is unverified.", { chain: wrap(owner), issuerKeys: twoKeys, ...ctx, verifiedOwner: { status: "unverified" } }, "owner_unverified"),
+    rej("required-owner-absent-rejects", "A chain whose root requires a verified owner rejects when the service supplies no owner status; absent is not verified.", { chain: wrap(owner), issuerKeys: twoKeys, ...ctx }, "owner_unverified"),
+
+    // ── ordering (two defects coexist; the earlier pass wins) ──
+    rej("bad-sig-and-wrong-audience-rejects-signature", "A chain with a bad final signature presented to the wrong audience rejects on the signature (pass 2) ahead of the audience check (pass 3).", { chain: wrap(patchLink(two, 1, { signature: breakSig(two[1].signature) })), issuerKeys: twoKeys, audience: "did:web:other-service.example", now: nowIn }, "signature"),
+    rej("scope-widen-and-expired-rejects-attenuation", "A chain that both widens scope and is presented after expiry rejects on attenuation (pass 1) ahead of the expiry check (pass 3).", { chain: wrap(patchLink(two, 1, { scope: ["profile:read", "admin:all"] })), issuerKeys: twoKeys, audience: AUD, now: "2026-07-11T12:11:00.000Z" }, "attenuation"),
+    rej("malformed-now-and-bad-sig-rejects-schema", "A malformed clock with a bad signature rejects as schema: the clock is consulted at the start of pass 2, ahead of the per-link signature check.", { chain: wrap(patchLink(two, 1, { signature: breakSig(two[1].signature) })), issuerKeys: twoKeys, audience: AUD, now: "not-a-timestamp" }, "schema"),
   ]);
 }
 

@@ -87,6 +87,15 @@ capability it does not fully implement.
   acting on it. Issuing a grant is the sender side of the same capability. An
   implementation that does not advertise authorization is not expected to accept
   grants.
+- **delegation** (`authorization-chain`): required when the implementation accepts
+  delegation chains, the post-1.0 extension on top of the grant. A verifier checks
+  a presented chain of 2 to 4 grant-shaped links against its own context: parent
+  hash and issuer-subject continuity, monotonic scope and window attenuation with
+  the `delegation.extend` re-delegation gate, per-position lifetime ceilings,
+  active-key-only per-link signatures, and the audience, presenter, window, replay,
+  revocation and owner-verification checks. It is distinct from the `authorization`
+  capability so a frozen surface stays frozen. An implementation that does not
+  advertise delegation is not expected to accept chains.
 
 ## Relationship to the compliance checklist
 

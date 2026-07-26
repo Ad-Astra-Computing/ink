@@ -48,6 +48,15 @@
       "sha256": "7c3a80e03ed0aee122055c27594cd4c458b908092f89ce667ce74f5684382df2"
     },
     {
+      "id": "authorization-chain",
+      "vector": "vectors/authorization-chain.json",
+      "profile": "delegation",
+      "spec": "specs/ink-authorization-chain.md",
+      "summary": "Linear delegation chain of 2 to 4 grant-shaped links: parent-hash and issuer-subject continuity, monotonic scope and window attenuation with the delegation.extend gate, per-position lifetime ceilings, active-key-only per-link signatures, and the audience, presenter, window, replay, revocation and owner-verification context checks.",
+      "caseCount": 51,
+      "sha256": "c2d0a6fa46ab51003cebf00a1248549a206240b042c1b49c498b6a7a0a2acbbe"
+    },
+    {
       "id": "authorization-grant",
       "vector": "vectors/authorization-grant.json",
       "profile": "authorization",
