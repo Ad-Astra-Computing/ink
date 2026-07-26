@@ -19,11 +19,29 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   stays unsigned rather than serving a proof a verifier would reject.
 - `keySetVersion` and `updatedAt` are now emitted on every signed card, as §6
   requires on publish.
-- No wire, schema or conformance change. The `cardSignature` and `rotationChain`
+- No change to the 1.0 base profile. The `cardSignature` and `rotationChain`
   members and the `agent-card-signature` conformance category are unchanged from
   0.14.0; Phase B is a producer-side obligation, so a receiver validates a card
   exactly as before. Phase B starts the mandatory minimum 90-day window before
   Phase C (§10), under which the 1.0 profile rejects an unsigned key-derived card.
+- The multi-hop authorization (delegation) chain ships as a named post-1.0
+  extension: a normative spec at
+  [`specs/ink-authorization-chain.md`](specs/ink-authorization-chain.md)
+  (superseding the archived 2026-05 draft), a reference verifier, Go parity and a
+  51-case `authorization-chain` conformance category under a new `delegation`
+  capability. Chains are root-first arrays of delegation links built on the grant
+  field model with strict attenuation and a hard depth cap of 4. The category is
+  additive and optional; the 1.0 base profile and its frozen categories are
+  untouched.
+- The compatibility policy now states the strict frozen wire accurately: unknown
+  fields are tolerated or rejected per surface, the `protocol` value is a closed
+  per-surface enum, intent types and receipt dispositions are closed enums and a
+  second cryptographic suite arrives through a reserved top-level card member
+  with receiver-first negotiation. Adopter-facing examples and the wire-version
+  notes were corrected to match, and the section 6 registry now notes that an
+  intent envelope carries no `type` member.
+- Dev dependency and example dependency updates clear all open npm advisories;
+  the audit gate is clean across every project in the repo.
 
 ## 0.14.0, self-authenticating Agent Card trust root and Go sender parity
 
