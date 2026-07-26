@@ -1,6 +1,6 @@
 # INK Agent Card Signature Specification
 
-**Status:** Stable in the 0.14 conformance corpus. Phase A has shipped; Phases B and C are staged for a later minor.
+**Status:** Stable in the 0.14 conformance corpus. Phase A and Phase B have shipped; Phase B is active as of 0.15.0 and Phase C is staged for a minimum of 90 days after the Phase B ship.
 **Authors:** Ad Astra Computing
 **Last updated:** 2026-07-20
 
@@ -564,18 +564,23 @@ vectors moving together. There is zero breakage: unsigned cards from existing
 deployments still validate, and a consumer unaware of the new members ignores
 them.
 
-**Phase B (producer MUST).** The reference and the Go implementation sign every
-card. A key-derived producer MUST sign; a did:web producer MUST sign and SHOULD
-anchor. `keySetVersion` and `updatedAt` become MUST-on-publish.
+**Phase B (producer MUST, active as of 0.15.0).** Producer signing is now
+normative for every implementation that serves a card. A key-derived producer
+MUST sign; a did:web producer MUST sign and SHOULD anchor. `keySetVersion` and
+`updatedAt` become MUST-on-publish. A producer MUST NOT emit a `cardSignature` it
+cannot root under §4; an unrootable identity stays unsigned until Phase C, where
+it is rejected. Phase B starts the mandatory clock: Phase C MUST NOT begin fewer
+than 90 days after the 0.15.0 ship date.
 
-**Phase C (1.0 profile).** A receiver MUST verify a present proof, MUST enforce
-the ratchet and continuity rules (§6, §7), MUST reject an unsigned card for a
-key-derived principal and MUST require anchoring for a did:web card when the DID
-document resolves. Under the 1.0 conformance profile an unsigned card is rejected
-outright.
+**Phase C (1.0 profile, staged at least 90 days after Phase B).** A receiver MUST
+verify a present proof, MUST enforce the ratchet and continuity rules (§6, §7),
+MUST reject an unsigned card for a key-derived principal and MUST require
+anchoring for a did:web card when the DID document resolves. Under the 1.0
+conformance profile an unsigned card is rejected outright.
 
-There MUST be a minimum of 90 days between Phase B and Phase C so counterparties
-have a documented window to begin signing before unsigned cards are rejected.
+There MUST be a minimum of 90 days between the Phase B ship (0.15.0) and Phase C
+so counterparties have a documented window to begin signing before unsigned cards
+are rejected.
 
 ## 11. Relationship to other specs
 

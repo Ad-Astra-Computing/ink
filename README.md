@@ -124,6 +124,14 @@ Added in `0.12.0`:
 
 - `parseSignedBodyBytes(bytes)` parses a raw signed body from its bytes, decoding with a fatal UTF-8 decoder then rejecting a lone surrogate escape before JSON parse, and throws `ParseSignedBodyError` with a `reason` of `"utf8"` or `"surrogate"` that names which gate rejected. A receiver holding raw body bytes uses it instead of a lenient string decode, because a lenient decode substitutes U+FFFD for invalid bytes and would verify a signature over bytes the signer never signed. See [`CHANGELOG.md`](CHANGELOG.md).
 
+Added in `0.14.0`:
+
+- Self-authenticating Agent Card. `verifyAgentCardSignature(card, agentId, options)` verifies an OPTIONAL `cardSignature` card proof and roots it by principal kind (the embedded genesis key for a key-derived id, the DID document for a did:web id), walking a `rotationChain` when present and applying the ratchet and continuity rules. `signAgentCard(card, privateKey)` and `signRotationLink(link, privateKey)` are the producer-side signers, and `CardSignatureSchema` / `RotationChainSchema` pin the members. The rule is pinned by the `agent-card-signature` conformance category run by both the TypeScript reference and the Go verifier. See [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md).
+
+Added in `0.15.0`:
+
+- Agent Card producer signing reaches Phase B (producers MUST sign, [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §10). The reference receiver now signs every card it serves, and a producer emits `keySetVersion` and `updatedAt` on every signed card. A producer signs only a card it can root under §4 and stays unsigned otherwise, so it never serves a proof a verifier would reject. There is no wire, schema or conformance change; a receiver validates a card exactly as before. See [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Agent-assisted implementation
 
 If you are asking an AI coding agent to add INK support to an existing service, the canonical packet for that workflow is the [Agent-assisted implementation](https://ink.tulpa.network/guides/agent-assisted-implementation/) guide. It contains the curated implementer prompt, a mandatory traceability matrix, the conformance checklist, and a human-review checklist. The guide is updated as the protocol evolves; treat it as the live source rather than copying its contents into your repo.

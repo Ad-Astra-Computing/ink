@@ -2,7 +2,14 @@ import { describe, it, expect } from "vitest";
 import { buildAgentCard, SUPPORTED_INTENTS } from "../src/agent-card.js";
 import { buildDidDocument } from "../src/did-web.js";
 import { loadReceiverIdentity } from "../src/keys.js";
-import { generateKeypair, encodePublicKeyMultibase, base64urlEncode, AgentCardSchema } from "@adastracomputing/ink";
+import {
+  generateKeypair,
+  encodePublicKeyMultibase,
+  base64urlEncode,
+  AgentCardSchema,
+  verifyAgentCardSignature,
+  type AgentCard,
+} from "@adastracomputing/ink";
 
 async function freshIdentity() {
   const kp = await generateKeypair();
@@ -15,14 +22,14 @@ async function freshIdentity() {
 describe("buildAgentCard", () => {
   it("returns a card that parses cleanly against AgentCardSchema", async () => {
     const id = await freshIdentity();
-    const card = buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id });
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id });
     const parsed = AgentCardSchema.safeParse(card);
     expect(parsed.success).toBe(true);
   });
 
   it("announces only the supported intents", async () => {
     const id = await freshIdentity();
-    const card = buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
       capabilities: { intentsAccepted: string[] };
     };
     expect(card.capabilities.intentsAccepted.sort()).toEqual([...SUPPORTED_INTENTS].sort());
@@ -30,11 +37,41 @@ describe("buildAgentCard", () => {
 
   it("uses the configured host for the endpoint URL", async () => {
     const id = await freshIdentity();
-    const card = buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
       endpoint: string; inboxEndpoint: string;
     };
     expect(card.endpoint).toBe("https://r.example/ink/v1/inbound");
     expect(card.inboxEndpoint).toBe(card.endpoint);
+  });
+
+  it("signs the card (Phase B) so it verifies as authenticated when anchored", async () => {
+    const id = await freshIdentity();
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as AgentCard & {
+      cardSignature?: { keyId: string; signature: string };
+    };
+    // Legacy single-key card: signer keyId is the literal `bootstrap` (§3.3).
+    expect(card.cardSignature?.keyId).toBe("bootstrap");
+    expect(card.cardSignature?.signature).toMatch(/^[A-Za-z0-9_-]{86}$/);
+    // A did:web card roots on its DID-document key; supply the anchor the
+    // receiver publishes at /.well-known/did.json.
+    const result = await verifyAgentCardSignature(card, "did:web:r.example", {
+      profile: "pre-1.0",
+      didVerificationKeys: [id.publicKeyMultibase],
+    });
+    expect(result.authenticated).toBe(true);
+    expect(result.rejected).toBe(false);
+  });
+
+  it("produces a signature over the served body (tamper is rejected)", async () => {
+    const id = await freshIdentity();
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as AgentCard;
+    const tampered = { ...card, endpoint: "https://evil.example/ink/v1/inbound" } as AgentCard;
+    const result = await verifyAgentCardSignature(tampered, "did:web:r.example", {
+      profile: "pre-1.0",
+      didVerificationKeys: [id.publicKeyMultibase],
+    });
+    expect(result.authenticated).toBe(false);
+    expect(result.reason).toBe("invalid_signature");
   });
 });
 

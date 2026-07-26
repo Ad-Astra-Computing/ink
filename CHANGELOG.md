@@ -4,6 +4,27 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.15.0, Agent Card producer signing (Phase B)
+
+### Changes
+
+- The Agent Card signature reaches Phase B: producer signing is now normative.
+  The reference receiver signs every card it serves, and a deployed producer signs
+  every card it can root under the trust rules of
+  [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §4. A
+  key-derived producer signs against its genesis key (directly for a never-rotated
+  identity, or through a `rotationChain` it can root back to the genesis key); a
+  did:web producer signs and anchors the signing key in its DID document. A
+  producer never emits a `cardSignature` it cannot root, so an unrootable identity
+  stays unsigned rather than serving a proof a verifier would reject.
+- `keySetVersion` and `updatedAt` are now emitted on every signed card, as §6
+  requires on publish.
+- No wire, schema or conformance change. The `cardSignature` and `rotationChain`
+  members and the `agent-card-signature` conformance category are unchanged from
+  0.14.0; Phase B is a producer-side obligation, so a receiver validates a card
+  exactly as before. Phase B starts the mandatory minimum 90-day window before
+  Phase C (§10), under which the 1.0 profile rejects an unsigned key-derived card.
+
 ## 0.14.0, self-authenticating Agent Card trust root and Go sender parity
 
 ### Additions

@@ -7,7 +7,7 @@
  * 500, not as a silently-broken card on the wire.
  */
 
-import { AgentCardSchema } from "@adastracomputing/ink";
+import { AgentCardSchema, signAgentCard } from "@adastracomputing/ink";
 import type { ReceiverIdentity } from "./keys.js";
 
 export interface AgentCardConfig {
@@ -27,7 +27,7 @@ export interface AgentCardConfig {
  */
 export const SUPPORTED_INTENTS = ["ping", "ask", "connection_request", "intro_request"] as const;
 
-export function buildAgentCard(cfg: AgentCardConfig): unknown {
+export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
   const endpoint = `https://${cfg.host}/ink/v1/inbound`;
   const card = {
     protocol: "ink/0.1",
@@ -53,6 +53,11 @@ export function buildAgentCard(cfg: AgentCardConfig): unknown {
       timezone: "UTC",
       responseSla: "best_effort",
     },
+    // MUST-on-publish once the card is signed (ink-agent-card-signature.md §6).
+    // This receiver holds one fixed key that never rotates, so its key set is
+    // version 1; `updatedAt` is informational and carries no comparison rule.
+    keySetVersion: 1,
+    updatedAt: new Date().toISOString(),
   };
   // Re-validate against the canonical schema. If the OSS schema gets
   // stricter in a future release this surfaces immediately rather than
@@ -61,5 +66,17 @@ export function buildAgentCard(cfg: AgentCardConfig): unknown {
   if (!parsed.success) {
     throw new Error(`agent_card_invalid: ${JSON.stringify(parsed.error.issues)}`);
   }
-  return parsed.data;
+  // Phase B (producer MUST, ink-agent-card-signature.md §10). Sign the card so a
+  // cold verifier can establish key authority from the card itself. This is a
+  // legacy single-key card (no `keys.signing` set), so the signer keyId is the
+  // literal `bootstrap` and the verifying key is the top-level
+  // `publicKeyMultibase` (§3.3). The receiver is a did:web identity whose DID
+  // document (`/.well-known/did.json`) anchors exactly this key, so the signed
+  // card roots under §4.2. Sign the schema-parsed object so the bytes the
+  // verifier reconstructs from the served body match byte-for-byte.
+  const signature = await signAgentCard(
+    parsed.data as unknown as Record<string, unknown>,
+    cfg.identity.privateKey,
+  );
+  return { ...parsed.data, cardSignature: { keyId: "bootstrap", signature } };
 }
