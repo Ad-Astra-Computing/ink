@@ -442,7 +442,7 @@ verification.
 | `challenge` | Handshake challenge | yes | ink-handshake-message |
 | `rejection` | Handshake rejection | yes | ink-handshake-message |
 | `resolution` | Handshake resolution | yes | ink-handshake-message |
-| `intent` | Intent transport wrapper | yes | this document §3.1 |
+| `intent` | Intent transport wrapper (registry and lexicon name only; the intent envelope itself carries no `type` member, §3.1) | yes | this document §3.1 |
 | `receipt` | Delivery/disposition receipt | yes | ink-auditability |
 | `introduction_receipt` | Introduction receipt | yes | ink-introduction-receipts-extension |
 | `audit_query` | Bilateral audit query | yes | ink-auditability |
