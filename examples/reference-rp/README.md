@@ -145,6 +145,13 @@ another. This example shows the Sign in with INK flow, a different profile that
 composes the authorization grant. All three build on the same package surface and
 the same signing and verification primitives.
 
+## The button
+
+This example is the backend an RP runs. The control a user clicks to start the
+flow is the "Sign in with INK" button. Its assets live in
+[`docs/brand`](../../docs/brand), and the sizing, variants and usage rules are on
+the [brand page](https://ink.tulpa.network/extensions/sign-in-button/).
+
 ## Build and test
 
 ```sh

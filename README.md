@@ -159,7 +159,7 @@ src/           library implementation
   discovery/   Agent Card fetching and candidate-key extraction
   ink/         discovery gating, handshake budget, receipts, checkpointing
 specs/         protocol spec documents
-docs/          maturity notes, threat model, key rotation rules
+docs/          maturity notes, threat model, key rotation rules, brand assets
 test-vectors/  JSON interop vectors
 test/          vitest unit + integration tests
 ```

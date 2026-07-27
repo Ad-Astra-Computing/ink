@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="196" height="44" viewBox="0 0 196 44" role="img" aria-label="Sign in with INK">
+  <rect width="196" height="44" rx="8" fill="#121220"/>
+  <g transform="translate(14 10)">
+    <path d="M10 1 L16 9 L16 16 L13.5 23 L12.5 23 L11.5 17 L10 14.5 L8.5 17 L7.5 23 L6.5 23 L4 16 L4 9 Z" fill="#ffffff"/>
+    <circle cx="10" cy="7.5" r="1.5" fill="#121220"/>
+  </g>
+  <text x="46" y="28" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#ffffff">Sign in with INK</text>
+</svg>
