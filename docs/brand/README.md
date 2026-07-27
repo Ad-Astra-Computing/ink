@@ -7,7 +7,8 @@ request with them and proves their identity to the site.
 
 - `sign-in-with-ink-dark.svg` for light backgrounds, 196 by 44
 - `sign-in-with-ink-light.svg` for dark backgrounds, 196 by 44
-- `ink-nib.svg` for the nib mark on its own
+- `ink-nib.svg` for the nib mark on light backgrounds
+- `ink-nib-light.svg` for the nib mark on dark backgrounds
 
 Drop one straight into a link:
 
