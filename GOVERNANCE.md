@@ -36,6 +36,8 @@ Version tiers and transition rules are set by the [compatibility policy](specs/i
 
 Publishing is already mechanical and traceable. Releases are cut from signed tags through the [`publish`](.github/workflows/publish.yml) workflow, which builds under the pinned Nix toolchain, publishes to npm with sigstore OIDC provenance and creates the GitHub Release from the in-repo changelog. Pre-1.0 tarballs go to the `next` dist-tag. `latest` only advances when a maintainer promotes a specific version by hand.
 
+A promotion is itself a release. To stamp a soaked version adopter-grade, a maintainer re-cuts it as a patch (a normal release pull request bumping the version and adding the changelog section) and pushes a `latest-v<version>` tag. That tag runs the same build, test and packaging gauntlet as any release and publishes to the `latest` dist-tag under the same OIDC provenance identity, so no long-lived npm credential exists anywhere in the pipeline. Ordinary `v<version>` tags keep publishing to `next` unchanged. Both tags are signed, and the `latest-v*` path additionally runs under the `npm-release` environment, so any environment protection rule applies to every move of `latest`.
+
 Committing to "1.0" is a governance act, not an automatic outcome of green CI. It means:
 
 - The mandatory base profile is frozen. After 1.0, the base wire contract does not take a breaking change without a major version. The frozen 1.0 base is exactly the set recorded in [`governance/releases/1.0-readiness-evidence.md`](governance/releases/1.0-readiness-evidence.md), pinned to a named conformance corpus id and a SHA-256 manifest-integrity anchor. A verifier cannot drift from that corpus without the anchor changing.

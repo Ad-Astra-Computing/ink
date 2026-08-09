@@ -81,6 +81,16 @@ Breaking changes before v1.0 will be announced in the repository
 changelog with at least 30 days of overlap support in the reference
 implementation.
 
+### Dist-tags
+
+Every pre-1.0 release publishes to npm's `next` dist-tag, so
+`npm install @adastracomputing/ink@next` tracks the current line.
+`latest` moves only when a maintainer has soaked a version and stamped it
+adopter-grade, which is done by re-cutting that version as a patch release and
+publishing the patch to `latest`. A bare
+`npm install @adastracomputing/ink` therefore resolves to the most recent
+stamped version, which may lag `next` by one or more releases.
+
 ## How to evaluate for your use
 
 Before adopting INK for any use where signature forgery or replay would
