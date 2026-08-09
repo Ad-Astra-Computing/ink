@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.8.0"
+    "@adastracomputing/ink": "^0.15.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
