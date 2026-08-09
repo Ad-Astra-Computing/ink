@@ -146,9 +146,14 @@ describe("RP completion, fail closed", () => {
     const world = await makeWorld();
     const challenge = await openContext(world);
     const grant = await mintGrant(challenge, world.agentIdentity.privateKey, world.agentIdentity.did);
-    // Flip the last signature character to a different base64url symbol.
-    const last = grant.signature.slice(-1);
-    const tampered = { ...grant, signature: grant.signature.slice(0, -1) + (last === "A" ? "B" : "A") };
+    // Rewrite the first signature character to a different base64url symbol.
+    // The leading character carries six significant bits, so the result is
+    // still valid base64url of the same length but always decodes to different
+    // signature bytes. The trailing character of an 86-character encoding
+    // carries only four, and the spare padding bits there can be changed
+    // without altering the decoded signature at all.
+    const first = grant.signature.slice(0, 1);
+    const tampered = { ...grant, signature: (first === "A" ? "B" : "A") + grant.signature.slice(1) };
     const result = await completeSignIn({
       rp: world.rp,
       directory: world.directory,
