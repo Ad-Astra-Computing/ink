@@ -3,11 +3,15 @@ name: publish
 on:
   push:
     tags:
+      # `v*` cuts a normal release to the `next` dist-tag. `latest-v*` re-cuts
+      # an already-soaked version and stamps it adopter-grade on `latest`. The
+      # two patterns are disjoint, and each is handled by its own job.
       - "v*"
+      - "latest-v*"
   workflow_dispatch:
     inputs:
       promote_version:
-        description: "Promote this already-published version to a dist-tag (leave empty to publish the current tag)"
+        description: "Fallback only: move a dist-tag onto this already-published version (leave empty to publish the current tag)"
         required: false
         default: ""
         type: string
@@ -32,8 +36,11 @@ env:
 
 jobs:
   publish:
-    # Skip on a promotion dispatch; the promote job handles those.
-    if: github.event_name == 'push' || inputs.promote_version == ''
+    # Normal releases only. A `latest-v*` tag is handled by publish-latest, and
+    # a promotion dispatch is handled by promote.
+    if: >-
+      (github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v'))
+      || (github.event_name == 'workflow_dispatch' && inputs.promote_version == '')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
@@ -96,38 +103,29 @@ jobs:
         # `latest`. The 0.1.x line is wire-compatible across patches
         # (`ink/0.1` is frozen) but the API surface and trust semantics
         # remain alpha-quality — see docs/maturity.md. `latest` only
-        # advances when a release is explicitly promoted, with:
-        #   npm dist-tag add @adastracomputing/ink@<ver> latest
-        # so bare `npm install @adastracomputing/ink` only picks up
+        # advances when a soaked version is re-cut as a patch and tagged
+        # `latest-v<ver>`, which the publish-latest job below stamps, so
+        # bare `npm install @adastracomputing/ink` only picks up
         # versions a maintainer has stamped adopter-grade. Adopters who
         # want the bleeding edge use `npm install @adastracomputing/ink@next`.
         run: npm publish --access public --provenance --tag next
 
       - name: Create GitHub Release from CHANGELOG
-        # The release body is the matching CHANGELOG section. Reading
-        # from the file lives in-repo so future contributors don't
-        # need a maintainer's machine to backfill or re-cut a release.
-        # Heredoc + literal markdown is intentional — no external action,
-        # so no third-party SHA to keep updated, and no privileged token
-        # beyond the default GITHUB_TOKEN which can only act on this repo.
+        # The release body is the matching CHANGELOG section, extracted by
+        # scripts/changelog-section.sh so both publish paths read it the same
+        # way. Reading from the file lives in-repo so future contributors
+        # don't need a maintainer's machine to backfill or re-cut a release.
+        # No external action, so no third-party SHA to keep updated, and no
+        # privileged token beyond the default GITHUB_TOKEN which can only act
+        # on this repo.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          set -euo pipefail
           tag="${GITHUB_REF_NAME}"
           version="${tag#v}"
-          # Extract the CHANGELOG block from `## <version>(,|$)` up to
-          # (but not including) the next `## ` heading. Drop the leading
-          # heading line; the release title carries the version already.
           body_file="$(mktemp)"
-          awk -v p="^## ${version}(,|\$)" '
-            $0 ~ p { in_block=1; next }
-            in_block && /^## / { in_block=0 }
-            in_block { print }
-          ' CHANGELOG.md > "$body_file"
-          if [ ! -s "$body_file" ]; then
-            echo "No CHANGELOG section found for ${version}; skipping release body."
-            echo "Refer to CHANGELOG.md for changes." > "$body_file"
-          fi
+          ./scripts/changelog-section.sh "$version" > "$body_file"
           # All pre-1.0 releases are pre-release. Once a 1.0.0 lands
           # this should switch to a semver-based check on the tag.
           gh release create "$tag" \
@@ -135,13 +133,103 @@ jobs:
             --notes-file "$body_file" \
             --prerelease
 
+  publish-latest:
+    # Tokenless promotion to the `latest` dist-tag. npm trusted publishing
+    # authenticates `npm publish` over OIDC but not `npm dist-tag`
+    # (npm/cli#8547), so a promotion is expressed as a publish: re-cut the
+    # soaked version as a patch, then push a `latest-v<ver>` tag. This job
+    # runs the same gauntlet as the publish job and needs no stored npm
+    # credential. It carries the npm-release environment so environment
+    # protection rules still gate every move of `latest`.
+    if: github.event_name == 'push' && startsWith(github.ref_name, 'latest-v')
+    runs-on: ubuntu-latest
+    environment: npm-release
+    permissions:
+      contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
+      id-token: write   # required for npm provenance (sigstore OIDC).
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      # No build cache on the publish path, for the same reason as the publish
+      # job above: a poisoned cross-workflow cache could influence the artifact.
+
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      - name: Tests
+        run: nix develop --command npm test
+
+      - name: Typecheck
+        run: nix develop --command npm run typecheck
+
+      - name: Lint
+        run: nix develop --command npm run lint
+
+      - name: Public-surface drift check
+        run: nix develop --command npm run check:surface
+
+      - name: Pack-and-import smoke
+        run: nix develop --command npm run check:pack
+
+      - name: Verify version matches tag
+        run: |
+          set -euo pipefail
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${GITHUB_REF_NAME#latest-v}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      # No `cache:` input, so setup-node does not actually cache anything here.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
+        with:
+          node-version: 24.x
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Publish to npm as latest
+        # The publish itself moves `latest`, under the same OIDC trusted
+        # publishing identity as a normal release. This version is also on
+        # `next` only if it was published there first; a promotion re-cut is a
+        # new patch, so it lands on `latest` alone until the next `v*` release.
+        run: npm publish --access public --provenance --tag latest
+
+      - name: Create GitHub Release from CHANGELOG
+        # Titled with the normalized version even though the git tag carries
+        # the `latest-` prefix, and not marked prerelease: this release is the
+        # adopter-grade stamp.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          version="${tag#latest-v}"
+          body_file="$(mktemp)"
+          ./scripts/changelog-section.sh "$version" > "$body_file"
+          gh release create "$tag" \
+            --title "v${version}" \
+            --notes-file "$body_file"
+
   promote:
-    # Move an already-published version's dist-tag (e.g. next -> latest). npm
-    # trusted-publishing OIDC only authenticates `npm publish`, not `npm dist-tag`
-    # (npm/cli#8547), so promotion needs a real automation token: NPM_TOKEN, a
-    # granular read-write token for @adastracomputing/ink, stored on the
-    # npm-release environment. Runs only on a manual dispatch that supplies
-    # promote_version. OIDC trusted publishing still covers the publish job.
+    # Fallback path. The preferred way to move `latest` is the tokenless
+    # `latest-v*` re-cut handled by publish-latest above, which authenticates
+    # over OIDC and needs no stored credential. This job moves the dist-tag on
+    # an already-published version instead, which npm trusted publishing cannot
+    # authenticate (npm/cli#8547), so it needs a real automation token in
+    # NPM_TOKEN: a granular read-write token for @adastracomputing/ink on the
+    # npm-release environment. No such token is kept long-term, so using this
+    # path means minting a fresh one first and revoking it afterwards. Use it
+    # only when a re-cut is not viable, for example rolling `latest` back to an
+    # earlier version. Runs only on a manual dispatch that supplies
+    # promote_version.
     if: github.event_name == 'workflow_dispatch' && inputs.promote_version != ''
     runs-on: ubuntu-latest
     environment: npm-release
