@@ -141,6 +141,13 @@ jobs:
     # runs the same gauntlet as the publish job and needs no stored npm
     # credential. It carries the npm-release environment so environment
     # protection rules still gate every move of `latest`.
+    #
+    # The real authorization boundary is who can push a tag, not this `if:`.
+    # npm's trusted publisher is scoped to this repository and this workflow
+    # file, so it authenticates any job here; keep tag protection rules on
+    # `latest-v*` in step with who may cut a release. The npm trusted-publisher
+    # environment setting must stay unset, or the publish job (which has no
+    # environment) would stop authenticating.
     if: github.event_name == 'push' && startsWith(github.ref_name, 'latest-v')
     runs-on: ubuntu-latest
     environment: npm-release
@@ -184,6 +191,12 @@ jobs:
           set -euo pipefail
           PKG_VERSION=$(node -p "require('./package.json').version")
           TAG_VERSION="${GITHUB_REF_NAME#latest-v}"
+          # A promotion always names a bare release version. Rejecting anything
+          # else keeps a prerelease or build-metadata version off `latest`.
+          if ! [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "promotion tag must be latest-v<major>.<minor>.<patch> (got: ${GITHUB_REF_NAME})"
+            exit 1
+          fi
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
             echo "package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
             exit 1

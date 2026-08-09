@@ -18,9 +18,13 @@ fi
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Match `## <version>` where the version is followed by a comma or end of
-# line, then print until the next `## ` heading.
-section="$(awk -v p="^## ${VERSION}(,|\$)" '
-  $0 ~ p { in_block=1; next }
+# line, then print until the next `## ` heading. Dots are escaped so a version
+# cannot match a neighbouring heading through the regex wildcard.
+# Passed through the environment rather than -v, which would strip one level
+# of escaping before awk sees the pattern.
+export VERSION_RE="^## ${VERSION//./\\.}(,|$)"
+section="$(awk '
+  $0 ~ ENVIRON["VERSION_RE"] { in_block=1; next }
   in_block && /^## / { in_block=0 }
   in_block { print }
 ' "${REPO_ROOT}/CHANGELOG.md")"
