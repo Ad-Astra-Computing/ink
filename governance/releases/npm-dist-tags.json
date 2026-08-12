@@ -1,0 +1,9 @@
+{
+  "package": "@adastracomputing/ink",
+  "distTags": {
+    "latest": "0.15.0",
+    "next": "0.15.0"
+  },
+  "verifiedAt": "2026-08-12",
+  "updatedBy": "The release step that moves a dist-tag. Every document that quotes a dist-tag is checked against this file by `npm run check:facts`, which also verifies the file against the registry whenever npm is reachable."
+}

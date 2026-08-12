@@ -23,16 +23,16 @@ a role MUST satisfy every base obligation for that role.
 ## Base profile (MUST)
 
 Every conforming INK implementation MUST satisfy the base profile categories for
-the roles it performs. The base profile is the fifteen categories tagged
+the roles it performs. The base profile is the fifteen[^ck] categories tagged
 `profile: "base"` in the manifest:
 
 `agent-card`, `agent-card-fetch`, `agent-card-signature`,
 `authorization-header`, `connection-payload`, `first-contact-transcript`,
 `jcs-number`, `jcs-string-safety`, `key-rotation`, `principal-normalization`,
 `private-hostname`, `replay-freshness`, `signature-base`, `signed-body-utf8`,
-`timestamp-validity`.
+`timestamp-validity`.[^ck]
 
-| Category | Base sender MUST | Base receiver MUST |
+| Category[^ck] | Base sender MUST | Base receiver MUST |
 |---|---|---|
 | principal-normalization | Canonicalize its own and the peer's agentId before any identity comparison. | Canonicalize the sender's agentId the same way before authorizing it. |
 | signature-base | Build the §3.3 signature base and produce the Ed25519 signature over its UTF-8 bytes. | Reconstruct the same base and verify the signature, failing closed on any mismatch. |
@@ -59,7 +59,7 @@ of `first-contact-transcript`; every other base obligation for the role applies.
 These categories are required only when an implementation advertises the
 matching capability in its Agent Card. An implementation that does not advertise
 the capability MUST NOT be expected to satisfy them, and MUST NOT advertise a
-capability it does not fully implement.
+capability it does not fully implement.[^ck]
 
 - **encryption** (`payload-encryption`) — required when the implementation sends
   or accepts encrypted payloads (`network.tulpa.encrypted`). Intents that the
@@ -80,13 +80,14 @@ capability it does not fully implement.
   query envelope against the requester's key before matching. Opting in to being
   surfaced is the agent-card discovery descriptor (base profile); serving the
   query is this capability.
-- **authorization** (`authorization-grant`): required when the implementation
-  accepts "Sign in with INK" authorization grants. A service verifies a
-  scoped, audience-bound, expiring grant against the issuer key and its own
-  context (audience, clock, replay set, revocation list, owner status) before
-  acting on it. Issuing a grant is the sender side of the same capability. An
-  implementation that does not advertise authorization is not expected to accept
-  grants.
+- **authorization** (`agent-authorization`, `authorization-grant`): required when
+  the implementation issues or accepts "Sign in with INK" authorization
+  challenges and grants. A relying party emits a challenge bound to its own
+  origin and requested scope, and a service verifies the scoped, audience-bound,
+  expiring grant against the issuer key and its own context (audience, clock,
+  replay set, revocation list, owner status) before acting on it. Issuing a grant
+  is the sender side of the same capability. An implementation that does not
+  advertise authorization is not expected to accept grants.
 - **delegation** (`authorization-chain`): required when the implementation accepts
   delegation chains, the post-1.0 extension on top of the grant. A verifier checks
   a presented chain of 2 to 4 grant-shaped links against its own context: parent
@@ -106,3 +107,5 @@ of the cross-implementation conformance floor, keyed to the `conformance/v1`
 categories that a second implementation runs directly. Where the two overlap
 they agree; this profile is authoritative for what the corpus requires of a
 conforming implementation.
+
+[^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.
