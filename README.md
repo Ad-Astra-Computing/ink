@@ -4,7 +4,7 @@
 
 An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-**Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` and `next` both point at `0.15.0`; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.15.0`[^ck] and `next` is `0.15.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
 
 `ink/0.2` is a version of the intent-envelope body-signature domain and nothing else. It is a backward-compatible minor over `ink/0.1`, changing only that domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. It is the recommended `protocol` value for new intent envelopes. The Agent Card, handshake, discovery query, authorization challenge/grant/chain, receipt and audit objects have no `ink/0.2` form and MUST carry `protocol: "ink/0.1"`; stamping `ink/0.2` on any of them is rejected. `ink/0.1` remains fully supported for intents too: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
@@ -145,6 +145,7 @@ npm test            # vitest
 npm run typecheck   # tsc --noEmit
 npm run lint        # eslint
 npm run check:surface   # public-surface drift check
+npm run check:facts     # documented-fact drift check
 ```
 
 For Nix users: `nix develop` gives a pinned Node 24 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`. `nix run github:Ad-Astra-Computing/ink -- verify-inclusion --file receipt.json --witness https://witness.example.com` runs the CLI without installing anything globally.
@@ -210,3 +211,5 @@ Dual-licensed under either of:
 - Apache 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE))
 
 at your option. The Apache 2.0 license includes an explicit patent grant; MIT is the simpler text. Pick whichever fits your downstream policy. This covers the code, specs, docs, and test vectors. Contributions are accepted under both licenses.
+
+[^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.

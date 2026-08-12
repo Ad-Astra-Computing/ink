@@ -57,11 +57,12 @@ All changes must include tests. For bug fixes, add a regression test that fails 
 ## Submitting a PR
 
 1. Fork and branch from `main`.
-2. Run all four CI checks, every one must pass before requesting review:
+2. Run all five CI checks, every one must pass before requesting review:
    - `npm test`
    - `npm run typecheck`
    - `npm run lint`
    - `npm run check:surface` (asserts public schema fields match the documented snapshot in `scripts/check-public-surface.ts`)
+   - `npm run check:facts` (recomputes every derivable number quoted in `governance/`, `specs/`, `README.md` and `CHANGELOG.md` and fails on a stale one)
 3. Keep commits small and focused. Commit messages: imperative mood, under 72 characters.
 4. Reference any related issue or spec section in the PR description.
 

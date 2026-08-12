@@ -55,6 +55,14 @@ jobs:
       - name: Public-surface drift check
         run: nix develop --command npm run check:surface
 
+      - name: Documented-fact drift check
+        # Recomputes every derivable claim in the governance record, the specs,
+        # the README and the changelog. CHECK_FACTS_REQUIRE_NPM makes an
+        # unreachable registry a failure here rather than an unverified pin.
+        env:
+          CHECK_FACTS_REQUIRE_NPM: "1"
+        run: nix develop --command npm run check:facts
+
       - name: Build nix package
         # Builds the cli derivation, which verifies npmDepsHash against the
         # lockfile. Catches a stale or malformed hash that the devshell-based
