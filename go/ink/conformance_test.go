@@ -672,10 +672,40 @@ func TestDiscoveryQueryEnvelope(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
 		}
-		ok := VerifyDiscoveryQueryEnvelope(c.Input["envelope"], pub)
+		var now string
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		// A directory states the spellings of itself it answers to. The vector
+		// carries one string or a list of them; both decode to the same set.
+		var audience []string
+		var single string
+		if err := json.Unmarshal(c.Input["audience"], &single); err == nil {
+			audience = []string{single}
+		} else if err := json.Unmarshal(c.Input["audience"], &audience); err != nil {
+			t.Fatalf("%s: bad audience: %v", c.CaseID, err)
+		}
+		var seen []DiscoveryQueryKey
+		if raw, present := c.Input["seenNonces"]; present {
+			var list []struct {
+				From  string `json:"from"`
+				Nonce string `json:"nonce"`
+			}
+			if err := json.Unmarshal(raw, &list); err != nil {
+				t.Fatalf("%s: bad seenNonces: %v", c.CaseID, err)
+			}
+			for _, k := range list {
+				seen = append(seen, DiscoveryQueryKey{From: k.From, Nonce: k.Nonce})
+			}
+		}
+		ctx := DiscoveryQueryContext{Audience: audience, Now: now, SeenNonces: seen}
+		ok, reason := VerifyDiscoveryQueryEnvelope(c.Input["envelope"], pub, ctx)
 		want := c.Expect.Result == "accept"
 		if ok != want {
-			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+			t.Errorf("%s: verify = %v (%s), want %v", c.CaseID, ok, reason, want)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
 		}
 	}
 }

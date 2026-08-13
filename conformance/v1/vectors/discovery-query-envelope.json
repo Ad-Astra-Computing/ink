@@ -4,8 +4,10 @@
   "cases": [
     {
       "caseId": "valid-query-accepts",
-      "description": "A requester-signed query with tags, scope, and limit verifies against the requester's key.",
+      "description": "A requester-signed query with tags, scope and limit verifies against the requester's key, this directory's identity and its clock.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -33,6 +35,8 @@
       "caseId": "network-ink-spelling-accepts",
       "description": "The vendor-neutral network.ink.discovery_query spelling is signed and verifies like the legacy spelling.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.ink.discovery_query",
@@ -60,6 +64,8 @@
       "caseId": "empty-query-accepts",
       "description": "An empty query object (no tags, scope, or limit) is a valid signed request.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -78,8 +84,10 @@
     },
     {
       "caseId": "tampered-to-rejects",
-      "description": "Changing the addressed directory after signing invalidates the signature.",
+      "description": "Changing the addressed directory after signing invalidates the signature, and the signature is checked before the audience.",
       "input": {
+        "audience": "did:web:evil.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -100,13 +108,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "signature"
       }
     },
     {
       "caseId": "relabeled-type-rejects",
       "description": "Relabeling the wire type from network.tulpa to network.ink after signing invalidates the signature; the spelling is signed, not normalized.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.ink.discovery_query",
@@ -127,13 +138,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "signature"
       }
     },
     {
       "caseId": "tampered-tag-rejects",
       "description": "Altering a query tag after signing invalidates the signature.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -154,13 +168,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "signature"
       }
     },
     {
       "caseId": "wrong-key-rejects",
       "description": "Verifying against a different public key fails.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -181,13 +198,16 @@
         "publicKeyHex": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "signature"
       }
     },
     {
       "caseId": "malformed-signature-rejects",
       "description": "A signature that is not valid base64url of the right length is rejected.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -208,13 +228,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "unknown-top-level-key-rejects",
       "description": "An unknown top-level field is rejected by the strict schema before verification.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -236,13 +259,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "unknown-query-key-rejects",
       "description": "An unknown field inside the query object is rejected by the strict schema.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -264,13 +290,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "over-limit-tags-rejects",
       "description": "A query with more than 32 tags is out of profile and rejects.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -322,13 +351,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "limit-over-100-rejects",
       "description": "A limit above 100 is out of profile and rejects.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -349,13 +381,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "invalid-timestamp-rejects",
       "description": "A timestamp that is not a strict INK timestamp rejects.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -376,13 +411,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "short-nonce-rejects",
       "description": "A nonce shorter than 16 code units is out of profile and rejects.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -403,13 +441,16 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
       }
     },
     {
       "caseId": "missing-signature-rejects",
       "description": "An envelope with no signature field rejects.",
       "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
         "envelope": {
           "protocol": "ink/0.1",
           "type": "network.tulpa.discovery_query",
@@ -429,7 +470,416 @@
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
-        "result": "reject"
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "other-directory-rejects",
+      "description": "A validly signed query addressed to another directory rejects at this one: the signed `to` must be this directory's own identity.",
+      "input": {
+        "audience": "did:web:other.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "audience"
+      }
+    },
+    {
+      "caseId": "audience-alias-accepts",
+      "description": "A directory that answers to several spellings of itself supplies all of them; the signed `to` matching any one accepts.",
+      "input": {
+        "audience": [
+          "https://directory.example",
+          "directory.example",
+          "did:web:directory.example"
+        ],
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "audience-case-mismatch-rejects",
+      "description": "Audience comparison is exact: a case-folded spelling of the same directory does not match.",
+      "input": {
+        "audience": "DID:WEB:DIRECTORY.EXAMPLE",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "audience"
+      }
+    },
+    {
+      "caseId": "empty-audience-rejects",
+      "description": "An empty audience set is a verifier input error and fails closed rather than admitting every audience.",
+      "input": {
+        "audience": [],
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "signature-before-audience-rejects",
+      "description": "With both the key and the audience wrong the verdict is the signature, so a rejection never reveals whether the audience would have matched.",
+      "input": {
+        "audience": "did:web:other.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "stale-timestamp-rejects",
+      "description": "A query older than the five-minute freshness window rejects at the verifier clock.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:05:00.001Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "age-bound-accepts",
+      "description": "The age bound is inclusive: a query exactly five minutes old still accepts.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:05:00.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "future-timestamp-rejects",
+      "description": "A query timestamped past the thirty-second skew allowance rejects.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-08T23:59:29.999Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "not_yet_valid"
+      }
+    },
+    {
+      "caseId": "skew-bound-accepts",
+      "description": "The skew bound is inclusive: a query exactly thirty seconds ahead of the verifier clock still accepts.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-08T23:59:30.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "malformed-clock-rejects",
+      "description": "A verifier clock that is not a strict INK timestamp is an input error and fails closed as schema, not a window verdict.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09 00:00",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "replayed-nonce-rejects",
+      "description": "A (from, nonce) pair this directory already burned is a replay.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "seenNonces": [
+          {
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "nonce": "conformance-discovery-nonce-1"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "replay"
+      }
+    },
+    {
+      "caseId": "other-requester-nonce-accepts",
+      "description": "Replay is keyed on the (from, nonce) pair, so an identical nonce burned for a different requester does not reject this one.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "seenNonces": [
+          {
+            "from": "tulpa:someone-else",
+            "nonce": "conformance-discovery-nonce-1"
+          }
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "stale-replay-reports-window",
+      "description": "Replay is checked after the window, so a stale replayed query reports the window rather than the replay.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:05:00.001Z",
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.discovery_query",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "did:web:directory.example",
+          "nonce": "conformance-discovery-nonce-1",
+          "timestamp": "2026-07-09T00:00:00.000Z",
+          "query": {
+            "tags": [
+              "go",
+              "typescript"
+            ],
+            "scope": "public",
+            "limit": 10
+          },
+          "signature": "WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg"
+        },
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "seenNonces": [
+          {
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "nonce": "conformance-discovery-nonce-1"
+          }
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
       }
     }
   ]

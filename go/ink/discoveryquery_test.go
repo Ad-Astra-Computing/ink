@@ -1,6 +1,9 @@
 package ink
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -96,7 +99,7 @@ func TestValidateDiscoveryQueryEnvelopeDuplicateKeyLastWins(t *testing.T) {
 func TestVerifyDiscoveryQueryEnvelopeRejectsInvalidUTF8(t *testing.T) {
 	raw := []byte(discoveryEnvelope(`{}`, ""))
 	raw[len(raw)/2] = 0xff
-	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+	if ok, _ := VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32), discoveryCtx()); ok {
 		t.Error("invalid UTF-8 envelope verified")
 	}
 }
@@ -112,7 +115,7 @@ func TestVerifyDiscoveryQueryEnvelopeRejectsOversizedBody(t *testing.T) {
 	for i := range raw {
 		raw[i] = 'x'
 	}
-	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+	if ok, _ := VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32), discoveryCtx()); ok {
 		t.Error("oversized discovery query body verified")
 	}
 }
@@ -127,7 +130,7 @@ func TestVerifyDiscoveryQueryEnvelopeAcceptsBodyUnderCap(t *testing.T) {
 	}
 	// A valid-shaped envelope under the cap reaches signature verification and
 	// fails there (dummy signature, zero key), not at the byte cap.
-	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+	if ok, _ := VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32), discoveryCtx()); ok {
 		t.Error("dummy-signed envelope unexpectedly verified")
 	}
 }
@@ -139,7 +142,160 @@ func TestVerifyDiscoveryQueryEnvelopeAcceptsBodyUnderCap(t *testing.T) {
 func TestVerifyDiscoveryQueryEnvelopeRejectsOverDeepBody(t *testing.T) {
 	deep := strings.Repeat(`{"a":`, maxBodyDepth+2) + "1" + strings.Repeat(`}`, maxBodyDepth+2)
 	raw := []byte(strings.Replace(discoveryEnvelope(`{}`, ""), `"query":{}`, `"query":`+deep, 1))
-	if VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32)) {
+	if ok, _ := VerifyDiscoveryQueryEnvelope(raw, make([]byte, 32), discoveryCtx()); ok {
 		t.Error("over-deep discovery query body verified")
+	}
+}
+
+// ── verification context: audience, freshness, replay ───────────────────────
+
+const (
+	discoveryTestDirectory = "did:web:directory.example"
+	discoveryTestFrom      = "tulpa:requester"
+	discoveryTestNonce     = "0123456789abcdef"
+	discoveryTestTimestamp = "2026-07-09T00:00:00.000Z"
+)
+
+// discoveryCtx is the context a well-behaved directory supplies: itself, a clock
+// one second past the signed timestamp and no burned nonces.
+func discoveryCtx() DiscoveryQueryContext {
+	return DiscoveryQueryContext{
+		Audience: []string{discoveryTestDirectory},
+		Now:      "2026-07-09T00:00:01.000Z",
+	}
+}
+
+// discoverySeed derives a fixed Ed25519 key for the signed-envelope tests.
+func discoverySeed(t *testing.T) (ed25519.PrivateKey, ed25519.PublicKey) {
+	t.Helper()
+	seed := sha256.Sum256([]byte("ink-discovery-query-go-test-key"))
+	priv := ed25519.NewKeyFromSeed(seed[:])
+	return priv, priv.Public().(ed25519.PublicKey)
+}
+
+// signedDiscoveryEnvelope builds and signs a valid envelope, so the context
+// checks that run only after a valid signature can be reached.
+func signedDiscoveryEnvelope(t *testing.T, priv ed25519.PrivateKey) []byte {
+	t.Helper()
+	unsigned := map[string]interface{}{
+		"protocol":  "ink/0.1",
+		"type":      "network.tulpa.discovery_query",
+		"from":      discoveryTestFrom,
+		"to":        discoveryTestDirectory,
+		"nonce":     discoveryTestNonce,
+		"timestamp": discoveryTestTimestamp,
+		"query":     map[string]interface{}{"tags": []interface{}{"go"}, "limit": float64(10)},
+	}
+	canonical, err := canonicalizeJSON(unsigned)
+	if err != nil {
+		t.Fatalf("canonicalize envelope: %v", err)
+	}
+	sig := ed25519.Sign(priv, []byte("tulpa/sign\n"+canonical))
+	unsigned["signature"] = base64.RawURLEncoding.EncodeToString(sig)
+	raw, err := json.Marshal(unsigned)
+	if err != nil {
+		t.Fatalf("marshal envelope: %v", err)
+	}
+	return raw
+}
+
+func TestVerifyDiscoveryQueryEnvelopeAcceptsInContext(t *testing.T) {
+	priv, pub := discoverySeed(t)
+	raw := signedDiscoveryEnvelope(t, priv)
+	if ok, reason := VerifyDiscoveryQueryEnvelope(raw, pub, discoveryCtx()); !ok {
+		t.Errorf("valid envelope rejected: %s", reason)
+	}
+}
+
+// TestVerifyDiscoveryQueryEnvelopeContextRejections pins the reason each context
+// check returns, and the order they run in: signature before audience, audience
+// before the window, the window before replay.
+func TestVerifyDiscoveryQueryEnvelopeContextRejections(t *testing.T) {
+	priv, pub := discoverySeed(t)
+	raw := signedDiscoveryEnvelope(t, priv)
+
+	withCtx := func(mutate func(*DiscoveryQueryContext)) DiscoveryQueryContext {
+		ctx := discoveryCtx()
+		mutate(&ctx)
+		return ctx
+	}
+	burned := DiscoveryQueryKey{From: discoveryTestFrom, Nonce: discoveryTestNonce}
+
+	cases := map[string]struct {
+		ctx  DiscoveryQueryContext
+		want DiscoveryQueryReason
+	}{
+		"other directory": {withCtx(func(c *DiscoveryQueryContext) { c.Audience = []string{"did:web:other.example"} }), DiscoveryQueryReasonAudience},
+		"case-folded audience": {withCtx(func(c *DiscoveryQueryContext) {
+			c.Audience = []string{"DID:WEB:DIRECTORY.EXAMPLE"}
+		}), DiscoveryQueryReasonAudience},
+		"empty audience set":   {withCtx(func(c *DiscoveryQueryContext) { c.Audience = nil }), DiscoveryQueryReasonSchema},
+		"empty audience entry": {withCtx(func(c *DiscoveryQueryContext) { c.Audience = []string{""} }), DiscoveryQueryReasonSchema},
+		"stale": {withCtx(func(c *DiscoveryQueryContext) {
+			c.Now = "2026-07-09T00:05:00.001Z"
+		}), DiscoveryQueryReasonExpired},
+		"past the skew allowance": {withCtx(func(c *DiscoveryQueryContext) {
+			c.Now = "2026-07-08T23:59:29.999Z"
+		}), DiscoveryQueryReasonNotYetValid},
+		"malformed clock": {withCtx(func(c *DiscoveryQueryContext) { c.Now = "2026-07-09 00:00" }), DiscoveryQueryReasonSchema},
+		"burned nonce": {withCtx(func(c *DiscoveryQueryContext) {
+			c.SeenNonces = []DiscoveryQueryKey{burned}
+		}), DiscoveryQueryReasonReplay},
+		// The window is checked before replay, so a stale replay reports the window.
+		"stale replay": {withCtx(func(c *DiscoveryQueryContext) {
+			c.Now = "2026-07-09T00:05:00.001Z"
+			c.SeenNonces = []DiscoveryQueryKey{burned}
+		}), DiscoveryQueryReasonExpired},
+	}
+	for name, tc := range cases {
+		ok, reason := VerifyDiscoveryQueryEnvelope(raw, pub, tc.ctx)
+		if ok {
+			t.Errorf("%s: envelope accepted but should have been rejected", name)
+			continue
+		}
+		if reason != tc.want {
+			t.Errorf("%s: reason = %q, want %q", name, reason, tc.want)
+		}
+	}
+}
+
+// TestVerifyDiscoveryQueryEnvelopeSignatureBeforeContext pins that a rejection
+// on a bad signature never reveals whether the audience would have matched.
+func TestVerifyDiscoveryQueryEnvelopeSignatureBeforeContext(t *testing.T) {
+	priv, _ := discoverySeed(t)
+	raw := signedDiscoveryEnvelope(t, priv)
+	other := ed25519.NewKeyFromSeed(make([]byte, 32)).Public().(ed25519.PublicKey)
+	ctx := discoveryCtx()
+	ctx.Audience = []string{"did:web:other.example"}
+	ok, reason := VerifyDiscoveryQueryEnvelope(raw, other, ctx)
+	if ok || reason != DiscoveryQueryReasonSignature {
+		t.Errorf("verify = %v/%q, want false/signature", ok, reason)
+	}
+}
+
+// TestVerifyDiscoveryQueryEnvelopeContextBounds pins the inclusive bounds of the
+// freshness window and the (from, nonce) keying of the replay seam.
+func TestVerifyDiscoveryQueryEnvelopeContextBounds(t *testing.T) {
+	priv, pub := discoverySeed(t)
+	raw := signedDiscoveryEnvelope(t, priv)
+
+	accepts := map[string]DiscoveryQueryContext{}
+	atAge := discoveryCtx()
+	atAge.Now = "2026-07-09T00:05:00.000Z"
+	accepts["exactly at the age bound"] = atAge
+	atSkew := discoveryCtx()
+	atSkew.Now = "2026-07-08T23:59:30.000Z"
+	accepts["exactly at the skew bound"] = atSkew
+	alias := discoveryCtx()
+	alias.Audience = []string{"https://directory.example", "directory.example", discoveryTestDirectory}
+	accepts["one of several self-identifiers"] = alias
+	otherRequester := discoveryCtx()
+	otherRequester.SeenNonces = []DiscoveryQueryKey{{From: "tulpa:someone-else", Nonce: discoveryTestNonce}}
+	accepts["another requester's identical nonce"] = otherRequester
+
+	for name, ctx := range accepts {
+		if ok, reason := VerifyDiscoveryQueryEnvelope(raw, pub, ctx); !ok {
+			t.Errorf("%s: rejected with %q, want accept", name, reason)
+		}
 	}
 }

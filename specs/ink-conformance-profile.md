@@ -77,9 +77,11 @@ capability it does not fully implement.[^ck]
   rejection, and resolution handshake messages.
 - **discovery** (`discovery-query-envelope`) — required when the implementation
   answers directory discovery queries: verifying a requester-signed discovery
-  query envelope against the requester's key before matching. Opting in to being
-  surfaced is the agent-card discovery descriptor (base profile); serving the
-  query is this capability.
+  query envelope against the requester's key, its own identity, its clock and its
+  burned-nonce state before matching, so a query addressed to another directory, a
+  stale query or a replayed nonce is rejected rather than served. Opting in to
+  being surfaced is the agent-card discovery descriptor (base profile); serving
+  the query is this capability.
 - **authorization** (`agent-authorization`, `authorization-grant`): required when
   the implementation issues or accepts "Sign in with INK" authorization
   challenges and grants. A relying party emits a challenge bound to its own

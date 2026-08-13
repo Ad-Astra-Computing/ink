@@ -97,9 +97,9 @@
       "vector": "vectors/discovery-query-envelope.json",
       "profile": "discovery",
       "spec": "specs/ink-discovery-query.md",
-      "summary": "Authenticated discovery query envelope: schema bounds and requester-key signature verification.",
-      "caseCount": 15,
-      "sha256": "04382e6a0fdc8f4de127a81d37555ec2170a9d849df3df935738fe9793cf4d4d"
+      "summary": "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay.",
+      "caseCount": 28,
+      "sha256": "997f956b7502a306874a7cdfe55b99465817a2a4feb77675839c4f24b14f0ff7"
     },
     {
       "id": "first-contact-transcript",
