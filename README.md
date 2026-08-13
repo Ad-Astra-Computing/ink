@@ -132,7 +132,7 @@ Added in `0.15.0`:
 
 - Agent Card producer signing reaches Phase B (producers MUST sign, [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §10). The reference receiver now signs every card it serves, and a producer emits `keySetVersion` and `updatedAt` on every signed card. A producer signs only a card it can root under §4 and stays unsigned otherwise, so it never serves a proof a verifier would reject. There is no wire, schema or conformance change; a receiver validates a card exactly as before. See [`CHANGELOG.md`](CHANGELOG.md).
 
-Staged, not yet in effect:
+Staged in `0.16.0`, not yet in effect:
 
 - Agent Card signature Phase C is implemented and inert. `verifyAgentCardSignature` takes an OPTIONAL `enforcePhaseC` boolean, default off, that turns on the Phase C receiver rule: an unsigned card is rejected outright, and a cold did:web verifier fails closed on an unreachable DID document. The Go verifier's `EnforcePhaseC` is the same switch. Leave it unset and the verifier behaves exactly as it did before the option existed. The decisions are pinned by the staged `agent-card-signature-phase-c` conformance category, which both implementations run in a dedicated flag-on job and which is not part of the frozen base profile until Phase C begins. See [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §10.1.
 
