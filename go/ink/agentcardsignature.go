@@ -75,13 +75,14 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 
 	kind := cardPrincipalKindOf(agentID)
 	cachedCard := options.CachedCard
+	phaseC := options.PhaseCEnforced()
 
 	// Unsigned path: the only cards this spec treats as unsigned are those with
 	// no `cardSignature` at all (§3.4). A present-but-null member is not a card
 	// signature; a present-but-malformed member fails closed rather than demoting.
 	rawSig, present := card["cardSignature"]
 	if !present || rawSig == nil {
-		return verifyUnsignedCard(kind, cachedCard, options.Profile)
+		return verifyUnsignedCard(kind, cachedCard, phaseC)
 	}
 	sigMap, ok := rawSig.(map[string]interface{})
 	if !ok {
@@ -106,7 +107,7 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	}
 
 	// ── §5 step 3: rooting ──
-	rooting := rootCardSigner(card, agentID, kind, proof.signerKey, cachedCard, options)
+	rooting := rootCardSigner(card, agentID, kind, proof.signerKey, cachedCard, options, phaseC)
 	if rooting.rejected {
 		return CardVerifyResult{Authenticated: false, Rejected: true, Reason: rooting.reason, AuditEvents: rooting.auditEvents}
 	}
@@ -125,7 +126,7 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 
 // verifyUnsignedCard handles the §7 ratchet, §8 first-contact and Phase C 1.0
 // unsigned rules.
-func verifyUnsignedCard(kind cardPrincipalKind, cachedCard map[string]interface{}, profile string) CardVerifyResult {
+func verifyUnsignedCard(kind cardPrincipalKind, cachedCard map[string]interface{}, phaseC bool) CardVerifyResult {
 	// Signature-stripping ratchet (§7): once a valid authenticated card has been
 	// observed for a principal, any subsequent unsigned card is rejected forever.
 	// The caller only caches authenticated cards, so a present cachedCard IS that
@@ -134,7 +135,7 @@ func verifyUnsignedCard(kind cardPrincipalKind, cachedCard map[string]interface{
 		return rejectCard(ReasonUnsignedAfterAuthenticated)
 	}
 	// First contact, no prior state.
-	if profile == Profile10 {
+	if phaseC {
 		// Phase C: an unsigned card is rejected outright. A key-derived id
 		// intrinsically carries its signing authority, so it is called out.
 		if kind == kindKeyDerived {
@@ -238,7 +239,7 @@ func rootCardReject(reason CardVerifyReason, auditEvents []string) rootCardResul
 	return rootCardResult{rejected: true, reason: reason, auditEvents: auditEvents}
 }
 
-func rootCardSigner(card map[string]interface{}, agentID string, kind cardPrincipalKind, signerKey []byte, cachedCard map[string]interface{}, options CardVerifyOptions) rootCardResult {
+func rootCardSigner(card map[string]interface{}, agentID string, kind cardPrincipalKind, signerKey []byte, cachedCard map[string]interface{}, options CardVerifyOptions, phaseC bool) rootCardResult {
 	chain, hasChain := rotationChainLinks(card)
 
 	switch kind {
@@ -259,10 +260,10 @@ func rootCardSigner(card map[string]interface{}, agentID string, kind cardPrinci
 	case kindDidWeb:
 		unavailable, didKeys := normalizeDidResolution(options.DidVerificationKeys)
 		if unavailable {
-			// Resolver-unavailable rule (§4.2). Cold + 1.0 fails closed; otherwise
-			// (pre-1.0 either way, or 1.0 warm) continue under signature-plus-
-			// continuity and record that the anchor was not checked.
-			if options.Profile == Profile10 && cachedCard == nil {
+			// Resolver-unavailable rule (§4.2). Cold under Phase C fails closed;
+			// otherwise (Phase C not enforced, or enforced but warm) continue under
+			// signature-plus-continuity and record that the anchor was not checked.
+			if phaseC && cachedCard == nil {
 				return rootCardReject(ReasonDidwebResolverUnavail, nil)
 			}
 			return rootCardOk([]string{"card.anchor_unverified"}, nil)

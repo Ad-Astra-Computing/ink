@@ -72,6 +72,12 @@ const totalVectors = categories.reduce((n, c) => n + c.caseCount, 0);
 
 const profiles = [...new Set(categories.map((c) => c.profile))].sort();
 const nonBaseProfiles = profiles.filter((p) => p !== "base");
+// `staged` is non-`base` but it is not capability-gated: it holds a category
+// that becomes required on a scheduled date rather than one an implementation
+// opts into. The capability-profile claim below must not demand it be listed as
+// a capability, and the staged claim must not accept a capability in its place.
+const STAGED_PROFILE = "staged";
+const capabilityProfiles = nonBaseProfiles.filter((p) => p !== STAGED_PROFILE);
 function inProfile(profile: string): ManifestCategory[] {
   return categories.filter((c) => c.profile === profile);
 }
@@ -253,13 +259,21 @@ const claims: Claim[] = [
     id: "spec.capability-profiles",
     file: PROFILE_SPEC,
     pattern: /capability it does not fully implement\.\[\^ck\]\n\n([\s\S]*?)\n\n## /,
-    expected: nonBaseProfiles.map((p) => `${p}(${profileIds(p).join(" ")})`).join(", "),
+    expected: capabilityProfiles.map((p) => `${p}(${profileIds(p).join(" ")})`).join(", "),
     source: CATEGORY_LIST_SOURCE,
     normalize: (s) =>
       [...s.matchAll(/^- \*\*([a-z-]+)\*\* \(((?:`[a-z-]+`(?:, )?)+)\)/gm)]
         .map((m) => `${group(m, 1)}(${(group(m, 2).match(/`([a-z-]+)`/g) ?? []).map((x) => x.replace(/`/g, "")).sort().join(" ")})`)
         .sort()
         .join(", "),
+  },
+  {
+    id: "spec.staged.members",
+    file: PROFILE_SPEC,
+    pattern: /The\s+staged profile is ((?:`[a-z0-9-]+`(?:, )?)+)\[\^ck\]/,
+    expected: profileIds(STAGED_PROFILE).join(", "),
+    source: CATEGORY_LIST_SOURCE,
+    normalize: identifiers,
   },
   {
     id: "readme.disttag.latest",

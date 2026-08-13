@@ -134,6 +134,57 @@ jobs:
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-verify-server" ./cmd/ink-verify-server
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-witness-server" ./cmd/ink-witness-server
 
+  staged-conformance:
+    # The staged conformance categories: rules that are agreed and anchored now
+    # and become required on a scheduled date. They are skipped by the default
+    # suites, so this job is the only place their accept/reject semantics run,
+    # and it runs BOTH implementations over the same vectors with the staged
+    # flag on. A divergence here is a divergence between the two verifiers.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+
+      - name: Cache npm
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      - name: TypeScript reference, staged vectors
+        run: nix develop --command npm run test:staged
+
+      - name: Go verifier, staged vectors
+        working-directory: go
+        env:
+          INK_STAGED_CONFORMANCE: "1"
+        run: |
+          go test ./ink/
+          log="${RUNNER_TEMP:-/tmp}/staged.log"
+          go test ./ink/ -run TestAgentCardSignaturePhaseC -v | tee "$log"
+          # A skip exits 0, so assert the staged test actually ran and passed.
+          grep -q '^--- PASS: TestAgentCardSignaturePhaseC' "$log"
+
   go-ts-interop:
     runs-on: ubuntu-latest
     steps:

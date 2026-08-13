@@ -98,6 +98,25 @@ capability it does not fully implement.[^ck]
   capability so a frozen surface stays frozen. An implementation that does not
   advertise delegation is not expected to accept chains.
 
+## Staged profile
+
+A category tagged `profile: "staged"` is **not** a conformance obligation. It
+pins a rule that is already implemented in both implementations behind an
+explicit, default-off flag, and that becomes required on a scheduled date. The
+staged profile is `agent-card-signature-phase-c`[^ck], the Phase C receiver rule
+of [`ink-agent-card-signature.md`](ink-agent-card-signature.md) §10.
+
+Staging exists so that a dated rule enters the base profile as an
+already-agreed contract rather than as a fresh negotiation on the day it takes
+effect. A staged category is anchored in the manifest now, with its case count
+and its SHA-256, so its content is fixed and reviewable in advance; the vectors
+are exercised by both implementations in a dedicated flag-on job; and the flip
+is a retag of the category from `staged` to `base` in the manifest and in the
+two freeze tripwires, with no change to the vectors themselves.
+
+An implementation MUST NOT be judged non-conforming for failing a staged
+category before the flip. Until then the base profile above is the whole floor.
+
 ## Relationship to the compliance checklist
 
 [`ink-compliance-checklist.md`](ink-compliance-checklist.md) is the

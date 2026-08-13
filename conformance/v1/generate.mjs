@@ -55,9 +55,12 @@ const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 // specs/ink-conformance-profile.md): `base` is the floor every conforming INK
 // implementation MUST satisfy; `encryption`, `audit`, `witness`, and
 // `containment` are capability-gated and required only when the implementation
-// advertises that capability. The base set is frozen by drift tripwires in
-// test/conformance-profile.test.ts and go/ink/conformance_manifest_test.go.
-const KNOWN_PROFILES = new Set(["base", "encryption", "audit", "witness", "containment", "discovery", "authorization", "delegation"]);
+// advertises that capability. `staged` is neither: it holds a category that is
+// agreed and anchored now and becomes required on a scheduled date, so the flip
+// retags one category rather than negotiating a fresh contract. The base set is
+// frozen by drift tripwires in test/conformance-profile.test.ts and
+// go/ink/conformance_manifest_test.go.
+const KNOWN_PROFILES = new Set(["base", "staged", "encryption", "audit", "witness", "containment", "discovery", "authorization", "delegation"]);
 const CATEGORY_META = {
   "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
   "signature-base": { profile: "base", spec: "specs/ink-protocol.md", summary: "Ed25519 verification over the canonical signature base." },
@@ -79,6 +82,7 @@ const CATEGORY_META = {
   "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
   "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
   "agent-card-signature": { profile: "base", spec: "specs/ink-agent-card-signature.md", summary: "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules." },
+  "agent-card-signature-phase-c": { profile: "staged", spec: "specs/ink-agent-card-signature.md", summary: "Staged Phase C receiver rule: with the explicit enforcePhaseC flag on, an unsigned card is rejected outright and a cold did:web verifier fails closed on an unreachable resolver; with the flag off the pre-Phase-C decision stands." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
@@ -2350,6 +2354,41 @@ vectorFile("agent-card-fetch", [
 
     // ── structural reject ──
     acsReject("schema-invalid-non-array-signing-reject", "A card whose keys.signing is not an array fails closed rather than crashing or diverging; the verifier assumes schema validation already ran.", { card: nonArraySigning, agentId: keyDerivedId, options: { profile: "pre-1.0" } }),
+  ]);
+
+  // ── agent-card-signature-phase-c (STAGED) ──────────────────────────────────
+  // The Phase C receiver rule of §10, pinned before it is required. This
+  // category carries `profile: "staged"` in the manifest: it is anchored and
+  // agreed now, and it becomes a `base` obligation at the scheduled flip, so the
+  // flip retags one category rather than negotiating a fresh contract.
+  //
+  // Every case sets `options.enforcePhaseC` EXPLICITLY. The flag is a boolean,
+  // not a version string, and it OVERRIDES `profile` in both directions: a
+  // `pre-1.0` profile with the flag ON enforces Phase C, and a `1.0` profile
+  // with the flag OFF does not. That is what makes the category a real test of
+  // the flag rather than a restatement of the profile-keyed cases already in the
+  // base `agent-card-signature` category. A verifier that ignores the flag
+  // reaches the wrong decision on every flag-on reject and on the flag-off
+  // override, so it cannot pass this category by accident.
+  const inkAliasId = `ink:${G.mb}`;
+  const unsignedInkAlias = acsBaseCard(inkAliasId, G.mb);
+
+  vectorFile("agent-card-signature-phase-c", [
+    // ── flag ON: the Phase C rejections ──
+    acsReject("phase-c-on-unsigned-key-derived-reject", "With enforcePhaseC on, an unsigned first-contact card for a tulpa: key-derived principal is rejected, even though the profile input is pre-1.0.", { card: unsignedKeyDerived, agentId: keyDerivedId, options: { profile: "pre-1.0", enforcePhaseC: true } }, { reason: "unsigned_key_derived_1_0" }),
+    acsReject("phase-c-on-unsigned-ink-alias-reject", "The same rejection holds for the ink: spelling of a key-derived principal, since both prefixes embed the genesis key.", { card: unsignedInkAlias, agentId: inkAliasId, options: { profile: "pre-1.0", enforcePhaseC: true } }, { reason: "unsigned_key_derived_1_0" }),
+    acsReject("phase-c-on-unsigned-didweb-reject", "With enforcePhaseC on, an unsigned first-contact did:web card is rejected outright under the 1.0 profile rule.", { card: unsignedDidweb, agentId: DIDWEB, options: { profile: "pre-1.0", enforcePhaseC: true } }, { reason: "unsigned_1_0_profile" }),
+    acsReject("phase-c-on-didweb-resolver-unavailable-cold-reject", "With enforcePhaseC on, a COLD did:web verifier fails closed when the DID document is unreachable, the second Phase C decision point.", { card: didSigned, agentId: DIDWEB, options: { profile: "pre-1.0", enforcePhaseC: true, didVerificationKeys: { status: "unavailable" } } }, { reason: "didweb_resolver_unavailable" }),
+    acsReject("phase-c-on-unsigned-after-authenticated-reject", "The ratchet still precedes the Phase C rule: a warm verifier rejects an unsigned card as unsigned_after_authenticated rather than as a Phase C first-contact reject.", { card: unsignedKeyDerived, agentId: keyDerivedId, options: { profile: "pre-1.0", enforcePhaseC: true, cachedCard: ratchetCached } }, { reason: "unsigned_after_authenticated" }),
+
+    // ── flag ON: everything that was already accepted stays accepted ──
+    acsAccept("phase-c-on-signed-key-derived-accept", "Phase C rejects unsigned cards only: a signed key-derived card rooted on its genesis key still authenticates with the flag on.", { card: noChainSigned, agentId: keyDerivedId, options: { profile: "pre-1.0", enforcePhaseC: true } }, { reason: "signed_authenticated" }),
+    acsAccept("phase-c-on-legacy-bootstrap-accept", "A legacy single-key card signed under the literal bootstrap keyId is signed, not unsigned, so Phase C leaves it accepted.", { card: legacyAccept, agentId: keyDerivedId, options: { profile: "pre-1.0", enforcePhaseC: true } }, { reason: "signed_authenticated" }),
+    acsAccept("phase-c-on-didweb-resolver-unavailable-warm-accept", "A WARM did:web verifier with the flag on still continues under signature-plus-continuity and emits card.anchor_unverified; only the cold path fails closed.", { card: didSigned, agentId: DIDWEB, options: { profile: "pre-1.0", enforcePhaseC: true, cachedCard: didCached, didVerificationKeys: { status: "unavailable" } } }, { reason: "signed_authenticated", auditEvent: "card.anchor_unverified" }),
+
+    // ── flag OFF: the pre-Phase-C decision stands, and the flag wins over the profile ──
+    acsAccept("phase-c-off-unsigned-key-derived-accept", "With enforcePhaseC explicitly off, an unsigned first-contact key-derived card is accepted exactly as it is today.", { card: unsignedKeyDerived, agentId: keyDerivedId, options: { profile: "pre-1.0", enforcePhaseC: false } }, { reason: "unsigned_first_contact_accepted" }),
+    acsAccept("phase-c-off-overrides-1-0-profile-accept", "The flag is authoritative in both directions: enforcePhaseC off suppresses the Phase C rule even when the profile input says 1.0, so the decision is never inferred from a version string.", { card: unsignedKeyDerived, agentId: keyDerivedId, options: { profile: "1.0", enforcePhaseC: false } }, { reason: "unsigned_first_contact_accepted" }),
   ]);
 }
 

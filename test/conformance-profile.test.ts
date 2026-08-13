@@ -48,6 +48,11 @@ const FROZEN_PROFILES = {
   delegation: ["authorization-chain"],
   discovery: ["discovery-query-envelope"],
   encryption: ["payload-encryption"],
+  // Staged: anchored and agreed now, required on a scheduled date. A staged
+  // category is NOT a conformance obligation, and it is NOT in `base`, so the
+  // frozen base set above is untouched by its presence. The flip moves its id
+  // from this list to `base` in both tripwires and retags the manifest entry.
+  staged: ["agent-card-signature-phase-c"],
   witness: ["merkle-checkpoint", "merkle-consistency", "merkle-inclusion"],
 } satisfies Record<string, string[]>;
 

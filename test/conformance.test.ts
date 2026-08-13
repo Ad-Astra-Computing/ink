@@ -47,7 +47,8 @@ import type { CandidateKey } from "../src/index.js";
 // implementation. The vectors are the cross-implementation contract: a second
 // implementation must make the same accept/reject decisions on the same bytes.
 // See conformance/v1/README.md.
-const vectorsDir = fileURLToPath(new URL("../conformance/v1/vectors/", import.meta.url).href);
+const v1Dir = fileURLToPath(new URL("../conformance/v1/", import.meta.url).href);
+const vectorsDir = v1Dir + "vectors/";
 
 interface VectorCase {
   caseId: string;
@@ -305,7 +306,8 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "agent-card-fetch": {
       return { result: evaluateAgentCardFetch(input as unknown as AgentCardFetchInput).accepted ? "accept" : "reject" };
     }
-    case "agent-card-signature": {
+    case "agent-card-signature":
+    case "agent-card-signature-phase-c": {
       const { card, agentId, options } = input as { card: AgentCard; agentId: string; options: AgentCardVerifyOptions };
       const r = await verifyAgentCardSignature(card, agentId, options);
       return { result: r.rejected ? "reject" : "accept", reason: r.reason, auditEvents: r.auditEvents };
@@ -432,8 +434,32 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
 const files = readdirSync(vectorsDir).filter((f) => f.endsWith(".json")).sort();
 const docs = files.map((f) => JSON.parse(readFileSync(vectorsDir + f, "utf8")) as { format: string; category: string; cases: VectorCase[] });
 
+// A `staged` category is anchored in the manifest but is not yet a conformance
+// obligation: it pins a rule that becomes required on a scheduled date. It runs
+// only in the dedicated staged job, so a default `npm test` exercises exactly
+// the categories it exercised before the staged category existed. Staged-ness is
+// read from the manifest rather than from a hardcoded category name, so retagging
+// the category to `base` at the flip is all it takes to fold it into every run.
+const manifest = JSON.parse(readFileSync(v1Dir + "manifest.json", "utf8")) as {
+  categories: { id: string; profile: string }[];
+};
+const stagedCategories = new Set(manifest.categories.filter((c) => c.profile === "staged").map((c) => c.id));
+const runStaged = process.env.INK_STAGED_CONFORMANCE === "1";
+const runnable = docs.filter((d) => runStaged || !stagedCategories.has(d.category));
+
 describe("ink/1 conformance vectors", () => {
-  for (const doc of docs) {
+  // A real tripwire, not a comment: it binds the mode to what actually got
+  // registered, so neither a staged category leaking into a default run nor a
+  // staged category silently skipping in the staged job can pass unnoticed.
+  it("registers the staged categories only under INK_STAGED_CONFORMANCE=1", () => {
+    expect(stagedCategories.size).toBeGreaterThan(0);
+    const registered = new Set(runnable.map((d) => d.category));
+    for (const id of stagedCategories) {
+      expect(registered.has(id), id).toBe(runStaged);
+    }
+  });
+
+  for (const doc of runnable) {
     describe(doc.category, () => {
       it("declares the ink.conformance.v1 format", () => {
         expect(doc.format).toBe("ink.conformance.v1");
