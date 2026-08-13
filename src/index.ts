@@ -240,8 +240,18 @@ export {
   DiscoveryQueryEnvelopeSchema,
   buildDiscoveryQueryEnvelope,
   verifyDiscoveryQueryEnvelope,
+  MAX_DISCOVERY_QUERY_AGE_MS,
+  MAX_DISCOVERY_QUERY_SKEW_MS,
 } from "./models/discovery-query.js";
-export type { DiscoveryQuery, DiscoveryQueryEnvelope, DiscoveryQueryInput } from "./models/discovery-query.js";
+export type {
+  DiscoveryQuery,
+  DiscoveryQueryEnvelope,
+  DiscoveryQueryInput,
+  DiscoveryQueryKey,
+  DiscoveryQueryReason,
+  DiscoveryQueryVerifyContext,
+  DiscoveryQueryVerifyResult,
+} from "./models/discovery-query.js";
 
 // Minimal authorization grant, the "Sign in with INK" primitive (#160). An
 // issuer signs a scoped, audience-bound, expiring grant a subject presents to a

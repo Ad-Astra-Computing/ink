@@ -242,9 +242,9 @@ consistent with the rest of INK:
   colliding with another's, which would otherwise let a hostile or careless
   issuer deny or confuse a grant it never minted.
 
-This mirrors how the discovery query envelope leaves freshness and replay windows
-to directory policy: the protocol pins the artifact and the accept/reject
-decision, and the receiver owns the state those decisions read. An issuer-signed
+This mirrors how the discovery query envelope treats its own burned-nonce set:
+the protocol pins the artifact and the accept/reject decision, and the receiver
+owns the state those decisions read. An issuer-signed
 revocation object, a shared revocation log, or issuer-published tombstones are
 possible later additions but are not required for the primitive and are not
 specified here.

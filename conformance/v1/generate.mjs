@@ -86,7 +86,7 @@ const CATEGORY_META = {
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
-  "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds and requester-key signature verification." },
+  "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
   "agent-authorization": { profile: "authorization", spec: "specs/ink-agent-authorization.md", summary: "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId." },
   "authorization-chain": { profile: "delegation", spec: "specs/ink-authorization-chain.md", summary: "Linear delegation chain of 2 to 4 grant-shaped links: parent-hash and issuer-subject continuity, monotonic scope and window attenuation with the delegation.extend gate, per-position lifetime ceilings, active-key-only per-link signatures, and the audience, presenter, window, replay, revocation and owner-verification context checks." },
@@ -2940,13 +2940,19 @@ vectorFile("private-hostname", [
 // ── discovery-query-envelope ────────────────────────────────────────────────
 // An authenticated discovery query envelope (specs/ink-discovery-query.md). The
 // requester signs a bounded query addressed to a directory; the directory
-// verifies it against the requester's public key. Each vector carries the full
-// envelope and the requester's public key hex; a verifier accepts iff the
-// envelope is structurally valid and the signature verifies.
+// verifies it against the requester's public key and its own verification
+// context. Each vector carries the full envelope, the requester's public key
+// hex and the context the directory supplies: its own identity (`audience`, a
+// string or a list of the spellings it answers to), its clock (`now`) and the
+// optional set of already-burned `(from, nonce)` pairs. A verifier accepts iff
+// the envelope is structurally valid, the signature verifies, the signed `to`
+// is this directory, the signed `timestamp` is inside the freshness window at
+// `now` and the signed `nonce` has not been burned for this `from`.
 {
+  const dqDirectory = "did:web:directory.example";
   const base = {
     from: `tulpa:${mb}`,
-    to: "did:web:directory.example",
+    to: dqDirectory,
     nonce: "conformance-discovery-nonce-1",
     timestamp: "2026-07-09T00:00:00.000Z",
     query: { tags: ["go", "typescript"], scope: "public", limit: 10 },
@@ -2956,24 +2962,56 @@ vectorFile("private-hostname", [
   const minimalEnv = await buildDiscoveryQueryEnvelope({ ...base, query: {} }, seed);
   const otherPublicKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(9)));
 
-  const dqe = (caseId, description, input, result) => ({ caseId, description, input, expect: { result } });
+  // A verifier clock offset from the signed timestamp, in milliseconds.
+  const dqClock = (offsetMs) => new Date(Date.parse(base.timestamp) + offsetMs).toISOString();
+  const dqNow = dqClock(1000);
+  // The freshness window, mirroring MAX_DISCOVERY_QUERY_AGE_MS and
+  // MAX_DISCOVERY_QUERY_SKEW_MS: five minutes past, thirty seconds future.
+  const dqAgeMs = 5 * 60 * 1000;
+  const dqSkewMs = 30 * 1000;
+  const dqSeen = [{ from: base.from, nonce: base.nonce }];
+
+  // Every case supplies the full context; a case that exercises one check
+  // overrides just that part of it.
+  const dqe = (caseId, description, input, result, reason) => ({
+    caseId,
+    description,
+    input: { audience: dqDirectory, now: dqNow, ...input },
+    expect: reason === undefined ? { result } : { result, reason },
+  });
 
   vectorFile("discovery-query-envelope", [
-    dqe("valid-query-accepts", "A requester-signed query with tags, scope, and limit verifies against the requester's key.", { envelope: env, publicKeyHex }, "accept"),
+    dqe("valid-query-accepts", "A requester-signed query with tags, scope and limit verifies against the requester's key, this directory's identity and its clock.", { envelope: env, publicKeyHex }, "accept"),
     dqe("network-ink-spelling-accepts", "The vendor-neutral network.ink.discovery_query spelling is signed and verifies like the legacy spelling.", { envelope: inkEnv, publicKeyHex }, "accept"),
     dqe("empty-query-accepts", "An empty query object (no tags, scope, or limit) is a valid signed request.", { envelope: minimalEnv, publicKeyHex }, "accept"),
-    dqe("tampered-to-rejects", "Changing the addressed directory after signing invalidates the signature.", { envelope: { ...env, to: "did:web:evil.example" }, publicKeyHex }, "reject"),
-    dqe("relabeled-type-rejects", "Relabeling the wire type from network.tulpa to network.ink after signing invalidates the signature; the spelling is signed, not normalized.", { envelope: { ...env, type: "network.ink.discovery_query" }, publicKeyHex }, "reject"),
-    dqe("tampered-tag-rejects", "Altering a query tag after signing invalidates the signature.", { envelope: { ...env, query: { ...env.query, tags: ["rust", "typescript"] } }, publicKeyHex }, "reject"),
-    dqe("wrong-key-rejects", "Verifying against a different public key fails.", { envelope: env, publicKeyHex: otherPublicKeyHex }, "reject"),
-    dqe("malformed-signature-rejects", "A signature that is not valid base64url of the right length is rejected.", { envelope: { ...env, signature: env.signature.slice(0, 85) + "+" }, publicKeyHex }, "reject"),
-    dqe("unknown-top-level-key-rejects", "An unknown top-level field is rejected by the strict schema before verification.", { envelope: { ...env, extra: 1 }, publicKeyHex }, "reject"),
-    dqe("unknown-query-key-rejects", "An unknown field inside the query object is rejected by the strict schema.", { envelope: { ...env, query: { ...env.query, rank: "best" } }, publicKeyHex }, "reject"),
-    dqe("over-limit-tags-rejects", "A query with more than 32 tags is out of profile and rejects.", { envelope: { ...env, query: { ...env.query, tags: Array.from({ length: 33 }, (_, i) => `t${i}`) } }, publicKeyHex }, "reject"),
-    dqe("limit-over-100-rejects", "A limit above 100 is out of profile and rejects.", { envelope: { ...env, query: { ...env.query, limit: 101 } }, publicKeyHex }, "reject"),
-    dqe("invalid-timestamp-rejects", "A timestamp that is not a strict INK timestamp rejects.", { envelope: { ...env, timestamp: "2026-07-09 00:00" }, publicKeyHex }, "reject"),
-    dqe("short-nonce-rejects", "A nonce shorter than 16 code units is out of profile and rejects.", { envelope: { ...env, nonce: "short" }, publicKeyHex }, "reject"),
-    dqe("missing-signature-rejects", "An envelope with no signature field rejects.", { envelope: (() => { const { signature, ...rest } = env; return rest; })(), publicKeyHex }, "reject"),
+    dqe("tampered-to-rejects", "Changing the addressed directory after signing invalidates the signature, and the signature is checked before the audience.", { envelope: { ...env, to: "did:web:evil.example" }, publicKeyHex, audience: "did:web:evil.example" }, "reject", "signature"),
+    dqe("relabeled-type-rejects", "Relabeling the wire type from network.tulpa to network.ink after signing invalidates the signature; the spelling is signed, not normalized.", { envelope: { ...env, type: "network.ink.discovery_query" }, publicKeyHex }, "reject", "signature"),
+    dqe("tampered-tag-rejects", "Altering a query tag after signing invalidates the signature.", { envelope: { ...env, query: { ...env.query, tags: ["rust", "typescript"] } }, publicKeyHex }, "reject", "signature"),
+    dqe("wrong-key-rejects", "Verifying against a different public key fails.", { envelope: env, publicKeyHex: otherPublicKeyHex }, "reject", "signature"),
+    dqe("malformed-signature-rejects", "A signature that is not valid base64url of the right length is rejected.", { envelope: { ...env, signature: env.signature.slice(0, 85) + "+" }, publicKeyHex }, "reject", "schema"),
+    dqe("unknown-top-level-key-rejects", "An unknown top-level field is rejected by the strict schema before verification.", { envelope: { ...env, extra: 1 }, publicKeyHex }, "reject", "schema"),
+    dqe("unknown-query-key-rejects", "An unknown field inside the query object is rejected by the strict schema.", { envelope: { ...env, query: { ...env.query, rank: "best" } }, publicKeyHex }, "reject", "schema"),
+    dqe("over-limit-tags-rejects", "A query with more than 32 tags is out of profile and rejects.", { envelope: { ...env, query: { ...env.query, tags: Array.from({ length: 33 }, (_, i) => `t${i}`) } }, publicKeyHex }, "reject", "schema"),
+    dqe("limit-over-100-rejects", "A limit above 100 is out of profile and rejects.", { envelope: { ...env, query: { ...env.query, limit: 101 } }, publicKeyHex }, "reject", "schema"),
+    dqe("invalid-timestamp-rejects", "A timestamp that is not a strict INK timestamp rejects.", { envelope: { ...env, timestamp: "2026-07-09 00:00" }, publicKeyHex }, "reject", "schema"),
+    dqe("short-nonce-rejects", "A nonce shorter than 16 code units is out of profile and rejects.", { envelope: { ...env, nonce: "short" }, publicKeyHex }, "reject", "schema"),
+    dqe("missing-signature-rejects", "An envelope with no signature field rejects.", { envelope: (() => { const { signature, ...rest } = env; return rest; })(), publicKeyHex }, "reject", "schema"),
+    // Audience binding: the signed `to` is consumed, not just signed over.
+    dqe("other-directory-rejects", "A validly signed query addressed to another directory rejects at this one: the signed `to` must be this directory's own identity.", { envelope: env, publicKeyHex, audience: "did:web:other.example" }, "reject", "audience"),
+    dqe("audience-alias-accepts", "A directory that answers to several spellings of itself supplies all of them; the signed `to` matching any one accepts.", { envelope: env, publicKeyHex, audience: ["https://directory.example", "directory.example", dqDirectory] }, "accept"),
+    dqe("audience-case-mismatch-rejects", "Audience comparison is exact: a case-folded spelling of the same directory does not match.", { envelope: env, publicKeyHex, audience: "DID:WEB:DIRECTORY.EXAMPLE" }, "reject", "audience"),
+    dqe("empty-audience-rejects", "An empty audience set is a verifier input error and fails closed rather than admitting every audience.", { envelope: env, publicKeyHex, audience: [] }, "reject", "schema"),
+    dqe("signature-before-audience-rejects", "With both the key and the audience wrong the verdict is the signature, so a rejection never reveals whether the audience would have matched.", { envelope: env, publicKeyHex: otherPublicKeyHex, audience: "did:web:other.example" }, "reject", "signature"),
+    // Freshness: the signed timestamp is consumed at the verifier clock.
+    dqe("stale-timestamp-rejects", "A query older than the five-minute freshness window rejects at the verifier clock.", { envelope: env, publicKeyHex, now: dqClock(dqAgeMs + 1) }, "reject", "expired"),
+    dqe("age-bound-accepts", "The age bound is inclusive: a query exactly five minutes old still accepts.", { envelope: env, publicKeyHex, now: dqClock(dqAgeMs) }, "accept"),
+    dqe("future-timestamp-rejects", "A query timestamped past the thirty-second skew allowance rejects.", { envelope: env, publicKeyHex, now: dqClock(-(dqSkewMs + 1)) }, "reject", "not_yet_valid"),
+    dqe("skew-bound-accepts", "The skew bound is inclusive: a query exactly thirty seconds ahead of the verifier clock still accepts.", { envelope: env, publicKeyHex, now: dqClock(-dqSkewMs) }, "accept"),
+    dqe("malformed-clock-rejects", "A verifier clock that is not a strict INK timestamp is an input error and fails closed as schema, not a window verdict.", { envelope: env, publicKeyHex, now: "2026-07-09 00:00" }, "reject", "schema"),
+    // Replay: the signed nonce is consumed against the directory's burned set.
+    dqe("replayed-nonce-rejects", "A (from, nonce) pair this directory already burned is a replay.", { envelope: env, publicKeyHex, seenNonces: dqSeen }, "reject", "replay"),
+    dqe("other-requester-nonce-accepts", "Replay is keyed on the (from, nonce) pair, so an identical nonce burned for a different requester does not reject this one.", { envelope: env, publicKeyHex, seenNonces: [{ from: "tulpa:someone-else", nonce: base.nonce }] }, "accept"),
+    dqe("stale-replay-reports-window", "Replay is checked after the window, so a stale replayed query reports the window rather than the replay.", { envelope: env, publicKeyHex, now: dqClock(dqAgeMs + 1), seenNonces: dqSeen }, "reject", "expired"),
   ]);
 }
 

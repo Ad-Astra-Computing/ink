@@ -4,10 +4,21 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
-## Unreleased
+## 0.16.0, X25519 timing fix, staged Phase C and discovery query context
 
 ### Changes
 
+- `@noble/curves` and `@noble/hashes` move from 2.2.0 to 2.3.0. curves 2.3.0
+  hardens X25519 constant-time execution and closes a remote timing attack that,
+  across many samples, leaked up to roughly 4 bits of a long-term private key.
+  The upstream write-up is in the
+  [noble-curves 2.3.0 release notes](https://github.com/paulmillr/noble-curves/releases/tag/2.3.0).
+  INK uses curves for the X25519 key agreement on the encryption path, which is
+  exactly where the fix lands. Ed25519 signing and verification are unaffected:
+  they come from the separate `@noble/ed25519` package, which this release does
+  not move. No wire, schema or conformance change; the full conformance corpus
+  produces identical per-case results before and after the upgrade in both
+  implementations.
 - Agent Card signature Phase C is built and staged inert. Both implementations
   carry the Phase C receiver rule behind an explicit default-off switch,
   `enforcePhaseC` in the TypeScript reference and `EnforcePhaseC` in the Go
@@ -26,6 +37,64 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   not a conformance obligation and is not part of the frozen base profile; both
   implementations run it in a dedicated flag-on CI job, and a default run skips
   it. The base profile and every frozen base vector file are unchanged.
+- **Breaking:** `verifyDiscoveryQueryEnvelope` now enforces the signed context it
+  already carried. The envelope signs `to`, `nonce` and `timestamp`, and the
+  verifier ignored all three: it checked the schema and the signature and left
+  audience binding, freshness and replay to whoever called it. A function named
+  `verify` that ignores its own audience binding over-promises, so it now takes a
+  third argument, the verification context, and returns a typed result instead of
+  a boolean:
+
+  ```ts
+  verifyDiscoveryQueryEnvelope(raw, requesterPublicKey, {
+    audience,        // this directory's identity, or the list of spellings it answers to
+    now,             // verifier clock, a strict INK timestamp
+    seenNonces,      // (from, nonce) pairs this directory has already burned
+  }); // -> { ok: true, envelope } | { ok: false, reason }
+  ```
+
+  The Go verifier moves the same way:
+  `VerifyDiscoveryQueryEnvelope(raw, requesterPublicKey, ink.DiscoveryQueryContext{...})`
+  returns `(bool, DiscoveryQueryReason)`. Checks run signature first, then
+  audience, then the freshness window, then replay, so a rejection never reveals
+  whether the audience or the window would have passed. `reason` is one of
+  `schema`, `signature`, `audience`, `expired`, `not_yet_valid` or `replay`. The
+  freshness window is the INK message window: five minutes past, thirty seconds
+  future, both bounds inclusive. Audience comparison is exact, and an empty
+  audience set is a verifier input error rather than a wildcard. There is
+  deliberately no signature-only escape hatch under the `verify` name; a caller
+  that genuinely wants signature-only gets a differently named function, so the
+  name never over-promises again.
+- The discovery query `signature` field is now schema-bound to its exact shape,
+  86 base64url characters, matching the authorization grant. A malformed
+  signature rejects as `schema` before any signature work in both
+  implementations. Nothing that previously verified stops verifying.
+- The `discovery-query-envelope` conformance category grows from 15 to 28 cases:
+  audience mismatch, exact (non-case-folded) comparison, a match against one of
+  several self-identifiers, an empty audience set, signature-before-audience
+  ordering, a stale timestamp, a timestamp past the skew allowance, both window
+  bounds at their inclusive edge, a malformed verifier clock, a replayed nonce,
+  the same nonce burned for a different requester and a stale replay reporting
+  the window. Every reject case now pins its typed reason. The category is in the
+  capability-gated `discovery` profile, so the frozen `base` profile and every
+  frozen base vector file are untouched.
+
+### Upgrading a conformance runner
+
+Two notes for anyone running the corpus from outside this repository.
+
+- A runner written against the 0.15 manifest that enumerates every category
+  without filtering on `profile` will fail the new `agent-card-signature-phase-c`
+  cases unless its verifier implements the Phase C flag. Staged categories are
+  not a conformance obligation: skip any category whose manifest `profile` is
+  `staged`, or run them with the flag on. This repository's own runners skip them
+  unless `INK_STAGED_CONFORMANCE=1` is set. See
+  [`conformance/v1/README.md`](conformance/v1/README.md).
+- A runner that implements the `discovery` profile needs to read the new
+  `audience`, `now` and optional `seenNonces` members of each
+  `discovery-query-envelope` case input and feed them to its verifier. A runner
+  that ignores them will fail the new context cases, which is the intended
+  signal: the context is now part of the contract.
 
 ## 0.15.0, Agent Card producer signing (Phase B)
 

@@ -231,17 +231,31 @@ additive field then.
   a non-accepted status, and a response under a different version all reject, so
   an implementation that skips or reorders a step diverges. See
   [`../../specs/ink-first-contact-transcript.md`](../../specs/ink-first-contact-transcript.md).
-- **discovery-query-envelope**: schema validation and requester-key signature
-  verification for the authenticated discovery query envelope. A requester-signed
-  query with tags, scope and limit verifies against the requester's key, the
-  vendor-neutral `network.ink.discovery_query` spelling verifies like the legacy
-  spelling and an empty query object is a valid signed request. Changing the
-  addressed directory, the wire type or a query tag after signing invalidates the
-  signature because the spelling is signed rather than normalized; a wrong
-  verifying key, a signature that is not valid base64url of the right length, an
-  unknown top-level or in-query field under the strict schema, more than 32 tags,
-  a limit above 100, a non-INK timestamp, a nonce shorter than 16 code units and a
-  missing signature all reject. See
+- **discovery-query-envelope**: schema validation, requester-key signature
+  verification, audience binding, the freshness window and nonce replay for the
+  authenticated discovery query envelope. Each case carries the directory's own
+  verification context: its identity (`audience`, one spelling or the list of
+  spellings it answers to), its clock (`now`) and the `(from, nonce)` pairs it has
+  already burned. A requester-signed query with tags, scope and limit verifies
+  against the requester's key, the vendor-neutral `network.ink.discovery_query`
+  spelling verifies like the legacy spelling and an empty query object is a valid
+  signed request. Changing the addressed directory, the wire type or a query tag
+  after signing invalidates the signature because the spelling is signed rather
+  than normalized; a wrong verifying key, a signature that is not valid base64url
+  of the right length, an unknown top-level or in-query field under the strict
+  schema, more than 32 tags, a limit above 100, a non-INK timestamp, a nonce
+  shorter than 16 code units and a missing signature all reject. Verification is
+  signature-before-context: with both the key and the audience wrong the verdict
+  is the signature. A query addressed to another directory rejects as `audience`
+  and a case-folded spelling of the same directory does not match, since the
+  comparison is exact; a query matching any one of several supplied
+  self-identifiers accepts; an empty audience set is a verifier input error and
+  fails closed as `schema` rather than admitting every audience. A query older
+  than five minutes rejects as `expired` and one more than thirty seconds ahead of
+  the verifier clock as `not_yet_valid`, both bounds inclusive. A malformed
+  verifier clock fails closed as `schema`. A burned `(from, nonce)` pair rejects as
+  `replay`, the same nonce burned for a different requester does not and a stale
+  replay reports the window because replay is checked last. See
   [`../../specs/ink-discovery-query.md`](../../specs/ink-discovery-query.md).
 - **agent-authorization**: the sign-in challenge artifact: a bare-host `did:web`
   RP origin derivation, a registry-bounded `requestedScope`, a parser-independent

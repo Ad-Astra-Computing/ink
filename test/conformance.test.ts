@@ -38,7 +38,7 @@ import {
   parseInkAuthHeader,
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
-import type { VerifiedOwnerStatus, GrantKey } from "../src/index.js";
+import type { VerifiedOwnerStatus, GrantKey, DiscoveryQueryKey } from "../src/index.js";
 import type { ChainIssuerKey } from "../src/index.js";
 import type { AgentCardFetchInput } from "../src/index.js";
 import type { CandidateKey } from "../src/index.js";
@@ -78,9 +78,23 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       return { result: ok ? "accept" : "reject" };
     }
     case "discovery-query-envelope": {
-      const { envelope, publicKeyHex } = input as { envelope: unknown; publicKeyHex: string };
-      const ok = await verifyDiscoveryQueryEnvelope(envelope, hexToBytes(publicKeyHex));
-      return { result: ok ? "accept" : "reject" };
+      const { envelope, publicKeyHex, audience, now, seenNonces } = input as {
+        envelope: unknown;
+        publicKeyHex: string;
+        audience: string | string[];
+        now: string;
+        seenNonces?: DiscoveryQueryKey[];
+      };
+      // The directory context comes straight from the vector: its own identity
+      // (one spelling or several), its clock and the (from, nonce) pairs it has
+      // already burned. A verifier accepts iff the result is ok; on reject the
+      // typed reason is pinned too.
+      const result = await verifyDiscoveryQueryEnvelope(envelope, hexToBytes(publicKeyHex), {
+        audience,
+        now,
+        seenNonces,
+      });
+      return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
     }
     case "authorization-grant": {
       const {

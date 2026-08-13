@@ -44,52 +44,122 @@ var discoveryQueryInnerKeys = map[string]bool{"tags": true, "scope": true, "limi
 // before the decoder touches it.
 const MaxDiscoveryQueryBodyBytes = 64 * 1024
 
+// MaxDiscoveryQueryAgeMs is the maximum age of a discovery query at the
+// verifying directory's clock, mirroring the reference
+// MAX_DISCOVERY_QUERY_AGE_MS. It is the INK message freshness window
+// (ink-protocol.md §3.5): a query is a single signed request, not a credential
+// with its own window, so it ages by the same rule every other INK message does.
+const MaxDiscoveryQueryAgeMs = 5 * 60 * 1000
+
+// MaxDiscoveryQuerySkewMs is how far ahead of the verifying directory's clock a
+// query timestamp may sit, mirroring the reference MAX_DISCOVERY_QUERY_SKEW_MS:
+// the same 30 second skew allowance INK grants any signed message.
+const MaxDiscoveryQuerySkewMs = 30 * 1000
+
+// DiscoveryQueryReason is the stable discriminator a caller uses to map a
+// rejection to its own response. It mirrors the TypeScript
+// DiscoveryQueryReason. An empty reason accompanies an accept.
+type DiscoveryQueryReason string
+
+const (
+	DiscoveryQueryReasonSchema      DiscoveryQueryReason = "schema"
+	DiscoveryQueryReasonSignature   DiscoveryQueryReason = "signature"
+	DiscoveryQueryReasonAudience    DiscoveryQueryReason = "audience"
+	DiscoveryQueryReasonExpired     DiscoveryQueryReason = "expired"
+	DiscoveryQueryReasonNotYetValid DiscoveryQueryReason = "not_yet_valid"
+	DiscoveryQueryReasonReplay      DiscoveryQueryReason = "replay"
+)
+
+// DiscoveryQueryKey identifies a query for replay. The key is the pair of the
+// signed From and the requester-chosen Nonce. A nonce is chosen by the
+// requester, so two requesters can pick the same string; keying on the pair
+// keeps one requester's nonces from burning another's.
+type DiscoveryQueryKey struct {
+	From  string
+	Nonce string
+}
+
+// DiscoveryQueryContext is everything a verifier needs beyond the requester key.
+//
+// Audience is the directory's own identity: the signed to must equal it exactly.
+// A directory that answers to several spellings of itself (an origin, a bare
+// host, a did:web) lists all of them and the signed to must equal one.
+// Comparison is exact: this package never lowercases, never strips a trailing
+// slash and never derives one spelling from another, so a directory that accepts
+// a spelling states it. An empty Audience is a verifier input error and fails
+// closed as schema rather than admitting every audience.
+//
+// Now is the verifier clock, a strict INK timestamp. A query is fresh within
+// [Now - MaxDiscoveryQueryAgeMs, Now + MaxDiscoveryQuerySkewMs], both bounds
+// inclusive.
+//
+// SeenNonces is the replay seam, the same shape the grant verifier's SeenGrants
+// hook takes: the (from, nonce) pairs this directory has already accepted. It is
+// optional and defaults to "not seen", so a directory that omits it is stating
+// that it enforces replay somewhere else; the verifier makes no replay decision
+// it was given no state for. A directory MUST record an accepted pair atomically
+// with acceptance (check-and-insert under one guard) so two concurrent
+// presentations of one nonce cannot both be accepted; this verifier reads the
+// seam but never records into it.
+type DiscoveryQueryContext struct {
+	Audience   []string
+	Now        string
+	SeenNonces []DiscoveryQueryKey
+}
+
 // VerifyDiscoveryQueryEnvelope verifies a requester-signed discovery query
-// envelope against the requester's public key. It mirrors the TypeScript
-// verifyDiscoveryQueryEnvelope byte for byte: strict schema validation, then a
-// body signature over "tulpa/sign\n" + JCS(envelope without the signature
-// field), verified with RFC 8032 strict Ed25519 (small-order and non-canonical
-// keys rejected, matching @noble/ed25519 zip215:false).
+// envelope against the requester's public key and a verification context. It
+// mirrors the TypeScript verifyDiscoveryQueryEnvelope byte for byte: strict
+// schema validation, then a body signature over "tulpa/sign\n" + JCS(envelope
+// without the signature field), verified with RFC 8032 strict Ed25519
+// (small-order and non-canonical keys rejected, matching @noble/ed25519
+// zip215:false), then the audience, freshness and replay checks in the same
+// order. It fails closed and returns a typed reason on the first failure.
+//
+// The envelope signs to, nonce and timestamp, so this verifier consumes all
+// three rather than leaving a caller to rediscover that it must. The signature
+// is checked before any context decision, so a rejection never reveals whether
+// the audience or the window would have passed.
 //
 // The envelope is parsed once into a generic object, exactly as a JSON.parse
 // based verifier sees it: duplicate members collapse to the last value and a
 // JSON null is a present null (not an absent field). The same object is both
 // validated and canonicalized, so the validated bytes and the signed bytes can
 // never disagree.
-func VerifyDiscoveryQueryEnvelope(raw []byte, requesterPublicKey []byte) bool {
+func VerifyDiscoveryQueryEnvelope(raw []byte, requesterPublicKey []byte, ctx DiscoveryQueryContext) (bool, DiscoveryQueryReason) {
 	// Byte cap before the decoder runs: a body past the schema-derived ceiling is
 	// rejected outright, so a pathological blob is never unmarshaled. See the
 	// MaxDiscoveryQueryBodyBytes derivation.
 	if len(raw) > MaxDiscoveryQueryBodyBytes {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	// The envelope is a signed artifact: encoding/json rewrites invalid UTF-8 or
 	// a lone surrogate to U+FFFD, so a body that is not byte-identical to the
 	// signed one could canonicalize to the signed bytes. Reject both up front.
 	if !utf8.Valid(raw) || ContainsLoneSurrogateEscape(raw) {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	var obj map[string]interface{}
 	if err := json.Unmarshal(raw, &obj); err != nil {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	// Post-parse structural bounds walk. This is parity with the reference: the
 	// TypeScript verifyDiscoveryQueryEnvelope runs isWithinBounds on the decoded
 	// object before schema validation, so both implementations reject the same
 	// over-deep or over-wide envelope before any signature work.
 	if !withinBodyBounds(obj) {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	signature, ok := validateDiscoveryQueryEnvelope(obj)
 	if !ok {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	// Ed25519 body signatures are 86 base64url characters, no padding.
 	if !signatureRe.MatchString(signature) {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	if len(requesterPublicKey) != ed25519.PublicKeySize || !isStrongEd25519PublicKey(requesterPublicKey) {
-		return false
+		return false, DiscoveryQueryReasonSignature
 	}
 	unsigned := make(map[string]interface{}, len(obj))
 	for k, v := range obj {
@@ -99,13 +169,65 @@ func VerifyDiscoveryQueryEnvelope(raw []byte, requesterPublicKey []byte) bool {
 	}
 	canonical, err := canonicalizeJSON(unsigned)
 	if err != nil {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(signature)
 	if err != nil || len(sig) != ed25519.SignatureSize {
-		return false
+		return false, DiscoveryQueryReasonSchema
 	}
-	return ed25519.Verify(ed25519.PublicKey(requesterPublicKey), []byte("tulpa/sign\n"+canonical), sig)
+	if !ed25519.Verify(ed25519.PublicKey(requesterPublicKey), []byte("tulpa/sign\n"+canonical), sig) {
+		return false, DiscoveryQueryReasonSignature
+	}
+
+	// Confused-deputy defense: a query addressed to one directory must not be
+	// relayed to another. The signed to must equal one of this directory's own
+	// identifiers, compared exactly. An empty set is a verifier input error.
+	if len(ctx.Audience) == 0 {
+		return false, DiscoveryQueryReasonSchema
+	}
+	to, _ := obj["to"].(string)
+	matched := false
+	for _, audience := range ctx.Audience {
+		if audience == "" {
+			return false, DiscoveryQueryReasonSchema
+		}
+		if audience == to {
+			matched = true
+		}
+	}
+	if !matched {
+		return false, DiscoveryQueryReasonAudience
+	}
+
+	// Freshness. The verifier clock must itself be a strict INK timestamp; a
+	// caller that supplies a malformed clock fails closed as a verifier input
+	// error. Both bounds are inclusive.
+	timestamp, _ := obj["timestamp"].(string)
+	sent, okSent := ParseInkTimestampMs(timestamp)
+	now, okNow := ParseInkTimestampMs(ctx.Now)
+	if !okSent || !okNow {
+		return false, DiscoveryQueryReasonSchema
+	}
+	drift := sent - now
+	if drift > MaxDiscoveryQuerySkewMs {
+		return false, DiscoveryQueryReasonNotYetValid
+	}
+	if -drift > MaxDiscoveryQueryAgeMs {
+		return false, DiscoveryQueryReasonExpired
+	}
+
+	// Replay: a (from, nonce) pair already seen at this directory is a replay.
+	// The seen set is receiver state, not part of the envelope.
+	from, _ := obj["from"].(string)
+	nonce, _ := obj["nonce"].(string)
+	key := DiscoveryQueryKey{From: from, Nonce: nonce}
+	for _, seen := range ctx.SeenNonces {
+		if seen == key {
+			return false, DiscoveryQueryReasonReplay
+		}
+	}
+
+	return true, ""
 }
 
 // validateDiscoveryQueryEnvelope validates the parsed envelope object against
