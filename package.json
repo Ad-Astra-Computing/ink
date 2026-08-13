@@ -59,17 +59,17 @@
     "audit:all": "bash scripts/audit-npm-projects.sh"
   },
   "dependencies": {
-    "@noble/curves": "^2.2.0",
+    "@noble/curves": "^2.3.0",
     "@noble/ed25519": "^3.1.0",
-    "@noble/hashes": "^2.2.0",
+    "@noble/hashes": "^2.3.0",
     "canonicalize": "^2.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260809.1",
     "@types/node": "^26.2.0",
-    "@typescript-eslint/eslint-plugin": "^8.65.0",
-    "@typescript-eslint/parser": "^8.65.0",
+    "@typescript-eslint/eslint-plugin": "^8.67.0",
+    "@typescript-eslint/parser": "^8.67.0",
     "eslint": "^10.8.1",
     "tsx": "^4.23.11",
     "typescript": "^6.0.3",
