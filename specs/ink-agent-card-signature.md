@@ -1,6 +1,6 @@
 # INK Agent Card Signature Specification
 
-**Status:** Stable in the 0.14 conformance corpus. Phase A and Phase B have shipped; Phase B is active as of 0.15.0 and Phase C is staged for a minimum of 90 days after the Phase B ship.
+**Status:** Stable in the 0.14 conformance corpus. Phase A and Phase B have shipped; Phase B is active as of 0.15.0 and Phase C is staged for a minimum of 90 days after the Phase B ship. Phase C is implemented in both implementations behind a default-off enforcement switch (§10.1) and is not enforced.
 **Authors:** Ad Astra Computing
 **Last updated:** 2026-07-20
 
@@ -581,6 +581,49 @@ conformance profile an unsigned card is rejected outright.
 There MUST be a minimum of 90 days between the Phase B ship (0.15.0) and Phase C
 so counterparties have a documented window to begin signing before unsigned cards
 are rejected.
+
+### 10.1 Phase C enforcement switch
+
+Phase C changes exactly two decision points, and no others:
+
+1. the unsigned first-contact outcome of §8, which becomes a reject for every
+   principal kind and is called out for a key-derived principal, whose identifier
+   intrinsically carries its signing authority (§7); and
+2. the did:web resolver-unavailable outcome of §4.2, where a COLD verifier fails
+   closed.
+
+Everything else a receiver does is already Phase-C-final: a present proof is
+verified, an invalid proof rejects outright, the ratchet and continuity rules
+apply, and a resolvable did:web card MUST anchor. Those hold in every phase and
+do not move at the flip. The ratchet also takes PRECEDENCE over the Phase C
+first-contact rule: a warm verifier presented with an unsigned card rejects it as
+a ratchet violation, not as a Phase C first-contact violation, so the reason a
+receiver reports does not change when the switch is thrown.
+
+An implementation SHOULD build Phase C before its start date and hold it behind
+an enforcement switch, so the observation period of a deployment can be banked in
+advance of the floor. Where an implementation offers such a switch:
+
+- it MUST be an explicit boolean. It MUST NOT be inferred from a package version,
+  a `protocol` value or any other version string, because an operator who
+  upgrades a library MUST NOT thereby change what their receiver accepts;
+- it MUST default to not-enforcing until the flip, and enabling it MUST be the
+  only thing that changes an accept into a reject;
+- it MUST govern both decision points above together. Enforcing one and not the
+  other is not Phase C and MUST NOT be described as it.
+
+The reference verifier's switch is the `enforcePhaseC` option, and the Go
+verifier's is `EnforcePhaseC`. Both are tri-state: unset preserves the behaviour
+that shipped before the switch existed, which is that the `1.0` profile input
+carries the Phase C rules; set, the boolean overrides the profile input in both
+directions. At the flip the unset default becomes enforcing.
+
+The Phase C decisions are pinned by the `agent-card-signature-phase-c`
+conformance category, which is tagged `profile: "staged"`
+([`ink-conformance-profile.md`](ink-conformance-profile.md)): anchored in the
+manifest and exercised by both implementations now, required at the flip. It is
+NOT part of the frozen base profile before the flip, and the flip retags it
+rather than renegotiating it.
 
 ## 11. Relationship to other specs
 

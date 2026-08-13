@@ -160,6 +160,35 @@ export interface AgentCardVerifyOptions {
   didVerificationKeys?: DidResolution;
   /** Conformance profile keying the unsigned and resolver-unavailable outcomes. */
   profile: "pre-1.0" | "1.0";
+  /**
+   * Phase C enforcement (§10), staged and DEFAULT-OFF.
+   *
+   * Phase C is the receiver-side half of the card-signature rollout: an unsigned
+   * card is rejected outright, and a cold did:web verifier fails closed when the
+   * DID document is unreachable. It MUST NOT begin fewer than 90 days after the
+   * Phase B ship, so the code lands inert and the switch is flipped later.
+   *
+   * This is an EXPLICIT boolean, not a version string, and it OVERRIDES
+   * `profile` in both directions. Left undefined, the verifier behaves exactly
+   * as it did before the flag existed: Phase C rules apply when and only when
+   * the caller passed `profile: "1.0"`. An adopter who does not set it observes
+   * byte-identical semantics to the previous release.
+   *
+   * At the flip this field's default becomes `true`.
+   */
+  enforcePhaseC?: boolean;
+}
+
+/**
+ * Resolve the staged Phase C switch (§10). The explicit flag wins whenever the
+ * caller sets it; with the flag absent the pre-flag behaviour stands, which is
+ * that the `1.0` conformance profile carries the Phase C rules. Threading one
+ * resolved boolean through the verifier keeps the two Phase C decision points
+ * (the unsigned-card rule and the cold did:web resolver-unavailable rule) from
+ * drifting apart.
+ */
+function phaseCEnforced(options: AgentCardVerifyOptions): boolean {
+  return options.enforcePhaseC ?? options.profile === "1.0";
 }
 
 // ── Verifier ──
@@ -196,11 +225,12 @@ export async function verifyAgentCardSignature(
     const kind = principalKind(agentId);
     const cachedCard = options.cachedCard ?? null;
     const cardSignature = card.cardSignature;
+    const phaseC = phaseCEnforced(options);
 
     // Unsigned path: the only cards this spec treats as unsigned are those with
     // no `cardSignature` at all (§3.4).
     if (!cardSignature) {
-      return verifyUnsigned(kind, cachedCard, options.profile);
+      return verifyUnsigned(kind, cachedCard, phaseC);
     }
 
     // §6: when `cardSignature` is present, `keySetVersion` is a MUST. It is the
@@ -219,7 +249,7 @@ export async function verifyAgentCardSignature(
     }
 
     // ── §5 step 3: rooting ──
-    const rooting = await rootSigner(card, agentId, kind, proof.signerKey, cachedCard, options);
+    const rooting = await rootSigner(card, agentId, kind, proof.signerKey, cachedCard, options, phaseC);
     if (rooting.rejected) {
       return { authenticated: false, rejected: true, reason: rooting.reason, auditEvents: rooting.auditEvents };
     }
@@ -257,7 +287,7 @@ export async function verifyAgentCardSignature(
 function verifyUnsigned(
   kind: PrincipalKind,
   cachedCard: AgentCard | null,
-  profile: "pre-1.0" | "1.0",
+  phaseC: boolean,
 ): AgentCardVerifyResult {
   // Signature-stripping ratchet (§7): once a valid authenticated card has been
   // observed for a principal, any subsequent unsigned card is rejected forever.
@@ -267,7 +297,7 @@ function verifyUnsigned(
     return reject("unsigned_after_authenticated");
   }
   // First contact, no prior state.
-  if (profile === "1.0") {
+  if (phaseC) {
     // Phase C: an unsigned card is rejected outright. A key-derived id
     // intrinsically carries its signing authority, so it is called out.
     return reject(kind === "key-derived" ? "unsigned_key_derived_1_0" : "unsigned_1_0_profile");
@@ -368,6 +398,7 @@ async function rootSigner(
   signerKey: Uint8Array,
   cachedCard: AgentCard | null,
   options: AgentCardVerifyOptions,
+  phaseC: boolean,
 ): Promise<RootResult> {
   const chain = card.rotationChain;
 
@@ -391,10 +422,10 @@ async function rootSigner(
   if (kind === "did:web") {
     const resolution = normalizeDidResolution(options.didVerificationKeys);
     if (resolution.status === "unavailable") {
-      // Resolver-unavailable rule (§4.2). Cold + 1.0 fails closed; otherwise
-      // (pre-1.0 either way, or 1.0 warm) continue under signature-plus-
-      // continuity and record that the anchor was not checked.
-      if (options.profile === "1.0" && !cachedCard) {
+      // Resolver-unavailable rule (§4.2). Cold under Phase C fails closed;
+      // otherwise (Phase C not enforced, or enforced but warm) continue under
+      // signature-plus-continuity and record that the anchor was not checked.
+      if (phaseC && !cachedCard) {
         return rootReject("didweb_resolver_unavailable");
       }
       return rootOk(["card.anchor_unverified"]);

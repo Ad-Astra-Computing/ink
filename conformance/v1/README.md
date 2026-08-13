@@ -190,6 +190,16 @@ additive field then.
   reject. Profile-keyed cases carry `pre-1.0` or `1.0` and a continuity or anchor
   case names the `auditEvent` it emits. See
   [`../../specs/ink-agent-card-signature.md`](../../specs/ink-agent-card-signature.md).
+- **agent-card-signature-phase-c** (staged): the Phase C receiver rule of the
+  card-signature spec, pinned before it is required. With the explicit
+  `enforcePhaseC` flag on, an unsigned card is rejected outright for a
+  key-derived and for a did:web principal, and a cold did:web verifier fails
+  closed on an unreachable resolver; a signed card, a legacy `bootstrap` card and
+  a warm resolver-unavailable continuation are unaffected, and the ratchet still
+  takes precedence over the first-contact rule. With the flag off the
+  pre-Phase-C decision stands, including over a `1.0` profile input, so the
+  category tests the flag rather than the profile string. See
+  [`../../specs/ink-agent-card-signature.md`](../../specs/ink-agent-card-signature.md) §10.1.
 - **private-hostname**: the SSRF host-safety gate over a hostname string:
   accept means a public destination, reject means loopback, private, link-local,
   IANA special-use, or a malformed IP-shaped name (an over-range octet, a
@@ -297,6 +307,13 @@ drift tripwires in `test/conformance-profile.test.ts` and
 [`../../specs/ink-conformance-profile.md`](../../specs/ink-conformance-profile.md)
 for the per-category sender and receiver obligations.
 
+A `staged` category is not a conformance obligation. It pins a rule that both
+implementations already satisfy behind an explicit default-off flag and that
+becomes required on a scheduled date, so the rule enters `base` as an
+already-agreed contract rather than a fresh negotiation. It is anchored in the
+manifest now, with its case count and SHA-256, and the flip retags it from
+`staged` to `base` without touching the vectors.
+
 ## String length and ordering
 
 INK measures string lengths (the agentId and multibase caps) in UTF-16 code
@@ -314,3 +331,9 @@ The reference implementation runs the corpus in `test/conformance.test.ts` as
 part of `npm test`. Another implementation consumes the same files: load each
 file, dispatch by `category`, run the input through its own pipeline, and assert
 the outcome equals `expect`.
+
+A `staged` category is skipped by a default run in both implementations and runs
+only under `INK_STAGED_CONFORMANCE=1`, which is what the dedicated
+`staged-conformance` CI job sets. Its manifest integrity, case count and SHA-256
+are still checked on every run. An implementation that is not yet ready for a
+staged rule can enumerate the manifest and skip the categories tagged `staged`.

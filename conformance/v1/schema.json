@@ -20,6 +20,7 @@
         "agent-card",
         "agent-card-fetch",
         "agent-card-signature",
+        "agent-card-signature-phase-c",
         "audit-query-response",
         "authorization-chain",
         "authorization-grant",

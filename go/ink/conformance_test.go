@@ -328,7 +328,28 @@ func TestAgentCardFetch(t *testing.T) {
 }
 
 func TestAgentCardSignature(t *testing.T) {
-	vf := loadVectors(t, "agent-card-signature")
+	runAgentCardSignatureVectors(t, "agent-card-signature")
+}
+
+// TestAgentCardSignaturePhaseC runs the STAGED Phase C category. It is anchored
+// in the manifest and verified for integrity on every run, but its accept/reject
+// semantics are exercised only in the dedicated staged job, so a default
+// `go test ./...` covers exactly the categories it covered before the staged
+// category existed. At the flip the skip goes away with the `staged` profile.
+func TestAgentCardSignaturePhaseC(t *testing.T) {
+	if os.Getenv("INK_STAGED_CONFORMANCE") != "1" {
+		t.Skip("staged conformance category; set INK_STAGED_CONFORMANCE=1 to run it")
+	}
+	runAgentCardSignatureVectors(t, "agent-card-signature-phase-c")
+}
+
+// runAgentCardSignatureVectors drives the card-signature verifier over one
+// category. The base and the staged categories share a vector shape and a
+// verifier entry point, so they share a runner: a divergence between the two
+// runs would be a divergence in the flag, not in the harness.
+func runAgentCardSignatureVectors(t *testing.T, category string) {
+	t.Helper()
+	vf := loadVectors(t, category)
 	for _, c := range vf.Cases {
 		var card map[string]interface{}
 		if err := json.Unmarshal(c.Input["card"], &card); err != nil {
@@ -344,12 +365,13 @@ func TestAgentCardSignature(t *testing.T) {
 				Status           string   `json:"status"`
 				VerificationKeys []string `json:"verificationKeys"`
 			} `json:"didVerificationKeys"`
-			Profile string `json:"profile"`
+			Profile       string `json:"profile"`
+			EnforcePhaseC *bool  `json:"enforcePhaseC"`
 		}
 		if err := json.Unmarshal(c.Input["options"], &opts); err != nil {
 			t.Fatalf("%s: bad options: %v", c.CaseID, err)
 		}
-		cardOpts := CardVerifyOptions{CachedCard: opts.CachedCard, Profile: opts.Profile}
+		cardOpts := CardVerifyOptions{CachedCard: opts.CachedCard, Profile: opts.Profile, EnforcePhaseC: opts.EnforcePhaseC}
 		if opts.DidVerificationKeys != nil {
 			cardOpts.DidVerificationKeys = &DidResolution{
 				Status:           opts.DidVerificationKeys.Status,

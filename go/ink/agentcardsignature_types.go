@@ -132,6 +132,32 @@ type CardVerifyOptions struct {
 	// Profile keys the unsigned and resolver-unavailable outcomes: "pre-1.0" or
 	// "1.0".
 	Profile string
+	// EnforcePhaseC is the staged, DEFAULT-OFF Phase C switch (§10).
+	//
+	// Phase C is the receiver-side half of the card-signature rollout: an
+	// unsigned card is rejected outright, and a cold did:web verifier fails
+	// closed when the DID document is unreachable. It MUST NOT begin fewer than
+	// 90 days after the Phase B ship, so the code lands inert and the switch is
+	// flipped later.
+	//
+	// It is an EXPLICIT tri-state flag, not a version string, and it OVERRIDES
+	// Profile in both directions. Left nil, the verifier behaves exactly as it
+	// did before the flag existed: Phase C rules apply when and only when the
+	// caller passed Profile "1.0". At the flip the nil default becomes true.
+	EnforcePhaseC *bool
+}
+
+// PhaseCEnforced resolves the staged Phase C switch (§10). The explicit flag
+// wins whenever the caller sets it; with the flag nil the pre-flag behaviour
+// stands, which is that the "1.0" conformance profile carries the Phase C
+// rules. One resolved boolean is threaded through the verifier so the two Phase
+// C decision points (the unsigned-card rule and the cold did:web
+// resolver-unavailable rule) cannot drift apart.
+func (o CardVerifyOptions) PhaseCEnforced() bool {
+	if o.EnforcePhaseC != nil {
+		return *o.EnforcePhaseC
+	}
+	return o.Profile == Profile10
 }
 
 // Verify profile values.

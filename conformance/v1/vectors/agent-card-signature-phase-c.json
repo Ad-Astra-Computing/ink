@@ -1,0 +1,431 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "agent-card-signature-phase-c",
+  "cases": [
+    {
+      "caseId": "phase-c-on-unsigned-key-derived-reject",
+      "description": "With enforcePhaseC on, an unsigned first-contact card for a tulpa: key-derived principal is rejected, even though the profile input is pre-1.0.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "unsigned_key_derived_1_0"
+      }
+    },
+    {
+      "caseId": "phase-c-on-unsigned-ink-alias-reject",
+      "description": "The same rejection holds for the ink: spelling of a key-derived principal, since both prefixes embed the genesis key.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "ink:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          }
+        },
+        "agentId": "ink:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "unsigned_key_derived_1_0"
+      }
+    },
+    {
+      "caseId": "phase-c-on-unsigned-didweb-reject",
+      "description": "With enforcePhaseC on, an unsigned first-contact did:web card is rejected outright under the 1.0 profile rule.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:example.com",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          }
+        },
+        "agentId": "did:web:example.com",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "unsigned_1_0_profile"
+      }
+    },
+    {
+      "caseId": "phase-c-on-didweb-resolver-unavailable-cold-reject",
+      "description": "With enforcePhaseC on, a COLD did:web verifier fails closed when the DID document is unreachable, the second Phase C decision point.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:example.com",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "d1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "d1",
+          "keySetVersion": 1,
+          "cardSignature": {
+            "keyId": "d1",
+            "signature": "FBvuFFA5T0wQjy--P_PKakIYJSnHkLfx9w1v9kUpsUBkWecRnfvxLKQ7r_ECOc2bjx1ZxgqcJGTjeL0hnZD4BA"
+          }
+        },
+        "agentId": "did:web:example.com",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true,
+          "didVerificationKeys": {
+            "status": "unavailable"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "didweb_resolver_unavailable"
+      }
+    },
+    {
+      "caseId": "phase-c-on-unsigned-after-authenticated-reject",
+      "description": "The ratchet still precedes the Phase C rule: a warm verifier rejects an unsigned card as unsigned_after_authenticated rather than as a Phase C first-contact reject.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true,
+          "cachedCard": {
+            "protocol": "ink/0.1",
+            "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+            "handle": "agent",
+            "displayName": "Agent",
+            "endpoint": "https://example.com/ink",
+            "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+            "capabilities": {
+              "intentsAccepted": [],
+              "intentsSent": []
+            },
+            "availability": {
+              "timezone": "UTC"
+            },
+            "keys": {
+              "signing": [
+                {
+                  "keyId": "g1",
+                  "algorithm": "Ed25519",
+                  "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                  "status": "active",
+                  "validFrom": "2026-01-01T00:00:00Z"
+                }
+              ],
+              "encryption": []
+            },
+            "currentSigningKeyId": "g1",
+            "keySetVersion": 1
+          }
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "unsigned_after_authenticated"
+      }
+    },
+    {
+      "caseId": "phase-c-on-signed-key-derived-accept",
+      "description": "Phase C rejects unsigned cards only: a signed key-derived card rooted on its genesis key still authenticates with the flag on.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "updatedAt": "2026-07-20T00:00:00Z",
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "c0Q1Zu6378Q8hcMSMhQPRM0MHeT6tER42un-DGMDOMEDMe6Sxjp2eL5cDW9PWNxfXLy5SgXZ8jyfZQ8ucdvoCw"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated"
+      }
+    },
+    {
+      "caseId": "phase-c-on-legacy-bootstrap-accept",
+      "description": "A legacy single-key card signed under the literal bootstrap keyId is signed, not unsigned, so Phase C leaves it accepted.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keySetVersion": 1,
+          "cardSignature": {
+            "keyId": "bootstrap",
+            "signature": "b___vIRPWv3--ooTzYm5VHwgKPf6KWxvt47Q7keKedmhAhBcRUz3Dyl058DNItq4_7_4ywbFQOTrXhv7m8zfAw"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated"
+      }
+    },
+    {
+      "caseId": "phase-c-on-didweb-resolver-unavailable-warm-accept",
+      "description": "A WARM did:web verifier with the flag on still continues under signature-plus-continuity and emits card.anchor_unverified; only the cold path fails closed.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:example.com",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "d1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "d1",
+          "keySetVersion": 1,
+          "cardSignature": {
+            "keyId": "d1",
+            "signature": "FBvuFFA5T0wQjy--P_PKakIYJSnHkLfx9w1v9kUpsUBkWecRnfvxLKQ7r_ECOc2bjx1ZxgqcJGTjeL0hnZD4BA"
+          }
+        },
+        "agentId": "did:web:example.com",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": true,
+          "cachedCard": {
+            "protocol": "ink/0.1",
+            "agentId": "did:web:example.com",
+            "handle": "agent",
+            "displayName": "Agent",
+            "endpoint": "https://example.com/ink",
+            "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+            "capabilities": {
+              "intentsAccepted": [],
+              "intentsSent": []
+            },
+            "availability": {
+              "timezone": "UTC"
+            },
+            "keys": {
+              "signing": [
+                {
+                  "keyId": "d1",
+                  "algorithm": "Ed25519",
+                  "publicKeyMultibase": "z6Mkon22vwz9JoNpGDxCrGZRgeNFTdRTwXYYN3fvAhA3K19x",
+                  "status": "active",
+                  "validFrom": "2026-01-01T00:00:00Z"
+                }
+              ],
+              "encryption": []
+            },
+            "currentSigningKeyId": "d1",
+            "keySetVersion": 1
+          },
+          "didVerificationKeys": {
+            "status": "unavailable"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated",
+        "auditEvent": "card.anchor_unverified"
+      }
+    },
+    {
+      "caseId": "phase-c-off-unsigned-key-derived-accept",
+      "description": "With enforcePhaseC explicitly off, an unsigned first-contact key-derived card is accepted exactly as it is today.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "pre-1.0",
+          "enforcePhaseC": false
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "unsigned_first_contact_accepted"
+      }
+    },
+    {
+      "caseId": "phase-c-off-overrides-1-0-profile-accept",
+      "description": "The flag is authoritative in both directions: enforcePhaseC off suppresses the Phase C rule even when the profile input says 1.0, so the decision is never inferred from a version string.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0",
+          "enforcePhaseC": false
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "unsigned_first_contact_accepted"
+      }
+    }
+  ]
+}

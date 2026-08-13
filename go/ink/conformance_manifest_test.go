@@ -50,6 +50,11 @@ var goProfileCategories = map[string][]string{
 		"signed-body-utf8",
 		"timestamp-validity",
 	},
+	// Staged: anchored and agreed now, required on a scheduled date. A staged
+	// category is NOT a conformance obligation, and it is NOT in `base`, so the
+	// frozen base set above is untouched by its presence. The flip moves its id
+	// from this list to `base` in both tripwires and retags the manifest entry.
+	"staged":        {"agent-card-signature-phase-c"},
 	"encryption":    {"payload-encryption"},
 	"audit":         {"audit-query-response", "inclusion-receipt", "merkle-leaf"},
 	"witness":       {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
@@ -76,6 +81,7 @@ var goVerifiedCategories = []string{
 	"agent-card",
 	"agent-card-fetch",
 	"agent-card-signature",
+	"agent-card-signature-phase-c",
 	"audit-query-response",
 	"authorization-chain",
 	"authorization-grant",

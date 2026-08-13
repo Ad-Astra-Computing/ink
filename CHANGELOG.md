@@ -4,6 +4,29 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Changes
+
+- Agent Card signature Phase C is built and staged inert. Both implementations
+  carry the Phase C receiver rule behind an explicit default-off switch,
+  `enforcePhaseC` in the TypeScript reference and `EnforcePhaseC` in the Go
+  verifier, specified in
+  [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §10.1.
+  The switch is a boolean and is never inferred from a version string, so
+  upgrading does not change what a receiver accepts. With the switch unset the
+  verifiers make the same decisions, with the same reasons, that they made
+  before it existed.
+- A new `agent-card-signature-phase-c` conformance category pins the Phase C
+  decisions: an unsigned card rejected for a key-derived and for a did:web
+  principal, a cold did:web verifier failing closed on an unreachable resolver,
+  the ratchet still taking precedence, and the flag-off path unchanged. It is
+  tagged `profile: "staged"`, a new profile for a rule that is agreed and
+  anchored now and becomes required on a scheduled date. A staged category is
+  not a conformance obligation and is not part of the frozen base profile; both
+  implementations run it in a dedicated flag-on CI job, and a default run skips
+  it. The base profile and every frozen base vector file are unchanged.
+
 ## 0.15.0, Agent Card producer signing (Phase B)
 
 ### Changes

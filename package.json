@@ -47,6 +47,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "test": "vitest run",
+    "test:staged": "INK_STAGED_CONFORMANCE=1 vitest run test/conformance.test.ts test/conformance-manifest.test.ts test/conformance-profile.test.ts test/conformance-schema.test.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/ test/ scripts/",
     "check:surface": "tsx scripts/check-public-surface.ts",

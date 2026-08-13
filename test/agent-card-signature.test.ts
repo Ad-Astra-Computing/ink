@@ -751,3 +751,123 @@ describe("verifyAgentCardSignature — additional rooting and proof coverage", (
     expect(result.reason).toBe("head_set_mismatch");
   });
 });
+
+// ── Staged Phase C flag (§10) ────────────────────────────────────────────────
+//
+// Phase C is built inert: an explicit, default-off boolean gates it, so the
+// observation window can be banked before the rule is required. The flag is not
+// inferred from a version string, and it overrides `profile` in both directions.
+// These tests pin the two things the staging has to guarantee: that the flag OFF
+// path is exactly the pre-flag behaviour, and that the flag ON path actually
+// rejects.
+describe("verifyAgentCardSignature — staged Phase C flag", () => {
+  it("leaves the pre-flag decision unchanged when the flag is absent", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const unsigned = baseCard(agentId, G.multibase);
+    // These two are today's semantics, restated here so a regression in the flag
+    // plumbing shows up as a failure of the DEFAULT path and not only of Phase C.
+    expect((await verifyAgentCardSignature(unsigned, agentId, PROFILE_A)).reason).toBe(
+      "unsigned_first_contact_accepted",
+    );
+    expect((await verifyAgentCardSignature(unsigned, agentId, PROFILE_10)).reason).toBe(
+      "unsigned_key_derived_1_0",
+    );
+  });
+
+  it("rejects an unsigned key-derived card when the flag is on, whatever the profile says", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const unsigned = baseCard(agentId, G.multibase);
+    for (const profile of ["pre-1.0", "1.0"] as const) {
+      const result = await verifyAgentCardSignature(unsigned, agentId, { profile, enforcePhaseC: true });
+      expect(result.rejected, profile).toBe(true);
+      expect(result.reason, profile).toBe("unsigned_key_derived_1_0");
+    }
+  });
+
+  it("rejects an unsigned did:web card when the flag is on", async () => {
+    const agentId = "did:web:example.com";
+    const unsigned = baseCard(agentId, D.multibase);
+    const result = await verifyAgentCardSignature(unsigned, agentId, {
+      profile: "pre-1.0",
+      enforcePhaseC: true,
+    });
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("unsigned_1_0_profile");
+  });
+
+  it("accepts an unsigned card when the flag is off, overriding a 1.0 profile", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const unsigned = baseCard(agentId, G.multibase);
+    for (const profile of ["pre-1.0", "1.0"] as const) {
+      const result = await verifyAgentCardSignature(unsigned, agentId, { profile, enforcePhaseC: false });
+      expect(result.authenticated, profile).toBe(true);
+      expect(result.reason, profile).toBe("unsigned_first_contact_accepted");
+    }
+  });
+
+  it("fails a cold did:web verifier closed on an unreachable resolver when the flag is on", async () => {
+    const agentId = "did:web:example.com";
+    const card = baseCard(agentId, D.multibase);
+    card.keys = { signing: [signingEntry("d1", D, "active")], encryption: [] };
+    card.currentSigningKeyId = "d1";
+    card.keySetVersion = 1;
+    const signed = await attachCardSignature(card, "d1", D.priv);
+    const cold = await verifyAgentCardSignature(signed, agentId, {
+      profile: "pre-1.0",
+      enforcePhaseC: true,
+      didVerificationKeys: { status: "unavailable" },
+    });
+    expect(cold.rejected).toBe(true);
+    expect(cold.reason).toBe("didweb_resolver_unavailable");
+
+    // Warm continues under signature-plus-continuity even with the flag on, and
+    // the flag off restores the pre-Phase-C fail-open on a 1.0 profile.
+    const warm = await verifyAgentCardSignature(signed, agentId, {
+      profile: "pre-1.0",
+      enforcePhaseC: true,
+      cachedCard: signed,
+      didVerificationKeys: { status: "unavailable" },
+    });
+    expect(warm.authenticated).toBe(true);
+    expect(warm.auditEvents).toContain("card.anchor_unverified");
+
+    const flagOff = await verifyAgentCardSignature(signed, agentId, {
+      profile: "1.0",
+      enforcePhaseC: false,
+      didVerificationKeys: { status: "unavailable" },
+    });
+    expect(flagOff.authenticated).toBe(true);
+    expect(flagOff.auditEvents).toContain("card.anchor_unverified");
+  });
+
+  it("rejects unsigned cards only: a signed card still authenticates with the flag on", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const card = baseCard(agentId, G.multibase);
+    card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    card.currentSigningKeyId = "g1";
+    card.keySetVersion = 1;
+    card.updatedAt = UPDATED_AT;
+    const signed = await attachCardSignature(card, "g1", G.priv);
+    const result = await verifyAgentCardSignature(signed, agentId, {
+      profile: "pre-1.0",
+      enforcePhaseC: true,
+    });
+    expect(result.authenticated).toBe(true);
+    expect(result.reason).toBe("signed_authenticated");
+  });
+
+  it("keeps the ratchet ahead of the Phase C rule", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const unsigned = baseCard(agentId, G.multibase);
+    const cachedCard = baseCard(agentId, G.multibase);
+    cachedCard.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    cachedCard.keySetVersion = 1;
+    const result = await verifyAgentCardSignature(unsigned, agentId, {
+      profile: "pre-1.0",
+      enforcePhaseC: true,
+      cachedCard,
+    });
+    expect(result.rejected).toBe(true);
+    expect(result.reason).toBe("unsigned_after_authenticated");
+  });
+});
