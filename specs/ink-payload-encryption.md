@@ -35,6 +35,18 @@ strings:
 - `timestamp` — the message timestamp.
 - `messageNonce` — the message replay nonce.
 
+## Encryption
+
+The decision this document pins is the decrypt decision, but a producer is
+bound by it too: a conformant sealer MUST NOT emit an envelope its own
+decrypt rule would reject. Concretely, before sealing, an implementation
+rejects unless the inner plaintext carries `from` equal to the outer envelope
+sender and `to` equal to a non-empty recipient DID; where the caller asserts
+which recipient the envelope is addressed to, inner `to` must equal that
+value. The seal-side scalar caps, the plaintext bounds and the all-zero
+shared-secret reject follow the same rule, so every envelope a conformant
+producer emits is one a conformant decrypter can open.
+
 ## Decryption
 
 Given the envelope, the recipient's 32-byte X25519 private key, and the

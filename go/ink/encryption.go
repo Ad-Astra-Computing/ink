@@ -314,6 +314,20 @@ type InkEncryptOptions struct {
 	// vendor-neutral namespace may set network.ink.encrypted. The chosen type is
 	// bound into the AAD, so it is authenticated, not malleable.
 	MessageType string
+	// RecipientDid is the recipient identity this envelope is addressed to. When
+	// set, the inner plaintext's "to" MUST equal it, so the seal cannot mint an
+	// envelope whose inner binding disagrees with the recipient the sender
+	// intends. It is the outer half of the binding DecryptInkPayload enforces with
+	// its mandatory recipientDid argument.
+	//
+	// It is a pointer, not a string, because asserting a recipient and declining
+	// to assert one must be distinguishable: the reference (src/crypto/ink.ts)
+	// checks `options.recipientDid !== undefined`, so a caller that asserts the
+	// empty string there gets a reject rather than a silent skip, since no inner
+	// "to" can equal it. A plain string field would make that assertion
+	// indistinguishable from an absent one and let the Go seal mint an envelope
+	// the reference refuses.
+	RecipientDid *string
 }
 
 // EncryptInkPayload seals an inner plaintext object into an INK v0.1 ECIES
@@ -364,6 +378,28 @@ func EncryptInkPayload(
 	}
 	if plaintext == nil {
 		return nil, errors.New("ink: plaintext must be a non-nil object")
+	}
+
+	// Inner/outer binding. DecryptInkPayload requires the sealed plaintext to
+	// carry "from" equal to the outer envelope sender and "to" equal to the
+	// recipient identity the decrypter asserts (which is mandatory and non-empty),
+	// so a plaintext that fails either rule produces an envelope no conformant
+	// decrypter will ever open. Checking it here keeps the seal path to the same
+	// rule as every other guard on it: never mint what decrypt refuses. "to" is
+	// checked against opts.RecipientDid when the caller asserts one; with or
+	// without that assertion it must still be a non-empty string, because an
+	// absent or non-string "to" cannot match any recipient identity. An asserted
+	// empty RecipientDid is an assertion no inner "to" can satisfy, so it is
+	// rejected rather than treated as unasserted, matching the reference.
+	if innerFrom, ok := plaintext["from"].(string); !ok || innerFrom != senderDid {
+		return nil, errors.New("ink: plaintext from must equal senderDid")
+	}
+	innerTo, ok := plaintext["to"].(string)
+	if !ok || innerTo == "" {
+		return nil, errors.New("ink: plaintext to must be a non-empty string")
+	}
+	if opts != nil && opts.RecipientDid != nil && innerTo != *opts.RecipientDid {
+		return nil, errors.New("ink: plaintext to must equal the asserted RecipientDid")
 	}
 
 	// Recipient static X25519 public key.

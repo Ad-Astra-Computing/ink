@@ -18,14 +18,14 @@ describe("encryptInkPayload: rejects malformed recipientEncryptionKeyHex", () =>
   it("rejects an absurdly long hex string before crypto work", async () => {
     const huge = "ab".repeat(100_000); // 200 KB hex
     await expect(
-      encryptInkPayload({ msg: "hi" }, "tulpa:zSender", huge, new Date().toISOString(), "n".repeat(16)),
+      encryptInkPayload({ msg: "hi", from: "tulpa:zSender", to: "tulpa:zRecipient" }, "tulpa:zSender", huge, new Date().toISOString(), "n".repeat(16)),
     ).rejects.toThrow();
   });
 
   it("rejects wrong-length but otherwise valid hex with a clean error", async () => {
     const short = "ab".repeat(31); // 31 bytes -- wrong X25519 length
     await expect(
-      encryptInkPayload({ msg: "hi" }, "tulpa:zSender", short, new Date().toISOString(), "n".repeat(16)),
+      encryptInkPayload({ msg: "hi", from: "tulpa:zSender", to: "tulpa:zRecipient" }, "tulpa:zSender", short, new Date().toISOString(), "n".repeat(16)),
     ).rejects.toThrow();
   });
 });
@@ -40,7 +40,7 @@ describe("encryptInkPayload: rejects low-order recipient public keys", () => {
     // ECDH backend drops the upstream check. Either layer must throw.
     const lowOrderHex = "00".repeat(32);
     await expect(
-      encryptInkPayload({ msg: "hi" }, "tulpa:zSender", lowOrderHex, new Date().toISOString(), "n".repeat(16)),
+      encryptInkPayload({ msg: "hi", from: "tulpa:zSender", to: "tulpa:zRecipient" }, "tulpa:zSender", lowOrderHex, new Date().toISOString(), "n".repeat(16)),
     ).rejects.toThrow();
   });
 });

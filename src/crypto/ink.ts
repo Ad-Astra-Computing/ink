@@ -362,6 +362,12 @@ export async function encryptInkPayload(
     // vendor-neutral namespace may set `network.ink.encrypted`. The chosen
     // type is bound into the AAD, so it is authenticated, not malleable.
     messageType?: "network.tulpa.encrypted" | "network.ink.encrypted";
+    // The recipient identity this envelope is addressed to. When supplied, the
+    // inner plaintext's `to` MUST equal it, so the seal cannot mint an envelope
+    // whose inner binding disagrees with the recipient the sender intends. It is
+    // the outer half of the binding decryptInkPayload enforces with its
+    // mandatory recipientDid argument.
+    recipientDid?: string;
   },
 ): Promise<InkEncryptResult> {
   const messageType = options?.messageType ?? "network.tulpa.encrypted";
@@ -378,6 +384,27 @@ export async function encryptInkPayload(
   }
   if (typeof messageNonce !== "string" || messageNonce.length === 0 || messageNonce.length > 256) {
     throw new Error("Invalid messageNonce");
+  }
+  // Inner/outer binding. decryptInkPayload requires the sealed plaintext to
+  // carry `from` equal to the outer envelope sender and `to` equal to the
+  // recipient identity the decrypter asserts (which is mandatory and non-empty),
+  // so a plaintext that fails either rule produces an envelope no conformant
+  // decrypter will ever open. Checking it here keeps the encrypt path to the
+  // same rule as every other guard on it: never mint what decrypt refuses.
+  // `to` is checked against options.recipientDid when the caller asserts one;
+  // with or without that assertion it must still be a non-empty string, because
+  // an absent or non-string `to` cannot match any recipient identity.
+  if (typeof plaintext !== "object" || plaintext === null || Array.isArray(plaintext)) {
+    throw new Error("Invalid plaintext: must be a non-null object");
+  }
+  if (plaintext.from !== senderDid) {
+    throw new Error("Invalid inner from: plaintext.from must equal the outer senderDid");
+  }
+  if (typeof plaintext.to !== "string" || plaintext.to.length === 0) {
+    throw new Error("Invalid inner to: plaintext.to must be a non-empty string");
+  }
+  if (options?.recipientDid !== undefined && plaintext.to !== options.recipientDid) {
+    throw new Error("Invalid inner to: plaintext.to must equal the asserted recipientDid");
   }
   // 1. Ephemeral X25519 keypair.
   // Test-supplied overrides must be the right length to produce a clean
