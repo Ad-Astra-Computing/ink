@@ -254,14 +254,14 @@ jobs:
     # an already-published version instead, which npm trusted publishing cannot
     # authenticate (npm/cli#8547), so it needs a real automation token in
     # NPM_TOKEN: a granular read-write token for @adastracomputing/ink on the
-    # npm-release environment. No such token is kept long-term, so using this
+    # npm-promote environment, which only deployments from main can reach. No such token is kept long-term, so using this
     # path means minting a fresh one first and revoking it afterwards. Use it
     # only when a re-cut is not viable, for example rolling `latest` back to an
     # earlier version. Runs only on a manual dispatch that supplies
     # promote_version.
     if: github.event_name == 'workflow_dispatch' && inputs.promote_version != ''
     runs-on: ubuntu-latest
-    environment: npm-release
+    environment: npm-promote
     permissions:
       contents: read   # required to read the committed dist-tag pin before moving a tag.
     steps:
