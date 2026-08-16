@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       promote_version:
-        description: "Fallback only: move a dist-tag onto this already-published version (leave empty to publish the current tag)"
+        description: "Fallback only: move a dist-tag onto this already-published version"
         required: false
         default: ""
         type: string
