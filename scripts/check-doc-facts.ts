@@ -508,6 +508,52 @@ if (!changelogTop) {
   fail("CHANGELOG.md", 1, "changelog.version", group(changelogTop, 1), pkg.version, "package.json version");
 }
 
+// ------------------------------------------------- second-implementation version
+
+/**
+ * The Go verifier reports a version constant, and it names the protocol and
+ * library version the binary was built against. A binary that reports a version
+ * it is not is an interop-debugging trap: a bug report quotes a version the
+ * source never matched. The constant is derivable from package.json, so it is
+ * gated rather than transcribed.
+ *
+ * The gate reads the constant as text. It needs no Go toolchain, so it runs in
+ * the same job as its sibling checks and cannot skip on a runner without Go. A
+ * missing file, a moved constant or a reformatted declaration is a failure, not
+ * a pass: there is no path through this block that finds nothing and shrugs.
+ */
+const GO_CLI_SOURCE = "go/internal/cli/cli.go";
+const GO_VERSION_PATTERN = /^const Version = "([^"]*)"$/m;
+let goCli = "";
+try {
+  goCli = read(GO_CLI_SOURCE);
+} catch (err) {
+  errors.push(
+    `${GO_CLI_SOURCE}: cannot read the Go CLI version constant (${err instanceof Error ? err.message : String(err)}).\n` +
+      `      This gate keeps the Go binary's reported version equal to package.json. If the file moved,\n` +
+      `      point GO_CLI_SOURCE in scripts/check-doc-facts.ts at its new home.`,
+  );
+}
+if (goCli) {
+  const goVersion = GO_VERSION_PATTERN.exec(goCli);
+  if (!goVersion) {
+    errors.push(
+      `${GO_CLI_SOURCE}: no \`const Version = "..."\` declaration found.\n` +
+        `      The Go binary's reported version is gated against package.json and must stay a single\n` +
+        `      top-level string constant matching ${GO_VERSION_PATTERN} so it can be compared without a Go toolchain.`,
+    );
+  } else if (group(goVersion, 1) !== pkg.version) {
+    fail(
+      GO_CLI_SOURCE,
+      lineOf(goCli, goVersion.index),
+      "go.cli.version",
+      group(goVersion, 1),
+      pkg.version,
+      "package.json version",
+    );
+  }
+}
+
 // ------------------------------------------------------------ npm dist-tags
 
 /**
