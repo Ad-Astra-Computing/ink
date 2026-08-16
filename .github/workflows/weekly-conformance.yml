@@ -52,8 +52,11 @@ jobs:
     permissions:
       contents: read
     outputs:
-      # A JSON array of {label, ref, sha}, one entry per commit to verify. The
-      # three jobs below fan out over it.
+      # A JSON array of {label, ref, sha, live}, one entry per commit to
+      # verify. The three jobs below fan out over it. `live` marks the entry
+      # that is the current branch head: checks that compare the tree to the
+      # world as it is now, like the registry comparison, only make sense
+      # there. A historical tag's facts are frozen with the tag.
       targets: ${{ steps.resolve.outputs.targets }}
     steps:
       - name: Require the workflow itself to run from main
@@ -78,8 +81,11 @@ jobs:
 
           if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
             ref="${REQUESTED:-${GITHUB_REF_NAME}}"
-            targets=$(jq -cn --arg ref "$ref" --arg sha "$(resolve "$ref")" \
-              '[{label: $ref, ref: $ref, sha: $sha}]')
+            sha=$(resolve "$ref")
+            head_sha=$(resolve "${GITHUB_REF_NAME}")
+            targets=$(jq -cn --arg ref "$ref" --arg sha "$sha" \
+              --argjson live "$([ "$sha" = "$head_sha" ] && echo true || echo false)" \
+              '[{label: $ref, ref: $ref, sha: $sha, live: $live}]')
           else
             head_ref="${GITHUB_REF_NAME}"
             head_sha=$(resolve "$head_ref")
@@ -110,7 +116,7 @@ jobs:
               # failing a cadence run over a tag that does not exist.
               echo "no released v* tag found, verifying ${head_ref} only"
               targets=$(jq -cn --arg ref "$head_ref" --arg sha "$head_sha" \
-                '[{label: $ref, ref: $ref, sha: $sha}]')
+                '[{label: $ref, ref: $ref, sha: $sha, live: true}]')
             else
               tag_sha=$(resolve "$tag")
               if [ "$tag_sha" = "$head_sha" ]; then
@@ -118,13 +124,13 @@ jobs:
                 # and the label records that so the ledger can cite this run
                 # for the tag.
                 targets=$(jq -cn --arg ref "$head_ref" --arg tag "$tag" --arg sha "$head_sha" \
-                  '[{label: ($ref + " and " + $tag), ref: $ref, sha: $sha}]')
+                  '[{label: ($ref + " and " + $tag), ref: $ref, sha: $sha, live: true}]')
               else
                 targets=$(jq -cn \
                   --arg ref "$head_ref" --arg head_sha "$head_sha" \
                   --arg tag "$tag" --arg tag_sha "$tag_sha" \
-                  '[{label: $ref, ref: $ref, sha: $head_sha},
-                    {label: $tag, ref: $tag, sha: $tag_sha}]')
+                  '[{label: $ref, ref: $ref, sha: $head_sha, live: true},
+                    {label: $tag, ref: $tag, sha: $tag_sha, live: false}]')
               fi
             fi
           fi
@@ -181,6 +187,10 @@ jobs:
         # into a failure instead of an unverified pin. On the weekly cadence
         # this is what catches a dist-tag that moved without the pin in the
         # repository moving with it, whether or not anyone pushed that week.
+        # Only on the live branch head: a historical tag's pin records the
+        # registry as it stood at the tag, so comparing it to today's registry
+        # would fail every tag leg forever once any later release published.
+        if: ${{ fromJSON(matrix.target.live) }}
         env:
           CHECK_FACTS_REQUIRE_NPM: "1"
         run: nix develop --command npm run check:facts
