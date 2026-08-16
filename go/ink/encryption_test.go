@@ -295,7 +295,7 @@ func TestEncryptInkPayloadWrongRecipientFails(t *testing.T) {
 func TestEncryptInkPayloadRejectsBadInput(t *testing.T) {
 	pubHex, _ := recipientKeypair(t)
 	base := func() (map[string]any, string, string, string) {
-		return map[string]any{"from": "a", "to": "b"}, "did:web:s", "2026-07-11T12:00:00.000Z", "0123456789abcdef0123456789abcdef"
+		return map[string]any{"from": "did:web:s", "to": "did:web:r"}, "did:web:s", "2026-07-11T12:00:00.000Z", "0123456789abcdef0123456789abcdef"
 	}
 	if _, err := EncryptInkPayload(nil, "did:web:s", pubHex, "2026-07-11T12:00:00.000Z", "n", nil); err == nil {
 		t.Error("nil plaintext accepted")
@@ -325,22 +325,22 @@ func TestEncryptInkPayloadRejectsBadInput(t *testing.T) {
 	// Plaintext preflight parity with the reference: a non-JCS-safe number in
 	// the plaintext is refused before sealing, mirroring encryptInkPayload's
 	// isWithinCanonicalizeBounds guard.
-	if _, err := EncryptInkPayload(map[string]any{"from": "a", "to": "b", "x": 1.5}, sender, pubHex, ts, mn, nil); err == nil {
+	if _, err := EncryptInkPayload(map[string]any{"from": "did:web:s", "to": "did:web:r", "x": 1.5}, sender, pubHex, ts, mn, nil); err == nil {
 		t.Error("fractional plaintext number accepted")
 	}
 	// A native Go integer past the JS safe-integer range would seal a value a
 	// reference decoder reads with precision loss, so the preflight rejects it.
-	if _, err := EncryptInkPayload(map[string]any{"from": "a", "to": "b", "x": int64(1) << 60}, sender, pubHex, ts, mn, nil); err == nil {
+	if _, err := EncryptInkPayload(map[string]any{"from": "did:web:s", "to": "did:web:r", "x": int64(1) << 60}, sender, pubHex, ts, mn, nil); err == nil {
 		t.Error("out-of-range native integer accepted")
 	}
 	// A native integer within the safe range still seals.
-	if _, err := EncryptInkPayload(map[string]any{"from": "a", "to": "b", "x": int64(1234)}, sender, pubHex, ts, mn, nil); err != nil {
+	if _, err := EncryptInkPayload(map[string]any{"from": "did:web:s", "to": "did:web:r", "x": int64(1234)}, sender, pubHex, ts, mn, nil); err != nil {
 		t.Errorf("safe native integer rejected: %v", err)
 	}
 	// A non-JSON in-memory type in the plaintext is refused before marshal, so
 	// the seal cannot mint plaintext a reference producer would never emit.
 	type notJSON struct{ A int }
-	if _, err := EncryptInkPayload(map[string]any{"from": "a", "to": "b", "x": notJSON{A: 1}}, sender, pubHex, ts, mn, nil); err == nil {
+	if _, err := EncryptInkPayload(map[string]any{"from": "did:web:s", "to": "did:web:r", "x": notJSON{A: 1}}, sender, pubHex, ts, mn, nil); err == nil {
 		t.Error("struct-valued plaintext accepted")
 	}
 }
@@ -445,5 +445,101 @@ func TestEncryptInkPayloadAADPin(t *testing.T) {
 	}
 	if got["body"] != "hello" {
 		t.Errorf("decrypted body = %v, want hello", got["body"])
+	}
+}
+
+// TestEncryptInkPayloadEnforcesInnerBinding pins the seal-time inner/outer
+// binding. Every conformant decrypter requires the sealed plaintext to carry
+// `from` equal to the outer sender and `to` equal to the recipient identity it
+// asserts, so a seal that skipped the check could mint an envelope nothing would
+// ever open. The other encrypt-side guards are written the same way: never mint
+// what a conformant decrypter refuses.
+func TestEncryptInkPayloadEnforcesInnerBinding(t *testing.T) {
+	const from = "did:web:sender.example"
+	const to = "did:web:recipient.example"
+	const timestamp = "2026-07-11T12:00:00.000Z"
+	const messageNonce = "0123456789abcdef0123456789abcdef"
+	pubHex, privHex := recipientKeypair(t)
+
+	asserted := to
+
+	// Matched binding still seals and still round-trips.
+	env, err := EncryptInkPayload(
+		map[string]any{"from": from, "to": to, "body": "hello"},
+		from, pubHex, timestamp, messageNonce, &InkEncryptOptions{RecipientDid: &asserted},
+	)
+	if err != nil {
+		t.Fatalf("matched binding rejected: %v", err)
+	}
+	got, err := DecryptInkPayload(env, privHex, to)
+	if err != nil {
+		t.Fatalf("round-trip decrypt rejected: %v", err)
+	}
+	if got["body"] != "hello" {
+		t.Errorf("decrypted body = %v, want hello", got["body"])
+	}
+
+	// Inner `from` disagreeing with the outer sender.
+	if _, err := EncryptInkPayload(
+		map[string]any{"from": "did:web:someone-else.example", "to": to},
+		from, pubHex, timestamp, messageNonce, nil,
+	); err == nil {
+		t.Error("mismatched inner from accepted")
+	}
+	// Inner `from` absent entirely.
+	if _, err := EncryptInkPayload(
+		map[string]any{"to": to, "body": "hello"},
+		from, pubHex, timestamp, messageNonce, nil,
+	); err == nil {
+		t.Error("missing inner from accepted")
+	}
+	// Inner `to` disagreeing with the recipient the caller asserts.
+	if _, err := EncryptInkPayload(
+		map[string]any{"from": from, "to": "did:web:elsewhere.example"},
+		from, pubHex, timestamp, messageNonce, &InkEncryptOptions{RecipientDid: &asserted},
+	); err == nil {
+		t.Error("mismatched inner to accepted")
+	}
+	// An asserted EMPTY recipient is an assertion, not an omission: no inner `to`
+	// can equal it, so it must be refused. This is the case a plain string field
+	// could not express, and where a `!= ""` guard would have silently sealed
+	// while the reference (which checks `!== undefined`) rejects.
+	empty := ""
+	if _, err := EncryptInkPayload(
+		map[string]any{"from": from, "to": to, "body": "hello"},
+		from, pubHex, timestamp, messageNonce, &InkEncryptOptions{RecipientDid: &empty},
+	); err == nil {
+		t.Error("asserted empty RecipientDid accepted")
+	}
+	// An options struct set for another reason still means "no recipient
+	// asserted", so it must not be dragged into the binding check.
+	if _, err := EncryptInkPayload(
+		map[string]any{"from": from, "to": to, "body": "hello"},
+		from, pubHex, timestamp, messageNonce, &InkEncryptOptions{MessageType: "network.ink.encrypted"},
+	); err != nil {
+		t.Errorf("options without an asserted recipient rejected: %v", err)
+	}
+	// Inner `to` missing, empty, or not a string: no decrypter can match it
+	// against its mandatory recipient identity.
+	for name, plaintext := range map[string]map[string]any{
+		"missing to":    {"from": from, "body": "hello"},
+		"empty to":      {"from": from, "to": ""},
+		"non-string to": {"from": from, "to": 42},
+	} {
+		if _, err := EncryptInkPayload(plaintext, from, pubHex, timestamp, messageNonce, nil); err == nil {
+			t.Errorf("%s accepted", name)
+		}
+	}
+	// Without an asserted RecipientDid the seal still succeeds on a well-formed
+	// inner binding, and the envelope opens for the inner `to`.
+	env, err = EncryptInkPayload(
+		map[string]any{"from": from, "to": to, "body": "hello"},
+		from, pubHex, timestamp, messageNonce, nil,
+	)
+	if err != nil {
+		t.Fatalf("unasserted recipient rejected: %v", err)
+	}
+	if _, err := DecryptInkPayload(env, privHex, to); err != nil {
+		t.Fatalf("unasserted-recipient envelope did not open: %v", err)
 	}
 }

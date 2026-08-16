@@ -2467,6 +2467,52 @@ vectorFile("private-hostname", [
   phReject("ipv6-zone-public", "2606:4700:4700::1111%eth0", "A zone id on a public literal is rejected, not stripped."),
 ]);
 
+/**
+ * Seal an INK ECIES envelope WITHOUT the inner/outer binding encryptInkPayload
+ * enforces at seal time, so the corpus can carry an envelope a conformant
+ * decrypter MUST reject. Every other step (ECDH, HKDF, the AAD member set and
+ * its JCS ordering, the AES-GCM layout and the outer envelope shape) is the
+ * reference construction, so for a fixed ephemeral key and AES nonce the output
+ * is byte-identical to what encryptInkPayload would have produced.
+ */
+async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, messageNonce, opts) {
+  const messageType = opts.messageType ?? "network.tulpa.encrypted";
+  const recipientPub = hexToBytes(recipientPubHex);
+  const ephPub = x25519.getPublicKey(opts.ephemeralPrivateKey);
+  const shared = x25519.getSharedSecret(opts.ephemeralPrivateKey, recipientPub);
+  const hkdfKey = await crypto.subtle.importKey("raw", shared, "HKDF", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt: enc.encode("ink/0.1"), info: enc.encode("ink/0.1/encrypt") },
+    hkdfKey, 256,
+  );
+  const aesKey = await crypto.subtle.importKey("raw", new Uint8Array(bits), "AES-GCM", false, ["encrypt"]);
+  const aad = enc.encode(`ink/0.1:envelope\n${jcsCanonicalize({
+    protocol: "ink/0.1",
+    type: messageType,
+    from: senderDid,
+    recipientKey: base64urlEncode(recipientPub),
+    ephemeralKey: base64urlEncode(ephPub),
+    nonce: base64urlEncode(opts.aesNonce),
+    timestamp,
+    messageNonce,
+  })}`);
+  const ciphertextWithTag = new Uint8Array(await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv: opts.aesNonce, additionalData: aad },
+    aesKey,
+    enc.encode(JSON.stringify(plaintext)),
+  ));
+  return {
+    protocol: "ink/0.1",
+    type: messageType,
+    from: senderDid,
+    ephemeralKey: base64urlEncode(ephPub),
+    nonce: base64urlEncode(opts.aesNonce),
+    ciphertext: base64urlEncode(ciphertextWithTag),
+    timestamp,
+    messageNonce,
+  };
+}
+
 // ── payload-encryption ──────────────────────────────────────────────────────
 // Deterministic ECIES vectors: a fixed recipient X25519 key, a fixed ephemeral
 // key, and a fixed AES-GCM nonce make `encryptInkPayload` produce one stable
@@ -2502,10 +2548,16 @@ vectorFile("private-hostname", [
   // Same recipient + ephemeral, but the inner `from` deliberately disagrees
   // with the outer `from`, so a conformant decrypter rejects on the
   // inner/outer consistency check (not the AAD).
+  //
+  // encryptInkPayload will not mint this: the seal path enforces the same inner
+  // binding its decrypter requires, so a producer cannot emit an envelope no
+  // conformant decrypter opens. The corpus still needs the artifact, so it is
+  // built here by a deliberately non-conformant sealer, the same way every other
+  // reject case in this category is a deliberate tamper rather than library
+  // output. sealUnbound reproduces the reference seal byte for byte for a given
+  // ephemeral key and AES nonce; the only rule it drops is the binding check.
   const innerMismatchPlain = { protocol: "ink/0.1", from: "did:web:other.example.com", to: recipientDid, intent: "ping" };
-  const { envelope: innerMismatchEnv } = await encryptInkPayload(
-    innerMismatchPlain, sender, recipientPubHex, ts, msgNonce, opts,
-  );
+  const innerMismatchEnv = await sealUnbound(innerMismatchPlain, sender, recipientPubHex, ts, msgNonce, opts);
 
   // Vendor-neutral namespace (ink/0.4 dual-accept): the sender opts into
   // network.ink.encrypted. The type is AAD-bound, so this decrypts cleanly while

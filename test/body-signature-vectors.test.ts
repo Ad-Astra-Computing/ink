@@ -11,10 +11,11 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { verifyMessage, hexToBytes } from "../src/index.js";
+import { signMessage, verifyMessage, hexToBytes } from "../src/index.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const vectorsPath = join(here, "..", "test-vectors", "body-signature.json");
+const goGoldensPath = join(here, "..", "go", "ink", "testdata", "body-signature-producer.json");
 
 interface Vector {
   description: string;
@@ -36,6 +37,46 @@ describe("body-signature.json conformance", () => {
       const publicKey = hexToBytes(v.input.signerPublicKeyHex);
       const result = await verifyMessage(v.input.body, publicKey);
       expect(result).toBe(v.expected.signatureVerifies);
+    });
+  }
+});
+
+/**
+ * The Go producer goldens are this implementation's output, committed as Go
+ * testdata so the second implementation's signer can be compared byte for byte.
+ * They are only meaningful while they still equal what signMessage emits today,
+ * so this suite regenerates each signature and pins it. A change to signing that
+ * did not regenerate the goldens fails here rather than silently making the Go
+ * comparison test a check against a stale file.
+ */
+interface ProducerGolden {
+  description: string;
+  body: Record<string, unknown>;
+  signature: string;
+}
+
+const goldens = JSON.parse(readFileSync(goGoldensPath, "utf-8")) as {
+  signerPrivateKeySeedHex: string;
+  signerPublicKeyHex: string;
+  cases: ProducerGolden[];
+};
+
+describe("body-signature producer goldens (Go testdata)", () => {
+  const privateKey = hexToBytes(goldens.signerPrivateKeySeedHex);
+
+  it("covers both body-signature domains", () => {
+    const isV02 = (c: ProducerGolden) => c.body.protocol === "ink/0.2";
+    expect(goldens.cases.some(isV02)).toBe(true);
+    expect(goldens.cases.some((c) => !isV02(c))).toBe(true);
+  });
+
+  for (const c of goldens.cases) {
+    it(`reproduces: ${c.description}`, async () => {
+      expect(await signMessage(c.body, privateKey)).toBe(c.signature);
+      const { signature: _drop, ...unsigned } = c.body;
+      expect(await verifyMessage({ ...unsigned, signature: c.signature }, hexToBytes(goldens.signerPublicKeyHex))).toBe(
+        true,
+      );
     });
   }
 });

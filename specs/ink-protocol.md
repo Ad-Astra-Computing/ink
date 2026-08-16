@@ -568,7 +568,8 @@ corpus. Every rule above traces to:
   `go/ink/jcs.go` for the byte-exact signature base, canonicalization bounds, and
   strict verification;
 - `src/crypto/sign.ts` (`signMessage`, `isJcsSafeNumber`, `bodySignatureDomain`)
-  for the version-keyed body-signature domain (§3.6);
+  and `go/ink/signbody.go` (`SignInkBody`, `JCSCanonicalize`) for the
+  version-keyed body-signature domain (§3.6);
 - `src/ink/transport-auth.ts` and `src/middleware/ink-auth.ts` for the auth
   header grammar, key resolution order and the fail-closed nonce policy (§3.3,
   §3.5);
