@@ -40,6 +40,8 @@ A promotion is itself a release. To stamp a soaked version adopter-grade, a main
 
 A release pull request that cuts a version or moves a dist-tag also updates [`governance/releases/npm-dist-tags.json`](governance/releases/npm-dist-tags.json). That file is the offline source of truth for every dist-tag quoted in prose, and `npm run check:facts` fails once the registry moves past it, so a release cannot leave the documents describing the previous line.
 
+That update is enforced, not remembered. Every path that can move a dist-tag runs `npm run check:release-pin` first, and it refuses to publish or promote while the pin names a version other than the one about to be moved. The check runs after the full build and test gauntlet and before anything reaches the registry, so a forgotten pin bump costs a re-cut rather than a released version and a red `main`. The pin stays committed and offline: it is what lets `check:facts` settle a dist-tag claim on a runner with no network access, so nothing may rewrite it from the live registry.
+
 Committing to "1.0" is a governance act, not an automatic outcome of green CI. It means:
 
 - The mandatory base profile is frozen. After 1.0, the base wire contract does not take a breaking change without a major version. The frozen 1.0 base is exactly the set recorded in [`governance/releases/1.0-readiness-evidence.md`](governance/releases/1.0-readiness-evidence.md), pinned to a named conformance corpus id and a SHA-256 manifest-integrity anchor. A verifier cannot drift from that corpus without the anchor changing.

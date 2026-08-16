@@ -63,6 +63,16 @@ jobs:
           CHECK_FACTS_REQUIRE_NPM: "1"
         run: nix develop --command npm run check:facts
 
+      - name: Dist-tag pin describes the tree
+        # The version in the tree must be recorded on some dist-tag in
+        # governance/releases/npm-dist-tags.json. A version bump only happens in
+        # a release commit and a release commit updates the pin with it, so this
+        # holds on every commit. It puts a forgotten pin bump in front of a
+        # reviewer instead of leaving it to surface as a red `main` after the
+        # release has already published. The publish workflow runs the stricter
+        # per-tag form of this check before it publishes anything.
+        run: nix develop --command npm run check:release-pin -- --tag any
+
       - name: Build nix package
         # Builds the cli derivation, which verifies npmDepsHash against the
         # lockfile. Catches a stale or malformed hash that the devshell-based
