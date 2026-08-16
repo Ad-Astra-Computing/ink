@@ -1,0 +1,9 @@
+.git
+**/node_modules
+**/dist
+result
+result-*
+.wrangler
+src
+web
+examples
