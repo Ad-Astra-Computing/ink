@@ -1,0 +1,181 @@
+name: weekly-conformance
+
+# Standing re-verification of the conformance corpus, on a cadence rather than
+# on a push. CI only runs when someone pushes or opens a pull request, so a
+# quiet week leaves no evidence that the corpus is still green and no signal
+# that something outside the repository has drifted under it. This workflow runs
+# every Monday and produces that evidence: both implementations over the whole
+# corpus including the staged category, the manifest checked against the vectors
+# on disk and the documented-fact check with registry verification required so
+# a dist-tag that moves without the pin is caught within a week.
+#
+# There is no reporting step and no summary artifact. A red run is the signal.
+#
+# Recorded against the soak's corpus-greenness criterion in
+# governance/releases/1.0-readiness-evidence.md, which asks for a weekly re-run
+# at a pinned release tag. A scheduled run always uses the default branch, so
+# for a run destined for the soak ledger, dispatch it manually and give the
+# release tag as `ref`.
+
+on:
+  schedule:
+    - cron: "37 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Tag, branch or commit to verify. Empty means the default branch."
+        required: false
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: weekly-conformance-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  provenance:
+    # A run is only citable if its provenance is unambiguous. A manual dispatch
+    # selects the workflow content along with the ref, so a run whose workflow
+    # did not come from main could pass on doctored checks and read as evidence.
+    # Refuse that combination outright, resolve the requested ref against the
+    # repository over the API rather than trusting the input string, and print
+    # the exact commit every job then verifies, so the ledger records a SHA and
+    # not a movable name.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Require the workflow itself to run from main
+        if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
+        run: |
+          echo "Dispatch this workflow from main. The ref to verify goes in the 'ref' input;"
+          echo "dispatching the workflow on another ref would run that ref's workflow content."
+          exit 1
+
+      - name: Resolve the ref under verification to a commit
+        id: resolve
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          ref="${REQUESTED:-${GITHUB_REF_NAME}}"
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${ref}" --jq .sha)
+          echo "verifying ${ref} at ${sha}"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+  reference-corpus:
+    needs: provenance
+    # The TypeScript reference over the full corpus. `npm test` carries the
+    # conformance and manifest-integrity suites, so this covers both the
+    # per-vector decisions and the assertion that the vectors on disk, the
+    # declared category set and every per-category digest in
+    # conformance/v1/manifest.json agree.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.provenance.outputs.sha }}
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      # Deliberately no npm or Nix store cache here. A cache is shared across
+      # workflows and outlives the run, and this workflow's whole purpose is to
+      # re-verify from scratch on a schedule. Restoring a warm store would let a
+      # stale artifact stand in for the thing being verified.
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      - name: Reference conformance and manifest integrity
+        run: nix develop --command npm test
+
+      - name: Reference, staged vectors
+        run: nix develop --command npm run test:staged
+
+      - name: Documented-fact drift check
+        # CHECK_FACTS_REQUIRE_NPM turns an unreachable or disagreeing registry
+        # into a failure instead of an unverified pin. On the weekly cadence
+        # this is what catches a dist-tag that moved without the pin in the
+        # repository moving with it, whether or not anyone pushed that week.
+        env:
+          CHECK_FACTS_REQUIRE_NPM: "1"
+        run: nix develop --command npm run check:facts
+
+  go-corpus:
+    needs: provenance
+    # The independent Go verifier over the same corpus and the same
+    # manifest-integrity cross-check, plus the staged category with enforcement
+    # on. A skipped staged test exits 0, so assert it actually ran.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.provenance.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Go conformance and manifest integrity
+        working-directory: go
+        run: go test ./...
+
+      - name: Go verifier, staged vectors
+        working-directory: go
+        env:
+          INK_STAGED_CONFORMANCE: "1"
+        run: |
+          set -euo pipefail
+          go test ./ink/
+          log="${RUNNER_TEMP:-/tmp}/staged.log"
+          go test ./ink/ -run TestAgentCardSignaturePhaseC -v > "$log"
+          cat "$log"
+          grep -q '^--- PASS: TestAgentCardSignaturePhaseC' "$log"
+
+  go-ts-interop:
+    needs: provenance
+    # The cross-implementation check: the Go witness issues, the TypeScript
+    # reference verifies. Agreement between the two implementations is the
+    # claim the corpus evidence rests on, so it is re-run on the same cadence.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.provenance.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go/go.mod
+          cache: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      - name: Go witness issues, TypeScript reference verifies
+        run: nix develop --command npx vitest run test/go-witness-interop.test.ts

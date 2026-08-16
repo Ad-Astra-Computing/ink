@@ -69,6 +69,10 @@ All changes must include tests. For bug fixes, add a regression test that fails 
 3. Keep commits small and focused. Commit messages: imperative mood, under 72 characters.
 4. Reference any related issue or spec section in the PR description.
 
+## Checks that run without a push
+
+Some checks run on a schedule as well as on pull requests, so a quiet week still produces a result. The [`weekly-conformance`](.github/workflows/weekly-conformance.yml) workflow re-verifies the conformance corpus in both implementations once a week and can also be dispatched by hand against a specific tag. Nothing about it is a contributor step, but a red run on `main` is a real failure and is treated like one. The [`audit`](.github/workflows/audit.yml) and [`zizmor`](.github/workflows/zizmor.yml) workflows run daily on the same principle.
+
 ## Spec and protocol work
 
 The authoritative spec lives in `specs/`. If your change would alter the on-wire format, signing base, trust model or key-rotation rules, update the relevant spec file first and link to it in your PR. Spec and implementation are treated as a single artifact, they must stay in sync.
