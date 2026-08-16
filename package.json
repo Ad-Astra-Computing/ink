@@ -52,6 +52,7 @@
     "lint": "eslint src/ test/ scripts/",
     "check:surface": "tsx scripts/check-public-surface.ts",
     "check:facts": "tsx scripts/check-doc-facts.ts",
+    "check:release-pin": "tsx scripts/check-release-pin.ts",
     "check:pack": "./scripts/check-pack.sh",
     "gen:body-vectors": "tsx scripts/gen-body-signature-vectors.ts",
     "prepack": "npm run build",

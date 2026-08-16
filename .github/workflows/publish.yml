@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       promote_version:
-        description: "Fallback only: move a dist-tag onto this already-published version (leave empty to publish the current tag)"
+        description: "Fallback only: move a dist-tag onto this already-published version"
         required: false
         default: ""
         type: string
@@ -36,11 +36,12 @@ env:
 
 jobs:
   publish:
-    # Normal releases only. A `latest-v*` tag is handled by publish-latest, and
-    # a promotion dispatch is handled by promote.
-    if: >-
-      (github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v'))
-      || (github.event_name == 'workflow_dispatch' && inputs.promote_version == '')
+    # Normal releases only, and only ever from a tag push. A `latest-v*` tag is
+    # handled by publish-latest, and a promotion dispatch is handled by promote.
+    # No workflow_dispatch arm: npm's trusted publisher authenticates the repo
+    # and workflow identity, not the ref, so a dispatch-triggered publish would
+    # run OIDC-authenticated `npm publish` from whatever ref was selected.
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
@@ -90,6 +91,16 @@ jobs:
             echo "package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
             exit 1
           fi
+
+      - name: Verify the dist-tag pin describes this release
+        # governance/releases/npm-dist-tags.json is the offline source of truth
+        # for every dist-tag quoted in prose, and check:facts fails once the
+        # registry moves past it. Checking it here, before the publish, keeps
+        # that failure at release time instead of landing on `main` afterwards,
+        # and makes the pin bump part of the release commit as GOVERNANCE.md
+        # requires. Runs after the gauntlet and before `npm publish`, so a
+        # missing pin bump costs a re-cut and never a published release.
+        run: nix develop --command npm run check:release-pin -- --tag next --version "${GITHUB_REF_NAME#v}" --match-package-version
 
       # No `cache:` input, so setup-node does not actually cache anything here —
       # the heuristic flag is a false positive on the publish path.
@@ -202,6 +213,12 @@ jobs:
             exit 1
           fi
 
+      - name: Verify the dist-tag pin describes this promotion
+        # Same gate as the publish job, on the tag this path moves. A promotion
+        # re-cut advances `latest`, so the pin's `latest` entry must already
+        # name this version before the registry does.
+        run: nix develop --command npm run check:release-pin -- --tag latest --version "${GITHUB_REF_NAME#latest-v}" --match-package-version
+
       # No `cache:` input, so setup-node does not actually cache anything here.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
         with:
@@ -238,20 +255,41 @@ jobs:
     # an already-published version instead, which npm trusted publishing cannot
     # authenticate (npm/cli#8547), so it needs a real automation token in
     # NPM_TOKEN: a granular read-write token for @adastracomputing/ink on the
-    # npm-release environment. No such token is kept long-term, so using this
+    # npm-promote environment, which only deployments from main can reach. No such token is kept long-term, so using this
     # path means minting a fresh one first and revoking it afterwards. Use it
     # only when a re-cut is not viable, for example rolling `latest` back to an
     # earlier version. Runs only on a manual dispatch that supplies
     # promote_version.
     if: github.event_name == 'workflow_dispatch' && inputs.promote_version != ''
     runs-on: ubuntu-latest
-    environment: npm-release
-    permissions: {}
+    environment: npm-promote
+    permissions:
+      contents: read   # required to read the committed dist-tag pin before moving a tag.
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The pin's authority is the protected default branch: the runbook
+          # requires `main` to name the destination before a tag moves. Pinning
+          # the checkout also keeps dispatch-selected refs from running code in
+          # this credentialed job.
+          ref: main
+          persist-credentials: false
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
         with:
           node-version: 24.x
           registry-url: "https://registry.npmjs.org"
+
+      - name: Verify the dist-tag pin describes this move
+        # This path moves a dist-tag on an already-published version, so it is
+        # the one place where the registry can advance without a publish. The
+        # pin has to name the destination before the move, or `main` goes red
+        # afterwards. Run under bare node (no `npm ci`, no Nix) so this
+        # credentialed job installs nothing before it moves the tag.
+        env:
+          PROMOTE_VERSION: ${{ inputs.promote_version }}
+          PROMOTE_TAG: ${{ inputs.promote_tag }}
+        run: node scripts/check-release-pin.ts --tag "$PROMOTE_TAG" --version "$PROMOTE_VERSION"
 
       - name: Promote dist-tag
         env:
