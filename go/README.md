@@ -19,6 +19,9 @@ shared vectors:
   escaping), the INK signature-base construction, RFC 8032 strict Ed25519
   verification, and the producing side: signing a transport request and building
   the `INK-Ed25519` Authorization header (§3.3).
+- **Body signature** (`signbody.go`) — the generic producer for the `signature`
+  member an INK object carries in its own body (§3.6), and the exported JCS
+  canonicalizer a sender needs to build the signed bytes.
 - **Replay and freshness** (`replay.go`) — the timestamp freshness window and
   nonce de-duplication.
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
@@ -191,7 +194,10 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
   Input fields are `recipientPublicKeyHex` (the recipient's 32-byte static X25519
   public key), `senderDid`, `timestamp`, `messageNonce`, a `plaintext` object,
   and an optional `messageType` (`network.tulpa.encrypted` by default, or
-  `network.ink.encrypted`). The result carries the outer `envelope`, which
+  `network.ink.encrypted`). The `plaintext` MUST carry `from` equal to
+  `senderDid` and a non-empty `to`: the seal enforces the same inner/outer
+  binding every conformant decrypter requires, so it cannot emit an envelope
+  nothing will open. The result carries the outer `envelope`, which
   decrypts with both `DecryptInkPayload` and the reference `decryptInkPayload`.
   Every call draws a fresh ephemeral key and a random AES nonce, so the
   ciphertext is non-deterministic and the command exposes no ephemeral/nonce
