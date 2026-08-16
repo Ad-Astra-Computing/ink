@@ -71,7 +71,7 @@ All changes must include tests. For bug fixes, add a regression test that fails 
 
 ## Checks that run without a push
 
-Some checks run on a schedule as well as on pull requests, so a quiet week still produces a result. The [`weekly-conformance`](.github/workflows/weekly-conformance.yml) workflow re-verifies the conformance corpus in both implementations once a week and can also be dispatched by hand against a specific tag. Nothing about it is a contributor step, but a red run on `main` is a real failure and is treated like one. The [`audit`](.github/workflows/audit.yml) and [`zizmor`](.github/workflows/zizmor.yml) workflows run daily on the same principle.
+Some checks run on a schedule as well as on pull requests, so a quiet week still produces a result. The [`weekly-conformance`](.github/workflows/weekly-conformance.yml) workflow re-verifies the conformance corpus in both implementations once a week. A scheduled run covers two commits, the head of `main` and the highest released `v*` tag, so the corpus is re-checked against the newest release without anyone starting a run by hand; when the two are the same commit it is verified once. It can also be dispatched against a specific ref, which verifies that ref alone. Nothing about it is a contributor step, but a red run on `main` is a real failure and is treated like one. The [`audit`](.github/workflows/audit.yml) and [`zizmor`](.github/workflows/zizmor.yml) workflows run daily on the same principle.
 
 ## Spec and protocol work
 

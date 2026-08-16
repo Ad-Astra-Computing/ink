@@ -13,9 +13,12 @@ name: weekly-conformance
 #
 # Recorded against the soak's corpus-greenness criterion in
 # governance/releases/1.0-readiness-evidence.md, which asks for a weekly re-run
-# at a pinned release tag. A scheduled run always uses the default branch, so
-# for a run destined for the soak ledger, dispatch it manually and give the
-# release tag as `ref`.
+# at a pinned release tag. So a scheduled run verifies two commits: the default
+# branch head, and the highest released `v*` tag, which is the tag a soak
+# window pins. The ledger entry for a soak week is then a scheduled run nobody
+# had to remember to start. When both resolve to the same commit the work is
+# done once and labelled as covering both. A manual dispatch still verifies
+# exactly the one ref it is given.
 
 on:
   schedule:
@@ -49,7 +52,9 @@ jobs:
     permissions:
       contents: read
     outputs:
-      sha: ${{ steps.resolve.outputs.sha }}
+      # A JSON array of {label, ref, sha}, one entry per commit to verify. The
+      # three jobs below fan out over it.
+      targets: ${{ steps.resolve.outputs.targets }}
     steps:
       - name: Require the workflow itself to run from main
         if: github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main'
@@ -58,17 +63,76 @@ jobs:
           echo "dispatching the workflow on another ref would run that ref's workflow content."
           exit 1
 
-      - name: Resolve the ref under verification to a commit
+      - name: Resolve the refs under verification to commits
         id: resolve
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
           REQUESTED: ${{ inputs.ref }}
         run: |
           set -euo pipefail
-          ref="${REQUESTED:-${GITHUB_REF_NAME}}"
-          sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${ref}" --jq .sha)
-          echo "verifying ${ref} at ${sha}"
-          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+
+          # `commits/<ref>` peels an annotated tag to the commit it points at,
+          # so a tag resolves the same way a branch does.
+          resolve() { gh api "repos/${GITHUB_REPOSITORY}/commits/$1" --jq .sha; }
+
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            ref="${REQUESTED:-${GITHUB_REF_NAME}}"
+            targets=$(jq -cn --arg ref "$ref" --arg sha "$(resolve "$ref")" \
+              '[{label: $ref, ref: $ref, sha: $sha}]')
+          else
+            head_ref="${GITHUB_REF_NAME}"
+            head_sha=$(resolve "$head_ref")
+
+            # Released tags only: `v<major>.<minor>.<patch>` and nothing else.
+            # That drops prereleases, which are not what a soak window pins,
+            # and it drops the `latest-v*` dist-tag stamps described in
+            # publish.yml. A `latest-v*` tag is a version-bump re-cut of an
+            # already-soaked release, cut only to move the `latest` dist-tag;
+            # the load-bearing reason to exclude it is that a promotion of the
+            # newest line would sort above the release under
+            # soak and would quietly move the weekly run off the pinned tag the
+            # ledger cites. Sorting is numeric per field, so v0.16.0 ranks
+            # above v0.9.0 the way a lexical sort would not.
+            # The API listing must fail the run, not fall back: a rate limit or
+            # 5xx that read as "no tags" would drop the release-tag leg while
+            # the run still passed. Only an empty match set is tolerable.
+            all_tags=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/tags" --jq '.[].name')
+            tag=$(printf '%s\n' "$all_tags" \
+              | { grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true; } \
+              | sed 's/^v//' \
+              | sort -t. -k1,1n -k2,2n -k3,3n \
+              | tail -n1 \
+              | sed 's/^/v/')
+
+            if [ -z "$tag" ]; then
+              # Nothing released yet. Verify the branch and say so, rather than
+              # failing a cadence run over a tag that does not exist.
+              echo "no released v* tag found, verifying ${head_ref} only"
+              targets=$(jq -cn --arg ref "$head_ref" --arg sha "$head_sha" \
+                '[{label: $ref, ref: $ref, sha: $sha}]')
+            else
+              tag_sha=$(resolve "$tag")
+              if [ "$tag_sha" = "$head_sha" ]; then
+                # The release is the branch head. One verification covers both,
+                # and the label records that so the ledger can cite this run
+                # for the tag.
+                targets=$(jq -cn --arg ref "$head_ref" --arg tag "$tag" --arg sha "$head_sha" \
+                  '[{label: ($ref + " and " + $tag), ref: $ref, sha: $sha}]')
+              else
+                targets=$(jq -cn \
+                  --arg ref "$head_ref" --arg head_sha "$head_sha" \
+                  --arg tag "$tag" --arg tag_sha "$tag_sha" \
+                  '[{label: $ref, ref: $ref, sha: $head_sha},
+                    {label: $tag, ref: $tag, sha: $tag_sha}]')
+              fi
+            fi
+          fi
+
+          # One line per commit, so a ledger citation can be read straight off
+          # the log: what it covers, the ref it came from and the immutable SHA.
+          echo "$targets" | jq -r '.[] | "verifying \(.label): ref \(.ref) at \(.sha)"'
+          echo "targets=${targets}" >> "$GITHUB_OUTPUT"
 
   reference-corpus:
     needs: provenance
@@ -77,13 +141,20 @@ jobs:
     # per-vector decisions and the assertion that the vectors on disk, the
     # declared category set and every per-category digest in
     # conformance/v1/manifest.json agree.
+    name: reference-corpus (${{ matrix.target.label }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      # Each commit is separate evidence. A red branch head must not cancel the
+      # run at the release tag the soak ledger cites, or the other way round.
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.provenance.outputs.targets) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.provenance.outputs.sha }}
+          ref: ${{ matrix.target.sha }}
           persist-credentials: false
 
       - name: Install Nix
@@ -119,13 +190,18 @@ jobs:
     # The independent Go verifier over the same corpus and the same
     # manifest-integrity cross-check, plus the staged category with enforcement
     # on. A skipped staged test exits 0, so assert it actually ran.
+    name: go-corpus (${{ matrix.target.label }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.provenance.outputs.targets) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.provenance.outputs.sha }}
+          ref: ${{ matrix.target.sha }}
           persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -154,13 +230,18 @@ jobs:
     # The cross-implementation check: the Go witness issues, the TypeScript
     # reference verifies. Agreement between the two implementations is the
     # claim the corpus evidence rests on, so it is re-run on the same cadence.
+    name: go-ts-interop (${{ matrix.target.label }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        target: ${{ fromJSON(needs.provenance.outputs.targets) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.provenance.outputs.sha }}
+          ref: ${{ matrix.target.sha }}
           persist-credentials: false
 
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
