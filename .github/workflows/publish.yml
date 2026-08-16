@@ -36,11 +36,12 @@ env:
 
 jobs:
   publish:
-    # Normal releases only. A `latest-v*` tag is handled by publish-latest, and
-    # a promotion dispatch is handled by promote.
-    if: >-
-      (github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v'))
-      || (github.event_name == 'workflow_dispatch' && inputs.promote_version == '')
+    # Normal releases only, and only ever from a tag push. A `latest-v*` tag is
+    # handled by publish-latest, and a promotion dispatch is handled by promote.
+    # No workflow_dispatch arm: npm's trusted publisher authenticates the repo
+    # and workflow identity, not the ref, so a dispatch-triggered publish would
+    # run OIDC-authenticated `npm publish` from whatever ref was selected.
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v')
     runs-on: ubuntu-latest
     permissions:
       contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
