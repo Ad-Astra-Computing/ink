@@ -243,16 +243,29 @@ export interface FetchAgentCardOptions {
    * connect targets (e.g. undici with a custom dispatcher on Node, or
    * `cf: { resolveOverride: validatedIp }` on Cloudflare Workers). */
   fetch?: typeof fetch;
-  /** Strict mode: require that the caller supply `options.fetch`, returning
-   * null (without fetching) if it is absent. This only guarantees that *some*
-   * fetch override was provided; it does NOT and cannot verify that the
-   * override pins connect-time IPs, so passing `requireSafeFetch: true` with
-   * the plain global `fetch` does not close the DNS-rebinding window. The
-   * literal-private-IP allowlist this module applies to `baseUrl` does not stop
-   * a public hostname that resolves to a private address at fetch time; only a
-   * connect-time-IP-pinning `options.fetch` (for example a custom undici
-   * dispatcher) does. Off by default for backwards compatibility. */
+  /** Strict mode, ON by default: require that the caller supply
+   * `options.fetch`, returning null (without fetching) if it is absent. This
+   * only guarantees that *some* fetch override was provided; it does NOT and
+   * cannot verify that the override pins connect-time IPs, so passing a
+   * `fetch` that is the plain global one does not close the DNS-rebinding
+   * window. The literal-private-IP allowlist this module applies to `baseUrl`
+   * does not stop a public hostname that resolves to a private address at
+   * fetch time; only a connect-time-IP-pinning `options.fetch` (for example a
+   * custom undici dispatcher) does.
+   *
+   * Set `requireSafeFetch: false` to opt OUT and fall back to the ambient
+   * global fetch. That is legitimate only when the `baseUrl` is operator-
+   * configured (a pinned partner, a fixture, a test) rather than derived from
+   * a remote document or user input — with an untrusted base the opt-out
+   * reopens the rebinding window. The opt-out is deliberately explicit so it
+   * is greppable in a review. */
   requireSafeFetch?: boolean;
+  /** The DID under resolution, when this fetch was reached through a DID
+   * document. Supplying it turns on the owner anti-substitution step of the
+   * discovery-fetch contract (step 9): a card carrying an `ownerDid` that is
+   * not byte-equal to this value is refused. Leave it unset for a fetch that
+   * is not DID-mediated — the step then passes unchanged. */
+  resolutionDid?: string;
 }
 
 /**
@@ -264,12 +277,17 @@ export interface FetchAgentCardOptions {
  * loopback / private / link-local / IANA special-use blocks (both v4 and
  * v4-mapped v6), no redirect following, body-size cap, identity binding.
  *
- * It does NOT defend against DNS rebinding: a public hostname that
+ * It does NOT defend against DNS rebinding on its own: a public hostname that
  * resolves to a private IP at fetch time will still be reached. The
- * runtime-agnostic library cannot solve this on its own — pass
+ * runtime-agnostic library cannot solve this by itself — pass
  * `options.fetch` with a connect-time IP-filtering implementation
  * (undici dispatcher on Node, `cf.resolveOverride` on Cloudflare
- * Workers, an egress proxy, etc.) when the baseUrl is not fully trusted.
+ * Workers, an egress proxy, etc.).
+ *
+ * Because that is the only connect-time defense available, supplying
+ * `options.fetch` is REQUIRED by default: with neither `options.fetch` nor an
+ * explicit `requireSafeFetch: false`, this function returns null without
+ * touching the network. Operator-configured bases opt out explicitly.
  */
 export async function fetchAgentCard(
   agentId: string,
@@ -323,11 +341,13 @@ export async function fetchAgentCard(
     return null;
   }
   const url = built.toString();
-  // Strict mode: reject before any network work if the caller asked for a
-  // safe fetch but didn't supply one. The default global fetch cannot do
-  // connect-time IP filtering, which is what closes the DNS-rebinding
-  // window. Fail closed.
-  if (options?.requireSafeFetch && !options.fetch) {
+  // Strict mode (default ON): reject before any network work unless the
+  // caller supplied a fetch. The ambient global fetch cannot do connect-time
+  // IP filtering, which is what closes the DNS-rebinding window, so a
+  // connect-time-safe fetch is the connect-time rule this function can
+  // actually enforce. Fail closed; `requireSafeFetch: false` is the explicit
+  // opt-out for operator-configured bases.
+  if (options?.requireSafeFetch !== false && !options?.fetch) {
     return null;
   }
   const fetchImpl = options?.fetch ?? fetch;
@@ -352,7 +372,8 @@ export async function fetchAgentCard(
     const text = await readResponseBodyWithCap(res, MAX_AGENT_CARD_BYTES);
     if (text === null) return null;
     // The response contract (status 200, application/json, size cap, JSON
-    // parse, AgentCardSchema, protocol literal, identity binding) is the pinned
+    // parse, AgentCardSchema, protocol literal, identity binding, owner
+    // anti-substitution when the fetch is DID-mediated) is the pinned
     // agent-card-fetch conformance decision, shared with the second
     // implementation so retrieval cannot diverge across runtimes.
     const evaluated = evaluateAgentCardFetch({
@@ -361,6 +382,7 @@ export async function fetchAgentCard(
       contentLength: res.headers.get("Content-Length"),
       bodyRaw: text,
       requestedAgentId: agentId,
+      resolutionDid: options?.resolutionDid ?? null,
     });
     if (!evaluated.accepted || !evaluated.card) return null;
     const card = evaluated.card;
@@ -489,13 +511,14 @@ export function extractCandidateKeys(card: AgentCard): CandidateKey[] {
 }
 
 /**
- * Resolve a well-known discovery base URL for an agent handle.
+ * Resolve a discovery BASE URL for an agent handle. `fetchAgentCard` joins the
+ * versioned card path onto it; this function never returns a card URL.
  *
  * INK does not mandate a single discovery origin — handle → base URL
  * resolution is integrator-specific. Implementations typically use one of:
  *
  *   - DNS TXT record at `_ink.<handle>` (planned)
- *   - HTTPS .well-known lookup at `https://<handle>/.well-known/ink/agent.json`
+ *   - The handle's own origin, `https://<handle>`
  *   - A platform-specific registry maintained by a host service
  *
  * Pass a `resolveBase` callback at integration time. Returning null defers

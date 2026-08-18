@@ -42,6 +42,7 @@ type fcTranscript struct {
 		ContentLength    *string `json:"contentLength"`
 		BodyRaw          string  `json:"bodyRaw"`
 		RequestedAgentID string  `json:"requestedAgentId"`
+		ResolutionDID    *string `json:"resolutionDid"`
 	} `json:"cardFetch"`
 	ClientSupportedVersions []string `json:"clientSupportedVersions"`
 	ReceiverClock           string   `json:"receiverClock"`
@@ -72,7 +73,7 @@ func evalFirstContact(t *testing.T, c conformanceCase) (string, bool) {
 	}
 
 	// 1. discovery
-	if !EvaluateAgentCardFetch(tr.CardFetch.Status, tr.CardFetch.ContentType, tr.CardFetch.ContentLength, tr.CardFetch.BodyRaw, tr.CardFetch.RequestedAgentID) {
+	if !EvaluateAgentCardFetch(tr.CardFetch.Status, tr.CardFetch.ContentType, tr.CardFetch.ContentLength, tr.CardFetch.BodyRaw, tr.CardFetch.RequestedAgentID, tr.CardFetch.ResolutionDID) {
 		return "", false
 	}
 

@@ -25,9 +25,9 @@
       "vector": "vectors/agent-card-fetch.json",
       "profile": "base",
       "spec": "specs/ink-agent-card-discovery-fetch.md",
-      "summary": "Agent Card discovery response contract (status, content type, size caps, identity binding).",
-      "caseCount": 29,
-      "sha256": "b7ec6296addb3f27a25c04a652d363d20032a5a8da722d09dc7f65d60cbd5302"
+      "summary": "Agent Card discovery response contract (status, content type, size caps, identity binding, owner anti-substitution).",
+      "caseCount": 34,
+      "sha256": "689835be9ba72b648b19c10e413f875462202551743af0f672b5af3e7da8adf6"
     },
     {
       "id": "agent-card-signature",

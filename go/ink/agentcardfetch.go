@@ -26,7 +26,15 @@ const MaxAgentCardBytes = 64 * 1024
 //  6. It MUST satisfy the Agent Card schema.
 //  7. protocol MUST be "ink/0.1".
 //  8. agentId MUST equal the requested agentId.
-func EvaluateAgentCardFetch(status int, contentType *string, contentLength *string, bodyRaw string, requestedAgentID string) bool {
+//  9. When resolutionDID is non-nil and the card carries an ownerDid, ownerDid
+//     MUST equal resolutionDID (owner anti-substitution).
+//
+// resolutionDID is the owner's DID, set only when the resolution began at an
+// owner's DID document and followed it to this card. Every other caller passes
+// nil, including one that reached the card through the agent's own DID
+// document. Passing an agent identifier rejects every card whose owner and
+// agent differ.
+func EvaluateAgentCardFetch(status int, contentType *string, contentLength *string, bodyRaw string, requestedAgentID string, resolutionDID *string) bool {
 	// 1. Status.
 	if status != 200 {
 		return false
@@ -70,6 +78,18 @@ func EvaluateAgentCardFetch(status int, contentType *string, contentLength *stri
 	// 8. Identity binding.
 	if aid, _ := card["agentId"].(string); aid != requestedAgentID {
 		return false
+	}
+
+	// 9. Owner anti-substitution. Byte for byte, no canonicalization, and only
+	// when the fetch was mediated by a DID and the card actually carries an
+	// ownerDid. Passing proves the card names the DID it was reached through,
+	// never that the owner consented to the agent: ownerDid is self-asserted.
+	if resolutionDID != nil {
+		if owner, present := card["ownerDid"]; present {
+			if s, _ := owner.(string); s != *resolutionDID {
+				return false
+			}
+		}
 	}
 
 	return true

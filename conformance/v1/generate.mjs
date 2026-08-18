@@ -80,7 +80,7 @@ const CATEGORY_META = {
   "handshake-message": { profile: "containment", spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
   "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
   "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
-  "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding)." },
+  "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding, owner anti-substitution)." },
   "agent-card-signature": { profile: "base", spec: "specs/ink-agent-card-signature.md", summary: "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules." },
   "agent-card-signature-phase-c": { profile: "staged", spec: "specs/ink-agent-card-signature.md", summary: "Staged Phase C receiver rule: with the explicit enforcePhaseC flag on, an unsigned card is rejected outright and a cold did:web verifier fails closed on an unreachable resolver; with the flag off the pre-Phase-C decision stands." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
@@ -1820,7 +1820,10 @@ vectorFile("agent-card", [
 // specs/ink-agent-card-discovery-fetch.md.
 const fetchBody = JSON.stringify(acCard);
 const fetchReqId = acCard.agentId;
-const fetchInput = (over = {}) => ({ status: 200, contentType: "application/json", contentLength: null, bodyRaw: fetchBody, requestedAgentId: fetchReqId, ...over });
+const fetchInput = (over = {}) => ({ status: 200, contentType: "application/json", contentLength: null, bodyRaw: fetchBody, requestedAgentId: fetchReqId, resolutionDid: null, ...over });
+// Step 9 (owner anti-substitution) needs a card that carries an ownerDid.
+const fetchOwnerDid = "did:web:owner.example";
+const fetchOwnedBody = JSON.stringify({ ...acCard, ownerDid: fetchOwnerDid });
 const fAccept = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
 const fReject = (caseId, description, input) => ({ caseId, description, input, expect: { result: "reject" } });
 vectorFile("agent-card-fetch", [
@@ -1858,6 +1861,12 @@ vectorFile("agent-card-fetch", [
   fReject("body-array-rejects", "A JSON array body rejects.", fetchInput({ bodyRaw: "[]" })),
   // identity binding
   fReject("identity-mismatch-rejects", "A valid card whose agentId differs from the requested id rejects.", fetchInput({ requestedAgentId: "did:web:other.example" })),
+  // owner anti-substitution (step 9)
+  fReject("owner-did-mismatch-rejects", "A DID-mediated fetch whose card names a different ownerDid rejects; a host that legitimately publishes a card for one DID must not answer resolution of another with it.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: "did:web:someone-else.example" })),
+  fAccept("owner-did-match-accepts", "A DID-mediated fetch whose card names the DID under resolution accepts; the comparison is byte for byte with no canonicalization.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: fetchOwnerDid })),
+  fReject("owner-did-case-differs-rejects", "The step 9 comparison performs no case folding, so a re-cased ownerDid is a different DID and rejects.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: "did:web:Owner.example" })),
+  fAccept("owner-did-absent-accepts", "A card without an ownerDid passes step 9 unchanged, even under a DID-mediated fetch.", fetchInput({ resolutionDid: "did:web:owner.example" })),
+  fAccept("resolution-did-absent-accepts", "A fetch that was not DID-mediated passes step 9 unchanged, even when the card carries an ownerDid.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: null })),
 ]);
 
 // ── agent-card-signature ─────────────────────────────────────────────────────

@@ -321,7 +321,11 @@ func TestAgentCardFetch(t *testing.T) {
 		var bodyRaw, reqID string
 		_ = json.Unmarshal(c.Input["bodyRaw"], &bodyRaw)
 		_ = json.Unmarshal(c.Input["requestedAgentId"], &reqID)
-		if got := EvaluateAgentCardFetch(status, contentType, contentLength, bodyRaw, reqID); got != want {
+		var resolutionDID *string
+		if raw, ok := c.Input["resolutionDid"]; ok {
+			_ = json.Unmarshal(raw, &resolutionDID)
+		}
+		if got := EvaluateAgentCardFetch(status, contentType, contentLength, bodyRaw, reqID, resolutionDID); got != want {
 			t.Errorf("%s: EvaluateAgentCardFetch = %v, want %v", c.CaseID, got, want)
 		}
 	}
