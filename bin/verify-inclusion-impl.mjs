@@ -30,9 +30,11 @@ import { readFileSync, statSync } from "node:fs";
 import * as ed from "@noble/ed25519";
 import canonicalize from "canonicalize";
 // The receipt is a signed artifact, so it goes through the same text-level gate
-// as every other signed body rather than a bare JSON.parse. dist/ ships in the
-// same package as this file, so the import resolves wherever the CLI runs.
-import { parseSignedBodyBytes } from "../dist/index.js";
+// as every other signed body rather than a bare JSON.parse. The gate lives in a
+// sibling .mjs rather than in dist/, because this file must run from a git
+// checkout where nothing has been built yet; test/bin-gate-parity.test.ts keeps
+// that copy in step with the library's.
+import { parseSignedBodyBytes } from "./signed-body-gate.mjs";
 
 // ── arg parsing ──
 
