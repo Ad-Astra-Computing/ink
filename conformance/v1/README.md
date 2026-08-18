@@ -161,8 +161,7 @@ additive field then.
   missing required field, an oversized string or array, and a type-confused field
   all reject. See
   [`../../specs/ink-connection-payload.md`](../../specs/ink-connection-payload.md).
-- **agent-card**: schema validation for the `.well-known/ink/agent.json`
-  discovery document, including a pinned endpoint URL grammar (https, no
+- **agent-card**: schema validation for the Agent Card discovery document, including a pinned endpoint URL grammar (https, no
   userinfo, no fragment, no control/whitespace) used for all endpoint fields, the
   nested capabilities, key entries, and governance, and the invariant that
   inboxEndpoint equals endpoint when both are present. A minimal and a full card
@@ -173,10 +172,13 @@ additive field then.
   [`../../specs/ink-agent-card.md`](../../specs/ink-agent-card.md).
 - **agent-card-fetch**: the discovery response-handling contract over synthetic
   response metadata (status, Content-Type, Content-Length, body, requested
-  agentId): status must be 200, Content-Type must be application/json with at
-  most a utf-8 charset, the body is capped at 64 KiB by declared and actual
-  size, and the parsed card must satisfy the schema, carry protocol ink/0.1, and
-  bind to the requested agentId. The request-side SSRF gate and card-content
+  agentId, DID under resolution): status must be 200, Content-Type must be
+  application/json with at most a utf-8 charset, the body is capped at 64 KiB by
+  declared and actual size, and the parsed card must satisfy the schema, carry
+  protocol ink/0.1, and bind to the requested agentId. A DID-mediated fetch
+  additionally refuses a card whose `ownerDid` is not byte-equal to the DID under
+  resolution; a card without an `ownerDid`, or a fetch that names no DID, passes
+  that step unchanged. The request-side SSRF gate and card-content
   host checks are out of scope. See
   [`../../specs/ink-agent-card-discovery-fetch.md`](../../specs/ink-agent-card-discovery-fetch.md).
 - **agent-card-signature**: the self-authenticating card verifier. The

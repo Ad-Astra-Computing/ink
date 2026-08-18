@@ -55,8 +55,9 @@ The effective discovery exposure is `min(visibility, scope)`. A descriptor whose
 `scope` ranks above the card's `visibility` is rejected: a card cannot use
 discovery to reach a wider audience than its own visibility permits. When the
 card omits `visibility`, the upper bound is `public`, because the card is itself
-served publicly at `/.well-known/ink/agent.json`; the descriptor may then declare
-up to `public`.
+served publicly at the discovery path
+[`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md) pins;
+the descriptor may then declare up to `public`.
 
 This makes the mandatory guard a single ordinal comparison rather than a mapping
 between two taxonomies, and it means a reviewer can reason about exposure from

@@ -50,11 +50,10 @@ grows under the minor-version rule without changing any of the above.
 ## 2. Discovery and the Agent Card
 
 A receiver publishes an **Agent Card**, a signed-transport-independent JSON
-document that a sender fetches before first contact. The card is served at:
-
-```
-GET /ink/v1/{agentId}/agent.json
-```
+document that a sender fetches before first contact. The discovery path and the
+contract for evaluating the response are pinned by
+[`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md), which
+owns both; this specification does not restate the path.
 
 A base Agent Card MUST include `protocol` (the literal `"ink/0.1"`), `agentId`,
 `publicKeyMultibase` (a multibase base58btc Ed25519 key, §7) and `endpoint`
@@ -68,8 +67,8 @@ the field is absent or empty a sender MUST assume `ink/0.1` only. Version
 negotiation is specified in §8.
 
 The full card schema, the endpoint URL grammar, key-set rotation fields and the
-discovery response contract (status, content type, size cap, identity binding)
-are pinned by [`ink-agent-card.md`](ink-agent-card.md),
+discovery path and response contract (status, content type, size cap, identity
+binding, owner anti-substitution) are pinned by [`ink-agent-card.md`](ink-agent-card.md),
 [`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md), and
 [`ink-key-rotation-spec.md`](ink-key-rotation-spec.md). Every outbound discovery
 or delivery URL MUST pass the SSRF host-safety check of
@@ -312,6 +311,13 @@ is still rejected. A nonce store MUST retain a recorded nonce for at least the
 check-and-record to close the check-then-act race between two concurrent
 replays; the reference prefers `addIfAbsent` when available and falls back to a
 non-atomic `has` + `add`.
+
+**Nonce store scope.** A nonce store MAY be global to a receiver or scoped per
+sender. Where it is scoped per sender, the scope key MUST be the canonical
+principal of §7, never the raw `from` spelling: a store keyed on the raw value
+splits on the two prefixes of one key, and a split replay set accepts the same
+presentation twice. A global store needs no scope key and MUST still enforce
+single use across senders, which is strictly stronger.
 
 **Fail-closed nonce policy (Frozen for 1.0).** An INK auth verifier MUST NOT run
 without nonce handling. If it is invoked with neither a nonce store nor an
