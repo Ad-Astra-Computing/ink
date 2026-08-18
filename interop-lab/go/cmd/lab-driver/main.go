@@ -83,9 +83,16 @@ func drive(cfg config, r *run) error {
 	}
 	r.check("versioned card path returns 200", cardStatus == 200, fmt.Sprintf("status %d", cardStatus))
 
-	// The well-known path stays as an alias and MUST serve the same bytes: the
-	// card is signed over its own body, so two spellings of the same document
-	// cannot diverge.
+	// The well-known path stays as an alias and MUST serve the same bytes.
+	//
+	// Scope of this check: every request in the lab hits one receiver process,
+	// so this proves the two ROUTES agree, not that the card is stable across
+	// processes or over time. The receiver builds its card as a pure function
+	// of configuration and key material, and that is what makes the claim hold
+	// in a multi-isolate deployment; the proof lives in the receiver's own
+	// examples/reference-receiver/test/card-determinism.test.ts, which runs the
+	// build in two separate OS processes under different clocks. Do not read a
+	// pass here as evidence of cross-process stability.
 	aliasStatus, aliasBytes, err := get(cfg.receiver + "/.well-known/ink/agent.json")
 	if err != nil {
 		return fmt.Errorf("well-known card fetch: %w", err)

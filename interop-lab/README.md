@@ -45,6 +45,8 @@ the typed result.
 | Assertion | What it proves |
 |---|---|
 | card fetch returns 200, carries an agentId | The receiver publishes a discoverable card over HTTP. |
+| well-known alias is byte-identical to the versioned card | The two spellings of the discovery surface serve one document. Scoped to a single receiver process: the lab runs one container, so this says nothing about stability across processes or over time. That property comes from the card build being a pure function of configuration and key material, proved in `examples/reference-receiver/test/card-determinism.test.ts`. |
+| card agentId matches the requested discovery path | The card served under an agentId announces that same agentId. |
 | Go schema accepts the TypeScript card | The two schema validators agree on a live card, not a fixture. |
 | verify service accepts the card | The same verdict is reachable over the Go service's HTTP surface. |
 | did document returns 200 and publishes a verification key | The did:web anchor a card signature roots under is reachable. |

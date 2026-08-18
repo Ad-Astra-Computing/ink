@@ -4,7 +4,7 @@
  * Routes:
  *   GET  /.well-known/did.json               → did:web doc
  *   GET  /ink/v1/:agentId/agent.json         → agent card (discovery surface)
- *   GET  /.well-known/ink/agent.json         → agent card (alias, same bytes)
+ *   GET  /.well-known/ink/agent.json         → agent card (alias, identical bytes)
  *   POST /ink/v1/inbound                     → envelope handler
  *   GET  /                                   → minimal HTML landing page
  *
@@ -12,7 +12,8 @@
  * `fetchAgentCard` builds, so a consumer that only knows the DID and the
  * origin can reach this receiver's card. `/.well-known/ink/agent.json` stays
  * as an alias serving byte-identical bytes for consumers that resolve through
- * the well-known convention.
+ * the well-known convention. The two agree because the card is a deterministic
+ * function of configuration and key material, not because anything is cached.
  *
  * The worker is the smallest plausibly-useful INK receiver: it
  * publishes a stable DID, accepts envelopes from `did:key:` and
@@ -27,7 +28,7 @@
  * their own intent handlers.
  */
 
-import { buildAgentCard } from "./agent-card.js";
+import { buildAgentCard, resolveCardUpdatedAt } from "./agent-card.js";
 import { buildDidDocument } from "./did-web.js";
 import { loadReceiverIdentity, deriveDidWeb, selfCheckIdentity } from "./keys.js";
 import type { ReceiverEnv } from "./keys.js";
@@ -53,7 +54,8 @@ type PreparedIdentity = Awaited<ReturnType<typeof prepareIdentity>>;
  * one decode and one canary signature per isolate.
  *
  * The cache is keyed by nothing, so an isolate that has already loaded an
- * identity keeps serving it for its whole life — a signing-config change is
+ * identity keeps serving it for its whole life — a signing-config change (or a
+ * change to the card's configured `updatedAt`, resolved here alongside it) is
  * NOT picked up hot. That is safe in the deployed topology and only there:
  * updating a Worker secret or var publishes a new deployment version, and
  * every isolate runs exactly one version, so the old identity dies with the
@@ -69,7 +71,8 @@ async function prepareIdentity(env: Env) {
   const host = env.INK_RECEIVER_HOST?.trim() ?? "";
   if (!host) throw new Error("missing_host: set INK_RECEIVER_HOST in wrangler vars");
   const did = deriveDidWeb(host);
-  return { identity, host, did };
+  const cardUpdatedAt = resolveCardUpdatedAt(env);
+  return { identity, host, did, cardUpdatedAt };
 }
 
 /**
@@ -126,26 +129,35 @@ export function matchVersionedCardPath(path: string): string | null {
 /**
  * The served card body, built and signed once per isolate.
  *
- * Caching is what makes the versioned path and the well-known alias
- * byte-identical: the card carries an `updatedAt` stamp and a signature over
- * the whole object, so rebuilding per request would hand two callers two
- * different (both valid) documents. One body per identity per isolate also
- * keeps the Ed25519 signing off the hot path.
+ * This cache is a PERFORMANCE optimization and nothing else. It keeps the
+ * Ed25519 signature and the JCS canonicalization off the hot path for every
+ * request after the first one an isolate serves.
  *
- * The PROMISE is cached, not the finished body. Caching only the finished body
- * closes the window one request at a time but leaves it open across
- * concurrent ones: on a cold isolate a request to the versioned path and a
- * request to the alias can both miss, both build, and both answer with a
- * different `updatedAt` and a different signature. Storing the in-flight build
- * makes every concurrent miss await the same build, so the alias is
- * byte-identical from the very first request rather than from the second.
+ * It is NOT what makes the versioned path and the well-known alias agree. That
+ * rests on `buildAgentCard` being a pure function of configuration and key
+ * material (see `agent-card.ts`): the same config produces the same bytes in
+ * any isolate, in any process, at any time. Caching could never have carried
+ * that claim — Cloudflare gives a low-traffic worker a cold isolate for nearly
+ * every request, so in production almost every fetch missed this cache. Delete
+ * the cache and the alias contract still holds; reintroduce a clock read into
+ * the card and no cache can save it.
+ *
+ * The PROMISE is cached, not the finished body, so a burst of concurrent cold
+ * requests shares one build instead of running one each.
  */
-let cachedCard: { did: string; body: Promise<string> } | null = null;
+let cachedCard: { key: string; body: Promise<string> } | null = null;
 function cachedCardBody(id: PreparedIdentity): Promise<string> {
-  if (cachedCard && cachedCard.did === id.did) return cachedCard.body;
-  const body = buildAgentCard({ did: id.did, host: id.host, identity: id.identity })
-    .then((card) => JSON.stringify(card));
-  const entry = { did: id.did, body };
+  // Keyed by every input the card body depends on, so a config change can
+  // never be served from a stale entry.
+  const key = JSON.stringify([id.did, id.host, id.cardUpdatedAt, id.identity.publicKeyMultibase]);
+  if (cachedCard && cachedCard.key === key) return cachedCard.body;
+  const body = buildAgentCard({
+    did: id.did,
+    host: id.host,
+    identity: id.identity,
+    updatedAt: id.cardUpdatedAt,
+  }).then((card) => JSON.stringify(card));
+  const entry = { key, body };
   cachedCard = entry;
   // Never cache a failed build: evict so the next request retries instead of
   // pinning a rejected promise for the life of the isolate.
