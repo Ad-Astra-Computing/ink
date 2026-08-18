@@ -121,6 +121,40 @@ func SignInkBody(body map[string]any, privateKey ed25519.PrivateKey) (string, er
 	return base64.RawURLEncoding.EncodeToString(sig), nil
 }
 
+// There is deliberately no exported VerifyInkBody, and this note records the one
+// condition that changes that, so the omission stays a decision rather than an
+// oversight.
+//
+// The asymmetry today: this package exports the generic producer but no generic
+// verifier. Every body signature it checks belongs to a specific artifact, and
+// each of those verifiers (authorizationgrant.go, authorizationchain.go,
+// authorizationchallenge.go, discoveryquery.go) inlines the legacy domain
+// literal against its own already-schema-validated body, because the artifact,
+// not a generic helper, is what decides which key is authoritative and which
+// members are stripped before canonicalization. bodySignatureDomain is
+// unexported with them, so an outside consumer cannot assemble a generic
+// verifier out of exported pieces either: it would have to re-derive the
+// version-keyed domain rule, which is exactly the silent-divergence hazard
+// SignInkBody exists to remove on the producing side.
+//
+// That is tolerable only while no Go component consumes generic envelopes. The
+// Go surfaces that exist are producers (senders, the interop-lab driver) and
+// artifact verifiers, and the generic envelopes this project verifies are
+// verified by the TypeScript reference, which exports both halves.
+//
+// The trigger: the first Go receiver of generic INK envelopes, meaning any
+// component that must check the `signature` member of a body whose shape this
+// package has no artifact verifier for. A witness inbox, an inbound-message
+// server or a third-party receiver built on this library all qualify. At that
+// point export VerifyInkBody as the mirror of SignInkBody, taking a parsed body
+// and a public key, stripping `signature`, canonicalizing with JCSCanonicalize
+// and verifying under bodySignatureDomain of the unsigned body, with the strict
+// Ed25519 public-key check the rest of this package applies; then move the four
+// artifact verifiers onto it so one implementation of the domain rule serves
+// every caller. Adding it before then would ship an exported surface with no
+// in-tree caller and no vector pinning its rejection edges, which is how an
+// exported function drifts away from the one everything else uses.
+
 // hasPortableStrings reports whether every member name and string value in a
 // decoded or in-memory JSON value is valid UTF-8. Invalid UTF-8 would be rewritten
 // to U+FFFD by encoding/json and canonicalize to bytes another implementation

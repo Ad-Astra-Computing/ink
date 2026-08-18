@@ -21,7 +21,14 @@ shared vectors:
   the `INK-Ed25519` Authorization header (§3.3).
 - **Body signature** (`signbody.go`) — the generic producer for the `signature`
   member an INK object carries in its own body (§3.6), and the exported JCS
-  canonicalizer a sender needs to build the signed bytes.
+  canonicalizer a sender needs to build the signed bytes. The producer is
+  exported and the generic verifier is not: every body signature this package
+  checks belongs to a specific artifact, and each of those verifiers inlines the
+  domain rule against its own schema-validated body. The trigger to close that
+  asymmetry is recorded next to the producer in `signbody.go`: the first Go
+  receiver of generic envelopes, meaning a component that must check the
+  `signature` of a body no artifact verifier here covers, is the point at which
+  `VerifyInkBody` is exported and the artifact verifiers move onto it.
 - **Replay and freshness** (`replay.go`) — the timestamp freshness window and
   nonce de-duplication.
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
@@ -193,11 +200,16 @@ is omitted, and print a JSON result object (`--pretty` for indented output):
 - `seal-payload` seals a payload into an INK ECIES encrypted envelope (§3.4).
   Input fields are `recipientPublicKeyHex` (the recipient's 32-byte static X25519
   public key), `senderDid`, `timestamp`, `messageNonce`, a `plaintext` object,
-  and an optional `messageType` (`network.tulpa.encrypted` by default, or
-  `network.ink.encrypted`). The `plaintext` MUST carry `from` equal to
-  `senderDid` and a non-empty `to`: the seal enforces the same inner/outer
-  binding every conformant decrypter requires, so it cannot emit an envelope
-  nothing will open. The result carries the outer `envelope`, which
+  an optional `messageType` (`network.tulpa.encrypted` by default, or
+  `network.ink.encrypted`) and an optional `recipientDid`. The `plaintext` MUST
+  carry `from` equal to `senderDid` and a non-empty `to`: the seal enforces the
+  same inner/outer binding every conformant decrypter requires, so it cannot
+  emit an envelope nothing will open. Supplying `recipientDid` asserts the
+  identity the envelope is addressed to and tightens that rule from "`to` is
+  non-empty" to "`to` equals this", which is the binding
+  `DecryptInkPayload` requires of its mandatory `recipientDid` argument; a
+  present member is always an assertion, so `"recipientDid":""` is rejected
+  rather than read as absent. The result carries the outer `envelope`, which
   decrypts with both `DecryptInkPayload` and the reference `decryptInkPayload`.
   Every call draws a fresh ephemeral key and a random AES nonce, so the
   ciphertext is non-deterministic and the command exposes no ephemeral/nonce

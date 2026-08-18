@@ -32,11 +32,16 @@ type sealInput struct {
 	MessageNonce          *string         `json:"messageNonce"`
 	Plaintext             json.RawMessage `json:"plaintext"`
 	MessageType           *string         `json:"messageType"`
+	RecipientDid          *string         `json:"recipientDid"`
 }
 
 // Seal encrypts an INK payload. The input is a JSON object with the recipient's
 // static X25519 public key (recipientPublicKeyHex), the sender DID, the
-// timestamp and messageNonce, a plaintext object, and an optional messageType.
+// timestamp and messageNonce, a plaintext object, an optional messageType and
+// an optional recipientDid. Supplying recipientDid asserts the identity the
+// envelope is addressed to and makes the seal reject a plaintext whose "to"
+// disagrees with it, which is the stronger of the two inner-binding rules;
+// omitting it keeps the weaker rule that "to" is a non-empty string.
 // Each call draws a fresh ephemeral key and a random AES nonce: the CLI
 // deliberately does NOT expose the library's deterministic ephemeral/nonce
 // override, so it cannot be driven into an AES-GCM key/nonce reuse. A malformed
@@ -71,9 +76,22 @@ func Seal(data []byte) (Result, error) {
 		return Result{}, fmt.Errorf("invalid plaintext: must be a JSON object")
 	}
 
+	// recipientDid is a passthrough to InkEncryptOptions.RecipientDid, and it is
+	// carried as *string for the same reason the library field is a pointer:
+	// asserting a recipient and declining to assert one must stay
+	// distinguishable. An absent member leaves the assertion off and the seal
+	// falls back to the weaker rule that the inner "to" is merely a non-empty
+	// string. A present member, including the empty string, is an assertion the
+	// inner "to" must equal, so `"recipientDid":""` is rejected by the library
+	// rather than silently skipped, matching the reference's
+	// `options.recipientDid !== undefined` test. A collapsed field would let the
+	// CLI mint an envelope the reference producer refuses.
 	var opts *ink.InkEncryptOptions
-	if in.MessageType != nil {
-		opts = &ink.InkEncryptOptions{MessageType: *in.MessageType}
+	if in.MessageType != nil || in.RecipientDid != nil {
+		opts = &ink.InkEncryptOptions{RecipientDid: in.RecipientDid}
+		if in.MessageType != nil {
+			opts.MessageType = *in.MessageType
+		}
 	}
 
 	envelope, err := ink.EncryptInkPayload(plaintext, *in.SenderDid, *in.RecipientPublicKeyHex, *in.Timestamp, *in.MessageNonce, opts)

@@ -80,3 +80,77 @@ func TestSealRejectsBadInput(t *testing.T) {
 		})
 	}
 }
+
+// sealReq builds a request with the given trailing members appended, so the
+// recipientDid cases differ from the accepted baseline in exactly one field.
+func sealReq(extra string) string {
+	req := `{"recipientPublicKeyHex":"` + recipientPubHex + `",` +
+		`"senderDid":"did:web:sender.example",` +
+		`"timestamp":"2026-07-11T12:00:00.000Z",` +
+		`"messageNonce":"0123456789abcdef0123456789abcdef",` +
+		`"plaintext":{"from":"did:web:sender.example","to":"did:web:recipient.example","body":"hi"}`
+	if extra != "" {
+		req += "," + extra
+	}
+	return req + "}"
+}
+
+// TestSealAssertsRecipientDid pins that a CLI caller can reach the stronger
+// inner binding: recipientDid is passed through to InkEncryptOptions, so the
+// asserted identity must equal the inner plaintext "to". Without the
+// passthrough a CLI caller could only ever get the unasserted rule.
+func TestSealAssertsRecipientDid(t *testing.T) {
+	res, err := Seal([]byte(sealReq(`"recipientDid":"did:web:recipient.example"`)))
+	if err != nil {
+		t.Fatalf("Seal with a matching recipientDid: %v", err)
+	}
+	got, err := ink.DecryptInkPayload(res.Envelope, recipientPrivHex, "did:web:recipient.example")
+	if err != nil {
+		t.Fatalf("library decrypter rejected an asserted envelope: %v", err)
+	}
+	if got["body"] != "hi" {
+		t.Errorf("decrypted body = %v, want hi", got["body"])
+	}
+}
+
+// TestSealRejectsRecipientDidMismatch pins that the assertion is enforced at
+// seal time rather than left for the decrypter to discover: an envelope whose
+// inner "to" disagrees with the asserted recipient is never minted.
+func TestSealRejectsRecipientDidMismatch(t *testing.T) {
+	cases := map[string]string{
+		"other identity": `"recipientDid":"did:web:someone-else.example"`,
+		// An asserted empty string is an assertion no inner "to" can satisfy,
+		// because "to" must itself be non-empty. The reference tests
+		// `!== undefined`, so it rejects here too; treating it as unasserted
+		// would seal an envelope the reference producer refuses.
+		"asserted empty": `"recipientDid":""`,
+	}
+	for name, extra := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := Seal([]byte(sealReq(extra))); err == nil {
+				t.Errorf("%s: accepted", name)
+			}
+		})
+	}
+}
+
+// TestSealWithoutRecipientDidStillSeals pins that the field is optional and
+// that omitting it leaves the previous behaviour untouched: the seal succeeds
+// under the weaker rule that the inner "to" is a non-empty string, and a null
+// member reads as absent the way every other optional member does.
+func TestSealWithoutRecipientDidStillSeals(t *testing.T) {
+	for name, req := range map[string]string{
+		"absent": sealReq(""),
+		"null":   sealReq(`"recipientDid":null`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			res, err := Seal([]byte(req))
+			if err != nil {
+				t.Fatalf("Seal: %v", err)
+			}
+			if _, err := ink.DecryptInkPayload(res.Envelope, recipientPrivHex, "did:web:recipient.example"); err != nil {
+				t.Fatalf("library decrypter rejected an unasserted envelope: %v", err)
+			}
+		})
+	}
+}
