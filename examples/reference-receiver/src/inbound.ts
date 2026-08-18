@@ -41,7 +41,11 @@ import {
 } from "@adastracomputing/ink";
 import type { ReceiverIdentity } from "./keys.js";
 import { SUPPORTED_INTENTS } from "./agent-card.js";
-import { resolveAgentCardForDidWeb } from "./did-web-resolver.js";
+import {
+  resolveAgentCardForDidWebDetailed,
+  CARD_RESOLUTION_HINTS,
+  type CardResolutionReason,
+} from "./did-web-resolver.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
 
@@ -91,7 +95,45 @@ export type InboundOutcome =
       sender: string;
       intent: string;
       errorCode: string;
+      /**
+       * Machine-readable cause when the rejection came from failing to resolve
+       * the sender's card, plus prose the receiver hands back to the sender.
+       * This is a public test target: "sender_key_unresolved" with nothing
+       * else tells an adopter only that something upstream of the signature
+       * check went wrong.
+       */
+      reason?: SenderKeyFailureReason;
+      hint?: string;
     };
+
+/** Why the sender's signing keys could not be resolved. */
+export type SenderKeyFailureReason =
+  | CardResolutionReason
+  | "did_key_undecodable"
+  | "unsupported_did_method"
+  | "card_publishes_no_usable_key";
+
+const SENDER_KEY_HINTS: Record<
+  Exclude<SenderKeyFailureReason, CardResolutionReason>,
+  string
+> = {
+  did_key_undecodable:
+    "The did:key identifier does not decode to an Ed25519 public key. It must be a multibase 'z' string carrying the ed25519-pub multicodec.",
+  unsupported_did_method:
+    "This receiver resolves did:key and did:web senders only.",
+  card_publishes_no_usable_key:
+    "The sender's agent card resolved but publishes no usable signing key. Set publicKeyMultibase, or an active entry under keys.signing.",
+};
+
+export function senderKeyHint(reason: SenderKeyFailureReason): string {
+  return reason in CARD_RESOLUTION_HINTS
+    ? CARD_RESOLUTION_HINTS[reason as CardResolutionReason]
+    : SENDER_KEY_HINTS[reason as Exclude<SenderKeyFailureReason, CardResolutionReason>];
+}
+
+export type SenderKeyResolution =
+  | { keys: ResolvedCandidateKey[]; reason?: undefined }
+  | { keys: []; reason: SenderKeyFailureReason };
 
 /**
  * Read at most MAX_BODY_BYTES from the request. If the client sends
@@ -175,21 +217,31 @@ export function resolveDidKeySenderKeys(senderDid: string): ResolvedCandidateKey
  * - anything else — unsupported; returns [] so `verifyInkAuth` treats
  *   it as a rejected signature.
  */
+export async function resolveSenderKeysDetailed(
+  senderDid: string,
+  opts: { fetcher?: typeof fetch } = {},
+): Promise<SenderKeyResolution> {
+  if (senderDid.startsWith("did:key:")) {
+    const keys = resolveDidKeySenderKeys(senderDid);
+    return keys.length > 0 ? { keys } : { keys: [], reason: "did_key_undecodable" };
+  }
+  if (senderDid.startsWith("did:web:")) {
+    const resolved = await resolveAgentCardForDidWebDetailed(senderDid, opts);
+    if (!resolved.ok) return { keys: [], reason: resolved.reason };
+    // resolveAgentCardForDidWebDetailed has already AgentCardSchema-parsed it.
+    const keys = extractCandidateKeys(resolved.card as Parameters<typeof extractCandidateKeys>[0])
+      .map((k) => ({ ...k, provenance: "card" as const }));
+    return keys.length > 0 ? { keys } : { keys: [], reason: "card_publishes_no_usable_key" };
+  }
+  return { keys: [], reason: "unsupported_did_method" };
+}
+
+/** Keys-only form of `resolveSenderKeysDetailed`. */
 export async function resolveSenderKeys(
   senderDid: string,
   opts: { fetcher?: typeof fetch } = {},
 ): Promise<ResolvedCandidateKey[]> {
-  if (senderDid.startsWith("did:key:")) {
-    return resolveDidKeySenderKeys(senderDid);
-  }
-  if (senderDid.startsWith("did:web:")) {
-    const card = await resolveAgentCardForDidWeb(senderDid, opts);
-    if (!card) return [];
-    // resolveAgentCardForDidWeb has already AgentCardSchema-parsed it.
-    return extractCandidateKeys(card as Parameters<typeof extractCandidateKeys>[0])
-      .map((k) => ({ ...k, provenance: "card" as const }));
-  }
-  return [];
+  return (await resolveSenderKeysDetailed(senderDid, opts)).keys;
 }
 
 /**
@@ -273,14 +325,18 @@ export async function processInbound(
   }
   // Resolve the sender's key set BEFORE invoking the verifier, since
   // the verifier's `resolveKeySet` callback is synchronous.
-  const candidateKeys = await resolveSenderKeys(envelope.from, { fetcher: cfg.fetcher });
+  const resolution = await resolveSenderKeysDetailed(envelope.from, { fetcher: cfg.fetcher });
+  const candidateKeys = resolution.keys;
   if (candidateKeys.length === 0) {
+    const reason = resolution.reason ?? "card_publishes_no_usable_key";
     return {
       kind: "rejected",
       verdict: "signature",
       sender: envelope.from,
       intent: envelope.intent,
       errorCode: "sender_key_unresolved",
+      reason,
+      hint: senderKeyHint(reason),
     };
   }
   const authResult = await verifyInkAuth({
