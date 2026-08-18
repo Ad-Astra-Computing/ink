@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { buildAgentCard, SUPPORTED_INTENTS } from "../src/agent-card.js";
+import {
+  buildAgentCard,
+  resolveCardUpdatedAt,
+  DEFAULT_CARD_UPDATED_AT,
+  SUPPORTED_INTENTS,
+} from "../src/agent-card.js";
 import { buildDidDocument } from "../src/did-web.js";
 import { loadReceiverIdentity } from "../src/keys.js";
 import {
@@ -8,8 +13,11 @@ import {
   base64urlEncode,
   AgentCardSchema,
   verifyAgentCardSignature,
+  isInkTimestamp,
   type AgentCard,
 } from "@adastracomputing/ink";
+
+const UPDATED_AT = "2026-01-01T00:00:00Z";
 
 async function freshIdentity() {
   const kp = await generateKeypair();
@@ -22,14 +30,14 @@ async function freshIdentity() {
 describe("buildAgentCard", () => {
   it("returns a card that parses cleanly against AgentCardSchema", async () => {
     const id = await freshIdentity();
-    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id });
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id, updatedAt: UPDATED_AT });
     const parsed = AgentCardSchema.safeParse(card);
     expect(parsed.success).toBe(true);
   });
 
   it("announces only the supported intents", async () => {
     const id = await freshIdentity();
-    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id, updatedAt: UPDATED_AT }) as {
       capabilities: { intentsAccepted: string[] };
     };
     expect(card.capabilities.intentsAccepted.sort()).toEqual([...SUPPORTED_INTENTS].sort());
@@ -37,7 +45,7 @@ describe("buildAgentCard", () => {
 
   it("uses the configured host for the endpoint URL", async () => {
     const id = await freshIdentity();
-    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as {
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id, updatedAt: UPDATED_AT }) as {
       endpoint: string; inboxEndpoint: string;
     };
     expect(card.endpoint).toBe("https://r.example/ink/v1/inbound");
@@ -46,7 +54,7 @@ describe("buildAgentCard", () => {
 
   it("signs the card (Phase B) so it verifies as authenticated when anchored", async () => {
     const id = await freshIdentity();
-    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as AgentCard & {
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id, updatedAt: UPDATED_AT }) as AgentCard & {
       cardSignature?: { keyId: string; signature: string };
     };
     // Legacy single-key card: signer keyId is the literal `bootstrap` (§3.3).
@@ -64,7 +72,7 @@ describe("buildAgentCard", () => {
 
   it("produces a signature over the served body (tamper is rejected)", async () => {
     const id = await freshIdentity();
-    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id }) as AgentCard;
+    const card = await buildAgentCard({ did: "did:web:r.example", host: "r.example", identity: id, updatedAt: UPDATED_AT }) as AgentCard;
     const tampered = { ...card, endpoint: "https://evil.example/ink/v1/inbound" } as AgentCard;
     const result = await verifyAgentCardSignature(tampered, "did:web:r.example", {
       profile: "pre-1.0",
@@ -72,6 +80,40 @@ describe("buildAgentCard", () => {
     });
     expect(result.authenticated).toBe(false);
     expect(result.reason).toBe("invalid_signature");
+  });
+});
+
+describe("resolveCardUpdatedAt", () => {
+  it("falls back to the source default when the var is unset or blank", () => {
+    expect(resolveCardUpdatedAt({})).toBe(DEFAULT_CARD_UPDATED_AT);
+    expect(resolveCardUpdatedAt({ INK_RECEIVER_CARD_UPDATED_AT: "   " })).toBe(DEFAULT_CARD_UPDATED_AT);
+  });
+
+  it("ships a default that is itself a valid strict RFC 3339 timestamp", () => {
+    expect(isInkTimestamp(DEFAULT_CARD_UPDATED_AT)).toBe(true);
+  });
+
+  it("uses the configured override", () => {
+    expect(resolveCardUpdatedAt({ INK_RECEIVER_CARD_UPDATED_AT: " 2030-05-06T07:08:09Z " }))
+      .toBe("2030-05-06T07:08:09Z");
+  });
+
+  it("rejects a value that is not a strict RFC 3339 timestamp", () => {
+    // A loose spelling the Date constructor would happily accept. It must fail
+    // loudly at load, naming the var, rather than surfacing as a card-invalid
+    // 500 with a schema issue dump.
+    expect(() => resolveCardUpdatedAt({ INK_RECEIVER_CARD_UPDATED_AT: "2026-08-18" }))
+      .toThrow(/invalid_card_updated_at/);
+    expect(() => resolveCardUpdatedAt({ INK_RECEIVER_CARD_UPDATED_AT: "not a date" }))
+      .toThrow(/invalid_card_updated_at/);
+  });
+
+  it("puts the resolved value on the card verbatim", async () => {
+    const id = await freshIdentity();
+    const card = await buildAgentCard({
+      did: "did:web:r.example", host: "r.example", identity: id, updatedAt: UPDATED_AT,
+    }) as AgentCard;
+    expect(card.updatedAt).toBe(UPDATED_AT);
   });
 });
 

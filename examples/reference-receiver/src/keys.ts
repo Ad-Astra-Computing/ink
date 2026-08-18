@@ -43,6 +43,13 @@ export interface ReceiverEnv {
   INK_RECEIVER_SIGNING_SEED?: string;
   INK_RECEIVER_PUBLIC_KEY_MULTIBASE?: string;
   INK_RECEIVER_HOST?: string;
+  /**
+   * Optional. The card's `updatedAt`, a strict RFC 3339 timestamp. Set it when
+   * you change what the card says; leave it unset to take the source default.
+   * It is deliberately configuration and not a clock read — see
+   * `resolveCardUpdatedAt` in `agent-card.ts`.
+   */
+  INK_RECEIVER_CARD_UPDATED_AT?: string;
 }
 
 export function loadReceiverIdentity(env: ReceiverEnv): ReceiverIdentity {

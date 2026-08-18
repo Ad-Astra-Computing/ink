@@ -5,15 +5,74 @@
  * also re-validated before serialization so any drift in the OSS
  * schema (or in a host-config typo) surfaces at request time as a
  * 500, not as a silently-broken card on the wire.
+ *
+ * The build is a PURE FUNCTION of configuration and key material: same config
+ * and same seed in, same bytes out, in any isolate, in any process, at any
+ * time. Ed25519 signing is deterministic, JCS canonicalization is total, and
+ * nothing here reads a clock or a random source. Do not introduce one — the
+ * served body is signed over itself, so anything that varies per build makes
+ * two fetches of the same document disagree.
  */
 
-import { AgentCardSchema, signAgentCard } from "@adastracomputing/ink";
-import type { ReceiverIdentity } from "./keys.js";
+import { AgentCardSchema, signAgentCard, isInkTimestamp } from "@adastracomputing/ink";
+import type { ReceiverIdentity, ReceiverEnv } from "./keys.js";
 
 export interface AgentCardConfig {
   did: string;
   host: string;
   identity: ReceiverIdentity;
+  /**
+   * The card's `updatedAt`. Operator-supplied configuration, NOT a clock read.
+   * See `resolveCardUpdatedAt`.
+   */
+  updatedAt: string;
+}
+
+/**
+ * The `updatedAt` this receiver publishes when the operator sets no override.
+ *
+ * It is the date the card's CONTENT last changed in this source file, which is
+ * exactly what the field means. Bump it in the same commit that changes what
+ * the card says (intents, availability, protocol versions, displayName). An
+ * operator whose card differs from this source only in wrangler config sets
+ * `INK_RECEIVER_CARD_UPDATED_AT` instead and leaves this alone.
+ */
+export const DEFAULT_CARD_UPDATED_AT = "2026-08-18T00:00:00Z";
+
+/**
+ * Resolve the card's `updatedAt` from configuration.
+ *
+ * The card MUST be byte-identical across isolates, processes and time until
+ * the operator actually changes it: the body is signed over itself, so any
+ * per-build nondeterminism makes two spellings of the same document disagree
+ * and makes a polling consumer see an "update" that never happened. Cloudflare
+ * hands a low-traffic worker a cold isolate for nearly every request, so a
+ * per-isolate cache cannot supply that guarantee — determinism has to come
+ * from the value itself.
+ *
+ * `updatedAt` is the only field that was ever a clock read, and the spec makes
+ * a configured constant a legal value for it: `ink-agent-card.md` defines it as
+ * an informational strict RFC 3339 timestamp that "carries no comparison rule",
+ * `ink-agent-card-signature.md` §6 makes `keySetVersion` the SOLE monotonic
+ * quantity and forbids a verifier from rejecting on `updatedAt` ordering, and
+ * `ink-resolver.md` refuses to derive a cache lifetime from it. Nothing in the
+ * TypeScript library or the Go implementation compares or orders on it; both
+ * only check the strict RFC 3339 grammar. So the field must be a valid
+ * timestamp and must be present on a signed card (§6), and that is the whole
+ * contract.
+ *
+ * Validated here rather than left to the schema so a typo in a wrangler var
+ * fails with a message naming the var instead of a generic card-invalid dump.
+ */
+export function resolveCardUpdatedAt(env: Pick<ReceiverEnv, "INK_RECEIVER_CARD_UPDATED_AT">): string {
+  const raw = env.INK_RECEIVER_CARD_UPDATED_AT?.trim();
+  const value = raw ? raw : DEFAULT_CARD_UPDATED_AT;
+  if (!isInkTimestamp(value)) {
+    throw new Error(
+      `invalid_card_updated_at: INK_RECEIVER_CARD_UPDATED_AT must be a strict RFC 3339 timestamp, got ${JSON.stringify(value)}`,
+    );
+  }
+  return value;
 }
 
 /**
@@ -55,9 +114,10 @@ export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
     },
     // MUST-on-publish once the card is signed (ink-agent-card-signature.md §6).
     // This receiver holds one fixed key that never rotates, so its key set is
-    // version 1; `updatedAt` is informational and carries no comparison rule.
+    // version 1; `updatedAt` is informational, carries no comparison rule, and
+    // comes from configuration so the signed body is deterministic.
     keySetVersion: 1,
-    updatedAt: new Date().toISOString(),
+    updatedAt: cfg.updatedAt,
   };
   // Re-validate against the canonical schema. If the OSS schema gets
   // stricter in a future release this surfaces immediately rather than

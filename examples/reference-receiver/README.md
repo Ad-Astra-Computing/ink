@@ -63,7 +63,7 @@ Astra Computing at `api.tulpa.network`.
 |------|---------|
 | `src/index.ts` | Cloudflare Worker entry. Routes, rate limit, audit hand-off. |
 | `src/keys.ts` | Load Ed25519 identity from secrets; self-check at boot. |
-| `src/agent-card.ts` | Build the AgentCard document served at `/ink/v1/<agentId>/agent.json`. |
+| `src/agent-card.ts` | Build the AgentCard document served at `/ink/v1/<agentId>/agent.json`. Deterministic: no clock, no randomness. |
 | `src/did-web.ts` | Build the DID document for `/.well-known/did.json`. |
 | `src/did-web-resolver.ts` | Resolve a sender's `did:web` to their agent card (SSRF-guarded). |
 | `src/inbound.ts` | Envelope validation + `verifyInkAuth` + plain JSON ack. |
@@ -98,7 +98,8 @@ npm test
 # Push the secret + public-key vars:
 wrangler secret put INK_RECEIVER_SIGNING_SEED
 wrangler kv namespace create INK_RECEIVER   # paste id into wrangler.toml
-# Add INK_RECEIVER_PUBLIC_KEY_MULTIBASE and INK_RECEIVER_HOST under [vars].
+# Add INK_RECEIVER_PUBLIC_KEY_MULTIBASE, INK_RECEIVER_HOST and (optionally)
+# INK_RECEIVER_CARD_UPDATED_AT under [vars]. See "A deterministic card" below.
 
 # Deploy:
 wrangler deploy
@@ -113,6 +114,36 @@ curl "https://<your-host>/ink/v1/did%3Aweb%3A<your-host>/agent.json"
 curl https://<your-host>/.well-known/ink/agent.json
 curl https://<your-host>/.well-known/did.json
 ```
+
+## A deterministic card
+
+The card body is a pure function of configuration and key material. The same
+`INK_RECEIVER_HOST`, the same `INK_RECEIVER_CARD_UPDATED_AT` and the same
+signing seed produce the same bytes in every isolate, in every process and at
+every moment, `cardSignature` included. That is what lets the versioned
+discovery path and the `/.well-known/ink/agent.json` alias be byte-identical,
+and it is what keeps a consumer polling the card from seeing an update that
+never happened.
+
+Determinism is a property of the card, not of any cache. Cloudflare gives a
+low-traffic worker a cold isolate for nearly every request, so a per-isolate
+cache is missed most of the time and could never have carried this guarantee;
+the one in `src/index.ts` exists only to keep the Ed25519 signature off the hot
+path. If you fork this receiver, do not put a clock read, a random value or a
+counter into the card. Nothing else in the document varies, so `updatedAt` is
+the one field that had to be pinned:
+
+| Var | Meaning |
+|-----|---------|
+| `INK_RECEIVER_CARD_UPDATED_AT` | The card's `updatedAt`, a strict RFC 3339 timestamp. Optional; unset takes `DEFAULT_CARD_UPDATED_AT` from `src/agent-card.ts`. A value that is not strict RFC 3339 fails the request with `receiver_misconfigured` naming this var. |
+
+Bump it by hand when you actually change what the card says. The spec supports
+this reading directly: `updatedAt` is informational and "carries no comparison
+rule" (`specs/ink-agent-card.md`), `keySetVersion` is the sole monotonic
+quantity and a verifier MUST NOT reject on `updatedAt` ordering
+(`specs/ink-agent-card-signature.md` §6), and a resolver MUST NOT derive a
+cache lifetime from it (`specs/ink-resolver.md`). It must be present on a signed
+card and it must parse; nothing reads more into it than that.
 
 ## Send a test envelope
 

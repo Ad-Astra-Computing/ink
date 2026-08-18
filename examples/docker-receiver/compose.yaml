@@ -17,6 +17,7 @@ services:
       INK_RECEIVER_SIGNING_SEED: "${INK_RECEIVER_SIGNING_SEED:?run npm run keygen and put the values in .env}"
       INK_RECEIVER_PUBLIC_KEY_MULTIBASE: "${INK_RECEIVER_PUBLIC_KEY_MULTIBASE:?set in .env}"
       INK_RECEIVER_HOST: "${INK_RECEIVER_HOST:-ink-receiver.example}"
+      INK_RECEIVER_CARD_UPDATED_AT: "${INK_RECEIVER_CARD_UPDATED_AT:-}"
     ports:
       - "8787:8787"
 

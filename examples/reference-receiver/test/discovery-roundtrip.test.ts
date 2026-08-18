@@ -7,6 +7,11 @@
  * receiver's card at all — the two halves of the reference implementation
  * could not talk to each other about discovery. These tests hold the round
  * trip closed, and hold the well-known path as a byte-identical alias.
+ *
+ * The alias assertion here shares one warm process, so on its own it proves
+ * only that the two routes agree within a process. What makes the claim true
+ * in a multi-isolate deployment is that the card build is deterministic;
+ * `card-determinism.test.ts` is what proves that, including across processes.
  */
 
 import { describe, it, expect, beforeAll } from "vitest";

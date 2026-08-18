@@ -32,9 +32,17 @@ id = "1403de75d6e94c71897f9a8824a4c848"
 #     below; mint a keypair offline (see README) and paste both halves.
 #   INK_RECEIVER_HOST — the bare hostname this worker answers on. Used
 #     to derive the did:web id and the agent-card / inbound URLs.
+#   INK_RECEIVER_CARD_UPDATED_AT — the card's `updatedAt`, a strict RFC 3339
+#     timestamp. It is CONFIGURATION, not a clock read: the card is signed
+#     over its own body, so a build-time timestamp would give every isolate a
+#     different card and make a polling consumer see an endless stream of
+#     updates that never happened. Bump it by hand in the same change that
+#     alters what the card says. Optional; unset takes the source default in
+#     `src/agent-card.ts`.
 [vars]
 INK_RECEIVER_PUBLIC_KEY_MULTIBASE = "z6MknEs8ZYGD5yyTnT2LDrjhgTJMx6yXK1AmvxKBSPrQWZNi"
 INK_RECEIVER_HOST = "ink-echo.tulpa.network"
+INK_RECEIVER_CARD_UPDATED_AT = "2026-08-18T00:00:00Z"
 
 # Secret (set via `wrangler secret put`, never in this file):
 #   INK_RECEIVER_SIGNING_SEED — 32-byte Ed25519 seed, base64url-encoded.

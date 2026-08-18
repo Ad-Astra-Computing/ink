@@ -68,6 +68,7 @@ The server reads the same variables as the Worker:
 | `INK_RECEIVER_SIGNING_SEED` | base64url 32-byte Ed25519 seed (secret). |
 | `INK_RECEIVER_PUBLIC_KEY_MULTIBASE` | `z6Mk...` multibase public key, published in the agent card. |
 | `INK_RECEIVER_HOST` | bare host used to derive the `did:web` id and the card URLs. |
+| `INK_RECEIVER_CARD_UPDATED_AT` | optional. The agent card's `updatedAt`, a strict RFC 3339 timestamp. It is configuration, not a clock read: the card is signed over its own body, so a per-build timestamp would make every replica serve different bytes for the same document. Unset takes the default in `../reference-receiver/src/agent-card.ts`. Set it by hand when you change what the card says. |
 | `PORT` | listen port (default 8787). |
 | `TRUST_PROXY_HEADER` | optional. The receiver rate-limits per client IP via `cf-connecting-ip`. The adapter ignores the client's copy of that header and sets it from the real TCP peer. If you run behind a proxy you control that overwrites a forwarding header, set this to that header name (e.g. `x-forwarded-for`) so the limit keys on the true client. |
 
