@@ -272,8 +272,12 @@ One note for anyone running the corpus from outside this repository. Every
 the cases that were already there and on `resolution-did-absent-accepts`, and
 non-null on the four DID-mediated owner cases. A runner that ignores it will
 accept the two cases the corpus expects to reject, which is the intended signal:
-the DID under resolution is now an input to the fetch decision. The `base`
-profile's category set is unchanged and no other base vector file moves.
+the DID under resolution is now an input to the fetch decision.
+
+The `base` profile gains exactly one category, `signed-body-member-name`. Sixteen
+vector files changed in this release, so a runner should re-read the whole corpus
+rather than diffing the categories it already knew about. The manifest pins a
+SHA-256 per vector file; verify against those rather than against this list.
 
 ## 0.16.0, X25519 timing fix, staged Phase C and discovery query context
 

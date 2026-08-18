@@ -11,14 +11,14 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.15.0"
+    "@adastracomputing/ink": "^0.17.0"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20260809.1",
+    "@cloudflare/workers-types": "^5.20260815.1",
     "@types/node": "^22.20.1",
     "typescript": "^5.0.0",
     "vitest": "^4.1.10",
-    "wrangler": "^4.120.0"
+    "wrangler": "^4.123.0"
   },
   "overrides": {
     "esbuild": "^0.28.1",
