@@ -21,6 +21,16 @@ import {
 } from "./index.ts";
 import { buildAuthorizationGrant, deriveChallengeGrantId } from "@adastracomputing/ink";
 
+/**
+ * Serialize an artifact to the bytes a verifier checks. The wire form is bytes
+ * and the signature covers those bytes, so every verifier takes them rather
+ * than a parsed object.
+ */
+function artifactBytes(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+
 function line(label: string, value: string): void {
   console.log(`  ${label.padEnd(16)} ${value}`);
 }
@@ -57,7 +67,7 @@ export async function runDemo(): Promise<void> {
   line("derived id", context.derivedGrantId);
 
   // 2. The user's agent verifies the challenge and mints the identity assertion.
-  const minted = await agent.respond(challenge, activeSigningKeys(rp), {
+  const minted = await agent.respond(artifactBytes(challenge), activeSigningKeys(rp), {
     consentedScope: ["profile.read"],
   });
   if (!minted.ok) {
@@ -77,7 +87,7 @@ export async function runDemo(): Promise<void> {
     store,
     sessionId,
     completionUri: redirectUri,
-    grant: minted.grant,
+    grantRaw: artifactBytes(minted.grant),
   });
   console.log("\n3. RP completion endpoint consumes the assertion");
   if (result.ok) {
@@ -95,7 +105,7 @@ export async function runDemo(): Promise<void> {
     store,
     sessionId,
     completionUri: redirectUri,
-    grant: minted.grant,
+    grantRaw: artifactBytes(minted.grant),
   });
   console.log("\n4. Replay of the accepted grant");
   line("refused", replay.ok ? "NO (bug)" : replay.reason);
@@ -128,7 +138,7 @@ export async function runDemo(): Promise<void> {
     store,
     sessionId,
     completionUri: redirectUri,
-    grant: forged,
+    grantRaw: artifactBytes(forged),
   });
   console.log("\n5. Grant id not derived from the challenge");
   line("refused", forgedResult.ok ? "NO (bug)" : forgedResult.reason);
