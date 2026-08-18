@@ -46,10 +46,17 @@ const CASES: string[] = [
   String.raw`{"note":"\uDC00"}`,
   String.raw`{"note":"\ud800"}`,
   String.raw`{"a":["x","\uDC00"]}`,
+  // A high surrogate followed by some other \u escape, which catches a copy that
+  // treats "followed by any \u" as a valid pair.
+  String.raw`{"note":"\uD800\u0041"}`,
   // number literals
   `{"n":1}`,
   `{"n":1e2}`,
   `{"n":1e309}`,
+  // Just past the double maximum, which catches a copy keying on exponent text
+  // rather than on the decoded value.
+  `{"n":2e308}`,
+  `{"n":1.7976931348623157e308}`,
   `{"n":-1e309}`,
   `{"n":1e-400}`,
   `{"n":1e309,"n":1}`,
