@@ -85,6 +85,17 @@ else if card does not exist OR has no keys.signing:
   return REJECT (unresolvable_sender_key or signature_verification_failed)
 ```
 
+The `active` → `retired` iteration above is the general search order. For LIVE
+TRANSPORT AUTHENTICATION it is narrowed by the retired-key default of
+[`../specs/ink-protocol.md`](../specs/ink-protocol.md) §3.3: a signature that
+verifies only against a `retired` entry is rejected with
+`retired_key_for_live_auth` unless the receiver has opted into a bounded
+rotation grace window. The unnarrowed iteration stands for historical
+verification, where a retired key inside its window still verifies receipts,
+audit events and stored messages. See
+[`../specs/ink-identity-model.md`](../specs/ink-identity-model.md) §4.4 for how
+the two fit together in the identity model.
+
 ## Invariants a conforming implementation MUST preserve
 
 1. A `revoked` entry in the Card MUST NEVER be used to verify a signature.

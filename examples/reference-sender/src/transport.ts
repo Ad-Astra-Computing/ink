@@ -26,7 +26,7 @@
 
 import { signInkMessage, buildAuthHeader } from "@adastracomputing/ink";
 import type { SenderIdentity } from "./identity.ts";
-import { isIpLiteralHost, isPrivateHost } from "./host-safety.ts";
+import { isIpLiteralHost, isPrivateHost, didWebOrigin } from "./host-safety.ts";
 
 const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_PREVIEW_CHARS = 2048;
@@ -48,28 +48,25 @@ export type UrlValidation =
   | { ok: true; url: URL }
   | { ok: false; reason: DeliveryError };
 
-/** Extract the canonical host from a `did:web:` identifier, or null. */
+/**
+ * Extract the canonical AUTHORITY from a `did:web:` identifier, or null.
+ *
+ * did:web encodes the host (and optional path segments) colon-separated, with
+ * a port percent-encoded as `%3A` inside the first segment. The port is part
+ * of the identity — `did:web:example.com%3A8443` is not
+ * `did:web:example.com` — so it is carried into the returned authority and
+ * compared by the delivery binding. An explicit `:443` serializes away,
+ * because it names the default origin. This is the same grammar discovery
+ * uses (`didWebTargets`), so the two stay on one authority.
+ */
 export function didWebHost(did: string): string | null {
   if (!did.startsWith("did:web:")) return null;
-  // did:web: encodes the host (and optional path segments) colon-separated,
-  // with a port percent-encoded as %3A inside the first segment. The host is
-  // the first segment.
   const rest = did.slice("did:web:".length);
   if (rest.length === 0) return null;
-  const firstSegment = rest.split(":")[0];
-  let authority: string;
-  try {
-    authority = decodeURIComponent(firstSegment);
-  } catch {
-    return null;
-  }
-  // A port-bearing did:web (`host%3Aport`) is unsupported and rejected, not
-  // port-stripped: the delivery binding below compares bare hostnames, so
-  // dropping the port would let an endpoint on a DIFFERENT port satisfy the
-  // binding. Failing closed keeps discovery (`didWebCardUrl`) and delivery on
-  // the same authority.
-  if (authority.includes(":")) return null;
-  const host = authority.toLowerCase().replace(/\.+$/, "");
+  const firstSegment = rest.split(":")[0]!;
+  const origin = didWebOrigin(firstSegment);
+  if (origin === null) return null;
+  const host = new URL(origin).host.toLowerCase().replace(/\.+$/, "");
   return host.length > 0 ? host : null;
 }
 
@@ -99,8 +96,11 @@ export function validateTargetUrl(
     if (isPrivateHost(host)) return { ok: false, reason: "private_host_blocked" };
   }
   if (options.requiredDidWebHost) {
+    // Compare the AUTHORITY, not the bare hostname: a did:web that names a
+    // port binds to that port, and comparing hostnames alone would let an
+    // endpoint on a different port satisfy the binding.
     const expected = options.requiredDidWebHost.toLowerCase().replace(/\.+$/, "");
-    const actual = host.toLowerCase().replace(/\.+$/, "");
+    const actual = url.host.toLowerCase().replace(/\.+$/, "");
     if (expected !== actual) return { ok: false, reason: "host_mismatch" };
   }
   return { ok: true, url };

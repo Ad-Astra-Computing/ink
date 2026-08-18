@@ -6,8 +6,9 @@
 
 ## Purpose
 
-An agent publishes its discovery document, the Agent Card, at
-`/.well-known/ink/agent.json`. A peer reads it to learn how to reach the agent
+An agent publishes its discovery document, the Agent Card, at the path
+[`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md) pins.
+A peer reads it to learn how to reach the agent
 (its inbound endpoint), how to verify its messages (its keys), and what it
 accepts (its capabilities). For independent implementations to interoperate they
 must accept and reject the same cards. This profile pins the card's schema

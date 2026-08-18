@@ -71,10 +71,22 @@ describe("didWebHost", () => {
     expect(didWebHost("did:key:z6Mk")).toBeNull();
     expect(didWebHost("did:web:")).toBeNull();
   });
-  it("rejects a port-bearing did:web rather than stripping the port", () => {
-    // host%3Aport. Stripping the port would let an endpoint on a different
-    // port satisfy the hostname binding, so it must fail closed.
-    expect(didWebHost("did:web:example.com%3A8443")).toBeNull();
+  it("carries a %3A port into the authority rather than stripping it", () => {
+    // Stripping the port would let an endpoint on a different port satisfy
+    // the binding, so it is carried and compared.
+    expect(didWebHost("did:web:example.com%3A8443")).toBe("example.com:8443");
+  });
+  // %3A443 is a legal did:web identifier naming the default https origin, so
+  // it serializes away. The sign-in profile's extra ban on an explicit 443 is
+  // profile-local (`deriveRpOrigin`) and does not reach this path.
+  it("serializes an explicit 443 away, since it names the default origin", () => {
+    expect(didWebHost("did:web:example.com%3A443")).toBe("example.com");
+  });
+  it("rejects a port it cannot carry", () => {
+    expect(didWebHost("did:web:example.com%3A")).toBeNull();
+    expect(didWebHost("did:web:example.com%3A0")).toBeNull();
+    expect(didWebHost("did:web:example.com%3A65536")).toBeNull();
+    expect(didWebHost("did:web:example.com%3a8443")).toBeNull();
   });
 });
 
@@ -169,7 +181,7 @@ describe("deliverEnvelope", () => {
     if (r.ok) expect(r.status).toBe(200);
   });
 
-  it("refuses a port-bearing did:web recipient (binding cannot be weakened)", async () => {
+  it("binds a port-bearing did:web to the port, refusing a default-port target", async () => {
     const id = await generateSenderIdentity();
     const env = await buildSignedEnvelope({
       identity: id,
@@ -188,8 +200,31 @@ describe("deliverEnvelope", () => {
         return new Response("{}", { status: 200 });
       },
     });
-    expect(r).toEqual({ ok: false, reason: "invalid_target_url" });
+    expect(r).toEqual({ ok: false, reason: "host_mismatch" });
     expect(called).toBe(false);
+  });
+
+  it("delivers to a port-bearing did:web when the target carries the same port", async () => {
+    const id = await generateSenderIdentity();
+    const env = await buildSignedEnvelope({
+      identity: id,
+      to: "did:web:example.com%3A8443",
+      intent: "ping",
+      payload: pingPayload(),
+    });
+    let called = false;
+    const r = await deliverEnvelope({
+      identity: id,
+      targetUrl: "https://example.com:8443/ink/v1/inbound",
+      recipientDid: "did:web:example.com%3A8443",
+      envelope: env as unknown as Record<string, unknown>,
+      fetchImpl: async () => {
+        called = true;
+        return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+    expect(r.ok).toBe(true);
+    expect(called).toBe(true);
   });
 
   it("times out when the response body stalls after headers", async () => {

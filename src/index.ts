@@ -145,7 +145,7 @@ export type {
   InkTransport,
 } from "./models/ink-handshake.js";
 
-// Agent Card schema (the canonical .well-known/ink/agent.json document)
+// Agent Card schema (the document served at /ink/v1/<agentId>/agent.json)
 export { AgentCardSchema } from "./models/agent-card.js";
 export { isInkEndpointUrl } from "./models/endpoint-url.js";
 

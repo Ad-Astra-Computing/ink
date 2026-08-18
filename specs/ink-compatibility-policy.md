@@ -206,7 +206,7 @@ Every base INK v0.1 agent MUST support:
 - Transport signing (`INK-Ed25519` auth header)
 - Replay protection (timestamp + nonce)
 - At least one intent type
-- Agent Card discovery at `GET /ink/v1/{agentId}/agent.json`
+- Agent Card discovery at the path pinned by [`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md)
 
 ### 4.3 Optional Capabilities
 

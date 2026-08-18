@@ -255,8 +255,9 @@ SHOULD only be disclosed after authenticated discovery.
 ### 6.4 Authenticated discovery
 Capability-gated discovery SHOULD use a signed authenticated request.
 
-Suggested endpoint:
-- `POST /.well-known/ink/agent-card/query`
+Endpoint:
+- `POST /ink/v1/{agentId}/agent-card-query`, the path pinned by
+  [`ink-containment-phase1-implementation-spec.md`](ink-containment-phase1-implementation-spec.md)
 
 Request body:
 - requester DID

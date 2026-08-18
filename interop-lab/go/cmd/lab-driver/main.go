@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -25,11 +26,27 @@ import (
 
 const inboxPath = "/ink/v1/inbound"
 
+// The receiver's own DID, derived from the INK_RECEIVER_HOST the lab starts it
+// with. The driver needs it before discovery because the normative card path is
+// keyed on the agentId: GET <base>/ink/v1/<agentId>/agent.json, the path the
+// reference library's fetchAgentCard builds.
+const receiverDidDefault = "did:web:ts-receiver.example"
+
+// versionedCardPath is the discovery path for an agentId, percent-encoded as a
+// single path segment. Go's PathEscape leaves ":" alone (it is legal in a path
+// segment) while the JavaScript encodeURIComponent the reference library uses
+// escapes it, so the colons are escaped explicitly: the lab must request the
+// exact bytes the library would.
+func versionedCardPath(agentID string) string {
+	return "/ink/v1/" + strings.ReplaceAll(url.PathEscape(agentID), ":", "%3A") + "/agent.json"
+}
+
 func main() {
 	cfg := config{
-		receiver: envOr("TS_RECEIVER_URL", "http://ts-receiver:8787"),
-		verifier: envOr("GO_VERIFIER_URL", "http://go-verifier:8080"),
-		tsPeer:   envOr("TS_PEER_URL", "http://ts-peer:8790"),
+		receiver:    envOr("TS_RECEIVER_URL", "http://ts-receiver:8787"),
+		receiverDid: envOr("TS_RECEIVER_DID", receiverDidDefault),
+		verifier:    envOr("GO_VERIFIER_URL", "http://go-verifier:8080"),
+		tsPeer:      envOr("TS_PEER_URL", "http://ts-peer:8790"),
 	}
 	fmt.Println("go-driver: Go produces, TypeScript verifies")
 	r := &run{}
@@ -40,14 +57,15 @@ func main() {
 }
 
 type config struct {
-	receiver string
-	verifier string
-	tsPeer   string
+	receiver    string
+	receiverDid string
+	verifier    string
+	tsPeer      string
 }
 
 func drive(cfg config, r *run) error {
 	for _, dep := range []struct{ name, url string }{
-		{"ts-receiver", cfg.receiver + "/.well-known/ink/agent.json"},
+		{"ts-receiver", cfg.receiver + versionedCardPath(cfg.receiverDid)},
 		{"go-verifier", cfg.verifier + "/healthz"},
 		{"ts-peer", cfg.tsPeer + "/healthz"},
 	} {
@@ -57,17 +75,33 @@ func drive(cfg config, r *run) error {
 	}
 
 	// ── discovery ────────────────────────────────────────────────────────────
-	cardStatus, cardBytes, err := get(cfg.receiver + "/.well-known/ink/agent.json")
+	// The versioned path is the discovery surface a consumer reaches knowing
+	// only the agentId and the origin, so that is what the driver fetches.
+	cardStatus, cardBytes, err := get(cfg.receiver + versionedCardPath(cfg.receiverDid))
 	if err != nil {
 		return fmt.Errorf("agent card fetch: %w", err)
 	}
-	r.check("card fetch returns 200", cardStatus == 200, fmt.Sprintf("status %d", cardStatus))
+	r.check("versioned card path returns 200", cardStatus == 200, fmt.Sprintf("status %d", cardStatus))
+
+	// The well-known path stays as an alias and MUST serve the same bytes: the
+	// card is signed over its own body, so two spellings of the same document
+	// cannot diverge.
+	aliasStatus, aliasBytes, err := get(cfg.receiver + "/.well-known/ink/agent.json")
+	if err != nil {
+		return fmt.Errorf("well-known card fetch: %w", err)
+	}
+	r.check("well-known alias returns 200", aliasStatus == 200, fmt.Sprintf("status %d", aliasStatus))
+	r.check("well-known alias is byte-identical to the versioned card",
+		bytes.Equal(aliasBytes, cardBytes), fmt.Sprintf("%d vs %d bytes", len(aliasBytes), len(cardBytes)))
 	var card map[string]any
 	if err := json.Unmarshal(cardBytes, &card); err != nil {
 		return fmt.Errorf("agent card is not JSON: %w", err)
 	}
 	receiverDid, _ := card["agentId"].(string)
 	r.check("card carries an agentId", receiverDid != "", receiverDid)
+	// Identity binding: the card served at /ink/v1/<agentId>/agent.json must
+	// announce that same agentId.
+	r.check("card agentId matches the requested discovery path", receiverDid == cfg.receiverDid, receiverDid)
 
 	// The Go schema validator accepts the TypeScript-produced card.
 	r.check("Go schema accepts the TypeScript card", ink.ValidateAgentCard(card), "ValidateAgentCard")

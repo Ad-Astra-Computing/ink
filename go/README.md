@@ -48,7 +48,7 @@ shared vectors:
   connection_request and connection_response payloads and their embedded profile
   snapshot and availability config, rejecting unknown keys at every level.
 - **Agent Card** (`agentcard.go`) — schema validation for the
-  `.well-known/ink/agent.json` discovery document: the pinned endpoint URL
+  `/ink/v1/<agentId>/agent.json` discovery document: the pinned endpoint URL
   grammar, nested capabilities/keys/governance, enums, and the
   inboxEndpoint-equals-endpoint invariant.
 

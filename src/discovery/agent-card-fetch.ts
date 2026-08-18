@@ -32,6 +32,16 @@ export interface AgentCardFetchInput {
   bodyRaw: string;
   /** The agentId the fetch was made for, for identity binding. */
   requestedAgentId: string;
+  /**
+   * The owner's DID, set only when the resolution began at an owner's DID
+   * document and followed it to this card. Null (or absent) for every other
+   * resolution, including one that reached the card through the agent's own
+   * DID document. Drives the owner anti-substitution step: a host that
+   * legitimately publishes a card for one owner must not be able to serve it
+   * in answer to resolution of another. Passing an agent identifier here
+   * rejects every card whose owner and agent differ.
+   */
+  resolutionDid?: string | null;
 }
 
 export interface AgentCardFetchResult {
@@ -85,6 +95,8 @@ function digitsGreaterThan(value: string, cap: string): boolean {
  *   6. The parsed value MUST satisfy AgentCardSchema.
  *   7. card.protocol MUST be "ink/0.1".
  *   8. card.agentId MUST equal the requested agentId (identity binding).
+ *   9. When resolutionDid is non-null and the card carries an ownerDid,
+ *      card.ownerDid MUST equal resolutionDid (owner anti-substitution).
  */
 export function evaluateAgentCardFetch(input: AgentCardFetchInput): AgentCardFetchResult {
   const reject: AgentCardFetchResult = { accepted: false, card: null };
@@ -119,6 +131,15 @@ export function evaluateAgentCardFetch(input: AgentCardFetchInput): AgentCardFet
 
   // 8. Identity binding.
   if (card.agentId !== input.requestedAgentId) return reject;
+
+  // 9. Owner anti-substitution. Byte-for-byte, no canonicalization, and only
+  // when the fetch was mediated by a DID and the card actually carries an
+  // ownerDid. Passing proves the card names the DID it was reached through,
+  // never that the owner consented to the agent: ownerDid is self-asserted.
+  const resolutionDid = input.resolutionDid ?? null;
+  if (resolutionDid !== null && card.ownerDid !== undefined && card.ownerDid !== resolutionDid) {
+    return reject;
+  }
 
   return { accepted: true, card };
 }

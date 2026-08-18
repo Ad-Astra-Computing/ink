@@ -58,3 +58,80 @@ export function isPrivateHost(hostname: string): boolean {
   if (/^\d+$/.test(bare)) return true;
   return false;
 }
+
+/**
+ * A did:web port is a decimal 1 to 65535 with no leading zeros.
+ *
+ * An explicit `443` is ACCEPTED: the W3C did:web method allows an optional
+ * percent-encoded port and bans no value, so refusing a spec-legal identifier
+ * would be an interop bug. A URL carrying `:443` normalizes to the default
+ * https origin on fetch, so carrying it resolves the right document.
+ *
+ * This grammar is otherwise the library's `deriveRpOrigin` grammar, but it is
+ * NOT that function. The sign-in profile additionally bans an explicit 443
+ * because it derives a single canonical origin STRING from the identifier and
+ * two spellings of one origin would break that derivation. That is a
+ * profile-local rule and it must not be copied back onto the general
+ * resolution path.
+ */
+function isDidWebPort(port: string): boolean {
+  if (!/^[1-9][0-9]{0,4}$/.test(port)) return false;
+  const n = Number(port);
+  return n >= 1 && n <= 65535;
+}
+
+/**
+ * Split the host component of a did:web identifier into host and optional
+ * port. `%3A` is the did:web spelling of the port separator.
+ *
+ * The port is CARRIED, never dropped: resolving `did:web:example.com%3A8443`
+ * at the default port would silently target a different origin than the
+ * identifier names. Anything we cannot carry faithfully is rejected — a
+ * second `%3A`, a leftover `%` (a lowercase `%3a` the uppercase marker
+ * missed), or a port outside the grammar. This mirrors `deriveRpOrigin` in
+ * `@adastracomputing/ink` except for the explicit-443 rule; see
+ * `isDidWebPort`.
+ */
+export function parseDidWebAuthority(
+  hostComponent: string,
+): { host: string; port?: string } | null {
+  const idx = hostComponent.indexOf("%3A");
+  if (idx === -1) {
+    if (hostComponent.includes("%")) return null;
+    return { host: hostComponent };
+  }
+  const host = hostComponent.slice(0, idx);
+  const port = hostComponent.slice(idx + 3);
+  if (port.includes("%3A")) return null;
+  if (host.includes("%") || port.includes("%")) return null;
+  if (!isDidWebPort(port)) return null;
+  return { host, port };
+}
+
+/**
+ * Serialize a did:web host component to its https origin, or null when the
+ * identifier is unusable. The WHATWG serializer drops an explicit default
+ * port, so `example.com%3A443` and `example.com` produce the same origin —
+ * which is what they mean — while any other port survives verbatim.
+ */
+export function didWebOrigin(hostComponent: string): string | null {
+  const authority = parseDidWebAuthority(hostComponent);
+  if (!authority) return null;
+  const hostPort = authority.port === undefined
+    ? authority.host
+    : `${authority.host}:${authority.port}`;
+  let url: URL;
+  try {
+    url = new URL(`https://${hostPort}`);
+  } catch {
+    return null;
+  }
+  // The serializer normalizes shorthand IPv4 (`127.1` → `127.0.0.1`) and
+  // re-cases; if what it produced isn't the host we parsed, refuse rather than
+  // resolve somewhere else. `:443` legitimately serializes to the empty port.
+  const expectedPort = authority.port === undefined || authority.port === "443"
+    ? ""
+    : authority.port;
+  if (url.hostname !== authority.host || url.port !== expectedPort) return null;
+  return url.origin;
+}

@@ -10,7 +10,7 @@ This checklist lets an independent implementer verify INK conformance without re
 
 For the normative cross-implementation floor keyed to the `conformance/v1` corpus, see [`ink-conformance-profile.md`](ink-conformance-profile.md): it freezes which conformance categories a base sender and base receiver MUST satisfy versus the capability-gated profiles. This checklist is the broader, Tulpa-specific implementation matrix; the profile document is authoritative for what the corpus requires of any conforming implementation.
 
-**"Protocol §X" citations** in the Spec column resolve to [`ink-protocol.md`](ink-protocol.md), the in-repo normative core wire spec. Its sections are: §2 discovery and the Agent Card, §3.1 message envelope, §3.3 transport signing, §3.4 payload encryption, §3.5 replay and freshness, §4 rate limiting, §5 handshake messages, §6 message-type namespace. Other Spec-column names (Key Rotation, Auditability, Containment, Auth Chain, Compat Policy) resolve to the matching `ink-*.md` spec in this directory.
+**"Protocol §X" citations** in the Spec column resolve to [`ink-protocol.md`](ink-protocol.md), the in-repo normative core wire spec. Its sections are: §2 discovery and the Agent Card, §3.1 message envelope, §3.3 transport signing, §3.4 payload encryption, §3.5 replay and freshness, §4 rate limiting, §5 handshake messages, §6 message-type namespace. Other Spec-column names (Key Rotation, Auditability, Containment, Auth Chain, Compat Policy, Discovery Fetch) resolve to the matching `ink-*.md` spec in this directory; "Discovery Fetch" is [`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md).
 
 ---
 
@@ -33,7 +33,7 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| D1 | Agent Card served at `GET /ink/v1/{agentId}/agent.json` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
+| D1 | Agent Card served at the discovery path | MUST | Required | Discovery Fetch, Discovery path |, | `test/ink-discovery-gating.test.ts` |
 | D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
 | D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
 | D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |

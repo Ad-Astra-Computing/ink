@@ -335,8 +335,8 @@ Verifying the assertion needs the issuer's key, and the base grant leaves key
 resolution to policy, so this profile pins it. When the assertion's `issuer` is
 a bare-host `did:web` identifier, the RP MUST resolve its Agent Card at the
 derived origin's well-known path under exactly the rules this profile pins for
-the RP card in *Relying party requirements*: the same grammar and origin
-derivation, the private-hostname gate with connect-time pinning, the transport
+the RP card in *Relying party requirements*, including the profile-local path
+exception stated there: the same grammar and origin derivation, the private-hostname gate with connect-time pinning, the transport
 refusal of redirects, the response-evaluation reuse with the card's `agentId`
 equal to the issuer and an active signing key only under the rotation and
 key-material rules evaluated at the RP's clock `now`. An issuer principal of
@@ -474,9 +474,17 @@ host are out of profile: the derived string feeds the literal prefix match
 below, where two spellings of one origin would make equal origins compare
 unequal.
 
-The RP's Agent Card URL is that origin joined with the well-known card path the
-Agent Card spec defines, `/.well-known/ink/agent.json` (see
-[`ink-agent-card.md`](ink-agent-card.md)). An RP MUST publish its card there,
+The RP's Agent Card URL is that origin joined with `/.well-known/ink/agent.json`.
+This is a profile-local exception, and it is stated here as one: the base
+profile's sole normative discovery surface is the versioned path pinned by
+[`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md), and
+this profile derives a different URL because an RP is named by a bare-host
+`did:web` identifier whose origin already determines exactly one card, so the
+URL is a function of the origin alone and needs no identifier in the path. The
+exception is confined to this profile: it governs the RP card here and the
+issuer card in *Binding patterns*, it grants no license to prefer the well-known
+path anywhere else, and a resolver outside this profile MUST still not depend on
+it. An RP MUST publish its card there,
 and the challenge signature MUST verify against an active signing key of that
 card under the key rotation spec's verification rules: a revoked key MUST NOT
 verify a challenge, and a retired key MUST NOT verify one either, because
@@ -510,8 +518,8 @@ check and connect gains nothing. Of the card discovery-fetch contract (see
 profile reuses only the response-evaluation steps, its status, declared-length,
 content-type, body-size, JSON, schema, protocol and identity-binding checks,
 with the requested agent id being `rp`. The URL the response came from is this
-profile's well-known construction above, never that contract's URL
-construction, which fetches a different path. This is what lets the user's
+profile's construction above, under the exception stated with it, and not the
+URL a base-profile resolver would build. This is what lets the user's
 agent learn who is asking without a shared directory: it resolves `rp` to a
 card and checks the signature against a key the card publishes.
 

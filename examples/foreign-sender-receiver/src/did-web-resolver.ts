@@ -74,6 +74,55 @@ function isValidDidWebHost(host: string): boolean {
 }
 
 /**
+ * A port is a decimal 1 to 65535 with no leading zeros.
+ *
+ * An explicit `443` is ACCEPTED: the W3C did:web method allows an optional
+ * percent-encoded port and bans no value, so refusing a spec-legal identifier
+ * would be an interop bug. A URL carrying `:443` normalizes to the default
+ * https origin on fetch, so carrying it resolves the right document.
+ *
+ * This grammar is otherwise the library's `deriveRpOrigin` grammar, but it is
+ * NOT that function. The sign-in profile additionally bans an explicit 443
+ * because it derives a single canonical origin STRING from the identifier and
+ * two spellings of one origin would break that derivation. That is a
+ * profile-local rule and it must not be copied back onto the general
+ * resolution path.
+ */
+function isDidWebPort(port: string): boolean {
+  if (!/^[1-9][0-9]{0,4}$/.test(port)) return false;
+  const n = Number(port);
+  return n >= 1 && n <= 65535;
+}
+
+/**
+ * Split the host component of a did:web identifier into host and optional
+ * port. `%3A` is the did:web spelling of the port separator.
+ *
+ * The port is CARRIED, never dropped: resolving `did:web:example.com%3A8443`
+ * at the default port would silently target a different origin than the
+ * identifier names. Anything we cannot carry faithfully is rejected — a
+ * second `%3A`, a leftover `%` (a lowercase `%3a` the uppercase marker
+ * missed), or a port outside the grammar. This mirrors `deriveRpOrigin` in
+ * `@adastracomputing/ink` except for the explicit-443 rule; see
+ * `isDidWebPort`.
+ */
+export function parseDidWebAuthority(
+  hostComponent: string,
+): { host: string; port?: string } | null {
+  const idx = hostComponent.indexOf("%3A");
+  if (idx === -1) {
+    if (hostComponent.includes("%")) return null;
+    return { host: hostComponent };
+  }
+  const host = hostComponent.slice(0, idx);
+  const port = hostComponent.slice(idx + 3);
+  if (port.includes("%3A")) return null;
+  if (host.includes("%") || port.includes("%")) return null;
+  if (!isDidWebPort(port)) return null;
+  return { host, port };
+}
+
+/**
  * Translate a did:web identifier to its document URL.
  *
  * Forms supported (per did:web 1.0 spec):
@@ -87,30 +136,51 @@ export function didWebToDocUrl(did: string): string | null {
   if (!did.startsWith("did:web:")) return null;
   const id = did.slice("did:web:".length);
   if (id.length === 0 || id.length > 1024) return null;
-  // Path segments are colon-separated in did:web. Percent-encoded
-  // colons in the host part may legitimately appear for ports, but
-  // we refuse them here — a published did:web endpoint should not
-  // depend on a port.
+  // Path segments are colon-separated in did:web. A percent-encoded colon in
+  // the host part is a port, and it is carried into the resolved URL: dropping
+  // it would resolve a different origin than the identifier names. A port we
+  // cannot carry faithfully rejects the whole identifier.
   const parts = id.split(":");
   if (parts.some((p) => p.length === 0)) return null;
   const host = parts[0]!;
-  const hostBare = host.split("%3A")[0]!;
+  const authority = parseDidWebAuthority(host);
+  if (!authority) return null;
+  const hostBare = authority.host;
+  const hostPort = authority.port === undefined ? hostBare : `${hostBare}:${authority.port}`;
   if (!isValidDidWebHost(hostBare) || isPrivateHost(hostBare)) return null;
+  // Build from the SERIALIZED origin: an explicit `:443` is the default port,
+  // so it serializes away and the identifier resolves at the origin it names.
+  // Any other port is carried verbatim.
+  let origin: string;
+  try {
+    origin = new URL(`https://${hostPort}`).origin;
+  } catch {
+    return null;
+  }
   const safePath = /^[A-Za-z0-9._~\-]+$/;
   if (parts.length === 1) {
-    return `https://${hostBare}/.well-known/did.json`;
+    return `${origin}/.well-known/did.json`;
   }
   const rest = parts.slice(1);
   for (const seg of rest) {
+    // Reject "." and ".." segments explicitly. They satisfy the
+    // safe-char regex but a literal dot-segment in the resolved URL
+    // is a traversal vector even after URL normalization elsewhere.
+    if (seg === "." || seg === "..") return null;
     if (!safePath.test(seg)) return null;
   }
-  return `https://${hostBare}/${rest.join("/")}/did.json`;
+  return `${origin}/${rest.join("/")}/did.json`;
 }
 
 /**
- * Extract a `did:web:` host through the canonical
- * `didWebToDocUrl` parser. Returns null when the DID is malformed
- * (private IP host, bad shape, ill-formed segments).
+ * Extract a `did:web:` authority through the canonical `didWebToDocUrl`
+ * parser. Returns `host` for a portless identifier and `host:port` for one
+ * that names a port. Returns null when the DID is malformed (private IP host,
+ * bad shape, ill-formed segments, unusable port).
+ *
+ * The port is part of the identity: `did:web:example.com%3A8443` is not
+ * `did:web:example.com`, so a binding check that compared host alone would
+ * admit delivery to the wrong origin.
  *
  * Reusing the canonical parser keeps every identity-binding check
  * aligned with the resolver's notion of "valid host". Inline
@@ -120,7 +190,7 @@ export function extractDidWebHost(did: string): string | null {
   const docUrl = didWebToDocUrl(did);
   if (!docUrl) return null;
   try {
-    return new URL(docUrl).hostname;
+    return new URL(docUrl).host;
   } catch {
     return null;
   }

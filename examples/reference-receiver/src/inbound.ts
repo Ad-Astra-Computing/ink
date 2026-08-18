@@ -45,6 +45,29 @@ import { resolveAgentCardForDidWeb } from "./did-web-resolver.js";
 
 export const MAX_BODY_BYTES = 64 * 1024;
 
+/**
+ * A candidate signing key plus where it came from.
+ *
+ * `CandidateKey.status` is a CARD lifecycle term — `active`, `retired`,
+ * `revoked` are the states a published key set moves a key through, and the
+ * verifier uses them as its eligibility allowlist. A key decoded inline out of
+ * a `did:key:` identifier has no card, no key set, and no rotation that could
+ * ever retire it, so `status` cannot honestly describe it. `provenance` says
+ * what `status` cannot:
+ *
+ *   - `card`      — read from the sender's published agent card. Card
+ *                   lifecycle rules apply.
+ *   - `bootstrap` — decoded from the sender's own `did:key:` identifier. Self
+ *                   certifying, unrotatable, published by nobody.
+ *
+ * Any policy that means "a key a card currently publishes as active" MUST
+ * test `provenance === "card"` as well as the status. Testing status alone
+ * would silently admit every did:key sender.
+ */
+export type ResolvedCandidateKey = CandidateKey & {
+  provenance: "card" | "bootstrap";
+};
+
 export interface InboundConfig {
   identity: ReceiverIdentity;
   receiverDid: string;
@@ -122,7 +145,7 @@ export async function readBoundedBody(
  * sender type for a public test target, and the one the `interop-cli`
  * reference sender uses by default. Returns [] on any decode failure.
  */
-export function resolveDidKeySenderKeys(senderDid: string): CandidateKey[] {
+export function resolveDidKeySenderKeys(senderDid: string): ResolvedCandidateKey[] {
   const multibase = senderDid.slice("did:key:".length);
   // did:key MAY carry a URL fragment (did:key:z6Mk...#z6Mk...); the
   // verification key is the part before any fragment.
@@ -130,7 +153,14 @@ export function resolveDidKeySenderKeys(senderDid: string): CandidateKey[] {
   if (!keyPart.startsWith("z")) return [];
   try {
     const publicKey = decodePublicKeyMultibase(keyPart);
-    return [{ keyId: keyPart, publicKey, status: "active" }];
+    // `status` is the verifier's eligibility allowlist, not a description of
+    // where the key came from: `verifyInkAuth` only tries keys that are
+    // `active` or `retired`, so an inline did:key has to be `active` to be
+    // usable at all. `provenance` carries the fact that `status` cannot:
+    // this key is not published by any card, no rotation can retire it, and
+    // no card lifecycle applies to it. A rule that means "an active key on a
+    // published card" must test provenance, not status alone.
+    return [{ keyId: keyPart, publicKey, status: "active", provenance: "bootstrap" }];
   } catch {
     return [];
   }
@@ -148,7 +178,7 @@ export function resolveDidKeySenderKeys(senderDid: string): CandidateKey[] {
 export async function resolveSenderKeys(
   senderDid: string,
   opts: { fetcher?: typeof fetch } = {},
-): Promise<CandidateKey[]> {
+): Promise<ResolvedCandidateKey[]> {
   if (senderDid.startsWith("did:key:")) {
     return resolveDidKeySenderKeys(senderDid);
   }
@@ -156,7 +186,8 @@ export async function resolveSenderKeys(
     const card = await resolveAgentCardForDidWeb(senderDid, opts);
     if (!card) return [];
     // resolveAgentCardForDidWeb has already AgentCardSchema-parsed it.
-    return extractCandidateKeys(card as Parameters<typeof extractCandidateKeys>[0]);
+    return extractCandidateKeys(card as Parameters<typeof extractCandidateKeys>[0])
+      .map((k) => ({ ...k, provenance: "card" as const }));
   }
   return [];
 }
