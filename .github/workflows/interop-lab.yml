@@ -1,0 +1,69 @@
+name: interop-lab
+
+# The live cross-implementation exchange in interop-lab/: two images, four
+# services on a container network with no route off it, two drivers, every
+# assertion checked. It answers a question the conformance corpus cannot,
+# because both sides of a vector read the same fixture file. Here each side
+# produces its own bytes at run time and the other side decides on them over a
+# socket, so a divergence in canonicalization, domain separation, header shape,
+# replay state or AAD binding fails an assertion.
+#
+# It runs per change rather than on a cadence. The lab builds both sides from
+# the sources in this tree and not from a published package, so what it catches
+# is a wire-contract regression introduced by the commit under review, and that
+# signal is only worth anything before the commit lands. An unrun lab rots, and
+# the cheapest way to keep it honest is to make every pull request run it.
+#
+# It is deliberately not a leg of weekly-conformance. That workflow fans out
+# over the highest released `v*` tag as well as the branch head, and
+# `interop-lab/` does not exist at earlier tags, so the tag leg would fail on a
+# directory that was never there. Its jobs are also cited as corpus-greenness
+# evidence in governance/releases/1.0-readiness-evidence.md, and the lab is
+# explicitly not a conformance run: a green lab and a red corpus are both
+# possible because they answer different questions.
+#
+# It is its own workflow rather than a ci.yml job so a red check names the thing
+# that broke, the way go-ts-interop is kept separate from the static Go run, and
+# so the one job on this repository that needs a container engine can be read,
+# retried or made non-required on its own.
+#
+# Deliberately no caches, neither an npm cache nor a registry layer cache. The
+# claim under test is that these sources build and interoperate from scratch,
+# and a restored layer would let a stale image stand in for the tree.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: interop-lab-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  interop-lab:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Each driver blocks until the services it uses answer, so a service that
+    # never becomes ready would hang the job to the six-hour default instead of
+    # failing. Two image builds and six container runs finish well inside this.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Interop lab
+        # run.sh selects docker when it is on PATH, which it is on the runner
+        # image, so the lab runs unmodified under its own default engine with no
+        # INTEROP_LAB_ENGINE override. The script builds the images, creates the
+        # isolated network, runs both drivers, tears everything down on exit and
+        # dumps the service logs itself when an assertion fails.
+        run: ./interop-lab/run.sh

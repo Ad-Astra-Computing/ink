@@ -69,6 +69,8 @@ All changes must include tests. For bug fixes, add a regression test that fails 
 3. Keep commits small and focused. Commit messages: imperative mood, under 72 characters.
 4. Reference any related issue or spec section in the PR description.
 
+The [`interop-lab`](.github/workflows/interop-lab.yml) workflow runs on every pull request as well. It builds both implementations from your branch and runs a live exchange between them in containers, which is the check that catches a wire-contract change the fixed conformance vectors cannot see. It needs Docker or Podman, so it is not in the list above; run `./interop-lab/run.sh` locally if you have an engine, and otherwise read the job output.
+
 ## Checks that run without a push
 
 Some checks run on a schedule as well as on pull requests, so a quiet week still produces a result. The [`weekly-conformance`](.github/workflows/weekly-conformance.yml) workflow re-verifies the conformance corpus in both implementations once a week. A scheduled run covers two commits, the head of `main` and the highest released `v*` tag, so the corpus is re-checked against the newest release without anyone starting a run by hand; when the two are the same commit it is verified once. It can also be dispatched against a specific ref, which verifies that ref alone. Nothing about it is a contributor step, but a red run on `main` is a real failure and is treated like one. The [`audit`](.github/workflows/audit.yml) and [`zizmor`](.github/workflows/zizmor.yml) workflows run daily on the same principle.

@@ -9,6 +9,11 @@
  *     reached for: `specs/ink-resolver.md` §3.2 forbids a resolver from
  *     depending on it or falling back to it.
  *
+ * Failure is reported per step (`CardResolutionReason`) rather than as a bare
+ * null, because this resolver runs against INBOUND senders on a public test
+ * target and the reason is what an adopter needs. Reporting is all it does:
+ * the alias is never fetched, not even to confirm a diagnosis.
+ *
  * The SSRF guards (`isIpLiteralHost`, `isPrivateHost`) are an
  * intentional copy of the patterns shipped in
  * `examples/foreign-sender-receiver/src/did-web-resolver.ts`. Until
@@ -252,52 +257,133 @@ async function fetchJson(
 }
 
 /**
- * Walk did:web → DID doc → InkAgentCard service → agent.json.
+ * Why a did:web resolution failed.
+ *
+ * These are a fixed enum, never remote content: the receiver surfaces the
+ * reason to the sender, and echoing anything a third-party host returned
+ * would turn a diagnostic into a reflection gadget.
+ */
+export type CardResolutionReason =
+  | "did_unresolvable"
+  | "did_document_unreachable"
+  | "card_absent_from_discovery_path"
+  | "card_absent_from_service_endpoint"
+  | "card_schema_invalid"
+  | "card_agent_id_mismatch";
+
+/**
+ * Operator-and-adopter facing explanation per reason.
+ *
+ * `card_absent_from_discovery_path` is the one worth spelling out. INK moved
+ * discovery to `/ink/v1/<agentId>/agent.json` and `specs/ink-resolver.md` §3.2
+ * forbids a resolver from depending on the `/.well-known/ink/agent.json` alias
+ * or falling back to it, so a peer still publishing only at the alias now
+ * fails here. Saying so is the difference between an adopter fixing their card
+ * in a minute and filing a bug against this receiver.
+ */
+export const CARD_RESOLUTION_HINTS: Record<CardResolutionReason, string> = {
+  did_unresolvable:
+    "The did:web identifier is malformed or names a host this receiver will not fetch. Hosts must be public https names, not IP literals or private addresses.",
+  did_document_unreachable:
+    "No DID document was served at the did:web document URL, or it was not JSON. Publish /.well-known/did.json (or the path-form equivalent) for this identifier.",
+  card_absent_from_discovery_path:
+    "The DID document declared no InkAgentCard service endpoint and no agent card was served at the versioned discovery path /ink/v1/<agentId>/agent.json. If the card is published only at the legacy /.well-known/ink/agent.json alias, that alias is not a resolution surface: resolvers must not fall back to it. Serve the card at the versioned discovery path, or declare an InkAgentCard service endpoint in the DID document.",
+  card_absent_from_service_endpoint:
+    "The DID document declared an InkAgentCard service endpoint but no agent card was served there. The endpoint must be https and on the same authority as the DID.",
+  card_schema_invalid:
+    "An agent card was served but it does not validate against the INK agent card schema.",
+  card_agent_id_mismatch:
+    "The served agent card announces a different agentId than the DID being resolved. A card must bind to its own DID.",
+};
+
+export type CardResolution =
+  | { ok: true; card: unknown }
+  | { ok: false; reason: CardResolutionReason; hint: string };
+
+function resolutionFailure(reason: CardResolutionReason): CardResolution {
+  return { ok: false, reason, hint: CARD_RESOLUTION_HINTS[reason] };
+}
+
+/**
+ * Walk did:web → DID doc → InkAgentCard service → agent.json, reporting WHICH
+ * step failed.
  *
  * Without a usable service entry the card is fetched from the versioned
  * discovery path, and that is the end of the walk: `specs/ink-resolver.md`
  * §3.2 forbids depending on the `/.well-known/ink/agent.json` alias or falling
  * back to it on failure, so a peer that publishes ONLY the alias is not
- * discoverable here. Returns null on any failure.
+ * discoverable here.
+ *
+ * That failure is reported, not repaired. Deliberately there is NO probe of
+ * the alias to confirm the diagnosis: this runs on a public unauthenticated
+ * endpoint, before any signature has been verified, so a probe would be a
+ * third attacker-triggerable outbound fetch per inbound POST, aimed at a path
+ * the resolver is spec-forbidden to use. The reason codes above already name
+ * the failed step precisely, which is the whole of what an adopter needs.
+ *
+ * The reasons do distinguish which step failed, which makes this a weak oracle
+ * for "does host X serve JSON at its did:web document URL". That is acceptable
+ * because the SSRF guards already confine every fetch to public https hosts an
+ * unauthenticated caller could query directly, and because the codes describe
+ * the INK discovery contract only, never a status code or any response body.
+ */
+export async function resolveAgentCardForDidWebDetailed(
+  did: string,
+  opts: { fetcher?: typeof fetch } = {},
+): Promise<CardResolution> {
+  const targets = resolveDidWebTargets(did);
+  if (!targets) return resolutionFailure("did_unresolvable");
+  const didDoc = await fetchJson(targets.didDocUrl, opts);
+  if (!didDoc || typeof didDoc !== "object") {
+    return resolutionFailure("did_document_unreachable");
+  }
+  // Without a service entry the versioned discovery path is the only URL we
+  // will try. No alias fallback: see the note on this function.
+  let cardUrl = targets.versionedCardUrl;
+  let fromServiceEntry = false;
+  const services = (didDoc as { service?: Array<Record<string, unknown>> }).service;
+  if (Array.isArray(services)) {
+    for (const s of services) {
+      if (typeof s.type === "string" && s.type === "InkAgentCard"
+          && typeof s.serviceEndpoint === "string") {
+        // Confirm the discovered card URL is HTTPS AND on the same
+        // authority as the DID. did:web identity binding requires the
+        // card to live on the DID's host (and port, when the identifier
+        // names one); the https: check stops a DID doc that points at
+        // http://example.com/agent.json from letting an on-path attacker
+        // substitute a key.
+        try {
+          const u = new URL(s.serviceEndpoint);
+          if (u.protocol === "https:" && u.host.toLowerCase() === targets.host) {
+            cardUrl = s.serviceEndpoint;
+            fromServiceEntry = true;
+          }
+        } catch { /* ignore malformed entries */ }
+        break;
+      }
+    }
+  }
+  const rawCard = await fetchJson(cardUrl, opts);
+  if (!rawCard) {
+    return resolutionFailure(
+      fromServiceEntry ? "card_absent_from_service_endpoint" : "card_absent_from_discovery_path",
+    );
+  }
+  const parsed = AgentCardSchema.safeParse(rawCard);
+  if (!parsed.success) return resolutionFailure("card_schema_invalid");
+  // Identity binding: the card MUST announce a matching agentId.
+  if (parsed.data.agentId !== did) return resolutionFailure("card_agent_id_mismatch");
+  return { ok: true, card: parsed.data };
+}
+
+/**
+ * Card-or-null form of `resolveAgentCardForDidWebDetailed`, for callers that
+ * do not surface a reason.
  */
 export async function resolveAgentCardForDidWeb(
   did: string,
   opts: { fetcher?: typeof fetch } = {},
 ): Promise<unknown | null> {
-  const targets = resolveDidWebTargets(did);
-  if (!targets) return null;
-  const didDoc = await fetchJson(targets.didDocUrl, opts);
-  // Without a service entry the versioned discovery path is the only URL we
-  // will try. No alias fallback: see the note on this function.
-  let cardUrl = targets.versionedCardUrl;
-  if (didDoc && typeof didDoc === "object") {
-    const services = (didDoc as { service?: Array<Record<string, unknown>> }).service;
-    if (Array.isArray(services)) {
-      for (const s of services) {
-        if (typeof s.type === "string" && s.type === "InkAgentCard"
-            && typeof s.serviceEndpoint === "string") {
-          // Confirm the discovered card URL is HTTPS AND on the same
-          // authority as the DID. did:web identity binding requires the
-          // card to live on the DID's host (and port, when the identifier
-          // names one); the https: check stops a DID doc that points at
-          // http://example.com/agent.json from letting an on-path attacker
-          // substitute a key.
-          try {
-            const u = new URL(s.serviceEndpoint);
-            if (u.protocol === "https:" && u.host.toLowerCase() === targets.host) {
-              cardUrl = s.serviceEndpoint;
-            }
-          } catch { /* ignore malformed entries */ }
-          break;
-        }
-      }
-    }
-  }
-  const rawCard = await fetchJson(cardUrl, opts);
-  if (!rawCard) return null;
-  const parsed = AgentCardSchema.safeParse(rawCard);
-  if (!parsed.success) return null;
-  // Identity binding: the card MUST announce a matching agentId.
-  if (parsed.data.agentId !== did) return null;
-  return parsed.data;
+  const res = await resolveAgentCardForDidWebDetailed(did, opts);
+  return res.ok ? res.card : null;
 }

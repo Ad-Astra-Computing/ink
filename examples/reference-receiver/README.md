@@ -137,6 +137,30 @@ ink-interop send \
 A `200` with `{ "ok": true, ... }` means your envelope is on the canonical wire.
 Point `--to-did` / `--target-url` at your own deployment to test it instead.
 
+### When your sender cannot be resolved
+
+A `did:web:` sender is verified against the signing keys on its published agent
+card, so the receiver has to resolve that card first. When it cannot, the `400`
+carries `"code": "sender_key_unresolved"` plus a `reason` naming the step that
+failed and a `hint` describing the fix:
+
+| `reason` | What to fix |
+| --- | --- |
+| `did_unresolvable` | The identifier is malformed or names a host the receiver will not fetch. Public https names only, no IP literals or private addresses. |
+| `did_document_unreachable` | Publish a DID document at the did:web document URL. |
+| `card_absent_from_discovery_path` | Serve the card at `/ink/v1/<agentId>/agent.json`, or declare an `InkAgentCard` service endpoint in the DID document. |
+| `card_absent_from_service_endpoint` | The DID document names an `InkAgentCard` endpoint that serves nothing. It must be https and on the DID's own authority. |
+| `card_schema_invalid` | The served card does not validate against the agent card schema. |
+| `card_agent_id_mismatch` | The card announces a different `agentId` than the DID being resolved. |
+| `unsupported_did_method` | This receiver resolves `did:key` and `did:web` senders only. |
+| `did_key_undecodable` | The `did:key` does not decode to an Ed25519 public key. |
+
+`card_absent_from_discovery_path` is the common one for a peer built against an
+older draft. `/.well-known/ink/agent.json` is an alias a publisher may serve,
+but it is not a resolution surface: `specs/ink-resolver.md` §3.2 forbids a
+resolver from depending on it or falling back to it, so a card published only
+there is not discoverable. Serve the versioned discovery path as well.
+
 ## Live reference deployment
 
 Ad Astra Computing runs this example at **ink-echo.tulpa.network**:

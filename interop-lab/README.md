@@ -161,6 +161,10 @@ interop-lab/
 
 ## Requirements and notes
 
+- The lab runs in CI on every push to `main` and every pull request, as the
+  [`interop-lab`](../.github/workflows/interop-lab.yml) workflow. It calls
+  `run.sh` unmodified under the runner's Docker, with no caches, so what CI
+  proves is that the sources in the tree build and interoperate from scratch.
 - Docker or Podman. The script picks whichever is on `PATH`; override with
   `INTEROP_LAB_ENGINE`, which may carry flags.
 - The build context is the repository root. Each Dockerfile ships a matching
