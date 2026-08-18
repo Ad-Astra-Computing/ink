@@ -1,6 +1,7 @@
 import * as ed from "@noble/ed25519";
 import canonicalize from "canonicalize";
 import { hasUnpairedSurrogate } from "./surrogate.js";
+import { hasUnsafeObjectKey } from "./member-name.js";
 
 /** Same bounds used by the ink.ts verify paths. Kept in sync so a peer
  * cannot pick the "softer" sign.ts path to bypass the cap. */
@@ -129,6 +130,13 @@ export async function signMessage(
   if (hasUnpairedSurrogate(unsigned)) {
     throw new Error("Message contains an unpaired UTF-16 surrogate");
   }
+  // Nor over an object key that would serialize as an escaped member name: a
+  // verifier on an affected V8 decodes such a name to a different string, so
+  // the signature would cover bytes it cannot reproduce. Go's JCSCanonicalize
+  // refuses the same input, so without this the two sign sides disagree.
+  if (hasUnsafeObjectKey(unsigned)) {
+    throw new Error("Message contains an object key with a quote, backslash or control character");
+  }
   const canonical = canonicalize(unsigned);
   if (canonical === undefined) {
     throw new Error("Failed to canonicalize message");
@@ -179,6 +187,12 @@ export async function verifyMessage(
   // carrying a lone UTF-16 surrogate is not portable across implementations,
   // so it never verifies.
   if (hasUnpairedSurrogate(unsigned)) {
+    return false;
+  }
+  // Same reasoning on the verify side: a parsed body carrying a key that needs
+  // escaping is one the raw gate should already have refused, and it is not
+  // portable, so it never verifies here either.
+  if (hasUnsafeObjectKey(unsigned)) {
     return false;
   }
   const canonical = canonicalize(unsigned);

@@ -286,16 +286,27 @@ export async function processInbound(
     raw = parseSignedBodyBytes(bodyBytes);
   } catch (err) {
     if (err instanceof ParseSignedBodyError) {
-      if (err.reason === "utf8") {
-        return { kind: "rejected", verdict: "utf8", sender: "", intent: "", errorCode: "invalid_utf8" };
+      // One branch per gate reason. This used to fall through to
+      // `lone_surrogate` for anything that was not utf8 or number-range, which
+      // meant a body refused for an escaped member name told the sender it had
+      // a surrogate problem. A reference endpoint that misnames why it refused
+      // is worse than one that refuses less: an implementer calibrating against
+      // it debugs the wrong thing.
+      switch (err.reason) {
+        case "utf8":
+          return { kind: "rejected", verdict: "utf8", sender: "", intent: "", errorCode: "invalid_utf8" };
+        case "surrogate":
+          return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "lone_surrogate" };
+        case "number-range":
+          return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "number_out_of_range" };
+        case "member-name-escape":
+          return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "escaped_member_name" };
+        default:
+          // A reason this example does not know about, which means the package
+          // gained a gate rule and this switch was not updated. Refuse, and say
+          // so rather than borrowing another rule's name.
+          return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "signed_body_rejected" };
       }
-      // Compared as a string so this example typechecks against the published
-      // package it pins as well as against the current source, which is where
-      // the `number-range` reason was added.
-      if ((err.reason as string) === "number-range") {
-        return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "number_out_of_range" };
-      }
-      return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "lone_surrogate" };
     }
     return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "json_parse_failed" };
   }

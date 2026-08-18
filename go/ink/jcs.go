@@ -49,6 +49,16 @@ func canonicalizeJSON(v interface{}) (string, error) {
 			if i > 0 {
 				sb.WriteByte(',')
 			}
+			// A member name that needs escaping is refused here, in the one
+			// place every canonicalization path passes through, rather than at
+			// each entry point. Guarding only the wrappers left the exported
+			// transport, audit and card paths calling canonicalizeJSON directly
+			// and therefore unguarded, which is how the reference and this
+			// implementation came to disagree about what could be signed.
+			// Checking inside the key loop keeps it O(n) over the whole value.
+			if keyRequiresEscape(k) {
+				return "", errors.New("ink: object key contains a quote, backslash or control character")
+			}
 			sb.WriteString(canonicalizeString(k))
 			sb.WriteByte(':')
 			val, err := canonicalizeJSON(x[k])
