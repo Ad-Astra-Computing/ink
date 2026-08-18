@@ -251,6 +251,22 @@ describe("processInbound", () => {
     }
   });
 
+  it("names the escaped-member-name rule rather than borrowing another rule's code", async () => {
+    const { id, did } = await makeReceiver();
+    // V8 can decode an escaped member name to a different string, so the body is
+    // refused on the raw text. The code must say WHICH rule refused it: this
+    // mapping previously fell through to `lone_surrogate`, which told a sender
+    // its body had a surrogate problem when it had a member-name problem, on the
+    // endpoint implementers calibrate against.
+    const body = '{"protocol":"ink/0.1","from":"did:web:x","\\n":1}';
+    const out = await processInbound(enc(body), undefined, { identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore() });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") {
+      expect(out.verdict).toBe("schema");
+      expect(out.errorCode).toBe("escaped_member_name");
+    }
+  });
+
   it("rejects a raw body whose bytes are not valid UTF-8 before parsing", async () => {
     const { id, did } = await makeReceiver();
     // 0xFF never appears in valid UTF-8. A lenient decode substitutes U+FFFD
