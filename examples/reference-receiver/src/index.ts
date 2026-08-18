@@ -40,12 +40,28 @@ export interface Env extends ReceiverEnv {
   INK_RECEIVER: KVNamespace;
 }
 
+type PreparedIdentity = Awaited<ReturnType<typeof prepareIdentity>>;
+
 /**
  * One-time per-isolate identity load + sanity check. Cached in
  * module-scope so a deluge of inbound requests doesn't re-do the
  * key decode + canary signature on every call.
+ *
+ * The PROMISE is cached, not the resolved value: on a cold isolate several
+ * requests can enter `fetch` before the first load settles, and caching only
+ * the result would let each of them run its own load. One shared promise means
+ * one decode and one canary signature per isolate.
+ *
+ * The cache is keyed by nothing, so an isolate that has already loaded an
+ * identity keeps serving it for its whole life — a signing-config change is
+ * NOT picked up hot. That is safe in the deployed topology and only there:
+ * updating a Worker secret or var publishes a new deployment version, and
+ * every isolate runs exactly one version, so the old identity dies with the
+ * old code. Do not read this as support for hot key rotation; a receiver that
+ * loads its key from somewhere mutable at runtime needs a real invalidation
+ * signal here, not this cache.
  */
-let cachedIdentity: Awaited<ReturnType<typeof prepareIdentity>> | null = null;
+let cachedIdentity: Promise<PreparedIdentity> | null = null;
 const isolateNonceStore = new InMemoryNonceStore({ capacity: 4096 });
 async function prepareIdentity(env: Env) {
   const identity = loadReceiverIdentity(env);
@@ -54,6 +70,19 @@ async function prepareIdentity(env: Env) {
   if (!host) throw new Error("missing_host: set INK_RECEIVER_HOST in wrangler vars");
   const did = deriveDidWeb(host);
   return { identity, host, did };
+}
+
+/**
+ * Shared in-flight identity load. A rejected load is evicted so a
+ * misconfiguration that is later corrected does not stay cached as a
+ * permanent 500 for the life of the isolate.
+ */
+function identityOnce(env: Env): Promise<PreparedIdentity> {
+  if (cachedIdentity) return cachedIdentity;
+  const pending = prepareIdentity(env);
+  cachedIdentity = pending;
+  pending.catch(() => { if (cachedIdentity === pending) cachedIdentity = null; });
+  return pending;
 }
 
 // Defense-in-depth headers applied to every response. The JSON
@@ -102,16 +131,41 @@ export function matchVersionedCardPath(path: string): string | null {
  * the whole object, so rebuilding per request would hand two callers two
  * different (both valid) documents. One body per identity per isolate also
  * keeps the Ed25519 signing off the hot path.
+ *
+ * The PROMISE is cached, not the finished body. Caching only the finished body
+ * closes the window one request at a time but leaves it open across
+ * concurrent ones: on a cold isolate a request to the versioned path and a
+ * request to the alias can both miss, both build, and both answer with a
+ * different `updatedAt` and a different signature. Storing the in-flight build
+ * makes every concurrent miss await the same build, so the alias is
+ * byte-identical from the very first request rather than from the second.
  */
-let cachedCard: { did: string; body: string } | null = null;
-async function cachedCardBody(
-  id: { identity: Awaited<ReturnType<typeof loadReceiverIdentity>>; host: string; did: string },
-): Promise<string> {
+let cachedCard: { did: string; body: Promise<string> } | null = null;
+function cachedCardBody(id: PreparedIdentity): Promise<string> {
   if (cachedCard && cachedCard.did === id.did) return cachedCard.body;
-  const card = await buildAgentCard({ did: id.did, host: id.host, identity: id.identity });
-  const body = JSON.stringify(card);
-  cachedCard = { did: id.did, body };
+  const body = buildAgentCard({ did: id.did, host: id.host, identity: id.identity })
+    .then((card) => JSON.stringify(card));
+  const entry = { did: id.did, body };
+  cachedCard = entry;
+  // Never cache a failed build: evict so the next request retries instead of
+  // pinning a rejected promise for the life of the isolate.
+  body.catch(() => { if (cachedCard === entry) cachedCard = null; });
   return body;
+}
+
+/**
+ * Serve the card, or a JSON 500 if the build fails. A throw out of `fetch`
+ * would hand the caller the runtime's opaque error page instead of a
+ * machine-readable body on an endpoint whose whole job is being fetched by
+ * other people's code.
+ */
+async function cardRoute(id: PreparedIdentity): Promise<Response> {
+  try {
+    return cardResponse(await cachedCardBody(id));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    return jsonResponse({ error: "agent_card_unavailable", detail: msg }, { status: 500 });
+  }
 }
 
 function cardResponse(body: string): Response {
@@ -169,10 +223,9 @@ function faviconResponse(): Response {
 
 export default {
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    let id: { identity: Awaited<ReturnType<typeof loadReceiverIdentity>>; host: string; did: string };
+    let id: PreparedIdentity;
     try {
-      if (!cachedIdentity) cachedIdentity = await prepareIdentity(env);
-      id = cachedIdentity;
+      id = await identityOnce(env);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "unknown";
       return jsonResponse({ error: "receiver_misconfigured", detail: msg }, { status: 500 });
@@ -184,7 +237,7 @@ export default {
       return jsonResponse(buildDidDocument({ did: id.did, host: id.host, identity: id.identity }));
     }
     if (method === "GET" && path === "/.well-known/ink/agent.json") {
-      return cardResponse(await cachedCardBody(id));
+      return cardRoute(id);
     }
     // Versioned discovery path. The agentId segment is percent-encoded by the
     // client (a DID carries colons), so decode before comparing. A card is
@@ -194,7 +247,7 @@ export default {
       const versioned = matchVersionedCardPath(path);
       if (versioned !== null) {
         if (versioned !== id.did) return jsonResponse({ error: "not_found" }, { status: 404 });
-        return cardResponse(await cachedCardBody(id));
+        return cardRoute(id);
       }
     }
     if (method === "POST" && path === "/ink/v1/inbound") {
@@ -217,7 +270,7 @@ async function handleInbound(
   req: Request,
   env: Env,
   ctx: ExecutionContext,
-  id: { identity: Awaited<ReturnType<typeof loadReceiverIdentity>>; host: string; did: string },
+  id: PreparedIdentity,
 ): Promise<Response> {
   const ct = req.headers.get("content-type") ?? "";
   if (!ct.toLowerCase().startsWith("application/json")) {
@@ -263,7 +316,23 @@ async function handleInbound(
         : "oversize"}`,
       errorCode: outcome.errorCode,
     }));
-    return jsonResponse({ error: outcome.verdict, code: outcome.errorCode }, { status: 400 });
+    if (outcome.reason) {
+      // Structured, one line, greppable in `wrangler tail`. This is the only
+      // place the receiver explains itself to its OPERATOR; the same reason
+      // goes back to the sender below. Fixed enum plus the sender's own DID:
+      // nothing fetched from a third-party host is logged.
+      console.warn(JSON.stringify({
+        event: "sender_key_unresolved",
+        reason: outcome.reason,
+        sender: outcome.sender.slice(0, 200),
+        intent: outcome.intent.slice(0, 64),
+      }));
+    }
+    return jsonResponse({
+      error: outcome.verdict,
+      code: outcome.errorCode,
+      ...(outcome.reason ? { reason: outcome.reason, hint: outcome.hint } : {}),
+    }, { status: 400 });
   }
   // Per-sender-DID rate limit, applied after we know the sender. A
   // signature-fraud attacker could rotate DIDs to evade this, so the
