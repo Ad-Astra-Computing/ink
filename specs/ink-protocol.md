@@ -118,6 +118,11 @@ their bytes under §3.3 for transport and, where they carry an embedded
 A receiver MUST check `protocol` on every inbound object and MUST reject any
 value outside the closed set accepted for that surface (§8).
 
+The envelope contract is pinned by the `first-contact-transcript` conformance
+category, which validates the structure of both the request and the response
+envelope before it verifies anything: a missing MUST member and an unknown
+top-level member each reject a transcript whose signatures are otherwise valid.
+
 ### 3.2 Canonicalization
 
 Every place INK signs, hashes or AEAD-binds a JSON value, it first serializes
@@ -135,7 +140,13 @@ canonicalizer serializes identically:
   double, not the source token, so `1e2` is accepted and canonicalizes to `100`.
   A signer MUST refuse and a receiver MUST reject a body carrying an out-of-profile
   number rather than canonicalize it. Full rule and vectors:
-  [`ink-jcs-number-profile.md`](ink-jcs-number-profile.md).
+  [`ink-jcs-number-profile.md`](ink-jcs-number-profile.md). The profile is a check
+  on decoded values, so it is paired with a raw-text rule that runs before
+  parsing: a receiver MUST reject a body whose raw JSON text carries a number
+  literal outside the IEEE-754 double range, because parsers disagree about
+  whether such a document exists at all and a duplicate member can shadow the
+  literal from every value-level check. See
+  [`ink-signed-string-safety.md`](ink-signed-string-safety.md).
 - **Lone surrogates.** A value carrying an unpaired UTF-16 surrogate MUST be
   rejected before signing or verifying, because a `\uXXXX` escape for a lone
   surrogate is not portable (a Go JSON parser rewrites it to U+FFFD, changing the
@@ -183,14 +194,52 @@ where the six fields are joined by single U+000A line feeds:
 4. `<recipientDid>`, the receiving agent's principal.
 5. `<JCS(body)>`, the RFC 8785 canonicalization of the request body object (§3.2).
    No field is stripped from the body before canonicalization; the base commits
-   to the body exactly as delivered.
+   to the body exactly as delivered. This is the one place the two signature
+   kinds differ in their treatment of the same object, and it is the difference
+   an implementer is most likely to get wrong: the §3.6 body signature removes
+   the `signature` member before canonicalizing, and the transport base of this
+   section removes nothing. An intent envelope always carries a `signature`
+   member (§3.1, a MUST), so on real traffic a transport base that strips it is
+   computed over different bytes than the signer produced and every signature
+   fails. The `signature-base` conformance category pins both directions on a
+   body that carries the member.
 6. `<timestamp>`, the request freshness instant, which MUST equal the body's
    `timestamp` field.
+
+**What `PATH` is (Frozen for 1.0).** `PATH` is the path component of the
+absolute URL the request is sent to, with no query string and no fragment. INK
+does not reserve a fixed inbound path: the receiver chooses its own and
+publishes it as the `endpoint` (and, when present, the identical
+`inboxEndpoint`) of its Agent Card, so a sender MUST take `PATH` from the path
+component of that URL and a receiver MUST reconstruct the base with the path
+component of the endpoint it published. `/ink/v1/inbound`, `/ink/v1/intents`
+and `/ink/v1/<recipientDid>/intent` are all conforming spellings, and none of
+them is normative; the only normative requirement is that the two sides agree
+because both read the same card. A document that names one spelling is
+illustrating a deployment, not specifying the protocol.
+
+The query string is deliberately outside the base, so a receiver MUST NOT place
+authorization-relevant routing in the query: anything the signature must cover
+belongs in the path or the body. The one path that IS pinned by a specification
+is the card discovery path itself
+([`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md)),
+because a sender has to reach the card before it can learn anything else.
+
+Because `PATH` is inside the frozen base, a mismatch is not a routing problem;
+it fails every signature. A sender that signs a path other than the one it
+posts to, or a receiver that reconstructs the base with a path other than the
+one it advertised, produces `invalid_signature` on otherwise valid traffic. The
+`first-contact-transcript` conformance category pins the binding by rejecting a
+transcript whose signed request path is not the path component of the fetched
+card's `endpoint`.
 
 The four scalar fields (`METHOD`, `PATH`, `recipientDid`, `timestamp`) MUST NOT
 contain a CR or LF. Because the base is newline-delimited, an embedded newline
 could shift field boundaries and let two distinct inputs collide on one signed
 string; an implementation MUST reject a scalar containing `\r` or `\n`. The
+`signature-base` category pins the collision itself: a PATH of `/a\nb` with
+recipientDid `x` and a PATH of `/a` with recipientDid `b\nx` build the same base,
+so one signature authenticates both, and both MUST reject. The
 reference caps the scalars, in UTF-16 code units, at method 16, path 2048,
 recipientDid 256 and timestamp 64, and requires each to be non-empty. The
 canonical body is capped at 1,048,576 bytes (§3.2).
@@ -326,6 +375,10 @@ misconfigured deployment fails loudly rather than silently accepting replays.
 When a nonce store is supplied, a body `nonce` that is missing or outside the
 `[16,256]` charset bounds is rejected with `missing_nonce`, and a store backend
 error (on `has`, `add` or `addIfAbsent`) fails closed with `nonce_store_error`.
+
+Both bounds are INCLUSIVE, since the rule rejects only when the bound is
+exceeded: a message exactly 300000 ms old, and one exactly 30000 ms ahead, are
+fresh. The `replay-freshness` category pins each edge and the millisecond past it.
 
 The standalone replay helper (`checkReplay`) applies the same window and returns
 `duplicate_nonce` for a nonce already in the seen set and `expired_message` for a
@@ -513,8 +566,11 @@ boundary from the raw `agentId`:
 - a malformed multibase body is escaped to `raw:<agentId>` (the function stays
   total; such an id cannot authenticate via the bootstrap path anyway).
 
-Normalization is not idempotent; an implementation MUST apply it exactly once, to
-the raw agentId. Full vectors: the `principal-normalization` category of
+Normalization is DECODE-then-re-encode, not a prefix rewrite: an implementation
+that replaces `tulpa:`/`ink:` with `key:` textually maps a malformed, truncated,
+non-canonically encoded or wrongly-typed body to a `key:` principal that no key
+can authenticate, giving it a security scope of its own. Normalization is not
+idempotent; an implementation MUST apply it exactly once, to the raw agentId. Full vectors: the `principal-normalization` category of
 `conformance/v1`.
 
 ---

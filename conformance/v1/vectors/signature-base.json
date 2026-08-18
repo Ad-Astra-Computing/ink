@@ -195,6 +195,72 @@
       }
     },
     {
+      "caseId": "body-with-signature-member-accepts",
+      "description": "The transport signature base is built over the delivered body with nothing removed, so a body carrying the §3.6 `signature` member verifies with that member included. An implementation that strips `signature` before canonicalizing, which is the §3.6 body-signature rule and not the §3.3 transport rule, canonicalizes different bytes and rejects.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "44444444-4444-4444-8444-444444444444",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "55555555-5555-4555-8555-555555555555",
+            "signature": "kMiieyS1ZNM8LexJCgU5OP6KbqaLgk3ZC8yib9PTN3NL0qJ9LiibAISmwyzPkSFUbps8o3eR_md1WWJwHTVrCg"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "uq5YT9Sk0XsXmuV1ZapP3XMb9PTJZiITVMlSbLBemQKCZ5apa86GgSWERFtSvCVHewFFIwwwo5oq9GzyBBhgDw",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "signature-member-stripped-from-base-rejects",
+      "description": "A transport signature computed over the body with the `signature` member stripped does not verify against the delivered body that carries it. This is the mirror of the case above: an implementation that strips `signature` from the transport base accepts this forgery-equivalent mismatch, a conforming one rejects it.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "44444444-4444-4444-8444-444444444444",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "55555555-5555-4555-8555-555555555555",
+            "signature": "kMiieyS1ZNM8LexJCgU5OP6KbqaLgk3ZC8yib9PTN3NL0qJ9LiibAISmwyzPkSFUbps8o3eR_md1WWJwHTVrCg"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "E0qKk6YzboiKUHA3hu52VyLGcd8of2CFaEOES8YeaA9x6nt8oEAae8HmDS8GtJhUQG0b0c3wMdM32XKfHbubBg",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
       "caseId": "malformed-signature-rejects",
       "description": "A signature that is not 86 base64url characters is rejected before any verification work.",
       "input": {
@@ -253,6 +319,165 @@
         },
         "signature": "WGZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmYBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
         "publicKeyHex": "0100000000000000000000000000000000000000000000000000000000000000"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-ascii-member-order-accepts",
+      "description": "A signed body whose payload carries the member names U+FF21 and U+1F511 verifies only if the canonicalizer sorts members by UTF-16 code unit (RFC 8785), which puts the astral key first. Sorting by code point or by UTF-8 byte builds a different signature base and rejects a valid signature.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "Ａ": "bmp",
+              "🔑": "astral",
+              "note": "member ordering"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "pLLZnOBUXQd0lS-f88qp0dn-8peXkqMhsrX8SWdK2qklm9mhrl1pkxs8gpfMzfTKwz_GW3XFIfIM_GZBuQnzBg",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "non-ascii-member-reorder-accepts",
+      "description": "The same non-ASCII payload emitted in a different source order canonicalizes to the same bytes, so the same signature verifies: the ordering rule is the canonicalizer's, not the wire's.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "member ordering",
+              "🔑": "astral",
+              "Ａ": "bmp"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "pLLZnOBUXQd0lS-f88qp0dn-8peXkqMhsrX8SWdK2qklm9mhrl1pkxs8gpfMzfTKwz_GW3XFIfIM_GZBuQnzBg",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "path-with-newline-rejects",
+      "description": "A PATH containing a line feed is rejected even though the accompanying signature verifies over the resulting base. Together with recipient-with-newline-rejects it pins the §3.3 CR/LF ban: the two inputs differ only in which scalar carries the newline, they produce byte-identical bases, and one signature authenticates both, so an implementation that omits the check authenticates two different requests with one signature.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/a\nb",
+          "recipientDid": "x",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "field boundary"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "_4t8oPbr28BxFwNRzJz0RcYwesat4ENEDuKUhqy-4Xtg6kQPlE_pxz9VvBcQSZRQAZtbJWRX7FLJBSkOc1rwDw",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "recipient-with-newline-rejects",
+      "description": "The other half of the field-boundary collision: PATH \"/a\" with a recipientDid of \"b\\nx\" builds the same base bytes as PATH \"/a\\nb\" with recipientDid \"x\", so the identical signature verifies. A conforming verifier rejects on the newline before it ever gets there.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/a",
+          "recipientDid": "b\nx",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "field boundary"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "_4t8oPbr28BxFwNRzJz0RcYwesat4ENEDuKUhqy-4Xtg6kQPlE_pxz9VvBcQSZRQAZtbJWRX7FLJBSkOc1rwDw",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "recipient-with-carriage-return-rejects",
+      "description": "The ban covers CR as well as LF: a recipientDid carrying a carriage return is rejected, again against a signature that verifies over the base those bytes produce, so an implementation that scans only for \\n diverges.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/a",
+          "recipientDid": "x\ry",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "field boundary"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "zGoNSJmOObQzo9H14N4vy5x3lyuj6AbH2K_4MS7pTHC4CMPPxG3xx6ItKoawI2Uv0WhLdlv5cVrGSdqWFUqHDg",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
         "result": "reject"

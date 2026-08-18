@@ -76,7 +76,7 @@ Sender                              Recipient
 ```
 
 **Properties:**
-- Receipts are full INK messages: signed per §3.3 (METHOD + PATH + recipientDid + JCS(body) + timestamp), with nonce and timestamp for replay protection per §3.5
+- Receipts are full INK messages: signed and replay-protected exactly as any other INK request, per [`ink-protocol.md`](ink-protocol.md) §3.3 and §3.5
 - Receipts are delivered via `POST /ink/v1/receipt` (a new endpoint, separate from `/ink/v1/intent`)
 - Receipts are **opt-in** per agent, advertised in the Agent Card capabilities
 - Receipts for receipts are NOT sent (receiving a `network.tulpa.receipt` MUST NOT trigger a receipt response, loop prevention)
@@ -210,7 +210,7 @@ Agents can request audit records from each other for reconciliation.
 
 **New endpoint:** `POST /ink/v1/audit`
 
-Audit queries use **POST** (not GET) to fit INK's existing authentication model. INK v0.1 auth (§3.3) signs `METHOD + PATH + recipientDid + JCS(body) + timestamp`, which requires a request body for canonicalization. GET requests have no body, so they cannot be authenticated or replay-protected under the current INK auth scheme.
+Audit queries use **POST** (not GET) to fit INK's existing authentication model. The signature base of [`ink-protocol.md`](ink-protocol.md) §3.3 canonicalizes a request body. GET requests have no body, so they cannot be authenticated or replay-protected under the current INK auth scheme.
 
 **Agent Card advertisement:**
 
@@ -420,23 +420,23 @@ Third-party audit services solve this by introducing an independent witness that
 
 #### 7.0 Service Identity and Auth Model
 
-A third-party audit service is a **INK service role**, not a standard INK agent. It differs from the human-delegate model (§2) in several ways:
+A third-party audit service is a **INK service role**, not a standard INK agent. It differs from an ordinary INK peer in several ways:
 
 | Concern | INK Agent | Audit Service |
 |---------|-----------|--------------|
-| Identity | DID bound to a human via `agentLink` | `did:web` or `did:key`, self-sovereign, no human owner |
-| Discovery | `INKAgentEndpoint` in DID document (legacy `TulpaAgentEndpoint` also accepted during v0.1.x) | Advertised in subscribing agents' Agent Card `capabilities.thirdPartyAudit.services` |
-| Auth (inbound) | INK auth §3.3, verifies sender's `agentLink` delegation | INK auth §3.3, verifies sender's `agentLink` delegation (same as any INK endpoint) |
-| Auth (outbound) | Signs with `agentLink.signingKeyMultibase` | Signs with its own Ed25519 key (published in subscribing agents' Agent Card) |
-| Delegation proof | Required, must trace authority back to a human DID | Not applicable, the service is independently trusted by each subscribing agent |
+| Identity | An INK principal, key-derived or `did:web` ([`ink-identity-model.md`](ink-identity-model.md) §2) | `did:web`, self-sovereign, no owner claim |
+| Discovery | Agent Card fetched at the discovery surface [`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md) pins, reached by the walk of [`ink-resolver.md`](ink-resolver.md) | Not resolved at all, advertised in subscribing agents' Agent Card `capabilities.thirdPartyAudit.services` |
+| Auth (inbound) | INK auth §3.3, verified against the sender's resolved signing key set | INK auth §3.3, verified against the sender's resolved signing key set (same as any INK endpoint) |
+| Auth (outbound) | Signs with an active signing key from its own card | Signs with its own Ed25519 key, configured in subscribing agents' Agent Card |
+| Delegation proof | Not applicable, a signature is valid on the identity's own key authority | Not applicable, the service is independently trusted by each subscribing agent |
 
 **Key distinctions:**
 
-1. **No `agentLink` verification.** When an agent receives a response from an audit service, it does NOT verify an `agentLink` delegation chain. Instead, it verifies the response signature against the service's public key as configured in the agent's own `capabilities.thirdPartyAudit.services[].publicKey`. Trust in the service is **configured, not discovered**, the agent operator chose to use this service.
+1. **Trust is configured, not resolved.** When an agent receives a response from an audit service, it does NOT resolve the service or verify any delegation. It verifies the response signature against the service's public key as configured in the agent's own `capabilities.thirdPartyAudit.services[].publicKey`. The agent operator chose to use this service, and that choice is the whole of the trust decision.
 
-2. **Inbound auth is standard INK.** When agents submit events TO the service, the service verifies the submitter's identity via standard INK auth (§3.3), resolve the sender's DID, find their `agentLink`, verify the signature. The service is a normal INK recipient in this direction.
+2. **Inbound auth is standard INK.** When agents submit events TO the service, the service verifies the submitter's identity via standard INK auth (§3.3): resolve the sender to a verified key set under [`ink-resolver.md`](ink-resolver.md), then apply the authority rule. The service is a normal INK recipient in this direction.
 
-3. **Service DID resolution.** The service's `did:web` (or `did:key`) is resolved normally for TLS binding and key discovery, but the service does NOT need an `INKAgentEndpoint` service entry in its DID document. Its endpoint is provided directly in the subscribing agent's Agent Card configuration.
+3. **The service publishes no Agent Card.** A subscribing agent already holds the service's endpoint and public key from its own configuration, so the service does not have to be discoverable. It MUST NOT be reached by deriving a card URL from its identifier, because a configured endpoint and a resolved one are different trust statements and mixing them would let a resolution result override an operator's choice.
 
 4. **No inbox, no intents.** The audit service does not accept INK intents, challenges or resolutions. It exposes only the audit-specific endpoints (`/ink/v1/audit/submit`, `/ink/v1/audit/query`).
 
@@ -567,13 +567,13 @@ Per-event scope: a signed envelope binds `messageId` and `requester` but says no
 
 Empty-log responses: a witness that has not yet committed any leaves reports `treeSize: 0` and `rootHash` equal to SHA-256 of the empty string (`e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`). A signed response with `treeSize: 0` is legitimate but MUST also have empty `events`, empty `proofs` and the empty-tree `rootHash`. Verifiers MUST reject any `treeSize: 0` response that deviates from this shape.
 
-Per-event agent signatures: Merkle validity alone does NOT prove a returned event was produced by the agent named in `event.agentId`. A witness could in principle commit a fabricated event_json that is not a real `InkAuditEvent`. Every returned event MUST therefore include its `agentSignature` field. Verifiers MUST resolve the submitting agent's published Ed25519 keys (via Agent Card §2) and verify `agentSignature` on every event in addition to walking the Merkle proof. A response that omits `agentSignature` on any event MUST be rejected as structurally invalid.
+Per-event agent signatures: Merkle validity alone does NOT prove a returned event was produced by the agent named in `event.agentId`. A witness could in principle commit a fabricated event_json that is not a real `InkAuditEvent`. Every returned event MUST therefore include its `agentSignature` field. Verifiers MUST resolve the submitting agent's published Ed25519 keys (the walk of [`ink-resolver.md`](ink-resolver.md)) and verify `agentSignature` on every event in addition to walking the Merkle proof. A response that omits `agentSignature` on any event MUST be rejected as structurally invalid.
 
 Truncation: witnesses MUST NOT silently sign a partial result. If the requester's visible event set for a `messageId` exceeds the witness's response cap, the witness MUST return an unsigned error response (HTTP 413). A signed response is, by definition, a complete enumeration of the requester's visible events for that `messageId` at `(treeSize, rootHash)`.
 
 Determinism: witnesses MUST emit `events` and matching `proofs` in a stable, deterministic order so verifiers can reproduce the signed bytes from the underlying records.
 
-Leaf hash: each event's Merkle leaf hash is `SHA-256(0x00 || JCS(event-without-agentSignature))`. The leading `0x00` byte is the RFC 6962 leaf-domain-separation tag; internal Merkle nodes use `0x01 || left || right`. Verifiers MUST rehash the returned `event` object themselves (stripping `agentSignature`, then JCS, then SHA-256 with the `0x00` prefix) and use that hash as the leaf input to `inclusionProof`. They MUST NOT trust any leaf-hash value supplied by the witness alongside the event. Walking the proof from this computed leaf hash up through `inclusionProof` MUST reach the top-level `rootHash` per the proof construction in §7.2. The INK library exposes this exact computation as `computeAuditMerkleLeafHash`; it is distinct from `computeEventHash`, which is the unprefixed SHA-256 used for `previousEventHash` chain linkage and MUST NOT be used as the Merkle leaf input.
+Leaf hash: the rule that turns an event into a Merkle leaf is owned by [`ink-merkle-leaf.md`](ink-merkle-leaf.md) and the walk that carries a leaf to a root by [`ink-merkle-inclusion.md`](ink-merkle-inclusion.md). Two obligations on a verifier of this response follow from them and are stated here because they are properties of the response rather than of the hash: a verifier MUST recompute each returned event's leaf hash from the event object itself and use that as the input to `inclusionProof`, and MUST NOT trust any leaf-hash value supplied by the witness alongside the event. Walking the proof from the recomputed leaf MUST reach the top-level `rootHash`. The end-to-end verification order for this response is pinned by [`ink-audit-query-response.md`](ink-audit-query-response.md).
 
 #### 7.4 Access Control
 

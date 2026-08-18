@@ -60,3 +60,24 @@ updates:
     labels:
       - dependencies
       - nix
+
+  # The examples and the Python interop client carry their own flakes, so
+  # they need their own entries. Without one a lock sits at whatever nixpkgs
+  # was current the day it was written.
+  - package-ecosystem: nix
+    directory: /examples
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - nix
+
+  - package-ecosystem: nix
+    directory: /examples/interop-cli
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    labels:
+      - dependencies
+      - nix

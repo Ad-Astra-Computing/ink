@@ -175,6 +175,18 @@ The link signature is Ed25519 over the UTF-8 bytes of:
 ink/card-rotation\n<JCS(link without signature)>
 ```
 
+`<JCS(link without signature)>` is the RFC 8785 canonicalization (Protocol §3.2)
+of the full link object with the `signature` member removed and **nothing else
+stripped**, the same house rule §3.2 sets for the card. A signer MUST NOT, and a
+verifier MUST NOT, rebuild the preimage from a named-field subset such as
+`{keySetVersion, signing, prevKeyId}`. Subset reconstruction leaves every other
+member of the received link outside the signature, so an attacker can add or
+mutate one and the signature still verifies, and it would silently exclude the
+`algorithm` member reserved below. Full-link coverage is what makes that
+extension point additive: a member added in a later minor is covered by an
+unchanged construction, and a link carrying a member the verifier does not
+recognise still verifies over exactly the bytes the signer signed.
+
 Each link commits the **complete** signing key set at its `keySetVersion`, not a
 delta. A delta representation invites set-splicing, where an attacker replays one
 add or remove out of context; committing the whole set at each version forecloses
@@ -385,6 +397,13 @@ section, that the new signing key MUST be reachable from the cached NON-revoked
 set, rejects the forged card. The distinction above survives only for warm
 verifiers.
 
+A verifier MAY apply a stricter cold policy than this section describes, refusing
+a chain head it cannot corroborate rather than accepting the residual. That is a
+conformance-visible choice, so the `chain-extension-fork-cold-accept` vector
+carries the `cold-chain-extension-residual` optional-behavior tag and an
+implementation declares which branch it takes (see
+[`ink-conformance-profile.md`](ink-conformance-profile.md) "Optional behaviors").
+
 External observation of card heads is the ONLY mechanism that closes the cold fork.
 High-assurance deployments SHOULD submit card heads to the RFC 6962 witness log
 (see [`ink-merkle-consistency.md`](ink-merkle-consistency.md)), which turns a fork
@@ -511,8 +530,17 @@ audit mark omit it.
     signature-plus-continuity, `expect.auditEvent` `card.anchor_unverified`. This
     vector pins the MAY-accept branch of §4.2: warm continuation on an unreachable
     resolver is a MAY, not a MUST, so an implementation that instead fails closed is
-    ALSO conformant. Conformance-category participants that fail closed skip or
-    invert this vector rather than fail it.
+    ALSO conformant. The case therefore carries `optionalBehavior`
+    (`didweb-warm-resolver-unavailable`, alternative `reject`): a fail-closed
+    implementation DECLARES that branch in its runner and the runner asserts
+    `reject` for this case, so it satisfies the category without the vector being
+    skipped or hand-edited. See
+    [`ink-conformance-profile.md`](ink-conformance-profile.md) "Optional
+    behaviors". The cold-verifier residual of §6 carries the same tag
+    (`cold-chain-extension-residual`), for the same reason: §6 records cold
+    acceptance of a forged chain extension as a residual of an unwitnessed hash
+    chain, not as an obligation to accept, so an implementation that applies a
+    stricter cold policy declares the `reject` branch.
 
 ## 9. Consistency with the stable-agentId model
 

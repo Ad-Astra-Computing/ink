@@ -3,9 +3,7 @@ package ink
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
 	"math"
-	"unicode/utf8"
 )
 
 // discoveryQueryTopLevelKeys is the exact set of members a discovery query
@@ -22,10 +20,9 @@ var discoveryQueryInnerKeys = map[string]bool{"tags": true, "scope": true, "limi
 // MaxDiscoveryQueryBodyBytes is the byte-length ceiling on a raw discovery query
 // envelope before it is parsed, following the MaxGrantBodyBytes precedent: an
 // oversized blob is rejected by a len check before json.Unmarshal runs. The
-// reference verifyDiscoveryQueryEnvelope in src/models/discovery-query.ts takes
-// an already-decoded object and applies the isWithinBounds structural walk, so
-// this Go byte cap is the decode-layer edge the TypeScript side never sees; the
-// structural walk below is the actual parity with the reference.
+// reference verifyDiscoveryQueryEnvelope in src/models/discovery-query.ts also
+// takes the raw bytes and enforces MAX_DISCOVERY_QUERY_BODY_BYTES, the same
+// value, before its isWithinBounds structural walk.
 //
 // The value is derived from the schema bounds, counted at the wire escape-
 // expansion worst case rather than the UTF-8 encoded length. A well-formed
@@ -133,14 +130,11 @@ func VerifyDiscoveryQueryEnvelope(raw []byte, requesterPublicKey []byte, ctx Dis
 	if len(raw) > MaxDiscoveryQueryBodyBytes {
 		return false, DiscoveryQueryReasonSchema
 	}
-	// The envelope is a signed artifact: encoding/json rewrites invalid UTF-8 or
-	// a lone surrogate to U+FFFD, so a body that is not byte-identical to the
-	// signed one could canonicalize to the signed bytes. Reject both up front.
-	if !utf8.Valid(raw) || ContainsLoneSurrogateEscape(raw) {
-		return false, DiscoveryQueryReasonSchema
-	}
-	var obj map[string]interface{}
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	// The artifact is signed over its raw bytes, so every text-level rule of
+	// ink-signed-string-safety.md runs before parsing. Routed through the
+	// shared parser so a new rule cannot reach some verifiers and not others.
+	obj, okParse := ParseSignedObject(raw)
+	if !okParse {
 		return false, DiscoveryQueryReasonSchema
 	}
 	// Post-parse structural bounds walk. This is parity with the reference: the

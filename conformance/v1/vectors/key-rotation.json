@@ -43,7 +43,7 @@
     },
     {
       "caseId": "retired-key-in-window-accepts",
-      "description": "A retired key whose validity window still contains the message timestamp verifies.",
+      "description": "Historical verification: a retired key whose validity window still contains the message timestamp verifies at the multi-key primitive. This case does not authorize a retired key for live transport auth; see the liveAuth cases below.",
       "input": {
         "signInput": {
           "method": "POST",
@@ -1137,6 +1137,171 @@
         "result": "accept",
         "keyStatus": "active",
         "keyId": "good"
+      }
+    },
+    {
+      "caseId": "live-auth-active-key-accepts",
+      "description": "Live transport auth over an active key accepts, and reports the active status. The live-auth layer narrows which entries may authenticate a fresh request; it does not change how the signature itself is checked.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "liveAuth": true
+      },
+      "expect": {
+        "result": "accept",
+        "keyStatus": "active",
+        "keyId": "signer-active"
+      }
+    },
+    {
+      "caseId": "live-auth-retired-key-rejects",
+      "description": "Live transport auth rejects a signature that only a retired entry verified, even though the same key and message are accepted by historical verification in retired-key-in-window-accepts. The retired-key default is on unless the deployment opts out, so an implementation that returns the primitive's answer to its transport-auth caller accepts a superseded key for fresh traffic.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-retired",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "retired",
+            "validUntil": "2027-01-01T00:00:00.000Z"
+          }
+        ],
+        "liveAuth": true
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "retired_key_for_live_auth"
+      }
+    },
+    {
+      "caseId": "live-auth-retired-key-with-grace-window-accepts",
+      "description": "A deployment that has explicitly opted into a bounded rotation grace window accepts the same retired key for live transport auth. The opt-in is the only thing that changes the previous case, so the default cannot be reached by accident.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-retired",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "retired",
+            "validUntil": "2027-01-01T00:00:00.000Z"
+          }
+        ],
+        "liveAuth": true,
+        "liveAuthAllowRetired": true
+      },
+      "expect": {
+        "result": "accept",
+        "keyStatus": "retired",
+        "keyId": "signer-retired"
+      }
+    },
+    {
+      "caseId": "live-auth-revoked-key-rejects",
+      "description": "A revoked key is skipped by the primitive, so live transport auth rejects for signature failure rather than reaching the retired-key default.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/intent",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "id": "11111111-1111-4111-8111-111111111111",
+            "correlationId": "22222222-2222-4222-8222-222222222222",
+            "createdAt": "2026-06-11T00:00:00.000Z",
+            "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "intent": "ping",
+            "payload": {
+              "note": "conformance",
+              "scope": "deep"
+            },
+            "timestamp": "2026-06-11T00:00:00.000Z",
+            "nonce": "33333333-3333-4333-8333-333333333333"
+          },
+          "timestamp": "2026-06-11T00:00:00.000Z"
+        },
+        "signature": "ifHGTDmRgl6H_XZIyCgkaxmE2AVSNvgQG_dybsZvsVobod0qzYcBe8bEsf1srDvmdbyeD6-jnQTFb0xTmCeaCA",
+        "keys": [
+          {
+            "keyId": "signer-revoked",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "revoked"
+          }
+        ],
+        "liveAuth": true
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature_verification_failed"
       }
     }
   ]

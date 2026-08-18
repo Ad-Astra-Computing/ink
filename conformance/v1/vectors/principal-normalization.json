@@ -66,6 +66,50 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "malformed-multibase-body-escaped",
+      "description": "A tulpa: id whose multibase body is not base58btc at all is escaped to raw:<agentId>, never mapped to a key principal. An implementation that string-replaces the prefix instead produces key:zNotBase58_0IOl and gives an unauthenticatable id its own security scope.",
+      "input": {
+        "agentId": "tulpa:zNotBase58_0IOl"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "raw:tulpa:zNotBase58_0IOl"
+      }
+    },
+    {
+      "caseId": "truncated-key-body-escaped",
+      "description": "A tulpa: id whose body decodes but is far short of a 34-byte multicodec-plus-key is escaped to raw:, so the length check is part of the decode and not an afterthought.",
+      "input": {
+        "agentId": "tulpa:z6Mk"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "raw:tulpa:z6Mk"
+      }
+    },
+    {
+      "caseId": "leading-zero-padded-multibase-escaped",
+      "description": "A NON-CANONICAL multibase spelling of the canonical key: an extra base58 '1' prepends a 0x00 byte, so the decoded bytes no longer start with the 0xed01 Ed25519 multicodec and the id is escaped to raw:. A decoder that tolerates the padding re-encodes it to the SAME key principal as the canonical spelling, which merges two distinct wire identifiers; a prefix string-replace instead mints a third principal. The reference does neither.",
+      "input": {
+        "agentId": "tulpa:z16MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "raw:tulpa:z16MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX"
+      }
+    },
+    {
+      "caseId": "encryption-key-multicodec-escaped",
+      "description": "A tulpa: id carrying an X25519 (0xec01) multibase where a signing key belongs is escaped to raw:. The multicodec prefix is checked during the decode, so an encryption key cannot be spelled as a signing principal.",
+      "input": {
+        "agentId": "tulpa:z6LSe2nLiwHfxNtP2FQBH8w7R8mcHnNTHW4rtRGokD2a4squ"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalPrincipal": "raw:tulpa:z6LSe2nLiwHfxNtP2FQBH8w7R8mcHnNTHW4rtRGokD2a4squ"
+      }
     }
   ]
 }

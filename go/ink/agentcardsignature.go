@@ -343,13 +343,13 @@ func rootChainedCard(card map[string]interface{}, chain []interface{}, rootCandi
 			return rootCardReject(ReasonChainNoncontiguous, nil)
 		}
 
-		// The signed bytes cover exactly {keySetVersion, signing, prevKeyId},
-		// mirroring the reference reconstruction of the unsigned link.
-		unsignedLink := map[string]interface{}{
-			"keySetVersion": link["keySetVersion"],
-			"signing":       link["signing"],
-			"prevKeyId":     link["prevKeyId"],
-		}
+		// §4.1 preimage: JCS of the WHOLE link with `signature` removed and
+		// nothing else stripped, the same house rule §3.2 sets for the card.
+		// Reconstructing from a named-field subset would leave any other member
+		// uncovered and freely mutable under a still-valid signature, and would
+		// silently exclude the `algorithm` member §4.1 reserves for a later
+		// additive minor.
+		unsignedLink := stripCardKey(link, "signature")
 		sigStr, _ := link["signature"].(string)
 
 		if i == 0 {

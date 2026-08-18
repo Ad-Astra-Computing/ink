@@ -25,6 +25,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -39,11 +42,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -53,6 +57,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -61,11 +68,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -98,6 +106,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.2",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -112,11 +123,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "lfdiXiPL3ED4MuCbM06b3XC5ySOXEjnLqZxFHvViA2NcxrHxdGmc7Voac0vKRzBasT5QZcDT5FAwflH6V8Y2AQ"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "cR3l9HXZ0PnXY0Ez78OHTmaod-4QxdVt-qvaou9MbOukj9ZQQCwytnc9-K5-TC5yYapdNmDNKxczEgNRdHdIAQ",
+          "signature": "pUH6q7-mHgJjsYD4yC6zFCcavgPD4TIW8Pd13wgb4zCKbcgQJahboBTGaCLw5mOTd2Tkh3Z5IAQsHw9qar4NAg",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -126,6 +138,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.2",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -134,11 +149,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "bI7JRs4CQR51cRZIF3f8xQfGwxSrJv4_min6uIbyte9ZFf4LYdWnZdMtG6fcYfClS-m1NLC_wKbmpvja5pzUCw"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "BxVe7r35ri9nFeu7agElOdGFcHzMahaC7pB5nY9GC0-oX6_QxITMeYh_-9i-2o-5AiiaOa6gaZdhQeaGTy-EBg",
+          "signature": "inDhIaBJt5d0UJZOhjOAmDvN578ZYoQ-9sUDqwvShRfcXVSPuJgEGz2pylmHZKwnXcEDMU7CBIXgnybETxSdCg",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -170,6 +186,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -184,11 +203,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -198,6 +218,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -206,11 +229,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -241,6 +265,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -255,11 +282,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -269,6 +297,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -277,11 +308,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -313,6 +345,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -327,11 +362,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -341,6 +377,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -349,11 +388,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -384,6 +424,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.2",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -398,11 +441,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "lfdiXiPL3ED4MuCbM06b3XC5ySOXEjnLqZxFHvViA2NcxrHxdGmc7Voac0vKRzBasT5QZcDT5FAwflH6V8Y2AQ"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "cR3l9HXZ0PnXY0Ez78OHTmaod-4QxdVt-qvaou9MbOukj9ZQQCwytnc9-K5-TC5yYapdNmDNKxczEgNRdHdIAQ",
+          "signature": "pUH6q7-mHgJjsYD4yC6zFCcavgPD4TIW8Pd13wgb4zCKbcgQJahboBTGaCLw5mOTd2Tkh3Z5IAQsHw9qar4NAg",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -412,6 +456,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -420,11 +467,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -455,6 +503,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -469,11 +520,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "ArzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "AB-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -483,6 +535,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -491,11 +546,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -526,6 +582,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -539,11 +598,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "mF7LpUBxYtAQzlW6QYKhOS2nZxLZsn7XMPI_6ABGVNdQlI9hy1qPjSTo1oVP4O3L9jWkcwZvLRHY-KXS-mtDBA"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "PHDSS-pc7P4iaQIrcZptPCeyy47_oaF21NJ_CQht7NgBuA6KYdigfHJPZBjV74zsApfavxLfVeRH6yztOob6Cw",
+          "signature": "g96evsboP8Xl7l2I7KZhiWY8WWiD1q4Svop8xWcpPUpprju_aVVqNLa5QIDSIN-0e6i9hmwC33sir4zlgB9GDA",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -553,6 +613,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -561,11 +624,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -596,6 +660,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_response",
@@ -610,11 +677,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "5yaw584OdWfwyFIVXJtO51t3w8wyqvOIxwqiGnpCyQecb8MBEaTsBQpSGtxTr44dlGMdu6yOX1CkyoykahMnCQ"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "QluiKhA_RoETjgYQ1JCgj-lL3p4lQ2GojGSA4AmHsOXkEokUh9SoLrZiH5H1N6ErVXhQmHeU2PCr1Im_Bx3EAw",
+          "signature": "Ue58atXhcZDWEwERYDrt0kBZsE-6ENz8J0k0oXZeKpGWLJp4OqqHp68xmlLHMX-SFo22CaRpHqLCRyqzEf_4AQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -624,6 +692,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -632,11 +703,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -667,6 +739,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -681,11 +756,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:01.000Z"
           },
-          "signature": "Q2HmDW1nOoIZq4Iw_2ZXLxrNO5smEJEq24y0qDHaaQDgJB90Hf1Fj4Hy0JQXRSU2-TXLaq3lUiaOcAvrTmhrBQ",
+          "signature": "P53q3vwhSuhSKIhvdhfZi6toDikIReJpGtrG7O9rbKmt-i0D1NvLUpW9M88TgAUiGQv-VElIix7klfqWMyIwAg",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -695,6 +771,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -703,11 +782,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -740,6 +820,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -754,11 +837,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -768,6 +852,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -776,11 +863,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -811,6 +899,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -825,11 +916,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -839,6 +931,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -847,11 +942,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -882,6 +978,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -896,11 +995,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -910,6 +1010,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -918,11 +1021,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Ayqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "AfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -953,6 +1057,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -967,11 +1074,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -981,6 +1089,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -988,11 +1099,12 @@
                 "status": "declined"
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "EG3e28fJXXpTSCBCU7HwcwbbXucvXN49Wlyx0Mkc6SbVNzRekMb9jpbDyLc4ArATd4NVz8lwVrEW1QHKtyA9CQ"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "F8jyD0gkQo9FbhARe37EiYi5jtPHQtbhYY_UrJx_7fqNHVjNzMYt2AIJH9_uLnVbdKWiqnxXQ_4iX4FoWTWXAw",
+          "signature": "QgfR47VCnvSKKdkYwVC1gr-LSrRFC-nzHpCHoKa4R1gF_012uUxxz2VRgZbrGXuheAJfBt1NUM68_XCyJlzGDg",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1023,6 +1135,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1037,11 +1152,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1051,6 +1167,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -1059,11 +1178,12 @@
                 "extra": "x"
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "yK1ubbjcR3FBbbMzcj6wHQDV2CPjpNYPc0WOXfxuRB4oWVGrtb-xzwP83CzkNIPBns9qzwA2p8nujWWOpEwxCg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "nXUvFLjjawy7WEd6DVqEnxyoHeq8uiuTRQXfnBJte9SMVZmWSFC2LSOCsMakeMmTJPyAi8TlRZSfMO8Dq3UnAA",
+          "signature": "VsbxjO4RXuD-RfjYgBNt_oZIzMw7b5ChbTw__qZkUdqg986cqYQPO9BFfGSwggzSMIqg7U1yu5pSoJiHl9oSBQ",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1095,6 +1215,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1109,11 +1232,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1123,6 +1247,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.2",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -1131,11 +1258,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "bI7JRs4CQR51cRZIF3f8xQfGwxSrJv4_min6uIbyte9ZFf4LYdWnZdMtG6fcYfClS-m1NLC_wKbmpvja5pzUCw"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "BxVe7r35ri9nFeu7agElOdGFcHzMahaC7pB5nY9GC0-oX6_QxITMeYh_-9i-2o-5AiiaOa6gaZdhQeaGTy-EBg",
+          "signature": "inDhIaBJt5d0UJZOhjOAmDvN578ZYoQ-9sUDqwvShRfcXVSPuJgEGz2pylmHZKwnXcEDMU7CBIXgnybETxSdCg",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1166,6 +1294,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1180,11 +1311,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1194,6 +1326,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_request",
@@ -1202,11 +1337,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "41X-64eidlrW6jnqiy2JK0AQ7uFRmDlrQqjiTfBZtk9V1WA-mWXUf8HulKch4U_XFwUui4x0-JIhOf5EHrYqCg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "XyJCQ1YcyRUzw2GRFqTFB4KwEBQSTsN-YjQuWEXHItRDcpdutXRba90s29XGpr2s7egsi5EDHbM-L10Bja_xAA",
+          "signature": "d9infgqmlN8XbUEID0i0cEFQWRIULBG1L2DjjjLqjAVbPYnoJCVpt-S7qnQQGVO3Vkq7TVorcjdHxiq3rQixCA",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1237,6 +1373,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1251,11 +1390,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1265,6 +1405,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -1273,11 +1416,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:03.000Z"
           },
-          "signature": "r8amoqS4ZsAUZHmMO1vjfUJJe6NcU8c1Ukwsp96Qcvw1YVklmOQ1wRJeseolipiSkVa9PeIvco9RPEISUZuZAQ",
+          "signature": "ykHqdFdc_acjFAszlpSoqGYYw8mGeL-ZVkrRjT1nOuoFf7W21wXKopckTU7_xJfLNdKo9EkLkKDiheYrAvCLBQ",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1308,6 +1452,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1322,11 +1469,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1336,6 +1484,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -1344,11 +1495,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1379,6 +1531,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1393,11 +1548,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1407,6 +1563,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -1415,11 +1574,12 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
@@ -1451,6 +1611,9 @@
             "recipientDid": "did:web:receiver.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
               "from": "did:web:sender.example",
               "to": "did:web:receiver.example",
               "intent": "connection_request",
@@ -1465,11 +1628,12 @@
                 }
               },
               "nonce": "firstcontactreqnonce00000001",
-              "timestamp": "2026-01-01T00:00:00.000Z"
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
             },
             "timestamp": "2026-01-01T00:00:00.000Z"
           },
-          "signature": "qrzwWJcp2Uwqm-MTm9fMM8WTyzp_YnkDOWycnCgePihtuxbjqc4YU-CY8NERfxHTs-kx95PRTvCq8_JparzdCg",
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
           "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
         },
         "response": {
@@ -1479,6 +1643,9 @@
             "recipientDid": "did:web:sender.example",
             "body": {
               "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
               "from": "did:web:receiver.example",
               "to": "did:web:sender.example",
               "intent": "connection_response",
@@ -1487,17 +1654,571 @@
                 "note": "Glad to connect."
               },
               "nonce": "firstcontactrespnonce0000001",
-              "timestamp": "2026-01-01T00:00:02.000Z"
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
             },
             "timestamp": "2026-01-01T00:00:02.000Z"
           },
-          "signature": "Qyqhg8dWM3aOew_qdX-yllpzuv8c-dJyzAG_DjJlx45X72UVFYpLqnPP4TUeuMgKDdyVETf8zPRQAIaV92QwBQ",
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
           "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
         }
       },
       "expect": {
         "result": "accept",
         "canonicalString": "ink/0.1"
+      }
+    },
+    {
+      "caseId": "alternate-card-endpoint-path-accepts",
+      "description": "A receiver that advertises a different inbound path accepts a request signed over that path. INK reserves no fixed inbound path: PATH is the path component of the card's endpoint, so an implementation that hardcodes one spelling rejects a conforming peer.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/inbound\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/inbound",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "2jXA8JpU-eq9rQZ0yyKRmq6FdCAp0VJ9qgRhmF1qz7GeOYfmgjJN6hmkjArbELjmOKzLHVxVls3IhuWwGY_cCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "ink/0.1"
+      }
+    },
+    {
+      "caseId": "request-path-not-card-endpoint-rejects",
+      "description": "A request whose signed path is not the path component of the fetched card's endpoint rejects, even though the signature over that path is itself valid. PATH is inside the frozen signature base, so a sender that signs a path from a document instead of from the card it just fetched cannot be verified by the receiver at its real endpoint.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intent",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "Ce1TTSQouoF5R1d0a72gcHp-oGoJ_TrKXrlxrLsV5KgMoqY36iJgcuKtuSPtJeZ5y3HGYLFwcisACvQZrBDtAA",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-envelope-missing-id-rejects",
+      "description": "A request envelope with no `id` rejects. §3.1 makes id, correlationId, createdAt and signature MUSTs, so a receiver validates the envelope before it verifies anything; here both signatures verify over the shortened envelope, so the structure step is the only thing that can reject it.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "PETMp_IDlRkVItbYnDk894dJIFJOd3bsIUp7BkxQC6VTIpOlhGpuNy0icbccbyHIbjR6VFz-55AuBeY4AouEDg"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "dIvZJYCUs-reeeDJVTunnM-BISNUJnKd5vd3IYXYEPohbWNFy6ZQGLsLOz1CBWtZOsdy3HbMYXBjPantcn7eCg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-envelope-missing-created-at-rejects",
+      "description": "The same §3.1 obligation on the response half: an envelope with no `createdAt` rejects even though the response is otherwise a correctly signed accepted connection_response.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "90jnwh0HtP-abE_K519AuqjxiqUIvqrkMAPF0FYTPT_vn5uEScpnSog5sfv6JXAxoOfwzxZq_CxLPJBwyVN2Ag"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "p3zGrX6cc6cnRUGTIJjXolsyzfHk72KNIwjVij4-MhYra7QgH3JPfdFMB4oro05Gzicsg2mMswaBqcsorxQaBg",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-envelope-unknown-top-level-key-rejects",
+      "description": "The intent envelope is a strict surface (§3.1, compatibility-policy §3.1): an unknown top-level member rejects. The member is present before signing, so both signatures cover it and only the strict schema can reject.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "extension": "x",
+              "signature": "GfnyUWnwLQ0QitI_Qv21sBxI9vsbORQ2DNAhQEno2FesVWyMXcuDhGx6m9vTTlhuHf4_ZWH1ezUMZ_ez49AODQ"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "ztfASmtgSZfjlzSqQfaC9xFp1b3LzpR0vc-UUzBfk7EFLwg8pa9DQgeal6PMM5AxIyW5islkH8uS0BfhXZ5BAg",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "request-body-signature-wrong-key-rejects",
+      "description": "A request envelope whose §3.6 body signature was made with the receiver's key rather than the sender's rejects. The transport signature is valid over the delivered body, so an implementation that verifies only the §3.3 transport signature and treats the envelope `signature` member as opaque accepts a body the named sender never signed.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "xtJ1YePqhBZpubfKeDZX26x3do7kxUezZMgu_EZDrb4iARqvH6gldrpH2SPOn_GaZm73tlGz0Y8GX-TrMhUBBA"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "mMS7SQ5-LiQKhhQHsYs4bHPpBwriT4TgRrKVLEtsy4vYO8ZzIEOPEs-sAW1LZxMPxp_l0mpp4xe8W_bemdkpDA",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "aygsVmRMWcai7qLHCdMXMwQq3Cb5Bx69DNsN41iX7sw_mULAR-cmGHpmPFOyGPg6QieWLFWoFkUqYcxXwANiAg"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "EfH-r1PhQLrMT78cOEcZFA5SaDjx-qN4lT0IbJ0RQm3ACZXdLFlUhyx1KmbMqQwzglD3hAjmiWw4dpmD_NxiBw",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "response-body-signature-wrong-key-rejects",
+      "description": "The same on the response half: the receiver's envelope carries a body signature made with the sender's key, and the sender must reject it.",
+      "input": {
+        "cardFetch": {
+          "status": 200,
+          "contentType": "application/json",
+          "contentLength": null,
+          "bodyRaw": "{\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:receiver.example\",\"handle\":\"receiver\",\"displayName\":\"Receiver Agent\",\"endpoint\":\"https://receiver.example/ink/v1/intents\",\"publicKeyMultibase\":\"z6MkhEtEr1FmustWMHKdeozyLYtGHY3hEisYgwcPWENpCps1\",\"capabilities\":{\"intentsAccepted\":[\"connection_request\"],\"intentsSent\":[\"connection_response\"]},\"availability\":{\"timezone\":\"UTC\"},\"supportedProtocolVersions\":[\"ink/0.1\"]}",
+          "requestedAgentId": "did:web:receiver.example"
+        },
+        "clientSupportedVersions": [
+          "ink/0.1"
+        ],
+        "receiverClock": "2026-01-01T00:00:05.000Z",
+        "seenNonces": [],
+        "request": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:receiver.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-req-0000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:00.000Z",
+              "from": "did:web:sender.example",
+              "to": "did:web:receiver.example",
+              "intent": "connection_request",
+              "payload": {
+                "method": "intro",
+                "context": "We met at the conference.",
+                "profileSnapshot": {
+                  "headline": "Agent",
+                  "skills": [],
+                  "interests": [],
+                  "openTo": []
+                }
+              },
+              "nonce": "firstcontactreqnonce00000001",
+              "timestamp": "2026-01-01T00:00:00.000Z",
+              "signature": "v3l_iXWq9lySIcw00LQLEIJkmEkJkCjGGWLOmdxWMc9XjXuy-EigzpQh0KnGA4dea-HWZywN8uT-vmbnHnuLCg"
+            },
+            "timestamp": "2026-01-01T00:00:00.000Z"
+          },
+          "signature": "7B-7KeKgJZQdqi2x-nLx2jetMzdxi99y4b9L9-2Y-kvQKRMmVjdcGlxDfgcT5BnTIE8ZrGM_602t0ICjgF8sCQ",
+          "senderPublicKeyHex": "158bcee49838c3f75cfa5c482f7eb28aa130fce7506c877c53375c7b2d79bd04"
+        },
+        "response": {
+          "signInput": {
+            "method": "POST",
+            "path": "/ink/v1/intents",
+            "recipientDid": "did:web:sender.example",
+            "body": {
+              "protocol": "ink/0.1",
+              "id": "firstcontact-resp-000000000000001",
+              "correlationId": "firstcontact-corr-000000000000001",
+              "createdAt": "2026-01-01T00:00:02.000Z",
+              "from": "did:web:receiver.example",
+              "to": "did:web:sender.example",
+              "intent": "connection_response",
+              "payload": {
+                "status": "accepted",
+                "note": "Glad to connect."
+              },
+              "nonce": "firstcontactrespnonce0000001",
+              "timestamp": "2026-01-01T00:00:02.000Z",
+              "signature": "gTJsVt19YrnGCm1Nnh18paJDPW8WEczkyoiBK-4U3cL8Z5dgTPIoX1scPSs2qCJxrnoo6e_7gNecpa1prn0HAg"
+            },
+            "timestamp": "2026-01-01T00:00:02.000Z"
+          },
+          "signature": "o149iiuG3Fq38oMqeTsdCgB8cVZg_G6bnOpGCBiKpgP4VEH-Hetzis3ANgTcxP28a54QBVQbdrkFpXZtheXQDQ",
+          "receiverPublicKeyHex": "29676f5bda7d885564b08229995a6d3e50085c66991943fb7577717b9558c678"
+        }
+      },
+      "expect": {
+        "result": "reject"
       }
     }
   ]

@@ -4,9 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"regexp"
-	"unicode/utf8"
 )
 
 // A linear authorization chain: 2 to 4 delegation links, each the grant field
@@ -58,11 +56,9 @@ const (
 
 // MaxChainBodyBytes is the byte-length ceiling on a raw chain body before it is
 // parsed. It pins the spec's Raw byte cap rule: a chain presented as raw bytes must
-// be rejected as schema when longer than 65536 bytes, before decoding. This Go API
-// receives bytes, so VerifyAuthorizationChain enforces the bound itself; the
-// reference verifier takes an already-decoded object and instead applies the
-// structural bounds, so the TypeScript counterpart MAX_CHAIN_BODY_BYTES is the
-// contract for whatever layer received its bytes.
+// be rejected as schema when longer than 65536 bytes, before decoding. Both
+// implementations receive bytes and enforce the bound themselves, and the
+// TypeScript counterpart MAX_CHAIN_BODY_BYTES carries the same value.
 const MaxChainBodyBytes = 64 * 1024
 
 // delegationLinkType is the single spelling a delegation link carries; there is no
@@ -162,13 +158,11 @@ func VerifyAuthorizationChain(raw []byte, ctx AuthorizationChainContext) (bool, 
 	if len(raw) > MaxChainBodyBytes {
 		return false, ChainReasonSchema
 	}
-	// A chain is a set of signed artifacts: reject invalid UTF-8 or a lone
-	// surrogate before parsing, so encoding/json cannot rewrite them to U+FFFD.
-	if !utf8.Valid(raw) || ContainsLoneSurrogateEscape(raw) {
-		return false, ChainReasonSchema
-	}
-	var obj map[string]interface{}
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	// The artifact is signed over its raw bytes, so every text-level rule of
+	// ink-signed-string-safety.md runs before parsing. Routed through the
+	// shared parser so a new rule cannot reach some verifiers and not others.
+	obj, okParse := ParseSignedObject(raw)
+	if !okParse {
 		return false, ChainReasonSchema
 	}
 	if !withinBodyBounds(obj) {

@@ -93,6 +93,66 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "age-bound-accepts",
+      "description": "The age bound is inclusive: a message exactly 300000 ms old is still fresh, because §3.5 rejects only when -drift EXCEEDS 300000.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-10T23:55:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "one-ms-past-age-bound-rejects",
+      "description": "One millisecond older than the bound rejects, so an implementation with a longer window (or a wider unit) diverges here rather than passing on a coarse case.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-10T23:54:59.999Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "skew-bound-accepts",
+      "description": "The future-skew bound is inclusive on the same reading: a message exactly 30000 ms ahead of the receiver clock is accepted.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:30.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "one-ms-past-skew-bound-rejects",
+      "description": "One millisecond past the skew bound rejects, pinning the future edge to the millisecond the way the age edge is pinned.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:30.001Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "nonce-conformance-0001",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
     }
   ]
 }

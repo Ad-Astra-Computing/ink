@@ -85,11 +85,18 @@ INK verifies at the application layer but depends on parties it does not fully
 control. Each boundary is a place where a compromise moves an attacker inside
 one or more assets above.
 
-- **The registry / PDS / identity system.** Resolves `senderId` to a DID
-  document and, transitively, to an Agent Card. INK authenticates the
-  cryptographic continuity of the `agentId` to Card binding, it does not
-  authenticate the resolver. A malicious or compromised resolver is out of scope
-  and can substitute keys (see the unsigned-card limit below).
+- **The resolver, for foreign principals only.** A foreign principal
+  (`did:web`, `did:plc` or any other externally issued identifier) resolves
+  through an identity system INK does not control, and that system supplies the
+  principal-to-key link. INK authenticates the continuity of the `agentId` to
+  Card binding, it does not authenticate the resolver, so a malicious or
+  compromised one is out of scope and can substitute keys (see the card-proof
+  limit below). A key-derived principal does not cross this boundary at all: its
+  genesis key is inside the identifier, so there is no directory, registry or
+  issuer between the identifier and the root key
+  ([`../specs/ink-identity-model.md`](../specs/ink-identity-model.md) §2.1,
+  §5.1). The transport that serves a card is still a boundary for both families,
+  below.
 - **The TLS terminator.** INK signs at the application layer but assumes
   transport confidentiality and integrity from TLS. The SSRF gate
   ([`../specs/ink-private-hostname.md`](../specs/ink-private-hostname.md)) is a
@@ -121,8 +128,9 @@ one or more assets above.
   relationships over time. Not defended against (traffic analysis, below).
 - **Active MITM / hostile resolver.** Can substitute an Agent Card over the
   identity path or a compromised TLS terminator, swapping keys and silently
-  downgrading version negotiation. Bounded only by TLS and registry honesty
-  (unsigned-card limit, below).
+  downgrading version negotiation. Bounded by the card proof where a receiver
+  enforces it, and by TLS and resolver honesty alone where it does not
+  (card-proof limit, below).
 - **Malicious counterparty agent.** A legitimate peer that lies: forges
   self-asserted provenance, maintains split-view audit chains or presents a
   fabricated but internally consistent history.
@@ -205,10 +213,14 @@ block a usable key.
 A signed body is canonicalized with JCS (RFC 8785) and the canonical bytes are
 signed, so two implementations that canonicalize the same body to different
 bytes disagree on the signature, which is a consensus failure. INK closes the
-two known divergences before the JSON is parsed: a lone UTF-16 surrogate escape
-and any raw bytes that are not valid UTF-8 are both rejected on the raw body,
-before parse, canonicalization or verification, because a parser that has
-already rewritten either to `U+FFFD` cannot recover the original. See
+three known divergences before the JSON is parsed: a lone UTF-16 surrogate
+escape, any raw bytes that are not valid UTF-8, and a number literal outside the
+IEEE-754 double range are all rejected on the raw body, before parse,
+canonicalization or verification. The first two, because a parser that has
+already rewritten either to `U+FFFD` cannot recover the original; the third,
+because parsers disagree about whether such a document exists at all (one decodes
+the literal to `Infinity`, another refuses the body) and a duplicate member can
+shadow the literal from every check that runs on decoded values. See
 [`../specs/ink-signed-string-safety.md`](../specs/ink-signed-string-safety.md).
 The JCS number profile bans values whose canonical form is ambiguous across
 serializers.
@@ -390,20 +402,35 @@ Only retiring the existing suite or restructuring the transparency log needs a
 major version. The current wire does not yet ship a second suite; the additive
 seam is reserved but unpopulated.
 
-### The Agent Card is unsigned
+### An unenforced card proof leaves the Card on TLS
 
-The Agent Card is served over TLS and is not itself signed by the agent. Key
-authority and version negotiation therefore rest entirely on TLS plus registry
-and identity-system honesty. An adversary who controls the identity resolution
-path or the TLS terminator (see the registry/PDS and TLS boundaries above) can
-substitute signing and encryption keys and can silently strip or downgrade
-`supportedProtocolVersions` to force `ink/0.1`, and a verifier has no in-band
-cryptographic signal that the Card was tampered. Sign in with INK narrows this
-for the RP-card and issuer-card fetch by pinning the fetch (SSRF gate,
-connect-time pinning, redirect refusal) and requiring `agentId` to equal the
-resolved principal, but it does not add a Card signature: the trust still
-reduces to TLS and the resolver. This is the single largest trust assumption in
-the model.
+The Agent Card carries a `cardSignature` and a rotation chain
+([`../specs/ink-agent-card-signature.md`](../specs/ink-agent-card-signature.md)),
+which root the card in the identity's own key material: the genesis key embedded
+in a key-derived `agentId`, or the DID document for a `did:web` principal. Where
+that proof is produced and enforced, an adversary who controls the resolution
+path or the TLS terminator can no longer substitute signing and encryption keys
+undetected. The rollout of producer signing and receiver enforcement runs in
+phases and §10 of that spec is the authority on which phase is current and what
+a conforming receiver enforces today; this document does not restate a phase
+state, because a transcribed one goes stale.
+
+The residual exposure is the receiver that does not enforce the proof. For it,
+key authority and version negotiation still reduce to TLS plus resolver honesty:
+an adversary in that position can substitute keys and can silently strip or
+downgrade `supportedProtocolVersions` to force `ink/0.1`, and the receiver has
+no in-band cryptographic signal that the Card was tampered. Sign in with INK
+narrows the same window for the RP-card and issuer-card fetch by pinning the
+fetch (SSRF gate, connect-time pinning, redirect refusal) and requiring
+`agentId` to equal the resolved principal. Until enforcement is universal this
+remains the largest trust assumption in the model, and closing it is the point
+of the phase schedule.
+
+A signed card is also not a current card. A verifier meeting a principal cold
+learns reachability from the identity's root, not currency, so a leaked
+chain-era key permits card fabrication at a fabricated `keySetVersion`. External
+observation of card heads through the witness log is what converts a fork into
+detectable equivocation, and it is a SHOULD.
 
 ### No recovery from full signing-key loss
 
@@ -411,17 +438,26 @@ INK has no protocol-level recovery from the total loss of an agent's signing
 keys. Rotation assumes the agent still holds a currently trusted key with which
 to sign the Card update that introduces the new key. An agent that loses every
 signing key cannot authenticate a rotation and cannot prove continuity of its
-`agentId` under INK alone. Recovery is pushed to the DID / identity layer (the
-resolver that maps `agentId` to key material), which is out of scope here and is
-itself a trust boundary.
+`agentId` under INK alone. The one in-band mitigation is a pre-declared offline
+recovery key, which is an ordinary rotation-chain link and must exist before the
+loss to be worth anything. For a key-derived principal there is nothing behind
+that: the identity is exactly as recoverable as its key material, and total loss
+is identity loss. A foreign principal MAY recover where a key-derived one cannot,
+because its root document can name a fresh key out of band, and that recovery
+runs under the identity system's rules and inside that system's trust boundary,
+not INK's.
 
 ### Identity proof
 
-INK does not prove *who* an agent is in the real world. Identity-system
-compromise (a malicious PDS returning a fabricated DID document, a compromised
-registration service) is the identity system's problem. Receivers authenticate
-the cryptographic continuity of a `senderId` to Agent Card binding; they cannot
-authenticate that the human behind the agent is who they claim.
+INK does not prove *who* an agent is in the real world, and defines no proof
+binding an agent to a human owner. A card's `ownerDid`, `ownerHandle` and
+`atprotoRecordUri` are self-asserted strings inside a document the agent itself
+publishes, so a verifier MUST NOT authorize on them. Receivers authenticate the
+cryptographic continuity of a `senderId` to Agent Card binding, nothing more. A
+deployment that needs an owner binding obtains it from the identity system that
+issued the owner DID, out of band, and inherits that system's compromise modes:
+a fabricated DID document or a forged owner record is that system's problem, not
+one INK detects.
 
 ### Compromised endpoints
 

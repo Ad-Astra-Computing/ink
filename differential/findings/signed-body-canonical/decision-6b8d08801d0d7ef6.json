@@ -1,0 +1,36 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-canonical",
+  "conformanceCategory": "signed-body-canonical",
+  "kind": "decision",
+  "detail": "ts=reject go=accept",
+  "runSeed": 429609341,
+  "originCaseId": "signed-body-canonical/random/429609341/12",
+  "arm": "random",
+  "original": {
+    "bodyRaw": "{\"outer\":{\"あ\":{\"𐀀\":[],\"�\":1,\"\":\"\",\"\\f\":null},\"あ😀\":true,\"\":\"v\",\"Ａ\":\"v\"}}"
+  },
+  "minimized": {
+    "bodyRaw": "{\"𐀀\":[],\"�\":1,\"\":\"\",\"\\f\":null}"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"outer\":{\"\":\"v\",\"あ😀\":true,\"あ\":{\"\":\"\",\"\\f\":null,\"𐀀\":[],\"�\":1},\"Ａ\":\"v\"}}"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\":\"\",\"\\f\":null,\"𐀀\":[],\"�\":1}"
+      }
+    }
+  }
+}

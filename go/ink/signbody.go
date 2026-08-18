@@ -70,6 +70,12 @@ func JCSCanonicalize(v any) (string, error) {
 	if !hasPortableStrings(v) {
 		return "", errors.New("ink: input contains a non-portable string")
 	}
+	// Nor may a member name need escaping. Go would serialize such a key
+	// correctly, but a receiver on an affected V8 decodes it to a different
+	// string, so signing it emits bytes that receiver cannot reproduce.
+	if HasUnsafeObjectKey(v) {
+		return "", errors.New("ink: input contains an object key with a quote, backslash or control character")
+	}
 	canonical, err := canonicalizeJSON(v)
 	if err != nil {
 		return "", err

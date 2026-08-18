@@ -54,6 +54,15 @@ to that double. Two consequences:
   `9007199254740992` (2^53) by every IEEE-754 parser; that value exceeds
   `2^53 - 1`, so it is rejected by both implementations identically.
 
+A literal whose magnitude has no double at all, such as `1e309`, is not decided
+by this profile. Parsers do not agree that such a document is a document:
+ECMAScript decodes the literal to `Infinity`, Go refuses the body outright. That
+disagreement is settled before parsing, by the raw-text rule in
+[`ink-signed-string-safety.md`](ink-signed-string-safety.md), because a duplicate
+member can shadow the literal and leave the value layer nothing to judge. A
+literal that underflows to `0` (`1e-400`) decodes identically everywhere and is
+judged here in the ordinary way, as the value `0`.
+
 A magnitude such as `1e20` is an integer value but lies above the safe range, so
 it is rejected even though some renderers would print it without an exponent.
 Fixing the boundary at `2^53 - 1` keeps the accept set to exactly the values
@@ -80,4 +89,7 @@ exact expected canonical string. The corpus covers zero, positive and negative
 safe integers, the maximum safe integer, an exponential source token whose value
 is a safe integer, a fraction, an above-safe magnitude in exponential notation, a
 negative zero, and the two integers straddling the safe-integer boundary at
-`2^53`.
+`2^53`. It also carries the three cases where the raw-text range rule and this
+profile meet: a literal outside the double range shadowed by a later duplicate
+member rejects, an in-range duplicate member canonicalizes last-wins, and an
+underflowing exponent canonicalizes to `0`.

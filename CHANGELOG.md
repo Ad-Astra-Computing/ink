@@ -4,6 +4,277 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.17.0, identity model, resolver spec and two fail-closed guards
+
+### Changes
+
+- **Breaking:** a signed body may no longer contain an object member name
+  written with an escape sequence, and a signer may no longer sign an object
+  whose keys contain a quotation mark, a reverse solidus, or a character in
+  `U+0000`-`U+001F`. Escapes in string values and array elements are unchanged.
+
+  V8 returns the wrong property key from `JSON.parse` for a member name spelled
+  with an escape, so `{"x":{"\\":1},"y":{"\n":2}}` parses to a `y` whose only
+  member is named `\`. The wrong name survives serialization and reaches
+  canonicalization, so a Go receiver and a receiver on Node 24 or newer, or on
+  Cloudflare workerd, disagree about which bytes a signature covers, and one
+  signature can validate against several different wire bodies. On workerd the
+  defect is unconditional and persists across requests within an isolate.
+  Upstream is unfixed ([chromium 521080746](https://issues.chromium.org/issues/521080746),
+  [nodejs/node#63785](https://github.com/nodejs/node/issues/63785)) and
+  reproduces on the newest V8 line. The rule and its rationale are in
+  [`specs/ink-signed-string-safety.md`](specs/ink-signed-string-safety.md);
+  the narrowing is recorded in
+  [`specs/ink-compatibility-policy.md`](specs/ink-compatibility-policy.md) §2.1.
+
+  Affected runtimes observed: Node 24.16.0, 25 and 26.5, and Cloudflare workerd.
+  Unaffected: Node 22.23.2 and Go's `encoding/json`. Go enforces the rule
+  regardless, so both implementations admit the same bodies.
+
+  Migration: re-key any free-form map whose keys are Windows paths, regular
+  expression source, or embedded JSON. `InkAuditEvent.data` and `Profile.custom`
+  are where such a key could appear. Nothing in this repository needed changing.
+
+- `hasEscapedMemberNameDefect()` probes the running runtime for the defect. A
+  `true` result is proof the runtime is affected; a `false` result is not proof
+  of the opposite, because the defect depends on isolate state. It is exported
+  for applications whose own `JSON.parse` calls are outside INK's parse path.
+
+- `evaluateAgentCardFetch` parses through the signed-body text gates rather than
+  a bare `JSON.parse`. New `parseSignedBodyText` applies the three text-level
+  rules for a caller holding a string; prefer `parseSignedBodyBytes` where the
+  bytes survive, since a string has already crossed the UTF-8 boundary.
+
+- Every signature-relevant parse in shipped code now runs the same text-level
+  rules. New `ink.ParseSignedObject` in Go wraps `ParseSignedBody` for a caller
+  that requires a JSON object at the root; `EvaluateAgentCardFetch`,
+  `VerifyAuthorizationGrant`, `VerifyAuthorizationChallenge`,
+  `VerifyAuthorizationChain` and `VerifyDiscoveryQueryEnvelope` go through it
+  instead of gating a subset by hand. `ParseInclusionReceipt` keeps its own
+  sequence, because it unmarshals into a typed struct, and now applies all four.
+  Previously these admitted bodies the reference rejected.
+
+- `ink verify-inclusion` reads the receipt as bytes and verifies it through the
+  signed-body gate. It previously decoded with a non-fatal decoder and then
+  parsed with a bare `JSON.parse`, so invalid UTF-8 reached the verifier as
+  `U+FFFD` and no text-level rule ran at all. Its size cap now matches Go's
+  `MaxInclusionReceiptBytes`; at the old value the CLI could refuse a receipt the
+  library accepts.
+
+- **Breaking:** `encryptInkPayload` and the Go `EncryptInkPayload` refuse to seal
+  a plaintext whose inner binding disagrees with the outer envelope. The inner
+  `from` MUST equal the outer `senderDid` and the inner `to` MUST be a non-empty
+  string, and where the caller asserts which recipient the envelope is addressed
+  to, the inner `to` MUST equal that value. Every conformant decrypter has
+  required that binding since the recipient identity became a mandatory decrypt
+  argument, so a seal that skipped it minted envelopes nothing would ever open.
+  The failure now lands on the sender, where the mistake is. Go gains
+  `InkEncryptOptions.RecipientDid` as a `*string`, because asserting a recipient
+  and declining to assert one have to stay distinguishable: an asserted empty
+  string is a reject rather than a silent skip, matching the reference.
+  Migration: set the plaintext's `from` to the sending principal and its `to` to
+  the recipient, and pass `recipientDid` (Go `RecipientDid`) whenever the caller
+  knows the identity it is addressing. The producer obligation is stated in
+  [`specs/ink-payload-encryption.md`](specs/ink-payload-encryption.md). The
+  `encryption` vectors are byte-identical to 0.16.0: the generator now builds its
+  one deliberately unbound envelope through a local sealer instead of through the
+  library, so the corpus still carries the envelope a decrypter must reject.
+- **Breaking:** `fetchAgentCard` fails closed by default. `requireSafeFetch`
+  defaults to on, so a call that supplies no `options.fetch` returns null without
+  touching the network. The literal-private-IP allowlist this module applies to
+  `baseUrl` cannot stop a public hostname that resolves to a private address at
+  connect time; only a connect-time-IP-pinning fetch can, so requiring one is the
+  connect-time rule the function can actually enforce, and defaulting the
+  requirement off made the unsafe path the quiet one. Migration: pass an
+  `options.fetch` that pins connect targets (an undici dispatcher on Node,
+  `cf.resolveOverride` on Cloudflare Workers, an egress proxy), or pass
+  `requireSafeFetch: false` to opt out. The opt-out is legitimate when the
+  `baseUrl` is operator-configured, a pinned partner or a fixture, and not when
+  it is derived from a remote document or from user input.
+- **Breaking, protocol implementers:** Protocol §3.5 is amended. Where a nonce
+  store is scoped per sender, the scope key MUST be the canonical principal of §7
+  and never the raw `from` spelling. A store keyed on the raw value splits across
+  the two prefixes of one key, and a split replay set accepts the same
+  presentation twice. A store that is global to a receiver has no scope key to
+  get wrong and is unaffected. Nothing on the TypeScript or Go API moves, so an
+  implementer whose store keyed on the raw spelling gets no compile error and
+  has to re-key it.
+- **Breaking:** the Go `EvaluateAgentCardFetch` takes a trailing
+  `resolutionDID *string`, the DID a resolution was mediated by, for the owner
+  anti-substitution step below. Every Go caller is a source break. Migration:
+  pass `nil`, which is what a resolver beginning at the agent's own identifier
+  means and which leaves the decision it reaches unchanged. The TypeScript input
+  gains an optional `resolutionDid` member and existing callers are unaffected.
+- **Breaking:** `verifyDiscoveryQueryEnvelope` takes the raw body bytes, a
+  `Uint8Array`, where it took an already-parsed value. An envelope is a signed
+  body, and every rule the raw-body gate enforces is a rule about bytes a parsed
+  value has already lost, so an entry point that took a value could not run any
+  of them. That was an accept-versus-reject split against the Go verifier, which
+  has always taken bytes: an envelope carrying `"protocol":1e309` ahead of its
+  real `protocol` member canonicalized cleanly, verified, and was accepted here,
+  while Go refused the bytes. Member semantics are last-wins, so the literal
+  never reached the parsed object and no value-layer check could see it; whoever
+  could rewrite bytes in flight could choose which implementation accepted.
+  The verifier now runs `parseSignedBodyBytes` itself and caps the body at
+  `MAX_DISCOVERY_QUERY_BODY_BYTES`, 64 KiB, matching Go's
+  `MaxDiscoveryQueryBodyBytes`; the cap is not redundant with the structural
+  bounds, because JSON whitespace is unbounded and vanishes at canonicalization,
+  so a schema-valid envelope padded to megabytes still carried a valid signature.
+  No parsed-value form is kept: one that skipped the gate would be the same
+  divergence under a second name. Migration: pass the bytes you received rather
+  than the value you parsed from them, `new TextEncoder().encode(text)` if the
+  body only ever existed as a string. A caller that still hands over a value gets
+  a compile error, and a typed `schema` rejection at runtime rather than a
+  coercion. The `discovery-query-envelope` category grows from 28 to 33 cases and
+  gains an `envelopeRaw` input member, the exact wire text, on the five cases
+  whose rule is about bytes; the other cases keep `envelope` unchanged.
+- **Breaking:** `verifyAuthorizationGrant`, `verifyAuthorizationChain` and
+  `verifyAuthorizationChallenge` take the raw body bytes, a `Uint8Array`, where
+  they took an already-parsed value. These are the same divergence the discovery
+  envelope carried, in the surfaces where it costs the most: a grant, a delegation
+  chain and a sign-in challenge are all signed bodies, all three Go verifiers have
+  always taken bytes and run the raw-body gate, and none of the rules that gate
+  enforces could run on this side. A validly signed grant carrying
+  `"protocol":1e309` ahead of its real `protocol` member was accepted here and
+  refused by Go, so whoever could rewrite bytes in flight chose which
+  implementation signed a user in. Each verifier now runs `parseSignedBodyBytes`
+  itself and caps the body at `MAX_GRANT_BODY_BYTES`, `MAX_CHAIN_BODY_BYTES` and
+  `MAX_CHALLENGE_BODY_BYTES`, 64 KiB each, matching `MaxGrantBodyBytes`,
+  `MaxChainBodyBytes` and `MaxChallengeBodyBytes`. Those three constants were
+  already exported and already carried the right values, but nothing enforced
+  them: they documented an obligation for whatever layer held the bytes, and the
+  whitespace-padding gap the discovery cap closes applied here unchanged. No
+  parsed-value form is kept, for the reason the discovery fix gives. Migration:
+  pass the bytes you received rather than the value you parsed from them,
+  `new TextEncoder().encode(text)` if the body only ever existed as a string. A
+  caller that still hands over a value gets a compile error, and a typed `schema`
+  rejection at runtime rather than a coercion. The `authorization-grant`,
+  `authorization-chain` and `agent-authorization` categories each grow by five
+  raw-body cases and gain a `grantRaw`, `chainRaw` and `challengeRaw` input member
+  respectively, the exact wire text; every other case keeps its parsed form
+  unchanged. The owning specs gain a *Raw body* section citing the enforcement
+  order of [`specs/ink-signed-string-safety.md`](specs/ink-signed-string-safety.md).
+- **Breaking:** `ParseSignedBodyError.reason` gains `"number-range"` and
+  `"member-name-escape"` alongside `"utf8"` and `"surrogate"`. Nothing about an
+  existing rejection changes, but a consumer that discriminates on `reason` with
+  an exhaustive `switch` and a `never`-typed default no longer type-checks.
+  Migration: handle both as the byte-gate rejections they are, or widen the
+  default arm. A consumer that reads `reason` without exhausting it, or that
+  only catches `ParseSignedBodyError`, is unaffected.
+- Two new normative specs.
+  [`specs/ink-identity-model.md`](specs/ink-identity-model.md) is the single home
+  for what an INK principal identifies, when two principals are the same, what a
+  key means at each point in its life and what binds each of those things to the
+  next. It adds no wire format, no field and no message type: where a rule was
+  already normative elsewhere it states the edge and cites the owning spec, and
+  where a behavior was implemented but unwritten it is now the normative home.
+  [`specs/ink-resolver.md`](specs/ink-resolver.md) pins the walk from an
+  identifier to verified key material, covering the base derivation, the request
+  side of the fetch and the outcomes a resolver may reach.
+- The discovery path is pinned in one place.
+  `GET <base>/ink/v1/<agentId>/agent.json`, with the `agentId` percent-encoded as
+  a single path segment, is the sole normative discovery surface of the base
+  profile. It is stated once in
+  [`specs/ink-agent-card-discovery-fetch.md`](specs/ink-agent-card-discovery-fetch.md)
+  and cited rather than restated by every other document.
+  `/.well-known/ink/agent.json` is demoted to an alias: an implementation MAY
+  serve the same document there, and a resolver MUST NOT depend on it or fall
+  back to it. One profile derives a different URL, and it now says so in its own
+  text: a Sign in with INK relying party is named by a bare-host `did:web`
+  identifier whose origin already determines exactly one card, so the URL is a
+  function of the origin alone. That exception is confined to
+  [`specs/ink-agent-authorization.md`](specs/ink-agent-authorization.md) and
+  grants no license to prefer the alias anywhere else. This closes a real gap
+  rather than tidying prose: the reference receiver served only the alias while
+  the library fetched only the versioned path, so the reference library could not
+  fetch the reference receiver's card at all. The serving examples now serve both
+  paths from one build of the document.
+- Owner anti-substitution is step 9 of the fetch contract. When a fetch was
+  mediated by a DID document and the card carries an `ownerDid`, the card is
+  rejected unless that `ownerDid` is byte-equal to the DID the resolution went
+  through, so a host that legitimately publishes one owner's card cannot serve it
+  in answer to resolution of another. The comparison is byte for byte with no
+  canonicalization, and it is not owner authentication: `ownerDid` is
+  self-asserted, and passing the step proves only that the card names the DID it
+  was reached through, never that the owner consented to the agent. Both
+  implementations carry it and the `agent-card-fetch` category grows from 29 to
+  34 cases to pin it. The step is inert in this repository today. It fires only
+  on an owner-mediated resolution, meaning one that begins at an owner's DID
+  document and follows it to an agent's card, and no resolver here performs one;
+  a resolver that begins at the agent's own identifier passes null and is
+  unaffected.
+- Go can now produce a body signature, not only verify one. `SignInkBody` builds
+  the `signature` member an INK object carries in its own body (§3.6), and
+  `JCSCanonicalize` is exported so a sender can construct the signed bytes. Both
+  are pinned to the TypeScript signer by a golden vector file generated from it,
+  so the two implementations agree on the signature bytes and on the
+  version-keyed domain rather than only on accept-or-reject. A second
+  implementation can therefore send, where before it could only verify. The
+  generic body verifier stays unexported, and the condition for exporting it is
+  recorded next to the producer.
+- A `did:web` identifier's `%3A` port is carried into the URL that is fetched, or
+  the identifier is rejected. Dropping it silently retargets the fetch at the
+  default port, which is a different origin and so a different document. An
+  explicit `%3A443` is method-legal, and it is accepted and carried;
+  `did:web:host` and `did:web:host%3A443` stay distinct principals under the
+  no-folding rule even though they resolve to one origin. The Sign in with INK
+  profile keeps its stricter grammar refusing an explicit `443`, because it
+  derives a single canonical origin string that two spellings would break. That
+  refusal is profile-local and is not applied to general `did:web` resolution.
+- A containerized cross-implementation interop lab. `./interop-lab/run.sh` builds
+  both implementations, runs a live exchange between them over real HTTP in
+  isolated containers and asserts the outcome of every step. Each side produces
+  its own bytes at run time, which is the thing a fixed corpus cannot test: a
+  disagreement about canonicalization, domain separation, header shape, replay
+  state or AAD binding fails an assertion. It runs on every pull request in the
+  [`interop-lab`](.github/workflows/interop-lab.yml) workflow. It needs a
+  container engine, so it is not one of the checks a contributor runs by hand.
+- Reference receiver. The served Agent Card is a pure function of configuration
+  and key material, with `updatedAt` read from configuration rather than the
+  clock, so any two processes serving one configuration serve identical bytes.
+  The card is signed over itself, so a per-build timestamp makes two fetches of
+  one document disagree and shows a polling consumer an update that never
+  happened. Sender resolution failures now report a fixed reason and an
+  operator-facing hint for the step that failed instead of a bare null, including
+  the case an adopter is most likely to hit, a card published only at the
+  well-known alias. The reasons are a closed enum and are never remote content,
+  and nothing probes the alias to confirm a diagnosis.
+
+### Documentation and governance
+
+- The identity ruling is written down. `governance/decisions/` is a new
+  numbered, append-only home for ratified project decisions, and its first entry
+  records that key-derived principals are the identity root and that AT Protocol
+  is one optional owner-linkage pipeline among several. The record states the
+  rationale, the two costs it accepts (a key-derived identity is exactly as
+  unrecoverable as its key material, and the identity layer answers nothing
+  about which human is behind an agent) and the constraint it locks in (a
+  key-derived `agentId` embeds a permanent Ed25519 genesis key and so cannot be
+  re-rooted on a post-quantum scheme, where a `did:web` root can). It carries no
+  normative text of its own; `specs/ink-identity-model.md` remains the model's
+  home and now cites it.
+- `README.md` no longer says INK assumes AT Protocol for identity by default. It
+  did not, at any point in the project's history, and the sentence was the most
+  widely read statement of a model nothing implemented.
+- `docs/threat-model.md` is corrected in three places. The identity trust
+  boundary is scoped to foreign principals, since a key-derived principal has no
+  resolver between its identifier and its root key. The section asserting that
+  the Agent Card is unsigned is replaced by one about the exposure that remains
+  where the card proof is not enforced, without transcribing a phase state. The
+  key-loss section names the offline recovery key and says plainly that a
+  key-derived identity has nothing behind it, while a foreign principal may
+  recover through its root document.
+
+### Upgrading a conformance runner
+
+One note for anyone running the corpus from outside this repository. Every
+`agent-card-fetch` case input now carries a `resolutionDid` member. It is null on
+the cases that were already there and on `resolution-did-absent-accepts`, and
+non-null on the four DID-mediated owner cases. A runner that ignores it will
+accept the two cases the corpus expects to reject, which is the intended signal:
+the DID under resolution is now an input to the fetch decision. The `base`
+profile's category set is unchanged and no other base vector file moves.
+
 ## 0.16.0, X25519 timing fix, staged Phase C and discovery query context
 
 ### Changes

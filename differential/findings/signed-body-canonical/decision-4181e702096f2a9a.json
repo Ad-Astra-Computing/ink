@@ -1,0 +1,36 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-canonical",
+  "conformanceCategory": "signed-body-canonical",
+  "kind": "decision",
+  "detail": "ts=reject go=accept",
+  "runSeed": 429609341,
+  "originCaseId": "signed-body-canonical/mutate/429609341/16",
+  "arm": "mutate",
+  "original": {
+    "bodyRaw": "{\"B\":0,\"\\u001f\":1,\"\":2,\"􏿿\":3,\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:a.example\",\"handle\":\"alice\",\"displayName\":\"Alice\",\"endpoint\":\"https://a.example/ink/inbox\",\"publicKeyMultibase\":\"z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"capabilities\":{\"intentsAccepted\":[\"ask\",\"ping\"],\"intentsSent\":[\"ask\"]},\"availability\":{\"timezone\":\"America/Los_Angeles\"},\"visibility\":\"secret\"}"
+  },
+  "minimized": {
+    "bodyRaw": "{\"B\":0,\"\\u001f\":1,\"\":2,\"􏿿\":3,\"protocol\":\"ink/0.1\",\"agentId\":\"did:web:a.example\",\"handle\":\"alice\",\"displayName\":\"Alice\",\"endpoint\":\"https://a.example/ink/inbox\",\"publicKeyMultibase\":\"z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"capabilities\":{\"intentsAccepted\":[\"ask\",\"ping\"],\"intentsSent\":[\"ask\"]},\"availability\":{\"timezone\":\"America/Los_Angeles\"},\"visibility\":\"secret\"}"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\\u001f\":1,\"B\":0,\"agentId\":\"did:web:a.example\",\"availability\":{\"timezone\":\"America/Los_Angeles\"},\"capabilities\":{\"intentsAccepted\":[\"ask\",\"ping\"],\"intentsSent\":[\"ask\"]},\"displayName\":\"Alice\",\"endpoint\":\"https://a.example/ink/inbox\",\"handle\":\"alice\",\"protocol\":\"ink/0.1\",\"publicKeyMultibase\":\"z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"visibility\":\"secret\",\"\":2,\"􏿿\":3}"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\\u001f\":1,\"B\":0,\"agentId\":\"did:web:a.example\",\"availability\":{\"timezone\":\"America/Los_Angeles\"},\"capabilities\":{\"intentsAccepted\":[\"ask\",\"ping\"],\"intentsSent\":[\"ask\"]},\"displayName\":\"Alice\",\"endpoint\":\"https://a.example/ink/inbox\",\"handle\":\"alice\",\"protocol\":\"ink/0.1\",\"publicKeyMultibase\":\"z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"visibility\":\"secret\",\"\":2,\"􏿿\":3}"
+      }
+    }
+  }
+}

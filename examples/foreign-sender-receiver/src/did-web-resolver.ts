@@ -146,17 +146,40 @@ export function didWebToDocUrl(did: string): string | null {
   const authority = parseDidWebAuthority(host);
   if (!authority) return null;
   const hostBare = authority.host;
-  const hostPort = authority.port === undefined ? hostBare : `${hostBare}:${authority.port}`;
-  if (!isValidDidWebHost(hostBare) || isPrivateHost(hostBare)) return null;
-  // Build from the SERIALIZED origin: an explicit `:443` is the default port,
-  // so it serializes away and the identifier resolves at the origin it names.
-  // Any other port is carried verbatim.
-  let origin: string;
+  const port = authority.port;
+  const hostPort = port === undefined ? hostBare : `${hostBare}:${port}`;
+  if (!isValidDidWebHost(hostBare) || isPrivateHost(hostBare) || isIpLiteralHost(hostBare)) {
+    return null;
+  }
+  // SSRF defense: the URL parser normalizes shorthand and non-decimal IPv4
+  // forms — `127.1`, `0x7f.1`, `0177.1` all become `127.0.0.1`, and `10.1`
+  // becomes `10.0.0.1`. The raw-string checks above miss them because such a
+  // host passes DID_WEB_HOST_RE and never matches the dotted-quad regex.
+  // Re-derive the canonical hostname through `new URL` and re-run the checks
+  // against that, then refuse anything the serializer rewrote.
+  let canonical: URL;
   try {
-    origin = new URL(`https://${hostPort}`).origin;
+    canonical = new URL(`https://${hostPort}`);
   } catch {
     return null;
   }
+  const canonicalHost = canonical.hostname;
+  // The serializer drops an explicit default port. `:443` IS the default, so
+  // its serialized form is the empty port and the identifier still resolves at
+  // the origin it names; any other port must survive verbatim or we refuse
+  // rather than resolve somewhere else.
+  const expectedSerializedPort = port === undefined || port === "443" ? "" : port;
+  if (!canonicalHost
+      || isPrivateHost(canonicalHost)
+      || isIpLiteralHost(canonicalHost)
+      || canonicalHost !== hostBare
+      || canonical.port !== expectedSerializedPort) {
+    return null;
+  }
+  // Build from the SERIALIZED origin: an explicit `:443` is the default port,
+  // so it serializes away and the identifier resolves at the origin it names.
+  // Any other port is carried verbatim.
+  const origin = canonical.origin;
   const safePath = /^[A-Za-z0-9._~\-]+$/;
   if (parts.length === 1) {
     return `${origin}/.well-known/did.json`;

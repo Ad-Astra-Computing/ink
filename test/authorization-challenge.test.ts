@@ -35,13 +35,23 @@ function activeKeys(kp: Keypair): CandidateKey[] {
   return [{ keyId: "rp-active", publicKey: kp.publicKey, status: "active" }];
 }
 
+const utf8 = (text: string) => new TextEncoder().encode(text);
+
+/** The verifier takes the raw body bytes, because the raw-body gate is about
+ *  bytes a parsed value has already lost. Most cases here are written as values,
+ *  so serialize them the way an RP would; the raw-text cases below hand the
+ *  verifier bytes no serializer could produce. */
+function verifyChallenge(challenge: unknown, keys: CandidateKey[], context: { now: string }) {
+  return verifyAuthorizationChallenge(utf8(JSON.stringify(challenge)), keys, context);
+}
+
 describe("authorization challenge build and verify", () => {
   it("builds and verifies a challenge against an active RP key", async () => {
     const kp = await generateKeypair();
     const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
     expect(AuthorizationChallengeSchema.safeParse(challenge).success).toBe(true);
     expect(challenge.type).toBe("network.ink.authorization_challenge");
-    const result = await verifyAuthorizationChallenge(challenge, activeKeys(kp), { now: clockInWindow });
+    const result = await verifyChallenge(challenge, activeKeys(kp), { now: clockInWindow });
     expect(result.ok).toBe(true);
   });
 
@@ -49,7 +59,7 @@ describe("authorization challenge build and verify", () => {
     const kp = await generateKeypair();
     const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
     const keys: CandidateKey[] = [{ keyId: "rp-retired", publicKey: kp.publicKey, status: "retired" }];
-    const result = await verifyAuthorizationChallenge(challenge, keys, { now: clockInWindow });
+    const result = await verifyChallenge(challenge, keys, { now: clockInWindow });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("signature");
   });
@@ -59,15 +69,15 @@ describe("authorization challenge build and verify", () => {
     const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
     const atUpper: CandidateKey[] = [{ keyId: "rp-active", publicKey: kp.publicKey, status: "active", validUntil: clockInWindow }];
     const atLower: CandidateKey[] = [{ keyId: "rp-active", publicKey: kp.publicKey, status: "active", validFrom: clockInWindow }];
-    expect((await verifyAuthorizationChallenge(challenge, atUpper, { now: clockInWindow })).ok).toBe(true);
-    expect((await verifyAuthorizationChallenge(challenge, atLower, { now: clockInWindow })).ok).toBe(true);
+    expect((await verifyChallenge(challenge, atUpper, { now: clockInWindow })).ok).toBe(true);
+    expect((await verifyChallenge(challenge, atLower, { now: clockInWindow })).ok).toBe(true);
   });
 
   it("checks the signature before the window (bad signature outranks expiry)", async () => {
     const kp = await generateKeypair();
     const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
     const tampered = { ...challenge, nonce: "nonce-challenge-999999999" };
-    const result = await verifyAuthorizationChallenge(tampered, activeKeys(kp), { now: "2026-07-16T12:06:00.000Z" });
+    const result = await verifyChallenge(tampered, activeKeys(kp), { now: "2026-07-16T12:06:00.000Z" });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("signature");
   });
@@ -78,7 +88,7 @@ describe("authorization challenge build and verify", () => {
     // Key expired before the verifier clock: not usable even though the challenge
     // window is open.
     const keys: CandidateKey[] = [{ keyId: "rp-active", publicKey: kp.publicKey, status: "active", validUntil: "2026-07-16T11:00:00.000Z" }];
-    const result = await verifyAuthorizationChallenge(challenge, keys, { now: clockInWindow });
+    const result = await verifyChallenge(challenge, keys, { now: clockInWindow });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("signature");
   });
@@ -100,16 +110,95 @@ describe("challenge byte bound", () => {
     expect(MAX_CHALLENGE_BODY_BYTES_ROOT).toBe(MAX_CHALLENGE_BODY_BYTES);
   });
 
-  it("rejects an oversized decoded object as schema", async () => {
+  it("rejects a body past the byte cap even when it canonicalizes to a valid challenge", async () => {
     const kp = await generateKeypair();
     const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
-    // An extra top-level field padded past the byte ceiling: the strict schema
-    // rejects the unknown key as schema, and the byte-boundary contract is that a
-    // raw body this large is refused before decode by whatever received the bytes.
-    const oversized = { ...challenge, pad: "a".repeat(MAX_CHALLENGE_BODY_BYTES + 1) };
-    const result = await verifyAuthorizationChallenge(oversized, activeKeys(kp), { now: clockInWindow });
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe("schema");
+    // Whitespace between tokens is legal JSON and vanishes at canonicalization,
+    // so the signature over this body still verifies. The byte cap is the only
+    // thing that refuses it.
+    const padded = `{${" ".repeat(MAX_CHALLENGE_BODY_BYTES)}${JSON.stringify(challenge).slice(1)}`;
+    expect(padded.length).toBeGreaterThan(MAX_CHALLENGE_BODY_BYTES);
+    expect(await verifyAuthorizationChallenge(utf8(padded), activeKeys(kp), { now: clockInWindow })).toEqual({
+      ok: false,
+      reason: "schema",
+    });
+  });
+
+  it("accepts a body padded with whitespace under the byte cap", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    const padded = `{${" ".repeat(64)}${JSON.stringify(challenge).slice(1)}`;
+    expect((await verifyAuthorizationChallenge(utf8(padded), activeKeys(kp), { now: clockInWindow })).ok).toBe(true);
+  });
+});
+
+describe("challenge raw-body gate", () => {
+  it("fails closed when handed something that is not bytes", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    // A caller on an untyped boundary (a JSON body a framework already parsed)
+    // gets a typed rejection rather than a coercion.
+    await expect(
+      verifyAuthorizationChallenge(challenge as unknown as Uint8Array, activeKeys(kp), { now: clockInWindow }),
+    ).resolves.toEqual({ ok: false, reason: "schema" });
+  });
+
+  it("fails closed on a body that is not JSON at all", async () => {
+    const kp = await generateKeypair();
+    await expect(
+      verifyAuthorizationChallenge(utf8("{not json"), activeKeys(kp), { now: clockInWindow }),
+    ).resolves.toEqual({ ok: false, reason: "schema" });
+  });
+
+  it("rejects an out-of-range number literal shadowed by a later duplicate member", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    // The challenge is untouched as a value: JSON member semantics are last-wins,
+    // so the shadowed literal never reaches the parsed object and the signature
+    // over the canonical form still verifies. Only a gate on the raw text can see
+    // it, and without one this body is accepted here and refused by an
+    // implementation that gates its bytes.
+    const shadowed = `{"protocol":1e309,${JSON.stringify(challenge).slice(1)}`;
+    expect(JSON.parse(shadowed)).toEqual(challenge);
+    expect(await verifyAuthorizationChallenge(utf8(shadowed), activeKeys(kp), { now: clockInWindow })).toEqual({
+      ok: false,
+      reason: "schema",
+    });
+  });
+
+  it("accepts a shadowed underflowing exponent, which is in range", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    // The negative control: every IEEE-754 parser decodes 1e-400 to 0, so the
+    // gate is a range test rather than a ban on exponents.
+    const shadowed = `{"protocol":1e-400,${JSON.stringify(challenge).slice(1)}`;
+    expect((await verifyAuthorizationChallenge(utf8(shadowed), activeKeys(kp), { now: clockInWindow })).ok).toBe(true);
+  });
+
+  it("rejects a lone UTF-16 surrogate escape in the raw text", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    const raw = JSON.stringify(challenge).replace(`"nonce":"${challenge.nonce}"`, `"nonce":"\\ud800${challenge.nonce}"`);
+    expect(await verifyAuthorizationChallenge(utf8(raw), activeKeys(kp), { now: clockInWindow })).toEqual({
+      ok: false,
+      reason: "schema",
+    });
+  });
+
+  it("rejects raw bytes that are not valid UTF-8", async () => {
+    const kp = await generateKeypair();
+    const challenge = await buildAuthorizationChallenge(baseInput(), kp.privateKey);
+    const bytes = utf8(JSON.stringify(challenge));
+    // Splice a lone continuation byte into the body. A JS string cannot hold it,
+    // so this rule is unreachable from a parsed value.
+    const broken = new Uint8Array(bytes.length + 1);
+    broken.set(bytes.subarray(0, 1), 0);
+    broken[1] = 0x80;
+    broken.set(bytes.subarray(1), 2);
+    expect(await verifyAuthorizationChallenge(broken, activeKeys(kp), { now: clockInWindow })).toEqual({
+      ok: false,
+      reason: "schema",
+    });
   });
 });
 

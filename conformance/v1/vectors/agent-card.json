@@ -1327,6 +1327,38 @@
       }
     },
     {
+      "caseId": "card-unknown-top-level-key-ignored-accepts",
+      "description": "An unknown TOP-LEVEL card member is ignored, not rejected. The card top level is a tolerant surface (ink-compatibility-policy.md §3.1), which is what lets a later minor add a member that older receivers ignore; the nested discovery descriptor is a separate surface with its own case, so neither one pins the other.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "futureExtension": {
+            "note": "additive"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
       "caseId": "discovery-scope-exceeds-visibility-rejects",
       "description": "A descriptor scope wider than the card visibility is rejected (hard upper bound).",
       "input": {

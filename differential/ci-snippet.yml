@@ -1,0 +1,55 @@
+# Ready to drop in as .github/workflows/differential.yml.
+#
+# It lives here rather than in .github/workflows so that adding the workflow is
+# a deliberate one-line move rather than something a fuzzing change does to CI
+# on its own. Copy it when the harness should start gating.
+#
+# Two budgets: a few thousand cases on every pull request, which costs seconds,
+# and a large budget on a schedule, which costs minutes. Both print the run seed
+# so any failure is replayable with --seed.
+
+name: differential
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  differential:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+      - run: npm ci
+
+      # The negative control. A count of agreeing cases is only evidence if the
+      # comparison can report a disagreement, so this runs first and fails the
+      # job if an injected fault goes uncaught.
+      - name: self-test
+        run: |
+          node differential/run.mjs --self-test private-hostname --cases 200
+          node differential/run.mjs --self-test signature-base --cases 200
+
+      - name: differential (pull request budget)
+        if: github.event_name == 'pull_request'
+        run: node differential/run.mjs --cases 5000
+
+      - name: differential (scheduled budget)
+        if: github.event_name != 'pull_request'
+        run: node differential/run.mjs --cases 400000 --batch 20000
+
+      - name: upload findings
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: differential-findings
+          path: differential/findings/
+          if-no-files-found: ignore

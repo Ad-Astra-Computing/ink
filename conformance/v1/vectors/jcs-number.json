@@ -106,6 +106,70 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "out-of-double-range-literal-rejects",
+      "description": "A literal with no double at all is rejected. This one is decided before parsing, by the raw-text range rule of ink-signed-string-safety.md, not by the value profile: ECMAScript decodes it to Infinity and Go refuses the document, so the two would otherwise disagree about whether the body exists.",
+      "input": {
+        "bodyRaw": "{\"n\":1e309}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "shadowed-out-of-double-range-literal-rejects",
+      "description": "An out-of-range literal that a later duplicate member shadows is still rejected. Last-wins member semantics hide it from every check on the decoded value, so an implementation that runs the range rule after parsing canonicalizes {\"n\":1} here and verifies a signature over bytes another implementation refuses outright.",
+      "input": {
+        "bodyRaw": "{\"n\":1e309,\"n\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "in-range-duplicate-member-accepts-last",
+      "description": "The control for the case above: a duplicate member whose literals are both in range is accepted and canonicalizes to the last one, so the rejection above is about the literal and not about duplicate members.",
+      "input": {
+        "bodyRaw": "{\"n\":2,\"n\":1}"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"n\":1}"
+      }
+    },
+    {
+      "caseId": "underflow-exponent-accepts-as-zero",
+      "description": "An exponent below the smallest subnormal decodes to 0 on every IEEE-754 parser, so it is in range for the raw-text rule and is judged by the value profile in the ordinary way: 0 is a safe integer and canonicalizes to 0.",
+      "input": {
+        "bodyRaw": "{\"n\":1e-400}"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"n\":0}"
+      }
+    },
+    {
+      "caseId": "member-order-astral-before-bmp-accepts",
+      "description": "JCS sorts members by UTF-16 code unit, so the astral key U+1F511 (high surrogate D83D) sorts BEFORE the BMP key U+FF21. A canonicalizer that sorts by code point or by UTF-8 byte emits the reverse order and signs different bytes.",
+      "input": {
+        "bodyRaw": "{\"Ａ\":1,\"🔑\":2}"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"🔑\":2,\"Ａ\":1}"
+      }
+    },
+    {
+      "caseId": "member-order-mixed-scripts-nested-accepts",
+      "description": "The same UTF-16 code-unit ordering applies at every depth and against ASCII and Latin-1 neighbours: the full order is ASCII, then U+00E9, then the astral key, then U+FF21, in both the top-level object and a nested one.",
+      "input": {
+        "bodyRaw": "{\"nested\":{\"Ａ\":1,\"z\":2,\"🔑\":3,\"a\":4},\"Ａ\":5,\"é\":6,\"🔑\":7,\"Z\":8}"
+      },
+      "expect": {
+        "result": "accept",
+        "canonicalString": "{\"Z\":8,\"nested\":{\"a\":4,\"z\":2,\"🔑\":3,\"Ａ\":1},\"é\":6,\"🔑\":7,\"Ａ\":5}"
+      }
     }
   ]
 }

@@ -151,6 +151,66 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "bare-out-of-double-range-literal-rejects",
+      "description": "A body that is nothing but a literal outside the IEEE-754 double range is rejected at the gate. ECMAScript JSON.parse returns Infinity for it and Go's encoding/json refuses the document, so the gate decides it rather than the parser.",
+      "input": {
+        "bodyHex": "3165333039"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "out-of-double-range-member-rejects",
+      "description": "The same literal as a member value is rejected before parsing, so nothing downstream ever sees an Infinity.",
+      "input": {
+        "bodyHex": "7b226e223a31653330397d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "shadowed-out-of-double-range-literal-rejects",
+      "description": "An out-of-range literal shadowed by a later duplicate member is rejected. This is the case a value-level range check cannot make: last-wins semantics drop the literal, so a receiver that checks after parsing admits a body another implementation refuses outright, and then verifies a signature over its canonical bytes.",
+      "input": {
+        "bodyHex": "7b226e223a31653330392c226e223a317d"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "number-like-text-in-string-accepts",
+      "description": "The same characters inside a JSON string are text, not a number literal, so the range scan must read only outside strings.",
+      "input": {
+        "bodyHex": "7b226e6f7465223a223165333039227d"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "underflow-exponent-accepts",
+      "description": "An exponent below the smallest subnormal decodes to 0 on every IEEE-754 parser rather than to an infinity, so it is in range and the gate accepts it; the value profile then judges the 0.",
+      "input": {
+        "bodyHex": "7b226e223a31652d3430307d"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "largest-finite-double-accepts",
+      "description": "The largest finite double is the boundary the rule is drawn at and is accepted by the gate, so the rule rejects only literals with no double at all.",
+      "input": {
+        "bodyHex": "7b226e223a312e37393736393331333438363233313537653330387d"
+      },
+      "expect": {
+        "result": "accept"
+      }
     }
   ]
 }

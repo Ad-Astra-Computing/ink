@@ -2,7 +2,7 @@
 /**
  * CLI: verify an INK inclusion receipt against a witness's published
  * identity and current checkpoint. Self-contained ESM module so the
- * shebang resolves on any Node 22+ install without a TS toolchain.
+ * shebang resolves on any supported Node install without a TS toolchain.
  *
  * Usage:
  *
@@ -29,6 +29,12 @@
 import { readFileSync, statSync } from "node:fs";
 import * as ed from "@noble/ed25519";
 import canonicalize from "canonicalize";
+// The receipt is a signed artifact, so it goes through the same text-level gate
+// as every other signed body rather than a bare JSON.parse. The gate lives in a
+// sibling .mjs rather than in dist/, because this file must run from a git
+// checkout where nothing has been built yet; test/bin-gate-parity.test.ts keeps
+// that copy in step with the library's.
+import { parseSignedBodyBytes } from "./signed-body-gate.mjs";
 
 // ── arg parsing ──
 
@@ -231,7 +237,12 @@ async function verifyConsistencyProofCli(first, firstRoot, second, secondRoot, p
 // ── core verifier ──
 
 const MAX_PROOF_LENGTH = 64;
-const MAX_RECEIPT_BYTES = 64 * 1024;
+// Matches Go's MaxInclusionReceiptBytes. The two have to agree, or the CLI
+// refuses a receipt the library verifiers accept: a signed core at the
+// canonicalize ceiling can legitimately reach several MiB on the wire once
+// escaped, since the signature verifies against the re-canonicalized core
+// rather than the raw bytes.
+const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 
 function checkCheckpointShape(cp) {
   if (cp === null || typeof cp !== "object") return "laterCheckpoint must be an object";
@@ -482,18 +493,26 @@ async function fetchConsistencyProof(witnessUrl, first, second) {
   return parsed.proof;
 }
 
+/**
+ * Read the receipt from stdin as BYTES, not text. The signature covers the raw
+ * bytes, so decoding here with Node's non-fatal decoder would substitute U+FFFD
+ * for an invalid sequence and hand the verifier something the sender never
+ * signed. The fatal decode belongs to `parseSignedBodyBytes`.
+ */
 async function readStdin() {
   return new Promise((resolve, reject) => {
-    let data = "";
-    process.stdin.setEncoding("utf8");
+    const chunks = [];
+    let total = 0;
     process.stdin.on("data", (chunk) => {
-      data += chunk;
-      if (data.length > MAX_RECEIPT_BYTES) {
+      total += chunk.length;
+      if (total > MAX_RECEIPT_BYTES) {
         reject(new Error(`receipt input exceeds ${MAX_RECEIPT_BYTES} bytes`));
         process.stdin.destroy();
+        return;
       }
+      chunks.push(chunk);
     });
-    process.stdin.on("end", () => resolve(data));
+    process.stdin.on("end", () => resolve(new Uint8Array(Buffer.concat(chunks))));
     process.stdin.on("error", reject);
   });
 }
@@ -528,12 +547,12 @@ async function main() {
       if (st.size > MAX_RECEIPT_BYTES) {
         throw new Error(`receipt file exceeds ${MAX_RECEIPT_BYTES} bytes (${st.size} on disk)`);
       }
-      raw = readFileSync(args.file, "utf8");
+      raw = new Uint8Array(readFileSync(args.file));
     } else {
       raw = await readStdin();
     }
     if (raw.length > MAX_RECEIPT_BYTES) {
-      throw new Error(`receipt exceeds ${MAX_RECEIPT_BYTES} bytes after decode`);
+      throw new Error(`receipt exceeds ${MAX_RECEIPT_BYTES} bytes`);
     }
   } catch (e) {
     console.error(`Error reading receipt: ${e instanceof Error ? e.message : String(e)}`);
@@ -542,7 +561,7 @@ async function main() {
 
   let receipt;
   try {
-    receipt = JSON.parse(raw);
+    receipt = parseSignedBodyBytes(raw);
   } catch (e) {
     console.error(`Error parsing receipt JSON: ${e instanceof Error ? e.message : String(e)}`);
     process.exit(2);

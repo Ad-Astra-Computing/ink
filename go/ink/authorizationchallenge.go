@@ -4,11 +4,9 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"regexp"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 )
 
 // The "INK Agent Authorization" sign-in challenge, the one artifact the flow
@@ -52,10 +50,8 @@ const MaxChallengeLifetimeMs = 10 * 60 * 1000
 // MaxChallengeBodyBytes is the byte-length ceiling on a raw challenge body before
 // it is parsed. It pins the spec's Byte bound rule: a challenge presented as raw
 // bytes must be rejected as schema when longer than 65536 bytes, before decoding.
-// This Go API receives bytes, so VerifyAuthorizationChallenge enforces the bound
-// itself; the reference verifier takes an already-decoded object and instead
-// applies the structural bounds, so the TypeScript counterpart
-// MAX_CHALLENGE_BODY_BYTES is the contract for whatever layer received its bytes.
+// Both implementations receive bytes and enforce the bound themselves, and the
+// TypeScript counterpart MAX_CHALLENGE_BODY_BYTES carries the same value.
 const MaxChallengeBodyBytes = 64 * 1024
 
 // challengeIDDomain is the domain string the derived grantId digest covers,
@@ -209,13 +205,11 @@ func VerifyAuthorizationChallenge(raw []byte, keys []CandidateKey, ctx Authoriza
 	if len(raw) > MaxChallengeBodyBytes {
 		return false, ChallengeReasonSchema
 	}
-	// encoding/json rewrites invalid UTF-8 or a lone surrogate to U+FFFD, so reject
-	// both before parsing.
-	if !utf8.Valid(raw) || ContainsLoneSurrogateEscape(raw) {
-		return false, ChallengeReasonSchema
-	}
-	var obj map[string]interface{}
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	// The artifact is signed over its raw bytes, so every text-level rule of
+	// ink-signed-string-safety.md runs before parsing. Routed through the
+	// shared parser so a new rule cannot reach some verifiers and not others.
+	obj, okParse := ParseSignedObject(raw)
+	if !okParse {
 		return false, ChallengeReasonSchema
 	}
 	if !withinBodyBounds(obj) {

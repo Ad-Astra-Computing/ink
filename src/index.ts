@@ -31,7 +31,14 @@ export {
 export { signMessage, verifyMessage } from "./crypto/sign.js";
 export { parseInkTimestampMs, isInkTimestamp, MAX_TIMESTAMP_LENGTH } from "./crypto/timestamp.js";
 export { containsLoneSurrogateEscape, hasUnpairedSurrogate } from "./crypto/surrogate.js";
-export { parseSignedBodyBytes, ParseSignedBodyError } from "./crypto/parse-signed-body.js";
+export { containsOutOfRangeNumberLiteral } from "./crypto/number-literal.js";
+export { containsEscapedMemberName, hasUnsafeObjectKey } from "./crypto/member-name.js";
+export { hasEscapedMemberNameDefect } from "./crypto/member-name-defect.js";
+export {
+  parseSignedBodyBytes,
+  parseSignedBodyText,
+  ParseSignedBodyError,
+} from "./crypto/parse-signed-body.js";
 export type { ParseSignedBodyReason } from "./crypto/parse-signed-body.js";
 export { verifyInkSignatureWithKeys } from "./crypto/multi-key-verify.js";
 export {
@@ -242,6 +249,7 @@ export {
   verifyDiscoveryQueryEnvelope,
   MAX_DISCOVERY_QUERY_AGE_MS,
   MAX_DISCOVERY_QUERY_SKEW_MS,
+  MAX_DISCOVERY_QUERY_BODY_BYTES,
 } from "./models/discovery-query.js";
 export type {
   DiscoveryQuery,

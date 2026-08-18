@@ -1,7 +1,6 @@
 package ink
 
 import (
-	"encoding/json"
 	"strconv"
 	"strings"
 )
@@ -55,12 +54,10 @@ func EvaluateAgentCardFetch(status int, contentType *string, contentLength *stri
 		return false
 	}
 
-	// 5. JSON parse; must be an object.
-	var parsed interface{}
-	if err := json.Unmarshal([]byte(bodyRaw), &parsed); err != nil {
-		return false
-	}
-	card, ok := parsed.(map[string]interface{})
+	// 5. JSON parse; must be an object. The card carries a signature verified
+	//    over its canonical form, so it is signature-relevant and goes through
+	//    the shared signed-artifact parser rather than a bare json.Unmarshal.
+	card, ok := ParseSignedObject([]byte(bodyRaw))
 	if !ok {
 		return false
 	}

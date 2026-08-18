@@ -275,7 +275,9 @@ export async function processInbound(
   // Gate the RAW bytes before parsing. `parseSignedBodyBytes` decodes with a
   // fatal UTF-8 decoder (so an invalid sequence is rejected rather than
   // substituted with U+FFFD), scans the decoded text for a lone UTF-16
-  // surrogate escape, then parses. A signed body is verified over its raw
+  // surrogate escape and for a number literal outside the IEEE-754 double
+  // range (which one parser turns into Infinity and another refuses outright),
+  // then parses. A signed body is verified over its raw
   // bytes; a receiver that decodes leniently would canonicalize bytes the
   // signer never signed and could disagree with the signer, so this runs on
   // the bytes before any parse (see specs/ink-signed-string-safety.md).
@@ -286,6 +288,12 @@ export async function processInbound(
     if (err instanceof ParseSignedBodyError) {
       if (err.reason === "utf8") {
         return { kind: "rejected", verdict: "utf8", sender: "", intent: "", errorCode: "invalid_utf8" };
+      }
+      // Compared as a string so this example typechecks against the published
+      // package it pins as well as against the current source, which is where
+      // the `number-range` reason was added.
+      if ((err.reason as string) === "number-range") {
+        return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "number_out_of_range" };
       }
       return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "lone_surrogate" };
     }

@@ -1,0 +1,36 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-canonical",
+  "conformanceCategory": "signed-body-canonical",
+  "kind": "decision",
+  "detail": "ts=accept go=reject",
+  "runSeed": 20260818,
+  "originCaseId": "signed-body-canonical/random/20260818/2862",
+  "arm": "random",
+  "original": {
+    "bodyRaw": "[[{\"\\r\":[],\"k3\":false,\"\\r\\n\":null},[{\"k3\":null,\"ﬀ\":\"\\u001f\"},null,[],{\"k0\":\"\\u0000\"}],[{\"k3\":false,\"k2\":\"\\u0000\",\"k0\":1e309,\"k0\":\"ﬀ\"},[\"\\u001f\",true]],\"😀\"],{\"k1\":true,\"\\u0000\":\"é\"},\"\\u001f\"]"
+  },
+  "minimized": {
+    "bodyRaw": "{\"k3\":false,\"k2\":\"\\u0000\",\"k0\":1e309,\"k0\":\"ﬀ\"}"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "accept",
+        "canonicalString": "[[{\"\\r\":[],\"\\r\\n\":null,\"k3\":false},[{\"k3\":null,\"ﬀ\":\"\\u001f\"},null,[],{\"k0\":\"\\u0000\"}],[{\"k0\":\"ﬀ\",\"k2\":\"\\u0000\",\"k3\":false},[\"\\u001f\",true]],\"😀\"],{\"\\u0000\":\"é\",\"k1\":true},\"\\u001f\"]"
+      },
+      "go": {
+        "result": "reject"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "accept",
+        "canonicalString": "{\"k0\":\"ﬀ\",\"k2\":\"\\u0000\",\"k3\":false}"
+      },
+      "go": {
+        "result": "reject"
+      }
+    }
+  }
+}

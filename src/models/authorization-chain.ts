@@ -3,6 +3,7 @@ import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
 import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
 import { jcsCanonicalize, base64urlEncode } from "../crypto/ink.js";
+import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
 import type { GrantKey, VerifiedOwnerStatus } from "./authorization-grant.js";
 
 // A linear authorization chain: 2 to 4 delegation links, each the grant field
@@ -48,14 +49,18 @@ export const INTERMEDIATE_LINK_MAX_LIFETIME_MS = 24 * 60 * 60 * 1000;
 export const FINAL_LINK_MAX_LIFETIME_MS = 10 * 60 * 1000;
 
 /**
- * Byte-length ceiling on a raw chain body, the byte-layer counterpart to the
- * structural schema bounds. A receiver holding raw chain bytes MUST reject a body
- * longer than this as `schema` before it decodes the bytes: the largest
- * well-formed four-link chain is far under it, so a presentation padded past the
- * cap is not legitimate and need not be decoded. This reference verifier takes an
- * already-decoded object and applies the structural bounds instead, so this
- * constant is the contract for whatever layer received the bytes, the same split
- * the grant draws. See specs/ink-authorization-chain.md.
+ * Byte-length ceiling on a raw chain body, enforced before the body is decoded.
+ * The largest well-formed four-link chain is far under it, so a presentation
+ * padded past the cap is not legitimate and need not be decoded at all.
+ * `verifyAuthorizationChain` enforces it on the bytes it is handed, the same
+ * figure the Go `MaxChainBodyBytes` enforces, and the same figure the grant
+ * rounds to, because a link IS the grant field model.
+ *
+ * The cap is not redundant with the structural bounds walk: JSON permits unbounded
+ * whitespace between tokens, and whitespace vanishes at canonicalization, so a
+ * schema-valid chain padded with megabytes of spaces carries per-link signatures
+ * that still verify. Without a byte cap that body is admitted. See
+ * [`specs/ink-authorization-chain.md`](../../specs/ink-authorization-chain.md).
  */
 export const MAX_CHAIN_BODY_BYTES = 65536;
 
@@ -276,6 +281,20 @@ function scopeSet(scope: string[]): Set<string> {
  * failure returns a typed rejection, and the function never throws. Verification
  * runs three passes in order and returns the first failure's reason.
  *
+ * The input is the **raw body bytes**, not a parsed value. Every link is a signed
+ * body, so the presentation is subject to the raw-body gate of
+ * [`specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md)
+ * §"Enforcement order": invalid UTF-8, a lone UTF-16 surrogate escape and a number
+ * literal outside the IEEE-754 double range are all rules about the bytes that no
+ * longer exist once the body is parsed. A verifier that took a parsed value could
+ * not run them: a duplicate member shadows an out-of-range literal (JSON member
+ * semantics are last-wins), so the value layer never sees it, every link
+ * canonicalizes cleanly and every signature verifies, while an implementation that
+ * gates the bytes refuses the same presentation outright. That is an
+ * accept-versus-reject split in a signed path, choosable by anyone who can write
+ * the bytes, so the bytes are the input.
+ *
+ *   Pass 0 (bytes): byte cap, raw-body gate, JSON parse -> schema
  *   Pass 1 (structure, on signed bytes, clock-independent):
  *     schema      -> field set, types, 2..4 link count, distinct/positive-window
  *                    per link, per-position lifetime ceiling, parent shape and
@@ -295,21 +314,40 @@ function scopeSet(scope: string[]): Set<string> {
  *     owner    -> if any link requires it, the supplied owner status is verified
  */
 export async function verifyAuthorizationChain(
-  raw: unknown,
+  raw: Uint8Array,
   context: AuthorizationChainVerifyContext,
 ): Promise<AuthorizationChainVerifyResult> {
   try {
-    // Bounds first: a hostile object past the node/char caps is rejected before
+    // A caller on an untyped boundary can still hand over something that is not
+    // bytes; that is a verifier input error, not a chain this function can rule
+    // on, and it fails closed rather than being coerced.
+    if (!ArrayBuffer.isView(raw) || !(raw instanceof Uint8Array)) {
+      return { ok: false, reason: "schema" };
+    }
+    // The byte cap runs before the decoder: an oversized blob is refused without
+    // being decoded at all.
+    if (raw.length > MAX_CHAIN_BODY_BYTES) {
+      return { ok: false, reason: "schema" };
+    }
+    // The raw-body gate, then the parse. ParseSignedBodyError and the native
+    // SyntaxError from a malformed body are both structural rejections.
+    let value: unknown;
+    try {
+      value = parseSignedBodyBytes(raw);
+    } catch {
+      return { ok: false, reason: "schema" };
+    }
+    // Bounds next: a hostile object past the node/char caps is rejected before
     // zod or canonicalization walks it.
-    if (!isWithinBounds(raw)) {
+    if (!isWithinBounds(value)) {
       return { ok: false, reason: "schema" };
     }
     // String safety is structural: a lone UTF-16 surrogate is not portable, so it
     // rejects as schema before any signature work, not as a signature failure.
-    if (hasUnpairedSurrogate(raw)) {
+    if (hasUnpairedSurrogate(value)) {
       return { ok: false, reason: "schema" };
     }
-    const parsed = AuthorizationChainSchema.safeParse(raw);
+    const parsed = AuthorizationChainSchema.safeParse(value);
     if (!parsed.success) {
       return { ok: false, reason: "schema" };
     }

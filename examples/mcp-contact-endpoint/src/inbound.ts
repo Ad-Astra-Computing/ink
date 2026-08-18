@@ -84,7 +84,16 @@ export async function handleInbound(req: Request, env: Env): Promise<Response> {
     raw = parseSignedBodyBytes(read.bytes);
   } catch (err) {
     if (err instanceof ParseSignedBodyError) {
-      return json(400, { error: err.reason === "utf8" ? "invalid_utf8" : "lone_surrogate" });
+      const error =
+        err.reason === "utf8"
+          ? "invalid_utf8"
+          : // Compared as a string so this example typechecks against the
+            // published package as well as the current source, which is where
+            // the `number-range` reason was added.
+            (err.reason as string) === "number-range"
+            ? "number_out_of_range"
+            : "lone_surrogate";
+      return json(400, { error });
     }
     return json(400, { error: "invalid_json" });
   }

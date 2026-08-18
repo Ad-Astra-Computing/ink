@@ -19,6 +19,7 @@ import {
   signRotationLink,
   canonicalAgentPrincipal,
   signInkMessage,
+  signMessage,
   bytesToHex,
   hexToBytes,
   parseCheckpoint,
@@ -70,6 +71,7 @@ const CATEGORY_META = {
   "replay-freshness": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Timestamp window and nonce replay rejection." },
   "timestamp-validity": { profile: "base", spec: "specs/ink-timestamp-grammar.md", summary: "Strict INK timestamp grammar and epoch-millisecond parsing." },
   "jcs-string-safety": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Lone UTF-16 surrogate rejection in signed strings." },
+  "signed-body-member-name": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Escaped object member names in a signed body, rejected on the raw text before parsing." },
   "signed-body-utf8": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Raw-UTF-8 validity of a signed body, enforced at the byte boundary before parsing." },
   "merkle-inclusion": { profile: "witness", spec: "specs/ink-merkle-inclusion.md", summary: "RFC 6962 inclusion-proof verification." },
   "merkle-consistency": { profile: "witness", spec: "specs/ink-merkle-consistency.md", summary: "RFC 6962 consistency-proof verification." },
@@ -150,6 +152,25 @@ function writeSchema() {
             caseId: { type: "string", pattern: "^[a-z0-9-]+$" },
             description: { type: "string" },
             input: { type: "object" },
+            // A case whose decision is a MAY in the spec it pins. `expect` still
+            // carries the branch the reference takes, so the vector stays a
+            // byte-exact pin, and `optionalBehavior.alternative` names the other
+            // outcome that is EQUALLY conforming. A runner declares, once per
+            // behavior id, which branch its implementation takes, and asserts
+            // that branch; without this an implementation that fails closed
+            // where the spec allows it would fail a base category for being
+            // conformant. See specs/ink-conformance-profile.md.
+            optionalBehavior: {
+              type: "object",
+              required: ["id", "alternative", "spec", "rationale"],
+              additionalProperties: false,
+              properties: {
+                id: { type: "string", pattern: "^[a-z0-9-]+$" },
+                alternative: { type: "string", enum: ["accept", "reject"] },
+                spec: { type: "string" },
+                rationale: { type: "string" },
+              },
+            },
             expect: {
               type: "object",
               required: ["result"],
@@ -175,6 +196,19 @@ function writeSchema() {
   };
   writeFileSync(`${here}schema.json`, JSON.stringify(schema, null, 2) + "\n");
 }
+
+// Member names that discriminate a JCS member-ordering comparator. RFC 8785
+// sorts by UTF-16 code unit: the astral key U+1F511 is a surrogate pair whose
+// leading unit is D83D, so it sorts BELOW the BMP key U+FF21 (and below any
+// member name in U+E000..U+FFFF). Sorting by code point or by UTF-8 byte puts
+// it ABOVE. The two orders agree on every all-ASCII object, so a canonicalizer
+// with the wrong comparator is invisible until a member name leaves ASCII, and
+// then it changes the signed bytes of every signature kind INK defines. Used by
+// the jcs-number, signature-base, agent-card-signature and merkle-leaf
+// categories; the same discriminator the Go body-signature producer goldens use
+// (go/ink/testdata/body-signature-producer.json).
+const ordBmpKey = "Ａ"; // U+FF21 FULLWIDTH LATIN CAPITAL LETTER A
+const ordAstralKey = "\u{1F511}"; // U+1F511 KEY, surrogate pair D83D DD11
 
 // ── principal-normalization ────────────────────────────────────────────────
 vectorFile("principal-normalization", [
@@ -213,6 +247,39 @@ vectorFile("principal-normalization", [
     description: "An empty agentId is rejected.",
     input: { agentId: "" },
     expect: { result: "reject" },
+  },
+  // ── the decode-and-re-encode rule (§7) ──
+  // §7 maps a key-prefixed agentId to `key:<canonical-multibase>` by DECODING
+  // the multibase body and re-encoding it, not by replacing the prefix. The four
+  // cases below are the ones where the two implementations part company: a
+  // prefix string-replace passes every case above and turns each of these into a
+  // `key:` principal, which is a security decision, not a formatting one. A
+  // sender whose malformed or wrongly-typed id became a `key:` principal gets a
+  // blocklist entry, a rate-limit window and a nonce scope of its own, and can
+  // mint fresh ones at will.
+  {
+    caseId: "malformed-multibase-body-escaped",
+    description: "A tulpa: id whose multibase body is not base58btc at all is escaped to raw:<agentId>, never mapped to a key principal. An implementation that string-replaces the prefix instead produces key:zNotBase58_0IOl and gives an unauthenticatable id its own security scope.",
+    input: { agentId: "tulpa:zNotBase58_0IOl" },
+    expect: { result: "accept", canonicalPrincipal: "raw:tulpa:zNotBase58_0IOl" },
+  },
+  {
+    caseId: "truncated-key-body-escaped",
+    description: "A tulpa: id whose body decodes but is far short of a 34-byte multicodec-plus-key is escaped to raw:, so the length check is part of the decode and not an afterthought.",
+    input: { agentId: "tulpa:z6Mk" },
+    expect: { result: "accept", canonicalPrincipal: "raw:tulpa:z6Mk" },
+  },
+  {
+    caseId: "leading-zero-padded-multibase-escaped",
+    description: "A NON-CANONICAL multibase spelling of the canonical key: an extra base58 '1' prepends a 0x00 byte, so the decoded bytes no longer start with the 0xed01 Ed25519 multicodec and the id is escaped to raw:. A decoder that tolerates the padding re-encodes it to the SAME key principal as the canonical spelling, which merges two distinct wire identifiers; a prefix string-replace instead mints a third principal. The reference does neither.",
+    input: { agentId: `tulpa:z1${mb.slice(1)}` },
+    expect: { result: "accept", canonicalPrincipal: `raw:tulpa:z1${mb.slice(1)}` },
+  },
+  {
+    caseId: "encryption-key-multicodec-escaped",
+    description: "A tulpa: id carrying an X25519 (0xec01) multibase where a signing key belongs is escaped to raw:. The multicodec prefix is checked during the decode, so an encryption key cannot be spelled as a signing principal.",
+    input: { agentId: `tulpa:${encodeEncryptionKeyMultibase(publicKey)}` },
+    expect: { result: "accept", canonicalPrincipal: `raw:tulpa:${encodeEncryptionKeyMultibase(publicKey)}` },
   },
 ]);
 
@@ -268,6 +335,33 @@ const newlineBody = {
 };
 const newlineSignature = await signInkMessage(newlineBody, seed);
 
+// Every real intent envelope carries a `signature` member (Protocol §2, a MUST):
+// the §3.6 body signature over the envelope minus that member. The two signature
+// kinds treat it differently, and the difference is invisible in a corpus whose
+// signed bodies never carry one. §3.6 strips `signature` before canonicalizing;
+// §3.3 strips nothing, so the transport base commits to the body exactly as
+// delivered, `signature` member included. The two cases below pin that in both
+// directions: an implementation that strips `signature` before building the
+// transport base fails the accept case, and one that builds the base over a body
+// the signer did not sign passes nothing.
+const bodyWithoutSignature = {
+  ...signInput.body,
+  id: "44444444-4444-4444-8444-444444444444",
+  nonce: "55555555-5555-4555-8555-555555555555",
+};
+const bodySignature = await signMessage(bodyWithoutSignature, seed);
+const signedEnvelope = { ...bodyWithoutSignature, signature: bodySignature };
+// Transport signature over the FULL envelope, `signature` member included.
+const envelopeSignInput = { ...signInput, body: signedEnvelope };
+const envelopeTransportSignature = await signInkMessage(envelopeSignInput, seed);
+// Transport signature over the envelope with `signature` STRIPPED, presented
+// against the full envelope. This is exactly what a §3.6-style stripping
+// implementation produces, and a conforming §3.3 verifier must reject it.
+const strippedBaseTransportSignature = await signInkMessage(
+  { ...signInput, body: bodyWithoutSignature },
+  seed,
+);
+
 // A small-order public key (the identity point) makes [h]A constant across all
 // messages, so for A = identity the cofactorless verification equation
 // [S]B = R + [h]A reduces to [S]B = R; with S = 1 and R = [1]B = B (the
@@ -280,6 +374,44 @@ const basepointBytes = Buffer.from("58666666666666666666666666666666666666666666
 const scalarOneBytes = Buffer.alloc(32);
 scalarOneBytes[0] = 1;
 const smallOrderForgedSig = Buffer.concat([basepointBytes, scalarOneBytes]).toString("base64url");
+
+// A signed body whose payload carries member names outside ASCII, ordered so
+// only a UTF-16 code-unit comparator reproduces the signer's bytes (see the
+// ordBmpKey/ordAstralKey note above). The reference signs the canonical form; a
+// verifier that sorts by code point or UTF-8 byte builds a different base and
+// rejects a signature that is valid. The reordered twin pins that the decision
+// is over the canonical bytes and not the source member order.
+const orderingBody = {
+  ...signInput.body,
+  payload: { [ordBmpKey]: "bmp", [ordAstralKey]: "astral", note: "member ordering" },
+};
+const orderingSignInput = { ...signInput, body: orderingBody };
+const orderingSignature = await signInkMessage(orderingSignInput, seed);
+const orderingReordered = {
+  ...signInput,
+  body: {
+    ...signInput.body,
+    payload: { note: "member ordering", [ordAstralKey]: "astral", [ordBmpKey]: "bmp" },
+  },
+};
+
+// §3.3 forbids CR and LF in all four scalar fields (METHOD, PATH, recipientDid,
+// timestamp) because the base is newline-delimited: an embedded newline shifts
+// the field boundaries, so two distinct logical requests can produce one signed
+// string. The pair below is exactly that collision — path "/a\nb" with
+// recipientDid "x", and path "/a" with recipientDid "b\nx", produce byte-identical
+// bases — signed here by minting the signature over the raw base bytes directly,
+// since the reference signer refuses to build either. Both MUST reject: the
+// signature genuinely verifies, so an implementation that omits the CR/LF check
+// accepts both and treats two different requests as the same authenticated one.
+const crlfBody = { ...signInput.body, payload: { note: "field boundary" } };
+const crlfTs = "2026-06-11T00:00:00.000Z";
+const collidingBase = `ink/0.1\nPOST\n/a\nb\nx\n${jcsCanonicalize(crlfBody)}\n${crlfTs}`;
+const collidingSignature = Buffer.from(
+  await ed.signAsync(enc.encode(collidingBase), seed),
+).toString("base64url");
+const crBase = `ink/0.1\nPOST\n/a\nx\ry\n${jcsCanonicalize(crlfBody)}\n${crlfTs}`;
+const crSignature = Buffer.from(await ed.signAsync(enc.encode(crBase), seed)).toString("base64url");
 
 vectorFile("signature-base", [
   {
@@ -319,6 +451,18 @@ vectorFile("signature-base", [
     expect: { result: "accept" },
   },
   {
+    caseId: "body-with-signature-member-accepts",
+    description: "The transport signature base is built over the delivered body with nothing removed, so a body carrying the §3.6 `signature` member verifies with that member included. An implementation that strips `signature` before canonicalizing, which is the §3.6 body-signature rule and not the §3.3 transport rule, canonicalizes different bytes and rejects.",
+    input: { signInput: envelopeSignInput, signature: envelopeTransportSignature, publicKeyHex },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "signature-member-stripped-from-base-rejects",
+    description: "A transport signature computed over the body with the `signature` member stripped does not verify against the delivered body that carries it. This is the mirror of the case above: an implementation that strips `signature` from the transport base accepts this forgery-equivalent mismatch, a conforming one rejects it.",
+    input: { signInput: envelopeSignInput, signature: strippedBaseTransportSignature, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
     caseId: "malformed-signature-rejects",
     description: "A signature that is not 86 base64url characters is rejected before any verification work.",
     input: { signInput, signature: signature.slice(0, 85) + "+", publicKeyHex },
@@ -328,6 +472,36 @@ vectorFile("signature-base", [
     caseId: "small-order-public-key-rejects",
     description: "A small-order public key (the identity point) yields a signature that verifies for any message under the cofactorless equation; the reference rejects small-order keys before any arithmetic, so a conforming verifier must reject this universal forgery rather than accept it.",
     input: { signInput, signature: smallOrderForgedSig, publicKeyHex: identityPublicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-ascii-member-order-accepts",
+    description: "A signed body whose payload carries the member names U+FF21 and U+1F511 verifies only if the canonicalizer sorts members by UTF-16 code unit (RFC 8785), which puts the astral key first. Sorting by code point or by UTF-8 byte builds a different signature base and rejects a valid signature.",
+    input: { signInput: orderingSignInput, signature: orderingSignature, publicKeyHex },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "non-ascii-member-reorder-accepts",
+    description: "The same non-ASCII payload emitted in a different source order canonicalizes to the same bytes, so the same signature verifies: the ordering rule is the canonicalizer's, not the wire's.",
+    input: { signInput: orderingReordered, signature: orderingSignature, publicKeyHex },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "path-with-newline-rejects",
+    description: "A PATH containing a line feed is rejected even though the accompanying signature verifies over the resulting base. Together with recipient-with-newline-rejects it pins the §3.3 CR/LF ban: the two inputs differ only in which scalar carries the newline, they produce byte-identical bases, and one signature authenticates both, so an implementation that omits the check authenticates two different requests with one signature.",
+    input: { signInput: { method: "POST", path: "/a\nb", recipientDid: "x", body: crlfBody, timestamp: crlfTs }, signature: collidingSignature, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "recipient-with-newline-rejects",
+    description: "The other half of the field-boundary collision: PATH \"/a\" with a recipientDid of \"b\\nx\" builds the same base bytes as PATH \"/a\\nb\" with recipientDid \"x\", so the identical signature verifies. A conforming verifier rejects on the newline before it ever gets there.",
+    input: { signInput: { method: "POST", path: "/a", recipientDid: "b\nx", body: crlfBody, timestamp: crlfTs }, signature: collidingSignature, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "recipient-with-carriage-return-rejects",
+    description: "The ban covers CR as well as LF: a recipientDid carrying a carriage return is rejected, again against a signature that verifies over the base those bytes produce, so an implementation that scans only for \\n diverges.",
+    input: { signInput: { method: "POST", path: "/a", recipientDid: "x\ry", body: crlfBody, timestamp: crlfTs }, signature: crSignature, publicKeyHex },
     expect: { result: "reject" },
   },
 ]);
@@ -402,12 +576,72 @@ vectorFile("jcs-number", [
     input: { bodyRaw: `{"n":9007199254740993}` },
     expect: { result: "reject" },
   },
+  {
+    caseId: "out-of-double-range-literal-rejects",
+    description: "A literal with no double at all is rejected. This one is decided before parsing, by the raw-text range rule of ink-signed-string-safety.md, not by the value profile: ECMAScript decodes it to Infinity and Go refuses the document, so the two would otherwise disagree about whether the body exists.",
+    input: { bodyRaw: `{"n":1e309}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "shadowed-out-of-double-range-literal-rejects",
+    description: "An out-of-range literal that a later duplicate member shadows is still rejected. Last-wins member semantics hide it from every check on the decoded value, so an implementation that runs the range rule after parsing canonicalizes {\"n\":1} here and verifies a signature over bytes another implementation refuses outright.",
+    input: { bodyRaw: `{"n":1e309,"n":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "in-range-duplicate-member-accepts-last",
+    description: "The control for the case above: a duplicate member whose literals are both in range is accepted and canonicalizes to the last one, so the rejection above is about the literal and not about duplicate members.",
+    input: { bodyRaw: `{"n":2,"n":1}` },
+    expect: { result: "accept", canonicalString: `{"n":1}` },
+  },
+  {
+    caseId: "underflow-exponent-accepts-as-zero",
+    description: "An exponent below the smallest subnormal decodes to 0 on every IEEE-754 parser, so it is in range for the raw-text rule and is judged by the value profile in the ordinary way: 0 is a safe integer and canonicalizes to 0.",
+    input: { bodyRaw: `{"n":1e-400}` },
+    expect: { result: "accept", canonicalString: `{"n":0}` },
+  },
+  // ── member ordering outside ASCII ──
+  // RFC 8785 sorts object members by UTF-16 CODE UNIT, which is not the same
+  // order as code point or UTF-8 byte for a member name outside the BMP. A
+  // canonicalizer that sorts by code point (the natural sort in Go, Rust and
+  // Python) or by UTF-8 bytes agrees on every all-ASCII object and disagrees
+  // here: the astral key U+1F511 starts with the high surrogate D83D, which is
+  // BELOW U+FF21 as a code unit and ABOVE it as a code point. Every signature
+  // kind in INK signs canonical bytes, so a wrong comparator changes the signed
+  // bytes of every message carrying such a member and is otherwise invisible.
+  {
+    caseId: "member-order-astral-before-bmp-accepts",
+    description: "JCS sorts members by UTF-16 code unit, so the astral key U+1F511 (high surrogate D83D) sorts BEFORE the BMP key U+FF21. A canonicalizer that sorts by code point or by UTF-8 byte emits the reverse order and signs different bytes.",
+    input: { bodyRaw: `{"${ordBmpKey}":1,"${ordAstralKey}":2}` },
+    expect: { result: "accept", canonicalString: `{"${ordAstralKey}":2,"${ordBmpKey}":1}` },
+  },
+  {
+    caseId: "member-order-mixed-scripts-nested-accepts",
+    description: "The same UTF-16 code-unit ordering applies at every depth and against ASCII and Latin-1 neighbours: the full order is ASCII, then U+00E9, then the astral key, then U+FF21, in both the top-level object and a nested one.",
+    input: { bodyRaw: `{"nested":{"${ordBmpKey}":1,"z":2,"${ordAstralKey}":3,"a":4},"${ordBmpKey}":5,"é":6,"${ordAstralKey}":7,"Z":8}` },
+    expect: {
+      result: "accept",
+      canonicalString: `{"Z":8,"nested":{"a":4,"z":2,"${ordAstralKey}":3,"${ordBmpKey}":1},"é":6,"${ordAstralKey}":7,"${ordBmpKey}":5}`,
+    },
+  },
 ]);
 
 // ── key-rotation ───────────────────────────────────────────────────────────
 // The same signed message verified against a key set. The authority rule:
 // revoked keys are always skipped, active keys are tried before retired, and a
 // key only admits a message whose timestamp falls inside its validity window.
+//
+// Two layers live in this category and they decide a retired key differently.
+// Cases WITHOUT `liveAuth` exercise HISTORICAL VERIFICATION, the multi-key
+// primitive: a retired key inside its validity window verifies, which is what
+// lets a receipt, an audit event or a stored message stay verifiable after a
+// rotation. Cases WITH `liveAuth: true` exercise LIVE TRANSPORT AUTHENTICATION
+// (Protocol §3.3, identity model §4.4): the same primitive runs, then the
+// retired-key default rejects a signature that only a retired entry verified,
+// with `retired_key_for_live_auth`, unless the deployment has opted into a
+// bounded rotation grace window (`liveAuthAllowRetired`). An implementation
+// that wires one layer's answer into the other passes one set and fails the
+// other.
 const otherKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(7)));
 function keyEntry(status, extra = {}) {
   return { keyId: `signer-${status}`, publicKeyHex, status, ...extra };
@@ -421,7 +655,7 @@ vectorFile("key-rotation", [
   },
   {
     caseId: "retired-key-in-window-accepts",
-    description: "A retired key whose validity window still contains the message timestamp verifies.",
+    description: "Historical verification: a retired key whose validity window still contains the message timestamp verifies at the multi-key primitive. This case does not authorize a retired key for live transport auth; see the liveAuth cases below.",
     input: { signInput, signature, keys: [keyEntry("retired", { validUntil: "2027-01-01T00:00:00.000Z" })] },
     expect: { result: "accept", keyStatus: "retired" },
   },
@@ -641,6 +875,36 @@ vectorFile("key-rotation", [
     },
     expect: { result: "accept", keyStatus: "active", keyId: "good" },
   },
+  {
+    caseId: "live-auth-active-key-accepts",
+    description: "Live transport auth over an active key accepts, and reports the active status. The live-auth layer narrows which entries may authenticate a fresh request; it does not change how the signature itself is checked.",
+    input: { signInput, signature, keys: [keyEntry("active")], liveAuth: true },
+    expect: { result: "accept", keyStatus: "active", keyId: "signer-active" },
+  },
+  {
+    caseId: "live-auth-retired-key-rejects",
+    description: "Live transport auth rejects a signature that only a retired entry verified, even though the same key and message are accepted by historical verification in retired-key-in-window-accepts. The retired-key default is on unless the deployment opts out, so an implementation that returns the primitive's answer to its transport-auth caller accepts a superseded key for fresh traffic.",
+    input: { signInput, signature, keys: [keyEntry("retired", { validUntil: "2027-01-01T00:00:00.000Z" })], liveAuth: true },
+    expect: { result: "reject", reason: "retired_key_for_live_auth" },
+  },
+  {
+    caseId: "live-auth-retired-key-with-grace-window-accepts",
+    description: "A deployment that has explicitly opted into a bounded rotation grace window accepts the same retired key for live transport auth. The opt-in is the only thing that changes the previous case, so the default cannot be reached by accident.",
+    input: {
+      signInput,
+      signature,
+      keys: [keyEntry("retired", { validUntil: "2027-01-01T00:00:00.000Z" })],
+      liveAuth: true,
+      liveAuthAllowRetired: true,
+    },
+    expect: { result: "accept", keyStatus: "retired", keyId: "signer-retired" },
+  },
+  {
+    caseId: "live-auth-revoked-key-rejects",
+    description: "A revoked key is skipped by the primitive, so live transport auth rejects for signature failure rather than reaching the retired-key default.",
+    input: { signInput, signature, keys: [keyEntry("revoked")], liveAuth: true },
+    expect: { result: "reject", reason: "signature_verification_failed" },
+  },
 ]);
 
 // ── replay-freshness ───────────────────────────────────────────────────────
@@ -687,6 +951,37 @@ vectorFile("replay-freshness", [
     caseId: "malformed-nonce-rejects",
     description: "A nonce shorter than the minimum length is rejected before any freshness check.",
     input: { replay: replayInput(recvClock, "short") },
+    expect: { result: "reject" },
+  },
+  // ── the frozen window boundaries (§3.5) ──
+  // §3.5 freezes the window at exactly 300000 ms of age and 30000 ms of skew,
+  // and rejects when the bound is EXCEEDED, so both bounds are inclusive. The
+  // four cases below pin each side to the millisecond. Without them an
+  // implementation with an hour-long window, or with an exclusive comparison,
+  // passes every other case in this category: -6min and +31s say nothing about
+  // where the edge actually is.
+  {
+    caseId: "age-bound-accepts",
+    description: "The age bound is inclusive: a message exactly 300000 ms old is still fresh, because §3.5 rejects only when -drift EXCEEDS 300000.",
+    input: { replay: replayInput("2026-06-10T23:55:00.000Z", goodNonce) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "one-ms-past-age-bound-rejects",
+    description: "One millisecond older than the bound rejects, so an implementation with a longer window (or a wider unit) diverges here rather than passing on a coarse case.",
+    input: { replay: replayInput("2026-06-10T23:54:59.999Z", goodNonce) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "skew-bound-accepts",
+    description: "The future-skew bound is inclusive on the same reading: a message exactly 30000 ms ahead of the receiver clock is accepted.",
+    input: { replay: replayInput("2026-06-11T00:00:30.000Z", goodNonce) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "one-ms-past-skew-bound-rejects",
+    description: "One millisecond past the skew bound rejects, pinning the future edge to the millisecond the way the age edge is pinned.",
+    input: { replay: replayInput("2026-06-11T00:00:30.001Z", goodNonce) },
     expect: { result: "reject" },
   },
 ]);
@@ -879,6 +1174,135 @@ vectorFile("jcs-string-safety", [
   },
 ]);
 
+// ── signed-body-member-name ──────────────────────────────────────────────
+// A signed body MUST NOT contain an object member name written with any escape
+// sequence. V8 sizes the character span for an escaped member name from the raw
+// source using the decoded length, then adopts a matching hidden-class
+// transition's name as the property key without decoding, so the parsed object
+// can carry a member name the document never contained. Escapes in string
+// values and array elements are unaffected. The rule is stated on the raw text
+// because the substituted name is indistinguishable, after parsing, from a name
+// the sender chose. `bs` is the backslash const declared above.
+vectorFile("signed-body-member-name", [
+  {
+    caseId: "plain-member-name-accepts",
+    description: "A member name with no escape is accepted.",
+    input: { bodyRaw: `{"note":1}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "non-ascii-member-name-accepts",
+    description: "A member name carrying raw non-ASCII UTF-8 is accepted; only escapes are barred.",
+    input: { bodyRaw: `{"é":1,"𝄞":2}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "empty-member-name-accepts",
+    description: "The empty member name is accepted.",
+    input: { bodyRaw: `{"":1}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "escaped-string-value-accepts",
+    description: "An escape in a string value is accepted; the rule covers member names only.",
+    input: { bodyRaw: `{"note":"line${bs}nbreak"}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "escaped-array-element-accepts",
+    description: "An escape in an array element is accepted.",
+    input: { bodyRaw: `{"a":["${bs}n","${bs}${bs}"]}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "colon-in-string-value-accepts",
+    description:
+      "A colon inside a string value does not make the preceding string a member name.",
+    input: { bodyRaw: `{"a":"b:c","d":"${bs}n:e"}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "value-ending-in-escaped-quote-accepts",
+    description:
+      "A string value ending in an escaped quote must not desynchronise the scan into misreading the following text.",
+    input: { bodyRaw: `{"a":"ends with ${bs}"","b":1}` },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "escaped-newline-member-name-rejects",
+    description:
+      "A member name written with a two-character escape is rejected: V8 can return a different name entirely.",
+    input: { bodyRaw: `{"${bs}n":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "escaped-backslash-member-name-rejects",
+    description:
+      "An escaped backslash member name is rejected. This is the name that plants the transition the corruption reuses.",
+    input: { bodyRaw: `{"${bs}${bs}":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "escaped-quote-member-name-rejects",
+    description: "An escaped quotation mark member name is rejected.",
+    input: { bodyRaw: `{"${bs}"":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "escaped-solidus-member-name-rejects",
+    description:
+      "An escaped solidus member name is rejected even though the solidus need not be escaped at all.",
+    input: { bodyRaw: `{"${bs}/":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "unicode-escape-member-name-rejects",
+    description:
+      "A \\uXXXX member name is rejected even when it decodes to an ordinary character, because the raw spelling is still longer than the decoded name.",
+    input: { bodyRaw: `{"${bs}u0041":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "escape-mid-member-name-rejects",
+    description: "An escape anywhere inside a member name is rejected, not only at the start.",
+    input: { bodyRaw: `{"a${bs}nb":1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nested-escaped-member-name-rejects",
+    description: "An escaped member name nested inside another object is rejected.",
+    input: { bodyRaw: `{"a":{"${bs}n":1}}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "escaped-member-name-in-array-rejects",
+    description: "An escaped member name inside an array element object is rejected.",
+    input: { bodyRaw: `{"a":[{"b":{"${bs}${bs}":1}}]}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "whitespace-before-colon-rejects",
+    description:
+      "Whitespace between a member name and its colon does not exempt the name from the rule.",
+    input: { bodyRaw: `{"${bs}n"  :  1}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "poisoning-and-victim-pair-rejects",
+    description:
+      "The measured corruption vector: an escaped-backslash name plants a transition that a later escaped name is decoded into. Rejected on the first escaped member name.",
+    input: { bodyRaw: `{"x":{"${bs}${bs}":1},"y":{"${bs}n":2}}` },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "escaped-key-after-escaped-quote-value-rejects",
+    description:
+      "An escaped member name following a string value that ends in an escaped quote is still rejected.",
+    input: { bodyRaw: `{"a":"ends with ${bs}"","${bs}n":1}` },
+    expect: { result: "reject" },
+  },
+]);
+
 // ── signed-body-utf8 ─────────────────────────────────────────────────────
 // A signed body is verified over its raw bytes, so a receiver MUST reject a body
 // whose bytes are not valid UTF-8 before parsing. encoding/json (and a lenient
@@ -980,6 +1404,42 @@ vectorFile("signed-body-utf8", [
     description: "A UTF-8 BOM (bytes 0xEF 0xBB 0xBF) prefixing an otherwise valid ASCII JSON object is valid UTF-8 but rejected at the parse step, because the surviving U+FEFF is not a legal JSON character; this pins the fatal decoder against a lenient BOM-stripping decode that would diverge.",
     input: { bodyHex: toHex([0xef, 0xbb, 0xbf, ...Buffer.from(`{"note":"ok"}`, "utf8")]) },
     expect: { result: "reject" },
+  },
+  {
+    caseId: "bare-out-of-double-range-literal-rejects",
+    description: "A body that is nothing but a literal outside the IEEE-754 double range is rejected at the gate. ECMAScript JSON.parse returns Infinity for it and Go's encoding/json refuses the document, so the gate decides it rather than the parser.",
+    input: { bodyHex: utf8Hex("1e309") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "out-of-double-range-member-rejects",
+    description: "The same literal as a member value is rejected before parsing, so nothing downstream ever sees an Infinity.",
+    input: { bodyHex: utf8Hex(`{"n":1e309}`) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "shadowed-out-of-double-range-literal-rejects",
+    description: "An out-of-range literal shadowed by a later duplicate member is rejected. This is the case a value-level range check cannot make: last-wins semantics drop the literal, so a receiver that checks after parsing admits a body another implementation refuses outright, and then verifies a signature over its canonical bytes.",
+    input: { bodyHex: utf8Hex(`{"n":1e309,"n":1}`) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "number-like-text-in-string-accepts",
+    description: "The same characters inside a JSON string are text, not a number literal, so the range scan must read only outside strings.",
+    input: { bodyHex: utf8Hex(`{"note":"1e309"}`) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "underflow-exponent-accepts",
+    description: "An exponent below the smallest subnormal decodes to 0 on every IEEE-754 parser rather than to an infinity, so it is in range and the gate accepts it; the value profile then judges the 0.",
+    input: { bodyHex: utf8Hex(`{"n":1e-400}`) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "largest-finite-double-accepts",
+    description: "The largest finite double is the boundary the rule is drawn at and is accepted by the gate, so the rule rejects only literals with no double at all.",
+    input: { bodyHex: utf8Hex(`{"n":1.7976931348623157e308}`) },
+    expect: { result: "accept" },
   },
 ]);
 
@@ -1380,6 +1840,7 @@ vectorFile("merkle-leaf", [
   await leafAccept("nested-and-number-accepts", "A nested object, an array, and a safe-integer number canonicalize and pin the leaf digest.", `{"id":"evt-2","payload":{"items":["a","b"],"count":42},"ts":"2026-06-15T00:00:00.000Z"}`),
   await leafAccept("unicode-value-accepts", "A non-ASCII string value is canonicalized with minimal JCS escaping and pins the leaf digest, exercising UTF-16 member handling.", `{"id":"evt-3","note":"café 日本語"}`),
   await leafAccept("empty-object-accepts", "An empty object is a valid event and hashes SHA-256(0x00 || \"{}\").", `{}`),
+  await leafAccept("non-ascii-member-order-accepts", "An event whose member names include U+FF21 and U+1F511 pins the leaf digest only under RFC 8785 member ordering by UTF-16 code unit, which puts the astral key first. A canonicalizer sorting by code point or by UTF-8 byte commits a different leaf, and every inclusion proof over it diverges.", `{"id":"evt-4","${ordBmpKey}":"bmp","${ordAstralKey}":"astral"}`),
   leafReject("array-not-object-rejects", "A JSON array is not an audit event object and is rejected.", `[1,2,3]`),
   leafReject("string-not-object-rejects", "A JSON string is not an audit event object and is rejected.", `"hello"`),
   leafReject("null-not-object-rejects", "JSON null is not an audit event object and is rejected.", `null`),
@@ -1803,6 +2264,7 @@ vectorFile("agent-card", [
   acAccept("discovery-narrowing-accepts", "A descriptor narrowing exposure below the card visibility validates.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "network_only" } }),
   acAccept("discovery-absent-visibility-accepts", "With no visibility field the public upper bound applies, so a public-scope descriptor validates.", { ...acCard, discovery: { enabled: true, scope: "public" } }),
   acAccept("discovery-unknown-key-ignored-accepts", "An unknown discovery descriptor key is ignored, not rejected, so later additive fields stay forward compatible.", { ...acCard, visibility: "public", discovery: { enabled: true, scope: "public", rank: 5 } }),
+  acAccept("card-unknown-top-level-key-ignored-accepts", "An unknown TOP-LEVEL card member is ignored, not rejected. The card top level is a tolerant surface (ink-compatibility-policy.md §3.1), which is what lets a later minor add a member that older receivers ignore; the nested discovery descriptor is a separate surface with its own case, so neither one pins the other.", { ...acCard, futureExtension: { note: "additive" } }),
   acReject("discovery-scope-exceeds-visibility-rejects", "A descriptor scope wider than the card visibility is rejected (hard upper bound).", { ...acCard, visibility: "network_only", discovery: { enabled: true, scope: "public" } }),
   acReject("discovery-missing-enabled-rejects", "A discovery descriptor without enabled is rejected.", { ...acCard, visibility: "public", discovery: { scope: "public" } }),
   acReject("discovery-missing-scope-rejects", "A discovery descriptor without scope is rejected.", { ...acCard, visibility: "public", discovery: { enabled: true } }),
@@ -1921,6 +2383,13 @@ vectorFile("agent-card-fetch", [
 
   const acsAccept = (caseId, description, input, extra = {}) => ({ caseId, description, input, expect: { result: "accept", ...extra } });
   const acsReject = (caseId, description, input, extra = {}) => ({ caseId, description, input, expect: { result: "reject", ...extra } });
+  // Tag a case whose decision the spec leaves to the implementation. `expect`
+  // keeps the reference's branch, so the vector still pins bytes and reasons for
+  // an implementation that takes it; `optionalBehavior.alternative` names the
+  // other conformant outcome, and a runner declares which branch it takes.
+  // Without this a fail-closed implementation would fail a BASE category for
+  // exercising a choice the spec explicitly grants it.
+  const acsOptional = (caseObj, behavior) => ({ ...caseObj, optionalBehavior: behavior });
 
   const keyDerivedId = deriveAgentId(G.pub);
   const DIDWEB = "did:web:example.com";
@@ -1935,6 +2404,17 @@ vectorFile("agent-card-fetch", [
     return c;
   })();
   const noChainSigned = await attach(noChainCard, "g1", G.priv);
+  // The same card carrying two extension members whose names are outside ASCII,
+  // ordered so that only RFC 8785's UTF-16 code-unit comparator reproduces the
+  // signer's bytes: U+1F511 sorts BEFORE U+FF21 as code units and after it as
+  // code points or UTF-8 bytes. The card top level is a tolerant surface
+  // (ink-compatibility-policy.md §3.1), so both members reach canonicalization
+  // and the §3.4 card-signature domain commits to them.
+  const noChainOrderingSigned = await attach(
+    { ...noChainCard, [ordBmpKey]: "bmp", [ordAstralKey]: "astral" },
+    "g1",
+    G.priv,
+  );
 
   // ── rotated signer, valid two-link chain, accept ──
   const chainCardSigned = await (async () => {
@@ -2305,18 +2785,81 @@ vectorFile("agent-card-fetch", [
     return { ...noChainSigned, cardSignature: { keyId: "g1", signature: sig.slice(0, 85) + flipped } };
   })();
 
+  // ── unknown link members (§4.1 preimage). The link preimage is JCS of the
+  // WHOLE link minus `signature`, nothing else stripped, so a member the
+  // verifier does not recognise is still covered. `algorithm` is the member
+  // §4.1 reserves for a later additive minor, so it is the honest shape to pin.
+  // A verifier that rebuilt the preimage from {keySetVersion, signing,
+  // prevKeyId} instead would REJECT the accept cases (it would reconstruct
+  // fewer bytes than the signer signed) and ACCEPT the mutated cases (the
+  // mutated member would sit outside its reconstruction). Both directions are
+  // pinned so neither reconstruction can pass this category. ──
+  const unknownMemberLink1Accept = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("g1", G, "active")], prevKeyId: "g", algorithm: "Ed25519" }, G.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "g1", G.priv);
+  })();
+  // The mutation is re-signed at the CARD level, so the card proof still
+  // verifies and the decision lands on the chain step the case is about. Without
+  // the re-attach every mutated-link case would reject as `invalid_signature`
+  // (the card signature covers rotationChain) and would pin nothing about the
+  // link preimage.
+  const unknownMemberLink1Mutated = await (async () => {
+    const c = JSON.parse(JSON.stringify(unknownMemberLink1Accept));
+    c.rotationChain[0].algorithm = "Ed448"; // mutate the unknown member post-signing
+    return attach(c, "g1", G.priv);
+  })();
+  const unknownMemberLink2Accept = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kA", A, "active")], prevKeyId: "g" }, G.priv);
+    const l2 = await mkLink({ keySetVersion: 2, signing: [linkEntry("kA", A, "retired"), linkEntry("kB", B, "active")], prevKeyId: "kA", algorithm: "Ed25519" }, A.priv);
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 2;
+    c.rotationChain = [l1, l2];
+    return attach(c, "kB", B.priv);
+  })();
+  const unknownMemberLink2Mutated = await (async () => {
+    const c = JSON.parse(JSON.stringify(unknownMemberLink2Accept));
+    c.rotationChain[1].algorithm = "Ed448"; // mutate the unknown member post-signing
+    return attach(c, "kB", B.priv);
+  })();
+
   vectorFile("agent-card-signature", [
     // ── accepts ──
     acsAccept("signed-key-derived-no-chain-accept", "A key-derived card signed by an active key byte-equal to the embedded genesis key, no rotationChain.", { card: noChainSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
     acsAccept("byte-exact-signature-pin-accept", "A fixed card, key and 86-character signature triple pinning the exact ink/agent-card signed bytes so two implementations agree byte for byte.", { card: noChainSigned, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("non-ascii-member-order-accept", "A signed card carrying extension members named U+FF21 and U+1F511 verifies only if the card signature is computed over members sorted by UTF-16 code unit, which puts the astral name first. A canonicalizer that sorts by code point or by UTF-8 byte builds different signed bytes and rejects an authentic card.", { card: noChainOrderingSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
     acsAccept("rotated-signer-valid-chain-accept", "A rotated signer whose genesis-to-head chain verifies, versions strictly increasing and contiguous, head set corresponding exactly to keys.signing.", { card: chainCardSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
     acsAccept("multi-hop-double-rotation-warm-accept", "An agent that rotated twice between two warm fetches: reachability holds through an interior link that committed the cached key.", { card: twoHopSigned, agentId: keyDerivedId, options: { profile: "1.0", cachedCard: twoHopCached } }, { reason: "signed_authenticated" }),
-    acsAccept("chain-extension-fork-cold-accept", "A COLD verifier accepts a forged chain-extension signed by a leaked historical key: with no cached state, the leaked key is active in the prior genuine link, so the forged head binds cleanly. This is the documented cold residual.", { card: forkSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
+    acsOptional(
+      acsAccept("chain-extension-fork-cold-accept", "A COLD verifier accepts a forged chain-extension signed by a leaked historical key: with no cached state, the leaked key is active in the prior genuine link, so the forged head binds cleanly. This is the documented cold residual.", { card: forkSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
+      {
+        id: "cold-chain-extension-residual",
+        alternative: "reject",
+        spec: "specs/ink-agent-card-signature.md §6",
+        rationale: "§6 records cold acceptance of a forged chain-extension as an inherent RESIDUAL of an unwitnessed hash chain, not as a requirement to accept, and RECOMMENDS external head observation to close it. An implementation that applies a stricter cold policy, refusing a chain head it cannot corroborate, is conformant and rejects here.",
+      },
+    ),
     acsAccept("legacy-bootstrap-accept", "A legacy single-key card with no keys.signing, cardSignature.keyId the literal bootstrap, verifying against the top-level publicKeyMultibase (the genesis key).", { card: legacyAccept, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signed_authenticated" }),
     acsAccept("didweb-anchor-present-accept", "A did:web card whose cardSignature key is a verification method in the resolved DID document.", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", didVerificationKeys: { status: "resolved", verificationKeys: [D.mb] } } }, { reason: "signed_authenticated" }),
     acsAccept("didweb-with-chain-accept", "A did:web card carrying a rotationChain whose link 1 is re-rooted on a DID-document key and whose head anchors the card.", { card: didChainSigned, agentId: DIDWEB, options: { profile: "1.0", didVerificationKeys: { status: "resolved", verificationKeys: [D.mb, B.mb] } } }, { reason: "signed_authenticated" }),
-    acsAccept("didweb-resolver-unavailable-warm-continuity-accept", "A WARM did:web verifier at 1.0 continues under signature-plus-continuity when the resolver is unavailable, emitting card.anchor_unverified (the MAY branch of §4.2).", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", cachedCard: didCached, didVerificationKeys: { status: "unavailable" } } }, { reason: "signed_authenticated", auditEvent: "card.anchor_unverified" }),
+    acsOptional(
+      acsAccept("didweb-resolver-unavailable-warm-continuity-accept", "A WARM did:web verifier at 1.0 continues under signature-plus-continuity when the resolver is unavailable, emitting card.anchor_unverified (the MAY branch of §4.2).", { card: didSigned, agentId: DIDWEB, options: { profile: "1.0", cachedCard: didCached, didVerificationKeys: { status: "unavailable" } } }, { reason: "signed_authenticated", auditEvent: "card.anchor_unverified" }),
+      {
+        id: "didweb-warm-resolver-unavailable",
+        alternative: "reject",
+        spec: "specs/ink-agent-card-signature.md §4.2",
+        rationale: "§4.2 says a WARM verifier MAY continue under signature-plus-continuity when the DID resolver is unreachable. A verifier that instead fails closed, as a cold verifier MUST, is equally conformant and rejects here.",
+      },
+    ),
     acsAccept("unsigned-first-contact-pre-1-0-accept", "An unsigned first-contact card from a non-key-derived principal, pre-1.0 profile, no cached card.", { card: unsignedDidweb, agentId: DIDWEB, options: { profile: "pre-1.0" } }, { reason: "unsigned_first_contact_accepted" }),
+    acsAccept("chain-link-1-unknown-member-accept", "A rotation link carrying an unrecognised member (the reserved `algorithm`) verifies when the signature covers the WHOLE link minus `signature`, which is what makes that extension point additive. Link 1, so the root-candidate branch is the one exercised.", { card: unknownMemberLink1Accept, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
+    acsAccept("chain-link-unknown-member-accept", "The same full-link coverage on a later link, whose signer is resolved from the prior link's committed set rather than from a root candidate.", { card: unknownMemberLink2Accept, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "signed_authenticated" }),
     acsAccept("base64url-noncanonical-trailing-bit-accept", "A signature whose final base64url character carries a non-canonical padding bit decodes to the identical 64-byte signature in both implementations and still verifies.", { card: nonCanonSigned, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signed_authenticated" }),
 
     // ── continuity and ratchet rejects ──
@@ -2338,6 +2881,8 @@ vectorFile("agent-card-fetch", [
     acsReject("chain-noncontiguous-version-reject", "A chain whose consecutive link versions have a gap (1 then 3).", { card: noncontiguous, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_noncontiguous_version" }),
     acsReject("chain-link-signer-not-active-reject", "A chain whose later link names a prevKeyId that is retired in the prior link's committed set.", { card: linkSignerNotActive, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_signer_not_active" }),
     acsReject("chain-link-invalid-signature-reject", "A chain whose later link carries a corrupted signature that no longer verifies against its prevKeyId signer, even though that signer is active in the prior link's committed set.", { card: chainLinkInvalidSig, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_invalid_signature" }),
+    acsReject("chain-link-1-unknown-member-mutated-reject", "An unrecognised member of link 1 mutated after signing. Full-link coverage means the mutation breaks the signature, so link 1 roots to no candidate (the key-derived link-1 failure reason).", { card: unknownMemberLink1Mutated, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_invalid_signature" }),
+    acsReject("chain-link-unknown-member-mutated-reject", "An unrecognised member of a later link mutated after signing. A verifier that rebuilt the preimage from the three named members would accept this forgery.", { card: unknownMemberLink2Mutated, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_invalid_signature" }),
     acsReject("chain-too-long-reject", "A rotationChain longer than the 32-link cap.", { card: chainTooLong, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_too_long" }),
     acsReject("chain-duplicate-key-id-reject", "A rotation link whose committed signing set repeats a keyId.", { card: linkDuplicateKeyId, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_duplicate_key_id" }),
 
@@ -2759,13 +3304,13 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
   // receiver key the response signature verifies against.
   // `versions === undefined` omits the supportedProtocolVersions field entirely
   // (a legacy card that predates the field), which must default to ink/0.1.
-  const buildCard = (versions) => {
+  const buildCard = (versions, endpoint = "https://receiver.example/ink/v1/intents") => {
     const card = {
       protocol: "ink/0.1",
       agentId: receiverDid,
       handle: "receiver",
       displayName: "Receiver Agent",
-      endpoint: "https://receiver.example/ink/v1/intents",
+      endpoint,
       publicKeyMultibase: receiverMb,
       capabilities: { intentsAccepted: ["connection_request"], intentsSent: ["connection_response"] },
       availability: { timezone: "UTC" },
@@ -2783,13 +3328,23 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     ...overrides,
   });
 
-  const signEnvelope = async (envelope, recipientDid, timestamp, seed) => {
-    const signInput = { method: "POST", path: "/ink/v1/intents", recipientDid, body: envelope, timestamp };
+  const signEnvelope = async (envelope, recipientDid, timestamp, seed, path = "/ink/v1/intents") => {
+    const signInput = { method: "POST", path, recipientDid, body: envelope, timestamp };
     return { signInput, signature: await signInkMessage(signInput, seed) };
   };
 
+  // Both envelopes are COMPLETE §3.1 intent envelopes. `id`, `correlationId`,
+  // `createdAt` and `signature` are MUSTs there, so a receiver that validates the
+  // envelope before verifying anything else is conforming, and a transcript built
+  // from a shortened envelope would make that receiver fail a base category for
+  // being correct. `signature` is attached by buildTranscript, after any
+  // structural mutation, as the §3.6 body signature over the envelope minus that
+  // member; the §3.3 transport base then covers the whole envelope including it.
   const requestEnvelope = (protocol, envOverrides = {}) => ({
     protocol,
+    id: "firstcontact-req-0000000000000001",
+    correlationId: "firstcontact-corr-000000000000001",
+    createdAt: reqTs,
     from: senderDid,
     to: receiverDid,
     intent: "connection_request",
@@ -2801,6 +3356,9 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
 
   const responseEnvelope = (protocol, envOverrides = {}) => ({
     protocol,
+    id: "firstcontact-resp-000000000000001",
+    correlationId: "firstcontact-corr-000000000000001",
+    createdAt: respTs,
     from: receiverDid,
     to: senderDid,
     intent: "connection_response",
@@ -2809,6 +3367,14 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     timestamp: respTs,
     ...envOverrides,
   });
+
+  // Drop a member from an envelope before it is signed, so the resulting
+  // transcript fails ONLY the §3.1 structure step: the body signature and the
+  // transport signature both verify over the shortened envelope.
+  const without = (key) => (env) => {
+    const { [key]: _omit, ...rest } = env;
+    return rest;
+  };
 
   const flip = (s) => (s[0] === "A" ? "B" : "A") + s.slice(1);
 
@@ -2826,15 +3392,33 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     seenNonces = [],
     clock = freshClock,
     cardOverrides = {},
+    // The receiver's advertised inbound URL and the path the sender actually
+    // signs. INK reserves no fixed inbound path (Protocol §3.3), so the card is
+    // the only thing binding the two sides to one spelling; a case that moves
+    // one without the other must reject.
+    cardEndpoint = "https://receiver.example/ink/v1/intents",
+    reqPath = new URL(cardEndpoint).pathname,
     senderKeyHex = senderPubHex,
     receiverKeyHex = receiverPubHex,
     tamperReqSig = (s) => s,
     tamperRespSig = (s) => s,
+    // Structural mutations run BEFORE the body signature is attached, so a case
+    // that violates §3.1 still carries a body signature that verifies over the
+    // envelope as delivered and is decided by the structure step alone.
+    reqEnvMutate = (e) => e,
+    respEnvMutate = (e) => e,
+    // The key each body signature is made with. A transcript that signs the body
+    // with the wrong key still carries a valid transport signature, so only the
+    // §3.6 check separates them.
+    reqBodySeed = senderSeed,
+    respBodySeed = receiverSeed,
   } = {}) => {
-    const rq = reqEnv ?? requestEnvelope(selected);
-    const rs = respEnv ?? responseEnvelope(selected);
-    const card = buildCard(omitVersions ? undefined : advertised);
-    const req = await signEnvelope(rq, receiverDid, reqSignInputTs ?? rq.timestamp, senderSeed);
+    const rqUnsigned = reqEnvMutate(reqEnv ?? requestEnvelope(selected));
+    const rsUnsigned = respEnvMutate(respEnv ?? responseEnvelope(selected));
+    const rq = { ...rqUnsigned, signature: await signMessage(rqUnsigned, reqBodySeed) };
+    const rs = { ...rsUnsigned, signature: await signMessage(rsUnsigned, respBodySeed) };
+    const card = buildCard(omitVersions ? undefined : advertised, cardEndpoint);
+    const req = await signEnvelope(rq, receiverDid, reqSignInputTs ?? rq.timestamp, senderSeed, reqPath);
     const resp = await signEnvelope(rs, senderDid, respSignInputTs ?? rs.timestamp, receiverSeed);
     return {
       cardFetch: cardFetch(card, cardOverrides),
@@ -2995,6 +3579,48 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
       input: await buildTranscript({ advertised: [] }),
       expect: acc("ink/0.1"),
     },
+    {
+      caseId: "alternate-card-endpoint-path-accepts",
+      description: "A receiver that advertises a different inbound path accepts a request signed over that path. INK reserves no fixed inbound path: PATH is the path component of the card's endpoint, so an implementation that hardcodes one spelling rejects a conforming peer.",
+      input: await buildTranscript({ cardEndpoint: "https://receiver.example/ink/v1/inbound" }),
+      expect: acc("ink/0.1"),
+    },
+    {
+      caseId: "request-path-not-card-endpoint-rejects",
+      description: "A request whose signed path is not the path component of the fetched card's endpoint rejects, even though the signature over that path is itself valid. PATH is inside the frozen signature base, so a sender that signs a path from a document instead of from the card it just fetched cannot be verified by the receiver at its real endpoint.",
+      input: await buildTranscript({ reqPath: "/ink/v1/intent" }),
+      expect: rej,
+    },
+    {
+      caseId: "request-envelope-missing-id-rejects",
+      description: "A request envelope with no `id` rejects. §3.1 makes id, correlationId, createdAt and signature MUSTs, so a receiver validates the envelope before it verifies anything; here both signatures verify over the shortened envelope, so the structure step is the only thing that can reject it.",
+      input: await buildTranscript({ reqEnvMutate: without("id") }),
+      expect: rej,
+    },
+    {
+      caseId: "response-envelope-missing-created-at-rejects",
+      description: "The same §3.1 obligation on the response half: an envelope with no `createdAt` rejects even though the response is otherwise a correctly signed accepted connection_response.",
+      input: await buildTranscript({ respEnvMutate: without("createdAt") }),
+      expect: rej,
+    },
+    {
+      caseId: "request-envelope-unknown-top-level-key-rejects",
+      description: "The intent envelope is a strict surface (§3.1, compatibility-policy §3.1): an unknown top-level member rejects. The member is present before signing, so both signatures cover it and only the strict schema can reject.",
+      input: await buildTranscript({ reqEnvMutate: (e) => ({ ...e, extension: "x" }) }),
+      expect: rej,
+    },
+    {
+      caseId: "request-body-signature-wrong-key-rejects",
+      description: "A request envelope whose §3.6 body signature was made with the receiver's key rather than the sender's rejects. The transport signature is valid over the delivered body, so an implementation that verifies only the §3.3 transport signature and treats the envelope `signature` member as opaque accepts a body the named sender never signed.",
+      input: await buildTranscript({ reqBodySeed: receiverSeed }),
+      expect: rej,
+    },
+    {
+      caseId: "response-body-signature-wrong-key-rejects",
+      description: "The same on the response half: the receiver's envelope carries a body signature made with the sender's key, and the sender must reject it.",
+      input: await buildTranscript({ respBodySeed: senderSeed }),
+      expect: rej,
+    },
   ]);
 }
 
@@ -3041,6 +3667,29 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     expect: reason === undefined ? { result } : { result, reason },
   });
 
+  // Raw-text cases. An envelope is a signed body, so the raw-body gate of
+  // specs/ink-signed-string-safety.md applies to it, and every rule that gate
+  // enforces is about bytes a parsed value has already lost. A case that needs
+  // to express one carries `envelopeRaw`, the exact JSON text a sender put on
+  // the wire, instead of `envelope`; a runner decodes it to bytes and verifies
+  // those. The shadowed literal is the reason the field exists: JSON member
+  // semantics are last-wins, so the out-of-range literal never reaches the
+  // parsed object, the envelope canonicalizes to the signed bytes and its
+  // signature verifies. A verifier that gates only the value accepts it and one
+  // that gates the bytes refuses it, which is an accept-versus-reject split in a
+  // signed path, choosable by whoever writes the bytes.
+  const envText = JSON.stringify(env);
+  const dqShadowedNumber = `{"protocol":1e309,${envText.slice(1)}`;
+  const dqLiveNumber = envText.replace(`"limit":10`, `"limit":1e309`);
+  const dqLoneSurrogate = envText.replace(`"nonce":"${base.nonce}"`, `"nonce":"\\ud800${base.nonce}"`);
+  // The negative control for the same shape: an underflowing exponent is in
+  // range (every IEEE-754 parser decodes it to 0), so a shadowed 1e-400 is not
+  // gated and the envelope behind it still verifies.
+  const dqShadowedUnderflow = `{"protocol":1e-400,${envText.slice(1)}`;
+  // Whitespace between tokens is legal JSON and vanishes at canonicalization,
+  // so this is the same signed envelope, byte-padded.
+  const dqPadded = `{  ${envText.slice(1)}`;
+
   vectorFile("discovery-query-envelope", [
     dqe("valid-query-accepts", "A requester-signed query with tags, scope and limit verifies against the requester's key, this directory's identity and its clock.", { envelope: env, publicKeyHex }, "accept"),
     dqe("network-ink-spelling-accepts", "The vendor-neutral network.ink.discovery_query spelling is signed and verifies like the legacy spelling.", { envelope: inkEnv, publicKeyHex }, "accept"),
@@ -3073,6 +3722,13 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     dqe("replayed-nonce-rejects", "A (from, nonce) pair this directory already burned is a replay.", { envelope: env, publicKeyHex, seenNonces: dqSeen }, "reject", "replay"),
     dqe("other-requester-nonce-accepts", "Replay is keyed on the (from, nonce) pair, so an identical nonce burned for a different requester does not reject this one.", { envelope: env, publicKeyHex, seenNonces: [{ from: "tulpa:someone-else", nonce: base.nonce }] }, "accept"),
     dqe("stale-replay-reports-window", "Replay is checked after the window, so a stale replayed query reports the window rather than the replay.", { envelope: env, publicKeyHex, now: dqClock(dqAgeMs + 1), seenNonces: dqSeen }, "reject", "expired"),
+    // Raw-body gate: cases carrying `envelopeRaw`, the exact wire text, because
+    // the rule under test is about bytes the parsed value no longer carries.
+    dqe("raw-envelope-accepts", "The same signed envelope presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so the signature still covers it.", { envelopeRaw: dqPadded, publicKeyHex }, "accept"),
+    dqe("shadowed-number-literal-rejects", "An out-of-range number literal shadowed by a later duplicate member rejects. Member semantics are last-wins, so the literal never reaches the parsed envelope and the signature over the canonical form still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same signed envelope.", { envelopeRaw: dqShadowedNumber, publicKeyHex }, "reject", "schema"),
+    dqe("live-number-literal-rejects", "An out-of-range number literal in a live member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.", { envelopeRaw: dqLiveNumber, publicKeyHex }, "reject", "schema"),
+    dqe("shadowed-underflow-accepts", "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the envelope behind it verifies. The gate is a range test, not a ban on exponents.", { envelopeRaw: dqShadowedUnderflow, publicKeyHex }, "accept"),
+    dqe("raw-lone-surrogate-escape-rejects", "A lone UTF-16 surrogate escape in the raw text rejects structurally, before the signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.", { envelopeRaw: dqLoneSurrogate, publicKeyHex }, "reject", "schema"),
   ]);
 }
 
@@ -3117,6 +3773,29 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
 
   const acc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
   const rej = (caseId, description, input, reason) => ({ caseId, description, input, expect: { result: "reject", reason } });
+
+  // Raw-text cases. A grant is a signed body, so the raw-body gate of
+  // specs/ink-signed-string-safety.md applies to it, and every rule that gate
+  // enforces is about bytes a parsed value has already lost. A case that needs to
+  // express one carries `grantRaw`, the exact JSON text a presenter put on the
+  // wire, instead of `grant`; a runner decodes it to bytes and verifies those. The
+  // shadowed literal is the reason the field exists: JSON member semantics are
+  // last-wins, so the out-of-range literal never reaches the parsed object, the
+  // grant canonicalizes to the signed bytes and its signature verifies. A verifier
+  // that gates only the value accepts it and one that gates the bytes refuses it,
+  // which is an accept-versus-reject split in the "Sign in with INK" primitive,
+  // choosable by whoever writes the bytes.
+  const grantText = JSON.stringify(grant);
+  const grShadowedNumber = `{"protocol":1e309,${grantText.slice(1)}`;
+  const grLiveNumber = JSON.stringify(ownerGrant).replace(`"requireVerifiedOwner":true`, `"requireVerifiedOwner":1e309`);
+  // The negative control for the same shape: an underflowing exponent is in range
+  // (every IEEE-754 parser decodes it to 0), so a shadowed 1e-400 is not gated and
+  // the grant behind it still verifies.
+  const grShadowedUnderflow = `{"protocol":1e-400,${grantText.slice(1)}`;
+  const grLoneSurrogate = grantText.replace(`"subject":"${grantBase.subject}"`, `"subject":"\\ud800${grantBase.subject}"`);
+  // Whitespace between tokens is legal JSON and vanishes at canonicalization, so
+  // this is the same signed grant, byte-padded.
+  const grPadded = `{  ${grantText.slice(1)}`;
 
   vectorFile("authorization-grant", [
     acc("valid-grant-accepts", "A scoped grant verified against the issuer key, for the named audience, inside its window, verifies.", { grant, issuerPublicKeyHex: publicKeyHex, ...ctx }),
@@ -3169,6 +3848,13 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     rej("missing-signature-rejects", "A grant with no signature field rejects.", { grant: (() => { const { signature, ...rest } = grant; return rest; })(), issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
     rej("short-grant-id-rejects", "A grantId shorter than 16 code units is out of profile and rejects.", { grant: { ...grant, grantId: "short" }, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
     rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema, not a window verdict.", { grant, issuerPublicKeyHex: publicKeyHex, audience: ctx.audience, now: "not-a-timestamp" }, "schema"),
+    // Raw-body gate: cases carrying `grantRaw`, the exact wire text, because the
+    // rule under test is about bytes the parsed value no longer carries.
+    acc("raw-grant-accepts", "The same signed grant presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so the signature still covers it.", { grantRaw: grPadded, issuerPublicKeyHex: publicKeyHex, ...ctx }),
+    rej("shadowed-number-literal-rejects", "An out-of-range number literal shadowed by a later duplicate member rejects. Member semantics are last-wins, so the literal never reaches the parsed grant and the signature over the canonical form still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same signed grant.", { grantRaw: grShadowedNumber, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    rej("live-number-literal-rejects", "An out-of-range number literal in a live member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.", { grantRaw: grLiveNumber, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
+    acc("shadowed-underflow-accepts", "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the grant behind it verifies. The gate is a range test, not a ban on exponents.", { grantRaw: grShadowedUnderflow, issuerPublicKeyHex: publicKeyHex, ...ctx }),
+    rej("raw-lone-surrogate-escape-rejects", "A lone UTF-16 surrogate escape in the raw text rejects structurally, before the signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.", { grantRaw: grLoneSurrogate, issuerPublicKeyHex: publicKeyHex, ...ctx }, "schema"),
   ]);
 }
 
@@ -3308,6 +3994,23 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
   const acc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
   const rej = (caseId, description, input, reason) => ({ caseId, description, input, expect: { result: "reject", reason } });
 
+  // Raw-text cases. Every link is a signed body, so the raw-body gate of
+  // specs/ink-signed-string-safety.md applies to the presentation, and every rule
+  // that gate enforces is about bytes a parsed value has already lost. A case that
+  // needs to express one carries `chainRaw`, the exact JSON text a presenter put
+  // on the wire, instead of `chain`; a runner decodes it to bytes and verifies
+  // those. The shadowed literal is the reason the field exists: member semantics
+  // are last-wins, so the out-of-range literal never reaches the parsed wrapper,
+  // every link canonicalizes to its signed bytes and every signature verifies.
+  const chainText = JSON.stringify(wrap(two));
+  const chShadowedNumber = `{"protocol":1e309,${chainText.slice(1)}`;
+  // The wrapper protocol, not a link's: String.replace without a global flag
+  // rewrites only the first occurrence, which is the wrapper's own member.
+  const chLiveNumber = chainText.replace(`"protocol":"ink/0.1"`, `"protocol":1e309`);
+  const chShadowedUnderflow = `{"protocol":1e-400,${chainText.slice(1)}`;
+  const chLoneSurrogate = chainText.replace(`"grantId":"${twoSpecs[1].grantId}"`, `"grantId":"\\ud800${twoSpecs[1].grantId}"`);
+  const chPadded = `{  ${chainText.slice(1)}`;
+
   vectorFile("authorization-chain", [
     // ── accepts ──
     acc("valid-2link-accepts", "A 2-link chain whose root carries delegation.extend, whose head scope and window narrow the root, signed by each issuer's active key and presented inside every window to the named audience, verifies.", { chain: wrap(two), issuerKeys: twoKeys, ...ctx }),
@@ -3375,6 +4078,13 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     rej("bad-sig-and-wrong-audience-rejects-signature", "A chain with a bad final signature presented to the wrong audience rejects on the signature (pass 2) ahead of the audience check (pass 3).", { chain: wrap(patchLink(two, 1, { signature: breakSig(two[1].signature) })), issuerKeys: twoKeys, audience: "did:web:other-service.example", now: nowIn }, "signature"),
     rej("scope-widen-and-expired-rejects-attenuation", "A chain that both widens scope and is presented after expiry rejects on attenuation (pass 1) ahead of the expiry check (pass 3).", { chain: wrap(patchLink(two, 1, { scope: ["profile:read", "admin:all"] })), issuerKeys: twoKeys, audience: AUD, now: "2026-07-11T12:11:00.000Z" }, "attenuation"),
     rej("malformed-now-and-bad-sig-rejects-schema", "A malformed clock with a bad signature rejects as schema: the clock is consulted at the start of pass 2, ahead of the per-link signature check.", { chain: wrap(patchLink(two, 1, { signature: breakSig(two[1].signature) })), issuerKeys: twoKeys, audience: AUD, now: "not-a-timestamp" }, "schema"),
+
+    // ── raw-body gate (pass 0, on the presented bytes) ──
+    acc("raw-chain-accepts", "The same signed chain presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so every link signature still covers it.", { chainRaw: chPadded, issuerKeys: twoKeys, ...ctx }),
+    rej("shadowed-number-literal-rejects", "An out-of-range number literal shadowed by a later duplicate wrapper member rejects. Member semantics are last-wins, so the literal never reaches the parsed chain and every link signature still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same presented chain.", { chainRaw: chShadowedNumber, issuerKeys: twoKeys, ...ctx }, "schema"),
+    rej("live-number-literal-rejects", "An out-of-range number literal in a live wrapper member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.", { chainRaw: chLiveNumber, issuerKeys: twoKeys, ...ctx }, "schema"),
+    acc("shadowed-underflow-accepts", "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the chain behind it verifies. The gate is a range test, not a ban on exponents.", { chainRaw: chShadowedUnderflow, issuerKeys: twoKeys, ...ctx }),
+    rej("raw-lone-surrogate-escape-rejects", "A lone UTF-16 surrogate escape in the raw text rejects structurally, before any signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.", { chainRaw: chLoneSurrogate, issuerKeys: twoKeys, ...ctx }, "schema"),
   ]);
 }
 
@@ -3434,6 +4144,21 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
   const idDiffRp = await deriveChallengeGrantId({ ...challengeBase, rp: "did:web:rp2.example" });
   const idDiffNonce = await deriveChallengeGrantId({ ...challengeBase, nonce: "nonce-challenge-000000002" });
   const idDiffWindow = await deriveChallengeGrantId({ ...challengeBase, expiresAt: "2026-07-16T12:06:00.000Z" });
+
+  // Raw-text cases. A challenge is a signed body, so the raw-body gate of
+  // specs/ink-signed-string-safety.md applies to it, and every rule that gate
+  // enforces is about bytes a parsed value has already lost. A case that needs to
+  // express one carries `challengeRaw`, the exact JSON text the RP put on the
+  // wire, instead of `challenge`; a runner decodes it to bytes and verifies those.
+  // The shadowed literal is the reason the field exists: member semantics are
+  // last-wins, so the out-of-range literal never reaches the parsed challenge, the
+  // challenge canonicalizes to the signed bytes and its signature verifies.
+  const challengeText = JSON.stringify(challenge);
+  const chalShadowedNumber = `{"protocol":1e309,${challengeText.slice(1)}`;
+  const chalLiveNumber = challengeText.replace(`"protocol":"ink/0.1"`, `"protocol":1e309`);
+  const chalShadowedUnderflow = `{"protocol":1e-400,${challengeText.slice(1)}`;
+  const chalLoneSurrogate = challengeText.replace(`"nonce":"${challengeBase.nonce}"`, `"nonce":"\\ud800${challengeBase.nonce}"`);
+  const chalPadded = `{  ${challengeText.slice(1)}`;
 
   const ctx = { keys: activeKeys, now: nowInWindow };
   const acc = (caseId, description, input, derivedGrantId) => ({ caseId, description, input, expect: derivedGrantId ? { result: "accept", derivedGrantId } : { result: "accept" } });
@@ -3522,6 +4247,14 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     rej("redirect-uppercase-origin-rejects", "The literal-prefix match is case-sensitive: an uppercase host in the redirectUri does not equal the derived lowercase origin and rejects.", { challenge: { ...challenge, redirectUri: "https://RP.EXAMPLE/callback" }, ...ctx }, "schema"),
     rej("redirect-trailing-dot-host-rejects", "A trailing dot on the redirectUri host breaks the literal prefix (the character after the origin is a dot, not /) and rejects.", { challenge: { ...challenge, redirectUri: "https://rp.example./callback" }, ...ctx }, "schema"),
     acc("redirect-query-only-accepts", "A redirectUri that is the origin plus / plus a query only (no path segment) satisfies the prefix rule and verifies.", { challenge: queryRedirectChallenge, ...ctx }),
+
+    // Raw-body gate: cases carrying `challengeRaw`, the exact wire text, because
+    // the rule under test is about bytes the parsed value no longer carries.
+    acc("raw-challenge-accepts", "The same signed challenge presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so the signature still covers it.", { challengeRaw: chalPadded, ...ctx }),
+    rej("shadowed-number-literal-rejects", "An out-of-range number literal shadowed by a later duplicate member rejects. Member semantics are last-wins, so the literal never reaches the parsed challenge and the signature over the canonical form still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same signed challenge.", { challengeRaw: chalShadowedNumber, ...ctx }, "schema"),
+    rej("live-number-literal-rejects", "An out-of-range number literal in a live member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.", { challengeRaw: chalLiveNumber, ...ctx }, "schema"),
+    acc("shadowed-underflow-accepts", "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the challenge behind it verifies. The gate is a range test, not a ban on exponents.", { challengeRaw: chalShadowedUnderflow, ...ctx }),
+    rej("raw-lone-surrogate-escape-rejects", "A lone UTF-16 surrogate escape in the raw text rejects structurally, before the signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.", { challengeRaw: chalLoneSurrogate, ...ctx }, "schema"),
 
     der("derived-id-determinism", "The derived grantId over the four binding fields is deterministic and matches the pinned base64url-nopad SHA-256 digest.", challengeBase, idBase),
     der("derived-id-ignores-other-fields", "A challenge sharing the four binding fields but differing in requestedScope and redirectUri derives the identical id, so the binding is over exactly rp, nonce, issuedAt, and expiresAt.", { ...challengeBase, requestedScope: ["identity.assert"], redirectUri: "https://rp.example/other" }, idBase),

@@ -1,0 +1,36 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-canonical",
+  "conformanceCategory": "signed-body-canonical",
+  "kind": "decision",
+  "detail": "ts=reject go=accept",
+  "runSeed": 429609341,
+  "originCaseId": "signed-body-canonical/random/429609341/34",
+  "arm": "random",
+  "original": {
+    "bodyRaw": "{\"outer\":{\"􏿿\":0,\"￿\":{\"🔑\":0,\"ﬀ\":{\"k￿\":null,\"k🔑\":\"\"},\"\\b\":[]}}}"
+  },
+  "minimized": {
+    "bodyRaw": "{\"🔑\":0,\"ﬀ\":{\"k￿\":null,\"k🔑\":\"\"},\"\\b\":[]}"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"outer\":{\"􏿿\":0,\"￿\":{\"\\b\":[],\"🔑\":0,\"ﬀ\":{\"k🔑\":\"\",\"k￿\":null}}}}"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\\b\":[],\"🔑\":0,\"ﬀ\":{\"k🔑\":\"\",\"k￿\":null}}"
+      }
+    }
+  }
+}

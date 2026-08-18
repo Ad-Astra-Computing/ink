@@ -1,0 +1,34 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-utf8",
+  "conformanceCategory": "signed-body-utf8",
+  "kind": "decision",
+  "detail": "ts=accept go=reject",
+  "runSeed": 20260818,
+  "originCaseId": "signed-body-utf8/random/20260818/816",
+  "arm": "random",
+  "original": {
+    "bodyHex": "7b226b33223a5b7b22c3a9223a225c7530303766222c226b31223a7b226b30223a6e756c6c2c226b30223a66616c73652c22efbfbd223a66616c73657d2c225c7530303030223a5b225c625c665c6e5c725c74222c6e756c6c2c66616c73652c22e4bda0e5a5bd225d2c226b30223a66616c73657d2c2d3165313030302c66616c73652c5b5b2d393030373139393235343734303939312c6e756c6c5d2c5b225c2f222c31653330392c66616c73655d5d5d2c22efac80223a6e756c6c2c22efbfbd223a5b6e756c6c5d2c226b32223a7b225c72223a5b7b7d2c7b226b30223a22c39f222c22f09f9880223a307d5d2c226b30223a747275652c226b31223a7b226b31223a7b7d7d7d7d"
+  },
+  "minimized": {
+    "bodyHex": "3165333039"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "accept"
+      },
+      "go": {
+        "result": "reject"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "accept"
+      },
+      "go": {
+        "result": "reject"
+      }
+    }
+  }
+}
