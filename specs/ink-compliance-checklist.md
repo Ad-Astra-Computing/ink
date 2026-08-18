@@ -155,7 +155,7 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | `witness.json` | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | `test/ink-key-rotation.test.ts` |
 | W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `witness.json` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
-| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | Auditability §7.3 | `witness.json` | `test/merkle-leaf-hash.test.ts` |
+| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | `ink-merkle-leaf.md` | `witness.json` | `test/merkle-leaf-hash.test.ts` |
 | W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 |, | `test/verify-audit-query-response.test.ts` |
 | W12 | Deterministic result-set ordering so signed bytes are reproducible | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W13 | Fail-closed on truncation: refuse to sign a partial result; return unsigned 413 | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |

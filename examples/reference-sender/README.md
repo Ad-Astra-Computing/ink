@@ -14,7 +14,9 @@ of the schema. Every module is code an adopter can lift directly.
 ## Quick start
 
 No build step. The CLI runs the TypeScript source directly under Node's
-native type stripping. `@adastracomputing/ink` requires Node 24+.
+native type stripping. `@adastracomputing/ink` requires Node 24+. With nix,
+`nix develop ..#reference-sender` from this directory supplies one without
+installing anything globally.
 
 ```sh
 cd examples/reference-sender

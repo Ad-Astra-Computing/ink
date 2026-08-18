@@ -1,8 +1,11 @@
 package ink
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"net/url"
 	"testing"
 )
 
@@ -99,6 +102,12 @@ func evalFirstContact(t *testing.T, c conformanceCase) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	// 3a. envelope structure (§3.1): protocol, id, correlationId, createdAt,
+	// from, to, intent and signature are all MUSTs and the surface is strict, so
+	// a receiver validates the envelope before it spends any signature work.
+	if !ValidateMessageEnvelope(reqEnv) {
+		return "", false
+	}
 	if s, _ := reqEnv["protocol"].(string); s != selected {
 		return "", false
 	}
@@ -114,12 +123,25 @@ func evalFirstContact(t *testing.T, c conformanceCase) (string, bool) {
 		return "", false
 	}
 
-	// 4. request signature
+	// 3b. endpoint binding: the signed PATH is the path component of the card's
+	// endpoint. INK reserves no fixed inbound path, so the card is the only
+	// thing binding sender and receiver to one spelling.
+	cardPath, ok := fcCardEndpointPath(tr.CardFetch.BodyRaw)
+	if !ok || tr.Request.SignInput.Path != cardPath {
+		return "", false
+	}
+
+	// 4. request signatures: the §3.3 transport signature over the delivered
+	// body, and the §3.6 body signature the envelope carries, both under the
+	// sender's key.
 	senderPub, err := hex.DecodeString(tr.Request.SenderPublicKeyHex)
 	if err != nil {
 		return "", false
 	}
 	if !VerifyInkSignature(toInkSignInput(tr.Request.SignInput), tr.Request.Signature, senderPub) {
+		return "", false
+	}
+	if !fcVerifyBodySignature(reqEnv, senderPub) {
 		return "", false
 	}
 
@@ -132,6 +154,9 @@ func evalFirstContact(t *testing.T, c conformanceCase) (string, bool) {
 	// 6. response agreement
 	respEnv, ok := tr.Response.SignInput.Body.(map[string]interface{})
 	if !ok {
+		return "", false
+	}
+	if !ValidateMessageEnvelope(respEnv) {
 		return "", false
 	}
 	if s, _ := respEnv["protocol"].(string); s != selected {
@@ -152,7 +177,7 @@ func evalFirstContact(t *testing.T, c conformanceCase) (string, bool) {
 		return "", false
 	}
 
-	// 7. response signature
+	// 7. response signatures, transport and body, under the receiver's key.
 	recvPub, err := hex.DecodeString(tr.Response.ReceiverPublicKeyHex)
 	if err != nil {
 		return "", false
@@ -160,8 +185,44 @@ func evalFirstContact(t *testing.T, c conformanceCase) (string, bool) {
 	if !VerifyInkSignature(toInkSignInput(tr.Response.SignInput), tr.Response.Signature, recvPub) {
 		return "", false
 	}
+	if !fcVerifyBodySignature(respEnv, recvPub) {
+		return "", false
+	}
 
 	return selected, true
+}
+
+// fcVerifyBodySignature checks the §3.6 body signature an intent envelope
+// carries: Ed25519 over the version-keyed domain prefix plus JCS of the envelope
+// with `signature` removed. It composes the package-internal halves rather than
+// an exported generic verifier, matching the deliberate omission recorded in
+// signbody.go: this package still ships no generic envelope receiver, and the
+// conformance runner composes primitives the same way it composes the rest of
+// the transcript.
+func fcVerifyBodySignature(env map[string]interface{}, publicKey []byte) bool {
+	sig, ok := env["signature"].(string)
+	if !ok || !signatureRe.MatchString(sig) {
+		return false
+	}
+	unsigned := make(map[string]interface{}, len(env))
+	for k, v := range env {
+		if k == "signature" {
+			continue
+		}
+		unsigned[k] = v
+	}
+	canonical, err := JCSCanonicalize(unsigned)
+	if err != nil {
+		return false
+	}
+	sigBytes, err := base64.RawURLEncoding.DecodeString(sig)
+	if err != nil {
+		return false
+	}
+	if len(publicKey) != ed25519.PublicKeySize || !isStrongEd25519PublicKey(publicKey) {
+		return false
+	}
+	return ed25519.Verify(ed25519.PublicKey(publicKey), []byte(bodySignatureDomain(unsigned)+canonical), sigBytes)
 }
 
 func toInkSignInput(in fcSignInput) InkSignInput {
@@ -185,6 +246,21 @@ func fcSupportedVersions(bodyRaw string) []string {
 		return []string{"ink/0.1"}
 	}
 	return card.SupportedProtocolVersions
+}
+
+// fcCardEndpointPath returns the path component of the card's endpoint URL.
+func fcCardEndpointPath(bodyRaw string) (string, bool) {
+	var card struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if err := json.Unmarshal([]byte(bodyRaw), &card); err != nil {
+		return "", false
+	}
+	u, err := url.Parse(card.Endpoint)
+	if err != nil || u.Path == "" {
+		return "", false
+	}
+	return u.Path, true
 }
 
 func fcContains(haystack []string, needle string) bool {

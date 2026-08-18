@@ -4,6 +4,7 @@ import canonicalize from "canonicalize";
 import { isJcsSafeNumber } from "./sign.js";
 import { parseInkTimestampMs } from "./timestamp.js";
 import { hasUnpairedSurrogate } from "./surrogate.js";
+import { hasUnsafeObjectKey } from "./member-name.js";
 
 // ── Encoding helpers ──
 
@@ -97,6 +98,17 @@ function jcsCanonicalize(obj: unknown): string {
   // before parsing, since a parsed body has already lost the original surrogate.
   if (hasUnpairedSurrogate(obj)) {
     throw new Error("Input contains an unpaired UTF-16 surrogate");
+  }
+  // Nor may it carry an object key that would serialize as an escaped member
+  // name. V8 can decode such a member name to a different string entirely, so a
+  // receiver on Node 24+ or workerd would canonicalize bytes the signer never
+  // produced. Rejecting rather than rewriting the key: a signing API must not
+  // silently change what the caller asked to sign, and normalizing could merge
+  // two keys into one.
+  if (hasUnsafeObjectKey(obj)) {
+    throw new Error(
+      "Input contains an object key with a quote, backslash or control character",
+    );
   }
   const result = canonicalize(obj);
   if (result === undefined) throw new Error("Failed to canonicalize");

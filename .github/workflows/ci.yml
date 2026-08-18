@@ -73,6 +73,13 @@ jobs:
         # per-tag form of this check before it publishes anything.
         run: nix develop --command npm run check:release-pin -- --tag any
 
+      - name: Examples flake check
+        # Gates examples/flake.nix against the tree: a runnable example with
+        # no dev shell, or a shell naming a directory that has moved, fails
+        # here. The examples job below runs each shell for real.
+        working-directory: examples
+        run: nix flake check
+
       - name: Build nix package
         # Builds the cli derivation, which verifies npmDepsHash against the
         # lockfile. Catches a stale or malformed hash that the devshell-based
@@ -121,6 +128,43 @@ jobs:
       - name: Python interop tests, lint and types
         working-directory: examples/interop-cli
         run: nix develop --command bash -c "pytest -q && ruff check src tests && mypy src"
+
+  examples:
+    # The npm examples are what adopters copy, so they get the same
+    # nix-shell treatment as the library: the shell supplies the runtime,
+    # each example's own lockfile supplies its dependencies. The flake
+    # check also gates examples/flake.nix against the tree, so a new
+    # example with no dev shell fails here.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example:
+          - docker-receiver
+          - foreign-sender-receiver
+          - reference-receiver
+          - reference-rp
+          - reference-sender
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+
+      - name: Install, test and typecheck
+        working-directory: examples/${{ matrix.example }}
+        # --if-present because docker-receiver has no typecheck script.
+        run: |
+          nix develop "..#${{ matrix.example }}" --command bash -c \
+            'npm ci && npm test && npm run typecheck --if-present'
 
   go-conformance:
     runs-on: ubuntu-latest

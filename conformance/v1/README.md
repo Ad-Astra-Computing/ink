@@ -34,6 +34,26 @@ corpus is mostly negative and adversarial cases.
 }
 ```
 
+A case MAY also carry an `optionalBehavior` object next to `expect`, for a
+decision the pinned spec leaves to the implementation:
+
+```json
+"optionalBehavior": {
+  "id": "didweb-warm-resolver-unavailable",
+  "alternative": "reject",
+  "spec": "specs/ink-agent-card-signature.md §4.2",
+  "rationale": "§4.2 says a warm verifier MAY continue when the resolver is unreachable."
+}
+```
+
+`expect` still records the branch the reference takes; `alternative` is the other
+conformant outcome. An implementation declares once, per behavior id, which branch
+it takes, and its runner asserts exactly that: see
+[`../../specs/ink-conformance-profile.md`](../../specs/ink-conformance-profile.md)
+"Optional behaviors". Without the tag an implementation that fails closed where
+the spec allows it would fail a base category for being conformant. An id with no
+declaration is a failure, not a skip.
+
 `expect.result` is `accept` or `reject`, and `expect.canonicalPrincipal`
 (principal cases) carries the expected identity. Implementations assert the
 result and, where present, the canonical principal. The `description` records why
@@ -46,9 +66,27 @@ additive field then.
 - **principal-normalization**: `tulpa:` and `ink:` aliases of one key collapse
   to the same canonical principal; a literal `key:` agentId is escaped rather
   than confused with that principal; DIDs pass through; an empty id is rejected.
+  Four cases pin that the mapping DECODES the multibase body and re-encodes it
+  rather than replacing the prefix: a body that is not base58btc, a truncated
+  body, a non-canonical spelling carrying an extra leading-zero byte, and an
+  X25519 key where a signing key belongs are each escaped to `raw:`. A prefix
+  string-replace passes every other case in the category and turns all four into
+  `key:` principals, each with its own blocklist entry, rate-limit window and
+  nonce scope.
 - **signature-base**: a signature over the canonical signature base verifies;
   reordering JSON members of the signed body does not change the canonical bytes;
-  altering a signed field or the key fails verification.
+  altering a signed field or the key fails verification. Two cases pin the
+  boundary between the two signature kinds on a body that carries a `signature`
+  member, as every real intent envelope does: the transport base of §3.3 strips
+  nothing, so the signature over the full body verifies and a base built over the
+  stripped body does not. Stripping `signature` is the §3.6 body-signature rule
+  and applying it here fails both cases. Three further cases pin the §3.3 CR/LF
+  ban on the scalar fields: the base is newline-delimited, so a PATH of `/a\nb`
+  with recipientDid `x` and a PATH of `/a` with recipientDid `b\nx` produce
+  byte-identical bases, and one signature authenticates both. Both reject, as does
+  a recipientDid carrying a CR, each against a signature that genuinely verifies
+  over those bytes, so an implementation that omits the check accepts two
+  different requests under one signature.
 - **authorization-header**: the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]`
   transport Authorization header (§3.3). A well-formed header extracts the 86-char
   signature and the optional keyId; a wrong scheme, a wrong signature length or
@@ -61,16 +99,32 @@ additive field then.
   integer, including one written with an exponent (`1e2` to `100`), is accepted;
   a fraction, an above-safe magnitude, a negative zero, and the integer just past
   `2^53` are rejected, so the signed bytes stay agnostic to which canonicalizer
-  produced them. See [`../../specs/ink-jcs-number-profile.md`](../../specs/ink-jcs-number-profile.md).
+  produced them. Three cases sit on the seam with the raw-text range rule: a
+  literal outside the IEEE-754 double range rejects, and still rejects when a
+  later duplicate member shadows it, while an in-range duplicate member
+  canonicalizes last-wins and an underflowing exponent canonicalizes to `0`. The
+  shadowed case is the one a value-level check cannot make, because the parser
+  drops the literal before any value exists. See
+  [`../../specs/ink-jcs-number-profile.md`](../../specs/ink-jcs-number-profile.md).
 - **key-rotation**: a signature is verified against a key set under the
   authority rule: an active key verifies; a retired key verifies only while its
   validity window contains the message timestamp; a revoked key, an expired key,
   and a key set without the signing key all fail. Accept cases also pin the
-  `keyStatus` that verified.
+  `keyStatus` that verified. Two layers share the category. A case without
+  `liveAuth` is HISTORICAL verification, the bare multi-key primitive, where a
+  retired key inside its window verifies. A case with `liveAuth: true` is LIVE
+  TRANSPORT AUTHENTICATION, where the retired-key default of §3.3 then rejects
+  a signature only a retired entry verified, with reason
+  `retired_key_for_live_auth`, unless `liveAuthAllowRetired` opts into a bounded
+  rotation grace window. An implementation that returns the primitive's answer
+  to its transport-auth caller passes one layer and fails the other.
 - **replay-freshness**: a message is accepted only inside the freshness window
   (5 minutes old to 30 seconds ahead of the receiver clock) and only if its
   nonce has not been seen; a stale or future timestamp, a duplicate nonce, and a
-  malformed nonce all reject.
+  malformed nonce all reject. Both edges are pinned to the millisecond and both
+  are inclusive: exactly 300000 ms old and exactly 30000 ms ahead accept, one
+  millisecond past either rejects, so a window of the wrong width or a comparison
+  of the wrong strictness diverges instead of passing on a coarse case.
 - **timestamp-validity**: INK timestamps use one strict RFC 3339 date-time
   grammar at millisecond precision; a full UTC or numeric-offset value is accepted
   and pins its epoch milliseconds, while a date-only, zoneless, space-separated,
@@ -93,7 +147,11 @@ additive field then.
   lone surrogate escape rejects because the surrogate scan still runs. A
   BOM-prefixed body rejects end to end: the BOM survives the fatal decode and
   fails at JSON parsing, which pins the fatal decoder against a lenient
-  BOM-stripping decode that would diverge. See
+  BOM-stripping decode that would diverge. The category also pins the numeric
+  range rule the same gate enforces: a literal outside the IEEE-754 double range
+  rejects as a bare body, as a member value, and when a later duplicate member
+  shadows it, while the same characters inside a string, an underflowing
+  exponent, and the largest finite double all accept. See
   [`../../specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md).
 - **merkle-inclusion**: an RFC 6962 inclusion-proof walk: a leaf hash and a
   top-down list of sibling hashes recompute the claimed Merkle root, with internal
@@ -168,7 +226,10 @@ additive field then.
   accept; a wrong protocol, a missing required field, a non-grammar endpoint
   (javascript:/mailto:/ftp:/http:/userinfo/fragment/no-host/bad-port), an
   inboxEndpoint mismatch, a bad publicKeyMultibase, an unknown or over-cap enum,
-  and a malformed key entry all reject. See
+  and a malformed key entry all reject. The card top level and the nested
+  `discovery` descriptor are separate TOLERANT surfaces, each with its own case:
+  an unknown member on either is ignored rather than rejected, which is what makes
+  a later minor additive (`ink-compatibility-policy.md` §3.1). See
   [`../../specs/ink-agent-card.md`](../../specs/ink-agent-card.md).
 - **agent-card-fetch**: the discovery response-handling contract over synthetic
   response metadata (status, Content-Type, Content-Length, body, requested
@@ -231,7 +292,18 @@ additive field then.
   unadvertised version, a bad request or response signature, an invalid payload,
   an intent or transport-timestamp mismatch, a replayed nonce, a stale message,
   a non-accepted status, and a response under a different version all reject, so
-  an implementation that skips or reorders a step diverges. See
+  an implementation that skips or reorders a step diverges. The transcript also
+  pins the endpoint binding: the signed request `path` must be the path component
+  of the fetched card's `endpoint`. INK reserves no fixed inbound path, so a card
+  advertising a different path accepts when the request is signed over it, and a
+  request signed over any other path rejects even though that signature is itself
+  valid. The two envelopes are COMPLETE §3.1 intent envelopes, carrying `id`,
+  `correlationId`, `createdAt` and the §3.6 body `signature` alongside the
+  transport signature, and the transcript validates the envelope structure before
+  it verifies anything: an envelope missing a MUST member, an envelope carrying an
+  unknown top-level member, and an envelope whose body signature was made with the
+  wrong key all reject. A shortened envelope would fail a receiver that validates
+  §3.1 before verifying, so the corpus must not contain one. See
   [`../../specs/ink-first-contact-transcript.md`](../../specs/ink-first-contact-transcript.md).
 - **discovery-query-envelope**: schema validation, requester-key signature
   verification, audience binding, the freshness window and nonce replay for the
@@ -257,7 +329,18 @@ additive field then.
   the verifier clock as `not_yet_valid`, both bounds inclusive. A malformed
   verifier clock fails closed as `schema`. A burned `(from, nonce)` pair rejects as
   `replay`, the same nonce burned for a different requester does not and a stale
-  replay reports the window because replay is checked last. See
+  replay reports the window because replay is checked last. An envelope is a
+  signed body, so the raw-body gate applies to it: the cases that exercise a rule
+  about bytes carry `envelopeRaw`, the exact wire text a sender put on the wire,
+  in place of `envelope`, and a runner decodes it to bytes and verifies those. An
+  out-of-range number literal rejects both in a live member and when a later
+  duplicate member shadows it, which is the case that matters, because the
+  shadowed literal never reaches the parsed envelope and the signature over the
+  canonical form still verifies; a lone surrogate escape in the raw text rejects
+  as `schema` before the signature; an underflowing exponent is in range and the
+  envelope behind it accepts, so the gate is a range test rather than a ban on
+  exponents; and the same envelope presented as whitespace-padded wire text
+  verifies, because whitespace vanishes at canonicalization. See
   [`../../specs/ink-discovery-query.md`](../../specs/ink-discovery-query.md).
 - **agent-authorization**: the sign-in challenge artifact: a bare-host `did:web`
   RP origin derivation, a registry-bounded `requestedScope`, a parser-independent
@@ -335,11 +418,34 @@ manifest now, with its case count and SHA-256, and the flip retags it from
 INK measures string lengths (the agentId and multibase caps) in UTF-16 code
 units, matching JavaScript's `String.length`, and JCS sorts object members by
 UTF-16 code unit per RFC 8785. An implementation in another language must measure
-and sort the same way or it will disagree with these vectors on a multi-byte
-input; the `non-ascii-under-utf16-cap-passes-through` case exercises exactly that
-boundary. Inputs are assumed to be well-formed Unicode; a lone surrogate is the
-one value whose UTF-16 length does not round-trip through UTF-8, and is out of
-scope for v1.
+and sort the same way or it will disagree with these vectors.
+
+The two rules are pinned separately, because they fail separately.
+
+**Length.** `principal-normalization/non-ascii-under-utf16-cap-passes-through`
+carries an identifier whose UTF-16 length is inside the 512 cap while its UTF-8
+byte length is not, so an implementation that measures bytes rejects an id the
+reference accepts.
+
+**Ordering.** Member ORDER is decided by the comparator, not by the length rule,
+and the two orders diverge only when a member NAME leaves the BMP: the astral key
+U+1F511 is a surrogate pair whose leading code unit is D83D, so UTF-16 sorts it
+BEFORE the BMP key U+FF21 while code-point and UTF-8 byte order sort it after.
+Sorting by code point is the natural implementation in Go, Rust and Python, and it
+agrees with UTF-16 on every all-ASCII object, so a wrong comparator is invisible
+until it changes the signed bytes of every signature kind INK defines. Four
+categories carry the discriminator, each at the point where canonicalization
+decides the outcome: `jcs-number` pins the canonical string directly
+(`member-order-astral-before-bmp-accepts`,
+`member-order-mixed-scripts-nested-accepts`), `signature-base` pins a §3.3
+transport signature over a body with such member names
+(`non-ascii-member-order-accepts` and its reordered twin),
+`agent-card-signature` pins the §3.4 card proof over a card carrying them
+(`non-ascii-member-order-accept`), and `merkle-leaf` pins the committed leaf
+digest (`non-ascii-member-order-accepts`).
+
+Inputs are assumed to be well-formed Unicode; a lone surrogate is the one value
+whose UTF-16 length does not round-trip through UTF-8, and is out of scope for v1.
 
 ## Running them
 

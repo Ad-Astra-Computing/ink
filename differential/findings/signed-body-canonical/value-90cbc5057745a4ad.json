@@ -1,0 +1,38 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-canonical",
+  "conformanceCategory": "signed-body-canonical",
+  "kind": "value",
+  "detail": "canonicalString: ts=\"{\\\"A\\\":[],\\\"\\\\\\\\\\\":true}\" go=\"{\\\"\\\\\\\"\\\":true,\\\"A\\\":[]}\"",
+  "runSeed": 20260818,
+  "originCaseId": "signed-body-canonical/random/20260818/6879",
+  "arm": "random",
+  "original": {
+    "bodyRaw": "{\"A\":[],\"\\\"\":true}"
+  },
+  "minimized": {
+    "bodyRaw": "{\"A\":[],\"\\\"\":true}"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "accept",
+        "canonicalString": "{\"A\":[],\"\\\\\":true}"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\\\"\":true,\"A\":[]}"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "accept",
+        "canonicalString": "{\"\\\"\":true,\"A\":[]}"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\\\"\":true,\"A\":[]}"
+      }
+    }
+  }
+}

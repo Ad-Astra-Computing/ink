@@ -4,6 +4,7 @@ import { AgentCardVisibilitySchema } from "./ink-handshake.js";
 import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
 import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
+import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
 
 // Caps mirror the DID/agent-id bound used across INK payloads and the discovery
 // descriptor's tag constraints (#188), so a query cannot express more than a
@@ -103,6 +104,25 @@ export const MAX_DISCOVERY_QUERY_AGE_MS = 5 * 60 * 1000;
 export const MAX_DISCOVERY_QUERY_SKEW_MS = 30 * 1000;
 
 /**
+ * Byte ceiling on a raw discovery query envelope, enforced before the body is
+ * decoded. It is derived from the schema bounds at the wire escape-expansion
+ * worst case: a maximal envelope carries about 3,300 schema-bounded code units
+ * (32 tags of 64, a `from` and `to` of 512 each, a 256-unit nonce, a timestamp,
+ * a scope literal and an 86-character signature), and the wire form is not
+ * canonical JSON, so a sender may spell any character as a six-byte `\uXXXX`
+ * escape: roughly 20 KiB of wire bytes. Rounding to a flat 64 KiB, the same
+ * figure `MAX_GRANT_BODY_BYTES` rounds to, leaves headroom for a fully escaped
+ * valid envelope while refusing a blob orders of magnitude past the schema.
+ *
+ * The cap is not redundant with the structural bounds walk: JSON permits
+ * unbounded whitespace between tokens, and whitespace vanishes at
+ * canonicalization, so a schema-valid envelope padded with megabytes of spaces
+ * carries a signature that still verifies. Without a byte cap that body is
+ * admitted; the Go `MaxDiscoveryQueryBodyBytes` refuses it.
+ */
+export const MAX_DISCOVERY_QUERY_BODY_BYTES = 64 * 1024;
+
+/**
  * Which check rejected a discovery query. Callers discriminate on this stable
  * field rather than any message prose. `schema` covers every structural failure
  * and every verifier input error (an empty audience set, a clock that is not a
@@ -162,34 +182,68 @@ export type DiscoveryQueryVerifyResult =
  * the directory's job. Fails closed: every structural, verifier-input or
  * security failure returns a typed rejection, and the function never throws.
  *
+ * The input is the **raw body bytes**, not a parsed value. An envelope is a
+ * signed body, so it is subject to the raw-body gate of
+ * [`specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md)
+ * §"Enforcement order": invalid UTF-8, a lone UTF-16 surrogate escape and a
+ * number literal outside the IEEE-754 double range are all rules about the bytes
+ * that no longer exist once the body is parsed. A verifier that took a parsed
+ * value could not run them, and could not run them on a caller's behalf either:
+ * a duplicate member shadows an out-of-range literal (JSON member semantics are
+ * last-wins), so the value layer never sees it, the envelope canonicalizes
+ * cleanly and its signature verifies, while an implementation that gates the
+ * bytes refuses the same envelope outright. That is an accept-versus-reject
+ * split in a signed path, choosable by anyone who can write the bytes, so the
+ * bytes are the input.
+ *
  * The envelope signs `to`, `nonce` and `timestamp`, so this verifier consumes
  * all three rather than leaving a caller to rediscover that it must. The
  * signature is checked before any context decision, so a rejection never reveals
  * whether the audience or the window would have passed.
  *
  * Check order (each returns its own reason on the first failure):
- *   1. structural schema + byte safety            -> "schema"
- *   2. requester signature over the canonical body -> "signature"
- *   3. audience binding (confused-deputy defense)  -> "audience"
- *   4. freshness window                            -> "expired" | "not_yet_valid"
- *   5. replay (from + nonce already seen)          -> "replay"
+ *   1. byte cap, raw-body gate, JSON parse       -> "schema"
+ *   2. structural schema + string safety          -> "schema"
+ *   3. requester signature over the canonical body -> "signature"
+ *   4. audience binding (confused-deputy defense)  -> "audience"
+ *   5. freshness window                            -> "expired" | "not_yet_valid"
+ *   6. replay (from + nonce already seen)          -> "replay"
  *
  * A `now` that is not a strict INK timestamp and an empty audience set are
  * verifier input errors and reject as "schema", not a verdict the verifier never
  * computed.
  */
 export async function verifyDiscoveryQueryEnvelope(
-  raw: unknown,
+  raw: Uint8Array,
   requesterPublicKey: Uint8Array,
   context: DiscoveryQueryVerifyContext,
 ): Promise<DiscoveryQueryVerifyResult> {
   // Fail closed on anything, including a hostile object whose getters or proxy
   // traps throw during bounds checking or parsing.
   try {
-    if (!isWithinBounds(raw)) {
+    // A caller on an untyped boundary can still hand over something that is not
+    // bytes; that is a verifier input error, not an envelope this function can
+    // rule on, and it fails closed rather than being coerced.
+    if (!ArrayBuffer.isView(raw) || !(raw instanceof Uint8Array)) {
       return { ok: false, reason: "schema" };
     }
-    const parsed = DiscoveryQueryEnvelopeSchema.safeParse(raw);
+    // The byte cap runs before the decoder: an oversized blob is refused without
+    // being decoded at all.
+    if (raw.length > MAX_DISCOVERY_QUERY_BODY_BYTES) {
+      return { ok: false, reason: "schema" };
+    }
+    // The raw-body gate, then the parse. ParseSignedBodyError and the native
+    // SyntaxError from a malformed body are both structural rejections.
+    let value: unknown;
+    try {
+      value = parseSignedBodyBytes(raw);
+    } catch {
+      return { ok: false, reason: "schema" };
+    }
+    if (!isWithinBounds(value)) {
+      return { ok: false, reason: "schema" };
+    }
+    const parsed = DiscoveryQueryEnvelopeSchema.safeParse(value);
     if (!parsed.success) {
       return { ok: false, reason: "schema" };
     }

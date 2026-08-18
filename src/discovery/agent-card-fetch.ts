@@ -1,5 +1,6 @@
 import type { AgentCard } from "../models/agent-card.js";
 import { AgentCardSchema } from "../models/agent-card.js";
+import { parseSignedBodyText } from "../crypto/parse-signed-body.js";
 
 /**
  * Agent Card discovery fetch contract.
@@ -113,10 +114,14 @@ export function evaluateAgentCardFetch(input: AgentCardFetchInput): AgentCardFet
   // 4. Actual body size.
   if (utf8ByteLength(input.bodyRaw) > MAX_AGENT_CARD_BYTES) return reject;
 
-  // 5. JSON parse.
+  // 5. JSON parse, through the signed-body text gates. The card carries a
+  //    signature verified over its canonical form, so it is signature-relevant
+  //    and must not reach canonicalization through a lenient parse. Only the
+  //    text-level gates apply: the caller hands us a string, so the UTF-8
+  //    boundary is already behind us.
   let parsed: unknown;
   try {
-    parsed = JSON.parse(input.bodyRaw);
+    parsed = parseSignedBodyText(input.bodyRaw);
   } catch {
     return reject;
   }

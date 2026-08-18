@@ -17,11 +17,56 @@ type vectorFile struct {
 	Cases    []conformanceCase `json:"cases"`
 }
 
+// optionalBehavior marks a case whose decision the spec it pins leaves to the
+// implementation. `Expect` still carries the branch the reference takes;
+// `Alternative` names the other outcome that is equally conforming.
+type optionalBehavior struct {
+	ID          string `json:"id"`
+	Alternative string `json:"alternative"`
+	Spec        string `json:"spec"`
+	Rationale   string `json:"rationale"`
+}
+
+// goOptionalBehaviorPolicy declares which branch THIS implementation takes for
+// every optional behavior in the corpus, the second-implementation half of
+// OPTIONAL_BEHAVIOR_POLICY in test/conformance.test.ts. "pinned" means it makes
+// the same decision the vector's `expect` records; "alternative" means it takes
+// the other conformant branch and the runner asserts that instead. An id in the
+// corpus with no entry here is a failure, so a new optional behavior cannot slip
+// through undeclared.
+var goOptionalBehaviorPolicy = map[string]string{
+	"didweb-warm-resolver-unavailable": "pinned",
+	"cold-chain-extension-residual":    "pinned",
+}
+
+// expectedOutcome returns the accept/reject decision this implementation must
+// make for a case, and whether the reference's reason and audit-event
+// expectations still apply (they do not when it takes the alternative branch).
+func expectedOutcome(t *testing.T, c conformanceCase) (string, bool) {
+	t.Helper()
+	if c.OptionalBehavior == nil {
+		return c.Expect.Result, true
+	}
+	branch, declared := goOptionalBehaviorPolicy[c.OptionalBehavior.ID]
+	if !declared {
+		t.Errorf("%s: undeclared optional behavior %q; add it to goOptionalBehaviorPolicy", c.CaseID, c.OptionalBehavior.ID)
+		return c.Expect.Result, true
+	}
+	if c.OptionalBehavior.Alternative == c.Expect.Result {
+		t.Errorf("%s: optional behavior %q names the pinned result as its alternative", c.CaseID, c.OptionalBehavior.ID)
+	}
+	if branch == "alternative" {
+		return c.OptionalBehavior.Alternative, false
+	}
+	return c.Expect.Result, true
+}
+
 type conformanceCase struct {
-	CaseID      string                     `json:"caseId"`
-	Description string                     `json:"description"`
-	Input       map[string]json.RawMessage `json:"input"`
-	Expect      struct {
+	CaseID           string                     `json:"caseId"`
+	Description      string                     `json:"description"`
+	OptionalBehavior *optionalBehavior          `json:"optionalBehavior"`
+	Input            map[string]json.RawMessage `json:"input"`
+	Expect           struct {
 		Result             string `json:"result"`
 		Reason             string `json:"reason"`
 		AuditEvent         string `json:"auditEvent"`
@@ -90,6 +135,23 @@ func TestJCSStringSafety(t *testing.T) {
 		reject := ContainsLoneSurrogateEscape([]byte(bodyRaw))
 		got := "accept"
 		if reject {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: got %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
+func TestSignedBodyMemberName(t *testing.T) {
+	vf := loadVectors(t, "signed-body-member-name")
+	for _, c := range vf.Cases {
+		var bodyRaw string
+		if err := json.Unmarshal(c.Input["bodyRaw"], &bodyRaw); err != nil {
+			t.Fatalf("%s: bad bodyRaw: %v", c.CaseID, err)
+		}
+		got := "accept"
+		if ContainsEscapedMemberName([]byte(bodyRaw)) {
 			got = "reject"
 		}
 		if got != c.Expect.Result {
@@ -387,8 +449,16 @@ func runAgentCardSignatureVectors(t *testing.T, category string) {
 		if res.Rejected {
 			got = "reject"
 		}
-		if got != c.Expect.Result {
-			t.Errorf("%s: result = %s, want %s (reason %s)", c.CaseID, got, c.Expect.Result, res.Reason)
+		// A case tagged optionalBehavior pins a decision the spec leaves open;
+		// the declared branch decides which outcome this implementation must
+		// reach, and the reference's reason and audit marks apply only on the
+		// pinned branch.
+		wantResult, detailsApply := expectedOutcome(t, c)
+		if got != wantResult {
+			t.Errorf("%s: result = %s, want %s (reason %s)", c.CaseID, got, wantResult, res.Reason)
+		}
+		if !detailsApply {
+			continue
 		}
 		if c.Expect.Reason != "" && string(res.Reason) != c.Expect.Reason {
 			t.Errorf("%s: reason = %q, want %q", c.CaseID, res.Reason, c.Expect.Reason)
@@ -703,7 +773,20 @@ func TestDiscoveryQueryEnvelope(t *testing.T) {
 			}
 		}
 		ctx := DiscoveryQueryContext{Audience: audience, Now: now, SeenNonces: seen}
-		ok, reason := VerifyDiscoveryQueryEnvelope(c.Input["envelope"], pub, ctx)
+		// The verifier takes the raw body bytes. A case that exercises the
+		// raw-body gate carries envelopeRaw, the exact wire text, because the
+		// rule under test is about bytes a parsed value has already lost; every
+		// other case carries the envelope as a value, whose vector bytes are the
+		// wire form already.
+		body := c.Input["envelope"]
+		if raw, present := c.Input["envelopeRaw"]; present {
+			var text string
+			if err := json.Unmarshal(raw, &text); err != nil {
+				t.Fatalf("%s: bad envelopeRaw: %v", c.CaseID, err)
+			}
+			body = []byte(text)
+		}
+		ok, reason := VerifyDiscoveryQueryEnvelope(body, pub, ctx)
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: verify = %v (%s), want %v", c.CaseID, ok, reason, want)
@@ -778,7 +861,20 @@ func TestAuthorizationGrant(t *testing.T) {
 			VerifiedOwnerStatus: ownerStatus,
 			MaxLifetimeMs:       maxLifetimeMs,
 		}
-		ok, reason := VerifyAuthorizationGrant(c.Input["grant"], pub, ctx)
+		// The verifier takes the raw body bytes. A case that exercises the
+		// raw-body gate carries grantRaw, the exact wire text, because the rule
+		// under test is about bytes a parsed value has already lost; every other
+		// case carries the grant as a value, whose vector bytes are the wire form
+		// already.
+		grantBody := c.Input["grant"]
+		if raw, present := c.Input["grantRaw"]; present {
+			var text string
+			if err := json.Unmarshal(raw, &text); err != nil {
+				t.Fatalf("%s: bad grantRaw: %v", c.CaseID, err)
+			}
+			grantBody = []byte(text)
+		}
+		ok, reason := VerifyAuthorizationGrant(grantBody, pub, ctx)
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
@@ -857,7 +953,17 @@ func TestAuthorizationChain(t *testing.T) {
 			IsRevoked:           func(key GrantKey) bool { return revoked[key] },
 			VerifiedOwnerStatus: ownerStatus,
 		}
-		ok, reason := VerifyAuthorizationChain(c.Input["chain"], ctx)
+		// The verifier takes the raw body bytes; a case that exercises the
+		// raw-body gate carries chainRaw, the exact wire text.
+		chainBody := c.Input["chain"]
+		if raw, present := c.Input["chainRaw"]; present {
+			var text string
+			if err := json.Unmarshal(raw, &text); err != nil {
+				t.Fatalf("%s: bad chainRaw: %v", c.CaseID, err)
+			}
+			chainBody = []byte(text)
+		}
+		ok, reason := VerifyAuthorizationChain(chainBody, ctx)
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: verify = %v, want %v (reason %q)", c.CaseID, ok, want, reason)
@@ -878,7 +984,17 @@ func TestAgentAuthorization(t *testing.T) {
 			IssuedAt  string `json:"issuedAt"`
 			ExpiresAt string `json:"expiresAt"`
 		}
-		if err := json.Unmarshal(c.Input["challenge"], &ch); err != nil {
+		// The verifier takes the raw body bytes; a case that exercises the
+		// raw-body gate carries challengeRaw, the exact wire text, and carries no
+		// parsed `challenge` because no serializer could produce those bytes.
+		challengeBody := c.Input["challenge"]
+		if raw, present := c.Input["challengeRaw"]; present {
+			var text string
+			if err := json.Unmarshal(raw, &text); err != nil {
+				t.Fatalf("%s: bad challengeRaw: %v", c.CaseID, err)
+			}
+			challengeBody = []byte(text)
+		} else if err := json.Unmarshal(c.Input["challenge"], &ch); err != nil {
 			t.Fatalf("%s: bad challenge: %v", c.CaseID, err)
 		}
 
@@ -921,7 +1037,7 @@ func TestAgentAuthorization(t *testing.T) {
 				ValidFrom: k.ValidFrom, ValidUntil: k.ValidUntil, RevokedAt: k.RevokedAt,
 			})
 		}
-		ok, reason := VerifyAuthorizationChallenge(c.Input["challenge"], keys, AuthorizationChallengeContext{Now: now})
+		ok, reason := VerifyAuthorizationChallenge(challengeBody, keys, AuthorizationChallengeContext{Now: now})
 		want := c.Expect.Result == "accept"
 		if ok != want {
 			t.Errorf("%s: verify = %v, want %v (reason %q)", c.CaseID, ok, want, reason)
@@ -972,7 +1088,13 @@ func TestKeyRotation(t *testing.T) {
 			} `json:"signInput"`
 			Signature string `json:"signature"`
 			HintKeyID string `json:"hintKeyId"`
-			Keys      []struct {
+			// liveAuth selects the live transport authentication layer instead
+			// of the bare multi-key primitive, and liveAuthAllowRetired opts
+			// into the bounded rotation grace window. See
+			// VerifyInkSignatureForLiveAuth.
+			LiveAuth             bool `json:"liveAuth"`
+			LiveAuthAllowRetired bool `json:"liveAuthAllowRetired"`
+			Keys                 []struct {
 				KeyID        string            `json:"keyId"`
 				PublicKeyHex string            `json:"publicKeyHex"`
 				Status       string            `json:"status"`
@@ -986,6 +1108,8 @@ func TestKeyRotation(t *testing.T) {
 		}
 		_ = json.Unmarshal(c.Input["signature"], &in.Signature)
 		_ = json.Unmarshal(c.Input["hintKeyId"], &in.HintKeyID)
+		_ = json.Unmarshal(c.Input["liveAuth"], &in.LiveAuth)
+		_ = json.Unmarshal(c.Input["liveAuthAllowRetired"], &in.LiveAuthAllowRetired)
 		if err := json.Unmarshal(c.Input["keys"], &in.Keys); err != nil {
 			t.Fatalf("%s: bad keys: %v", c.CaseID, err)
 		}
@@ -1000,13 +1124,25 @@ func TestKeyRotation(t *testing.T) {
 				ValidFrom: k.ValidFrom, ValidUntil: k.ValidUntil, RevokedAt: k.RevokedAt,
 			})
 		}
-		r := VerifyInkSignatureWithKeys(InkSignInput{
+		si := InkSignInput{
 			Method:       in.SignInput.Method,
 			Path:         in.SignInput.Path,
 			RecipientDid: in.SignInput.RecipientDid,
 			Body:         in.SignInput.Body,
 			Timestamp:    in.SignInput.Timestamp,
-		}, in.Signature, keys, in.HintKeyID)
+		}
+		var r MultiKeyResult
+		var reason string
+		if in.LiveAuth {
+			// Live transport auth: the primitive answers first, then the
+			// retired-key default of Protocol §3.3 narrows what may
+			// authenticate a request arriving now.
+			la := VerifyInkSignatureForLiveAuth(si, in.Signature, keys, in.HintKeyID, in.LiveAuthAllowRetired)
+			r = MultiKeyResult{Verified: la.Verified, KeyID: la.KeyID, KeyStatus: la.KeyStatus}
+			reason = la.Error
+		} else {
+			r = VerifyInkSignatureWithKeys(si, in.Signature, keys, in.HintKeyID)
+		}
 		want := c.Expect.Result == "accept"
 		if r.Verified != want {
 			t.Errorf("%s: verified = %v, want %v", c.CaseID, r.Verified, want)
@@ -1016,6 +1152,9 @@ func TestKeyRotation(t *testing.T) {
 		}
 		if c.Expect.KeyID != "" && r.KeyID != c.Expect.KeyID {
 			t.Errorf("%s: keyId = %q, want %q", c.CaseID, r.KeyID, c.Expect.KeyID)
+		}
+		if c.Expect.Reason != "" && reason != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
 		}
 		// On a rejection the result must not attribute a key: a populated
 		// keyId/keyStatus alongside Verified=false would hide an authority

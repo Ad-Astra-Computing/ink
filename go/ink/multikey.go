@@ -164,3 +164,42 @@ func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []Candid
 	}
 	return MultiKeyResult{}
 }
+
+// LiveAuthResult reports a live transport authentication decision, with the
+// protocol error code on a rejection.
+type LiveAuthResult struct {
+	Verified  bool
+	KeyID     string
+	KeyStatus string
+	Error     string
+}
+
+// VerifyInkSignatureForLiveAuth applies the retired-key default of Protocol
+// §3.3 on top of the multi-key primitive. The primitive answers a HISTORICAL
+// question: which entry in the published key set signed this artifact, with a
+// retired entry inside its validity window still counting. Live transport
+// authentication asks a narrower question, whether the entry that verified may
+// authenticate a request arriving NOW, and a retired entry is by construction a
+// key the identity has already replaced.
+//
+// A signature that only a retired entry verified is therefore rejected with
+// retired_key_for_live_auth unless the receiver has explicitly opted into a
+// bounded rotation grace window via allowRetiredKey. A receiver that opts in
+// MUST bound the window; an unbounded one restores every retired key as a live
+// credential for the life of the identity, which is what the default prevents.
+// This mirrors the requireActiveKey gate inside verifyInkAuth in the TypeScript
+// reference (src/middleware/ink-auth.ts), and is pinned by the liveAuth cases
+// of the key-rotation conformance category.
+//
+// A rejection carries no key attribution, so a caller cannot log a key as
+// having authenticated a request it did not.
+func VerifyInkSignatureForLiveAuth(in InkSignInput, signature string, keys []CandidateKey, hintKeyID string, allowRetiredKey bool) LiveAuthResult {
+	r := VerifyInkSignatureWithKeys(in, signature, keys, hintKeyID)
+	if !r.Verified {
+		return LiveAuthResult{Error: "signature_verification_failed"}
+	}
+	if !allowRetiredKey && r.KeyStatus == "retired" {
+		return LiveAuthResult{Error: "retired_key_for_live_auth"}
+	}
+	return LiveAuthResult{Verified: true, KeyID: r.KeyID, KeyStatus: r.KeyStatus}
+}

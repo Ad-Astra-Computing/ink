@@ -3,6 +3,7 @@ import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
 import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
 import { jcsCanonicalize, base64urlEncode } from "../crypto/ink.js";
+import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
 import type { CandidateKey } from "./key-entry.js";
 
 // The "INK Agent Authorization" sign-in challenge, the one artifact the flow
@@ -31,13 +32,17 @@ const REDIRECT_MAX = 2048;
 export const MAX_CHALLENGE_LIFETIME_MS = 10 * 60 * 1000;
 
 /**
- * Byte-length ceiling on a raw challenge body, the byte-layer counterpart to the
- * structural schema bounds. A receiver holding raw challenge bytes MUST reject a
- * body longer than this as `schema` before it decodes, per the *Byte bound* rule
- * in the spec. This reference `verifyAuthorizationChallenge` takes an
- * already-decoded object and applies the structural bounds instead, so this
- * constant is the contract for whatever layer received the bytes, the same rule
- * the Go `MaxChallengeBodyBytes` enforces on its bytes API. See
+ * Byte-length ceiling on a raw challenge body, enforced before the body is
+ * decoded. The largest well-formed challenge is far under it, so a body padded
+ * past the cap is not a legitimate request and need not be decoded at all.
+ * `verifyAuthorizationChallenge` enforces it on the bytes it is handed, the same
+ * figure the Go `MaxChallengeBodyBytes` enforces and the same figure the grant
+ * rounds to.
+ *
+ * The cap is not redundant with the structural bounds walk: JSON permits unbounded
+ * whitespace between tokens, and whitespace vanishes at canonicalization, so a
+ * schema-valid challenge padded with megabytes of spaces carries a signature that
+ * still verifies. Without a byte cap that body is admitted. See
  * [`specs/ink-agent-authorization.md`](../../specs/ink-agent-authorization.md).
  */
 export const MAX_CHALLENGE_BODY_BYTES = 65536;
@@ -369,7 +374,21 @@ async function verifyChallengeSignature(
  * and a verification context. Fails closed: every structural, byte-safety, or
  * security failure returns a typed rejection, and the function never throws.
  *
+ * The input is the **raw body bytes**, not a parsed value. A challenge is a signed
+ * body, so it is subject to the raw-body gate of
+ * [`specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md)
+ * §"Enforcement order": invalid UTF-8, a lone UTF-16 surrogate escape and a number
+ * literal outside the IEEE-754 double range are all rules about the bytes that no
+ * longer exist once the body is parsed. A verifier that took a parsed value could
+ * not run them: a duplicate member shadows an out-of-range literal (JSON member
+ * semantics are last-wins), so the value layer never sees it, the challenge
+ * canonicalizes cleanly and its signature verifies, while an implementation that
+ * gates the bytes refuses the same challenge outright. That is an
+ * accept-versus-reject split in a signed path, choosable by anyone who can write
+ * the bytes, so the bytes are the input.
+ *
  * Check order (each returns its own reason on the first failure):
+ *   0. byte cap, raw-body gate, JSON parse                              -> "schema"
  *   1. structural schema + byte safety + rp/redirect/scope/window rules -> "schema"
  *   2. RP signature against an active, in-window signing key            -> "signature"
  *   3. validity window (not_yet_valid / expired)                        -> "not_yet_valid" | "expired"
@@ -383,15 +402,34 @@ async function verifyChallengeSignature(
  * consulted, including the key-window evaluation in step 2.
  */
 export async function verifyAuthorizationChallenge(
-  raw: unknown,
+  raw: Uint8Array,
   keys: CandidateKey[],
   context: AuthorizationChallengeVerifyContext,
 ): Promise<AuthorizationChallengeVerifyResult> {
   try {
-    if (!isWithinBounds(raw)) {
+    // A caller on an untyped boundary can still hand over something that is not
+    // bytes; that is a verifier input error, not a challenge this function can
+    // rule on, and it fails closed rather than being coerced.
+    if (!ArrayBuffer.isView(raw) || !(raw instanceof Uint8Array)) {
       return { ok: false, reason: "schema" };
     }
-    const parsed = AuthorizationChallengeSchema.safeParse(raw);
+    // The byte cap runs before the decoder: an oversized blob is refused without
+    // being decoded at all.
+    if (raw.length > MAX_CHALLENGE_BODY_BYTES) {
+      return { ok: false, reason: "schema" };
+    }
+    // The raw-body gate, then the parse. ParseSignedBodyError and the native
+    // SyntaxError from a malformed body are both structural rejections.
+    let value: unknown;
+    try {
+      value = parseSignedBodyBytes(raw);
+    } catch {
+      return { ok: false, reason: "schema" };
+    }
+    if (!isWithinBounds(value)) {
+      return { ok: false, reason: "schema" };
+    }
+    const parsed = AuthorizationChallengeSchema.safeParse(value);
     if (!parsed.success) {
       return { ok: false, reason: "schema" };
     }

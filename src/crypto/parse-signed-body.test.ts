@@ -55,6 +55,38 @@ describe("parseSignedBodyBytes", () => {
     expect(() => parseSignedBodyBytes(utf8(body))).toThrow(/surrogate/i);
   });
 
+  it("rejects a number literal outside the double range", () => {
+    expect(() => parseSignedBodyBytes(utf8(`{"n":1e309}`))).toThrow(/double range/i);
+  });
+
+  it("rejects a bare out-of-range literal as the whole body", () => {
+    expect(() => parseSignedBodyBytes(utf8("1e309"))).toThrow(/double range/i);
+  });
+
+  it("rejects an out-of-range literal shadowed by a duplicate member", () => {
+    // Without the raw scan this parses to {"a":1} and canonicalizes cleanly,
+    // while Go refuses the document: the two would admit different bytes.
+    expect(() => parseSignedBodyBytes(utf8(`{"a":1e309,"a":1}`))).toThrow(/double range/i);
+  });
+
+  it("accepts a duplicate member whose literals are both in range", () => {
+    expect(parseSignedBodyBytes(utf8(`{"a":2,"a":1}`))).toEqual({ a: 1 });
+  });
+
+  it("accepts an exponent that underflows to zero", () => {
+    expect(parseSignedBodyBytes(utf8(`{"n":1e-400}`))).toEqual({ n: 0 });
+  });
+
+  it("throws ParseSignedBodyError with reason number-range for an out-of-range literal", () => {
+    try {
+      parseSignedBodyBytes(utf8(`{"n":1e309}`));
+      expect.unreachable("expected a throw");
+    } catch (err) {
+      expect(err).toBeInstanceOf(ParseSignedBodyError);
+      expect((err as ParseSignedBodyError).reason).toBe("number-range");
+    }
+  });
+
   it("rejects a body that is valid UTF-8 but not JSON", () => {
     expect(() => parseSignedBodyBytes(utf8("{not json"))).toThrow();
   });

@@ -47,6 +47,11 @@ var goProfileCategories = map[string][]string{
 		"private-hostname",
 		"replay-freshness",
 		"signature-base",
+		// Added to the frozen base set pre-1.0, deliberately: see
+		// specs/ink-signed-string-safety.md. Go decodes escaped member names
+		// correctly, so this rule exists to keep the admitted set identical to
+		// an implementation on an affected V8.
+		"signed-body-member-name",
 		"signed-body-utf8",
 		"timestamp-validity",
 	},
@@ -103,8 +108,50 @@ var goVerifiedCategories = []string{
 	"private-hostname",
 	"replay-freshness",
 	"signature-base",
+	"signed-body-member-name",
 	"signed-body-utf8",
 	"timestamp-validity",
+}
+
+// goOptionalBehaviorCategories freezes the categories whose Go runner consults
+// goOptionalBehaviorPolicy. A case tagged `optionalBehavior` in any other
+// category would silently pin one branch again, so the tag is only valid here
+// and the set grows only alongside a runner that reads it.
+var goOptionalBehaviorCategories = map[string]bool{
+	"agent-card-signature":         true,
+	"agent-card-signature-phase-c": true,
+}
+
+// TestOptionalBehaviorsDeclared walks the whole corpus and checks that every
+// optional-behavior tag sits in a category whose runner honors it, names an
+// alternative that differs from the pinned result, and is declared in this
+// implementation's policy; and that no policy entry is stale.
+func TestOptionalBehaviorsDeclared(t *testing.T) {
+	m := loadManifest(t)
+	seen := map[string]bool{}
+	for _, cat := range m.Categories {
+		vf := loadVectors(t, cat.ID)
+		for _, c := range vf.Cases {
+			if c.OptionalBehavior == nil {
+				continue
+			}
+			if !goOptionalBehaviorCategories[cat.ID] {
+				t.Errorf("%s/%s: optionalBehavior tagged in a category whose runner does not honor it", cat.ID, c.CaseID)
+			}
+			if c.OptionalBehavior.Alternative == c.Expect.Result {
+				t.Errorf("%s/%s: alternative equals the pinned result", cat.ID, c.CaseID)
+			}
+			if _, ok := goOptionalBehaviorPolicy[c.OptionalBehavior.ID]; !ok {
+				t.Errorf("%s/%s: undeclared optional behavior %q", cat.ID, c.CaseID, c.OptionalBehavior.ID)
+			}
+			seen[c.OptionalBehavior.ID] = true
+		}
+	}
+	for id := range goOptionalBehaviorPolicy {
+		if !seen[id] {
+			t.Errorf("goOptionalBehaviorPolicy declares %q but no case carries it", id)
+		}
+	}
 }
 
 func loadManifest(t *testing.T) conformanceManifest {

@@ -44,12 +44,9 @@ const (
 
 // MaxGrantBodyBytes is the byte-length ceiling on a raw grant body before it is
 // parsed. It pins the spec's Byte bound rule: a grant presented as raw bytes must
-// be rejected as schema when longer than 65536 bytes, before decoding. This Go
-// API receives bytes, so VerifyAuthorizationGrant enforces the bound itself; the
-// reference verifier takes an already-decoded object and instead applies the
-// structural bounds, so the TypeScript counterpart MAX_GRANT_BODY_BYTES is the
-// contract for whatever layer received its bytes. The two constants are kept in
-// step so parity is recorded.
+// be rejected as schema when longer than 65536 bytes, before decoding. Both
+// implementations receive bytes and enforce the bound themselves, and the
+// TypeScript counterpart MAX_GRANT_BODY_BYTES carries the same value.
 //
 // The value is derived from the schema bounds rather than the generic character
 // budget: a grant carries eleven members whose maximum sizes are pinned by the

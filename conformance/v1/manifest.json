@@ -8,8 +8,8 @@
       "profile": "authorization",
       "spec": "specs/ink-agent-authorization.md",
       "summary": "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId.",
-      "caseCount": 63,
-      "sha256": "7c565fe347b9307d819f84893799496603f3e9d878c5d05acba98ea737bdabc7"
+      "caseCount": 68,
+      "sha256": "d75409a670a45a7ce93ac80362c4fd49d3dbcaee4e11c55dfa3283e73a36de72"
     },
     {
       "id": "agent-card",
@@ -17,8 +17,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card.md",
       "summary": "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound.",
-      "caseCount": 48,
-      "sha256": "5e1ea1f97a0796a14918a3bba08781cd0a40d7717a38733a003eac1c38a7a028"
+      "caseCount": 49,
+      "sha256": "328ab6ebc9caebd932614b2a74f99433adf13cbc1d2a48fb7ce77de77cab4bcc"
     },
     {
       "id": "agent-card-fetch",
@@ -35,8 +35,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card-signature.md",
       "summary": "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules.",
-      "caseCount": 44,
-      "sha256": "ab677432cbd9980ddfd533416c4fe6c72fd76d49f50cc339c902b5a6dfc8e3ec"
+      "caseCount": 49,
+      "sha256": "13809304b8c02199c1ec3f00d6e2e2d4a2e9ec6c535390ad7a4da9d0fbbd020c"
     },
     {
       "id": "agent-card-signature-phase-c",
@@ -62,8 +62,8 @@
       "profile": "delegation",
       "spec": "specs/ink-authorization-chain.md",
       "summary": "Linear delegation chain of 2 to 4 grant-shaped links: parent-hash and issuer-subject continuity, monotonic scope and window attenuation with the delegation.extend gate, per-position lifetime ceilings, active-key-only per-link signatures, and the audience, presenter, window, replay, revocation and owner-verification context checks.",
-      "caseCount": 51,
-      "sha256": "c2d0a6fa46ab51003cebf00a1248549a206240b042c1b49c498b6a7a0a2acbbe"
+      "caseCount": 56,
+      "sha256": "397a11e8c01aa6b21768400fd9c34019ecbcc5df5d7a8f4af71d48ff324f9fd3"
     },
     {
       "id": "authorization-grant",
@@ -71,8 +71,8 @@
       "profile": "authorization",
       "spec": "specs/ink-authorization-grant.md",
       "summary": "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement.",
-      "caseCount": 50,
-      "sha256": "77c17a75aa3a458a2fb2ee576f2f936d96c506aaeb2d099901c38dba9f730ecb"
+      "caseCount": 55,
+      "sha256": "458ba4c88776ca5eaf2d06fd2713b2fa83c4f203acea02d2d84b3235a7db08fe"
     },
     {
       "id": "authorization-header",
@@ -98,8 +98,8 @@
       "profile": "discovery",
       "spec": "specs/ink-discovery-query.md",
       "summary": "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay.",
-      "caseCount": 28,
-      "sha256": "997f956b7502a306874a7cdfe55b99465817a2a4feb77675839c4f24b14f0ff7"
+      "caseCount": 33,
+      "sha256": "2181af8610c66c38738c6f4108ca67e5df8f6de2bf8b50159ff473602d5a7c8f"
     },
     {
       "id": "first-contact-transcript",
@@ -107,8 +107,8 @@
       "profile": "base",
       "spec": "specs/ink-first-contact-transcript.md",
       "summary": "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response.",
-      "caseCount": 21,
-      "sha256": "ddedb14de25ee034bed194e0fbe0e5034cfb549665acc786f88fd2d63d6c29b0"
+      "caseCount": 28,
+      "sha256": "975ad9af6db76cdc81acaada71cfafa6b7d0a8ad6bd4fa594b22773324406b8a"
     },
     {
       "id": "handshake-message",
@@ -134,8 +134,8 @@
       "profile": "base",
       "spec": "specs/ink-jcs-number-profile.md",
       "summary": "RFC 8785 JCS canonicalization and the safe-integer number profile.",
-      "caseCount": 10,
-      "sha256": "fb5e1a0e126c661155ddcbdb69be8d9e3d39655723e8baa6cade19dca3eae6a3"
+      "caseCount": 16,
+      "sha256": "f6766a9f5778986ad0539b88f2c13f69b84f48360a4f91f46ec0acb5a2ae0140"
     },
     {
       "id": "jcs-string-safety",
@@ -152,8 +152,8 @@
       "profile": "base",
       "spec": "specs/ink-key-rotation-spec.md",
       "summary": "Key-window verification across active, retired, and revoked keys.",
-      "caseCount": 28,
-      "sha256": "f3bcc4390817352bd3fe97bef911d49939f131fe8ccdd2315da3bd242403a316"
+      "caseCount": 32,
+      "sha256": "068d22cd3912663f17a53f1a2e70dc7f2711e4cd534b8f3852d20a82f2a32cd7"
     },
     {
       "id": "merkle-checkpoint",
@@ -188,8 +188,8 @@
       "profile": "audit",
       "spec": "specs/ink-merkle-leaf.md",
       "summary": "Audit-event Merkle leaf-hash computation.",
-      "caseCount": 14,
-      "sha256": "ca9962be54fdcf894d52f58125ae2792502db9ba29803990206e701142f74eaa"
+      "caseCount": 15,
+      "sha256": "f542dd0c3884055b43dcc73a2f2e54e26fb4167e45096c3512a3f2c8f3dcd5c8"
     },
     {
       "id": "payload-encryption",
@@ -206,8 +206,8 @@
       "profile": "base",
       "spec": "specs/ink-authorization-chain.md",
       "summary": "Agent principal canonicalization (tulpa:/ink:/key: prefixes).",
-      "caseCount": 6,
-      "sha256": "59b20f44b3cd6099413c7c5e15e5a08e62de9f1e4dec97ecbdf485c705bc34eb"
+      "caseCount": 10,
+      "sha256": "c9e3d8e03de071b0aa3f8db58161e37b2e8b26db472b41bfc858372562d40c5a"
     },
     {
       "id": "private-hostname",
@@ -224,8 +224,8 @@
       "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Timestamp window and nonce replay rejection.",
-      "caseCount": 6,
-      "sha256": "441e4494b1f76c62880540921a687866d435850cc4b4ce3effd808a184684961"
+      "caseCount": 10,
+      "sha256": "931a393d978e202c76384a82aef3e1d76e3628ad0a4b109defa452745b78a17c"
     },
     {
       "id": "signature-base",
@@ -233,8 +233,17 @@
       "profile": "base",
       "spec": "specs/ink-protocol.md",
       "summary": "Ed25519 verification over the canonical signature base.",
-      "caseCount": 8,
-      "sha256": "e38e8a6ac7578321dc83343f7271f19afbebcfb3bd12a798fed2c9c15608ec12"
+      "caseCount": 15,
+      "sha256": "deffe5fc8962235932ef04ca8f6bba9ada59aefd0a1e1ddc7330a5b20e35a745"
+    },
+    {
+      "id": "signed-body-member-name",
+      "vector": "vectors/signed-body-member-name.json",
+      "profile": "base",
+      "spec": "specs/ink-signed-string-safety.md",
+      "summary": "Escaped object member names in a signed body, rejected on the raw text before parsing.",
+      "caseCount": 18,
+      "sha256": "c30da5c3d571709c20470de467aefe990dd741b34de5c2062d0efc795d08fc9b"
     },
     {
       "id": "signed-body-utf8",
@@ -242,8 +251,8 @@
       "profile": "base",
       "spec": "specs/ink-signed-string-safety.md",
       "summary": "Raw-UTF-8 validity of a signed body, enforced at the byte boundary before parsing.",
-      "caseCount": 15,
-      "sha256": "1b8cc534ee526b8c18529a2b3b571a58ae7e1d3347fd393d83096487553580ad"
+      "caseCount": 21,
+      "sha256": "3e62d7ce03f2d6510afb8d0b1561da657596a470d66d313024ff4d10712e5114"
     },
     {
       "id": "timestamp-validity",

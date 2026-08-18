@@ -1,0 +1,36 @@
+{
+  "format": "ink.differential.finding.v1",
+  "surface": "signed-body-canonical",
+  "conformanceCategory": "signed-body-canonical",
+  "kind": "decision",
+  "detail": "ts=reject go=accept",
+  "runSeed": 429609341,
+  "originCaseId": "signed-body-canonical/random/429609341/44",
+  "arm": "random",
+  "original": {
+    "bodyRaw": "{\"￿\":{\"\\t\":{\"𐀀\":false,\"\":true,\"k0\":true,\"0\":{}},\"K\":0,\"İ\":true,\"K\":\"v\"},\"􏿿\":{},\"/\":{\"􏿿\":null,\"\":true,\"🔑\":{\"\\f\":true,\"A\":1,\"ı\":1}}}"
+  },
+  "minimized": {
+    "bodyRaw": "{\"\\f\":true,\"A\":1,\"ı\":1}"
+  },
+  "decisions": {
+    "original": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"/\":{\"🔑\":{\"\\f\":true,\"A\":1,\"ı\":1},\"􏿿\":null,\"\":true},\"􏿿\":{},\"￿\":{\"\\t\":{\"0\":{},\"k0\":true,\"𐀀\":false,\"\":true},\"K\":0,\"İ\":true,\"K\":\"v\"}}"
+      }
+    },
+    "minimized": {
+      "typescript": {
+        "result": "reject"
+      },
+      "go": {
+        "result": "accept",
+        "canonicalString": "{\"\\f\":true,\"A\":1,\"ı\":1}"
+      }
+    }
+  }
+}

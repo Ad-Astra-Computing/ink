@@ -496,7 +496,12 @@ async function rootChained(
       return rootReject("chain_noncontiguous_version");
     }
 
-    const unsignedLink = { keySetVersion: link.keySetVersion, signing: link.signing, prevKeyId: link.prevKeyId };
+    // §4.1 preimage: JCS of the WHOLE link with `signature` removed and nothing
+    // else stripped, the same house rule §3.2 sets for the card. Reconstructing
+    // from a named-field subset would leave any other member uncovered and
+    // freely mutable under a still-valid signature, and would silently exclude
+    // the `algorithm` member §4.1 reserves for a later additive minor.
+    const { signature: _sig, ...unsignedLink } = link as Record<string, unknown>;
     if (i === 0) {
       // Link 1's signer must be a root candidate (§4.1 / §4.2). Its signature
       // verifying under a candidate key IS the byte-equality to that root.

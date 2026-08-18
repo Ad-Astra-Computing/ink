@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isIpLiteralHost, isPrivateHost } from "../src/host-safety.ts";
+import { didWebOrigin, isIpLiteralHost, isPrivateHost } from "../src/host-safety.ts";
 
 describe("isIpLiteralHost", () => {
   it("flags IPv4 dotted-quad and decimal forms", () => {
@@ -36,5 +36,32 @@ describe("isPrivateHost", () => {
   it("does not flag a public hostname or public IP", () => {
     expect(isPrivateHost("ink-echo.tulpa.network")).toBe(false);
     expect(isPrivateHost("8.8.8.8")).toBe(false);
+  });
+});
+
+// Shorthand and non-decimal IPv4 host forms are the SSRF case the string
+// classifiers above cannot see: `127.1` passes any DNS-name pattern and never
+// matches a dotted-quad regex, but the URL parser expands it to `127.0.0.1`.
+// `didWebOrigin` refuses whenever the serializer rewrote the host, which is
+// what closes the gap here.
+describe("didWebOrigin refuses hosts the URL serializer rewrites", () => {
+  for (const [host, decoded] of [
+    ["127.1", "127.0.0.1"],
+    ["0x7f.1", "127.0.0.1"],
+    ["0177.1", "127.0.0.1"],
+    ["10.1", "10.0.0.1"],
+    ["192.168.1", "192.168.0.1"],
+    ["172.16.1", "172.16.0.1"],
+    ["1.1", "1.0.0.1"],
+  ] as Array<[string, string]>) {
+    it(`refuses ${host} (decodes to ${decoded})`, () => {
+      expect(new URL(`https://${host}`).hostname).toBe(decoded);
+      expect(didWebOrigin(host)).toBeNull();
+    });
+  }
+  it("still serializes ordinary public hosts and ports", () => {
+    expect(didWebOrigin("example.com")).toBe("https://example.com");
+    expect(didWebOrigin("example.com%3A8443")).toBe("https://example.com:8443");
+    expect(didWebOrigin("example.com%3A443")).toBe("https://example.com");
   });
 });

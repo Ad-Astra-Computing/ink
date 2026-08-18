@@ -23,14 +23,14 @@ a role MUST satisfy every base obligation for that role.
 ## Base profile (MUST)
 
 Every conforming INK implementation MUST satisfy the base profile categories for
-the roles it performs. The base profile is the fifteen[^ck] categories tagged
+the roles it performs. The base profile is the sixteen[^ck] categories tagged
 `profile: "base"` in the manifest:
 
 `agent-card`, `agent-card-fetch`, `agent-card-signature`,
 `authorization-header`, `connection-payload`, `first-contact-transcript`,
 `jcs-number`, `jcs-string-safety`, `key-rotation`, `principal-normalization`,
-`private-hostname`, `replay-freshness`, `signature-base`, `signed-body-utf8`,
-`timestamp-validity`.[^ck]
+`private-hostname`, `replay-freshness`, `signature-base`,
+`signed-body-member-name`, `signed-body-utf8`, `timestamp-validity`.[^ck]
 
 | Category[^ck] | Base sender MUST | Base receiver MUST |
 |---|---|---|
@@ -39,16 +39,17 @@ the roles it performs. The base profile is the fifteen[^ck] categories tagged
 | authorization-header | Emit the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]` Authorization header in the exact §3.3 grammar. | Parse the header under the same grammar, extracting the signature and optional keyId and rejecting stray whitespace, an embedded CR/LF, or a malformed keyId. |
 | jcs-number | Canonicalize signed bodies under RFC 8785 with the safe-integer number profile. | Canonicalize the body the same way before verifying, rejecting an unsafe number. |
 | jcs-string-safety | Reject a lone UTF-16 surrogate in any body it signs. | Reject a lone UTF-16 surrogate in any signed body it verifies, scanning the raw text before parsing. |
-| signed-body-utf8 | Emit a signed body whose raw bytes are valid UTF-8. | Reject a signed body whose raw bytes are not valid UTF-8, before parsing. |
+| signed-body-member-name | Never sign a body containing an object key that would serialize as an escaped member name, meaning a key with a quotation mark, a reverse solidus, or a character in U+0000-U+001F. | Reject a signed body whose raw text contains an object member name written with any escape sequence, before parsing. |
+| signed-body-utf8 | Emit a signed body whose raw bytes are valid UTF-8 and whose text carries no number literal outside the IEEE-754 double range. | Reject a signed body whose raw bytes are not valid UTF-8 and one whose raw text carries a number literal outside the IEEE-754 double range, both before parsing. |
 | timestamp-validity | Emit timestamps in the strict INK RFC 3339 millisecond grammar. | Parse and validate inbound timestamps under the same grammar. |
 | replay-freshness | Emit a fresh timestamp and a unique per-message nonce. | Enforce the freshness window and reject a replayed nonce, recording the nonce only after the other checks pass. |
-| key-rotation | Sign with an active key and emit its `keyId`. | Verify against the peer's published key set, honoring active, retired, and revoked status, and accept a legacy single-key card. |
+| key-rotation | Sign with an active key and emit its `keyId`. | Verify against the peer's published key set, honoring active, retired, and revoked status, and accept a legacy single-key card. Refuse a retired-only signature on live transport auth unless a bounded grace window is configured. |
 | agent-card | Parse a peer's Agent Card under the schema and the pinned endpoint URL grammar. | Publish a schema-valid Agent Card at the discovery path. |
 | agent-card-fetch | Apply the discovery response contract (status, content type, size cap, identity binding) to every card it fetches. | Apply the same contract to any card it fetches (for owner or peer resolution). |
 | agent-card-signature | Verify a present card signature, rooting it by principal kind, before treating the card as authoritative. | Verify a present card proof, enforce the unsigned-card ratchet, and apply the continuity and rollback rules against any cached card. |
 | private-hostname | Gate every outbound discovery and delivery URL through the SSRF host-safety check, failing closed on a private, special-use, or malformed host. | Gate any outbound fetch it performs through the same check. |
 | connection-payload | Emit a `connection_request` that satisfies the strict schema and validate the `connection_response` it receives. | Validate an inbound `connection_request` against the strict schema, rejecting an unknown key, and emit a schema-valid `connection_response`. |
-| first-contact-transcript | Drive the send side: fetch the card, select a mutually supported protocol version, sign the request, and verify the response. | Enforce the end-to-end accept rules, rejecting any transcript that fails a step or crosses a cross-field binding. |
+| first-contact-transcript | Drive the send side: emit a complete §3.1 envelope carrying its §3.6 body signature, fetch the card, select a mutually supported protocol version, sign the request over the path component of the card's `endpoint`, and verify the response. | Enforce the end-to-end accept rules: validate the §3.1 envelope structure before any signature work, verify both the transport and the body signature, and reject any transcript that fails a step or crosses a cross-field binding. |
 
 A pure sender that never publishes a card is not required to serve `agent-card`,
 and a pure receiver that never originates is not required to drive the send side
@@ -99,6 +100,49 @@ capability it does not fully implement.[^ck]
   revocation and owner-verification checks. It is distinct from the `authorization`
   capability so a frozen surface stays frozen. An implementation that does not
   advertise delegation is not expected to accept chains.
+
+## Optional behaviors
+
+A few decisions in the base profile are genuinely open: the spec says an
+implementation MAY do one thing, and an implementation that does the other is
+equally conforming. A vector that pinned only one of those branches would fail a
+conforming implementation for exercising a choice the spec granted it, and
+because the categories carrying such cases are `base`, that would make a correct
+implementation non-conforming.
+
+A case whose decision is open carries an `optionalBehavior` object next to
+`expect`:
+
+```json
+"optionalBehavior": {
+  "id": "didweb-warm-resolver-unavailable",
+  "alternative": "reject",
+  "spec": "specs/ink-agent-card-signature.md §4.2",
+  "rationale": "…why both outcomes conform…"
+}
+```
+
+`expect` still records the branch the reference takes, so the case remains a
+byte-exact pin for an implementation that takes it. `alternative` names the other
+conformant outcome and MUST differ from `expect.result`.
+
+An implementation running the corpus MUST declare, once per `optionalBehavior.id`,
+which branch it takes, and its runner MUST assert exactly that outcome. Declaring
+"the pinned branch" asserts `expect.result` and every reason and audit mark the
+case carries; declaring "the alternative" asserts `alternative` instead, and the
+reference's reason and audit-mark expectations do not apply. An id present in the
+corpus with no declaration is a failure, not a skip: an implementation must state
+its choice rather than pass by silence. The two runners keep the declaration in
+`OPTIONAL_BEHAVIOR_POLICY` (`test/conformance.test.ts`) and
+`goOptionalBehaviorPolicy` (`go/ink/conformance_test.go`).
+
+A conformance report SHOULD publish the declaration alongside the result, since
+two implementations that both pass the corpus while taking different branches
+will disagree on live traffic in exactly those cases, by design.
+
+An `optionalBehavior` tag is not an escape hatch for a decision an implementation
+finds inconvenient: it is added only where the pinned spec text grants the choice
+in normative language, and the `spec` field cites where.
 
 ## Staged profile
 

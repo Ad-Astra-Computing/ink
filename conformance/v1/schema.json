@@ -42,6 +42,7 @@
         "private-hostname",
         "replay-freshness",
         "signature-base",
+        "signed-body-member-name",
         "signed-body-utf8",
         "timestamp-validity"
       ]
@@ -68,6 +69,35 @@
           },
           "input": {
             "type": "object"
+          },
+          "optionalBehavior": {
+            "type": "object",
+            "required": [
+              "id",
+              "alternative",
+              "spec",
+              "rationale"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9-]+$"
+              },
+              "alternative": {
+                "type": "string",
+                "enum": [
+                  "accept",
+                  "reject"
+                ]
+              },
+              "spec": {
+                "type": "string"
+              },
+              "rationale": {
+                "type": "string"
+              }
+            }
           },
           "expect": {
             "type": "object",

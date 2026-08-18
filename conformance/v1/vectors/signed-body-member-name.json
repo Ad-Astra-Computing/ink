@@ -1,0 +1,186 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "signed-body-member-name",
+  "cases": [
+    {
+      "caseId": "plain-member-name-accepts",
+      "description": "A member name with no escape is accepted.",
+      "input": {
+        "bodyRaw": "{\"note\":1}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "non-ascii-member-name-accepts",
+      "description": "A member name carrying raw non-ASCII UTF-8 is accepted; only escapes are barred.",
+      "input": {
+        "bodyRaw": "{\"é\":1,\"𝄞\":2}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "empty-member-name-accepts",
+      "description": "The empty member name is accepted.",
+      "input": {
+        "bodyRaw": "{\"\":1}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "escaped-string-value-accepts",
+      "description": "An escape in a string value is accepted; the rule covers member names only.",
+      "input": {
+        "bodyRaw": "{\"note\":\"line\\nbreak\"}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "escaped-array-element-accepts",
+      "description": "An escape in an array element is accepted.",
+      "input": {
+        "bodyRaw": "{\"a\":[\"\\n\",\"\\\\\"]}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "colon-in-string-value-accepts",
+      "description": "A colon inside a string value does not make the preceding string a member name.",
+      "input": {
+        "bodyRaw": "{\"a\":\"b:c\",\"d\":\"\\n:e\"}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "value-ending-in-escaped-quote-accepts",
+      "description": "A string value ending in an escaped quote must not desynchronise the scan into misreading the following text.",
+      "input": {
+        "bodyRaw": "{\"a\":\"ends with \\\"\",\"b\":1}"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "escaped-newline-member-name-rejects",
+      "description": "A member name written with a two-character escape is rejected: V8 can return a different name entirely.",
+      "input": {
+        "bodyRaw": "{\"\\n\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "escaped-backslash-member-name-rejects",
+      "description": "An escaped backslash member name is rejected. This is the name that plants the transition the corruption reuses.",
+      "input": {
+        "bodyRaw": "{\"\\\\\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "escaped-quote-member-name-rejects",
+      "description": "An escaped quotation mark member name is rejected.",
+      "input": {
+        "bodyRaw": "{\"\\\"\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "escaped-solidus-member-name-rejects",
+      "description": "An escaped solidus member name is rejected even though the solidus need not be escaped at all.",
+      "input": {
+        "bodyRaw": "{\"\\/\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "unicode-escape-member-name-rejects",
+      "description": "A \\uXXXX member name is rejected even when it decodes to an ordinary character, because the raw spelling is still longer than the decoded name.",
+      "input": {
+        "bodyRaw": "{\"\\u0041\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "escape-mid-member-name-rejects",
+      "description": "An escape anywhere inside a member name is rejected, not only at the start.",
+      "input": {
+        "bodyRaw": "{\"a\\nb\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nested-escaped-member-name-rejects",
+      "description": "An escaped member name nested inside another object is rejected.",
+      "input": {
+        "bodyRaw": "{\"a\":{\"\\n\":1}}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "escaped-member-name-in-array-rejects",
+      "description": "An escaped member name inside an array element object is rejected.",
+      "input": {
+        "bodyRaw": "{\"a\":[{\"b\":{\"\\\\\":1}}]}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "whitespace-before-colon-rejects",
+      "description": "Whitespace between a member name and its colon does not exempt the name from the rule.",
+      "input": {
+        "bodyRaw": "{\"\\n\"  :  1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "poisoning-and-victim-pair-rejects",
+      "description": "The measured corruption vector: an escaped-backslash name plants a transition that a later escaped name is decoded into. Rejected on the first escaped member name.",
+      "input": {
+        "bodyRaw": "{\"x\":{\"\\\\\":1},\"y\":{\"\\n\":2}}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "escaped-key-after-escaped-quote-value-rejects",
+      "description": "An escaped member name following a string value that ends in an escaped quote is still rejected.",
+      "input": {
+        "bodyRaw": "{\"a\":\"ends with \\\"\",\"\\n\":1}"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

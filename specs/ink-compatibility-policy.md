@@ -106,6 +106,18 @@ The following changes MUST trigger a major version bump:
 | Replay protection parameter change (window size, nonce format) | Messages rejected incorrectly |
 | Auth header scheme change | Transport auth breaks |
 | Key status semantics change | Verification behavior changes |
+| Signed-body grammar narrowed (a byte sequence that used to be accepted is now rejected) | A body a conforming sender could previously emit stops verifying |
+
+The last row is what the pre-1.0 window is for. A narrowing is a break in the
+direction that costs least, because it only ever turns an accept into a reject:
+a receiver on the new rule refuses something an old sender could produce, and no
+signature over previously valid bytes becomes forgeable. Taking one after 1.0
+would still require a major bump. Every narrowing taken before 1.0 MUST be
+recorded here with its date, the byte sequences it removes, and the reason:
+
+| Narrowing | Taken | Removes | Reason |
+|---|---|---|---|
+| Escaped object member names in a signed body ([`ink-signed-string-safety.md`](ink-signed-string-safety.md)) | 0.17.0 | A member name containing a quotation mark, a reverse solidus, or a character in `U+0000`–`U+001F`, and any member name spelled with a `\uXXXX` escape | V8 returns a wrong member name for such a name, so a receiver on Node 24+ or Cloudflare workerd canonicalizes bytes the signer never produced and disagrees with a Go receiver about which bytes a signature covers |
 
 ### 2.2 Backward-Compatible Changes (Minor Version Bump)
 
@@ -161,7 +173,7 @@ Tolerance of an unknown field is per-surface, not blanket, and the two regimes a
 
 Most INK schemas are strict: an unknown member is rejected outright. This holds for the intent envelope (`ink-protocol.md` §3.1 states a receiver MUST reject an unknown top-level key on the envelope), every intent payload including the connection payloads (`connection-payload/request-unknown-key-rejects`, `connection-payload/response-unknown-key-rejects`, `first-contact-transcript/response-payload-unknown-key`), the profile-snapshot object and its nested availability config wherever the snapshot is embedded, whether in a connection payload or the Agent Card `profileSnapshot` (`connection-payload/profile-unknown-key-rejects`, `connection-payload/availability-unknown-key-rejects`) and the Authorization-header parameters (`authorization-header/second-unknown-param-rejects`). A field added to any strict surface is not additive; it ships receiver-first, advertised then emitted, the same pattern as §2.4.
 
-A small set of surfaces is tolerant and ignores an unknown member: the Agent Card top level (including its top-level `availability` member), the nested `discovery` descriptor (`discovery-unknown-key-ignored-accepts`), the encrypted-envelope outer object (`payload-encryption/unknown-outer-field-ignored`, where an ignored field is not AAD-bound), the handshake and receipt objects (accepted, not rejected; the reference validators strip unknown keys from the parsed object) and unknown audit event types in chain processing (§3.4). On a tolerant surface an implementation MUST NOT reject on an unknown field's presence.
+A small set of surfaces is tolerant and ignores an unknown member: the Agent Card top level, including its top-level `availability` member (`agent-card/card-unknown-top-level-key-ignored-accepts`), the nested `discovery` descriptor, which is a separate surface with its own case (`agent-card/discovery-unknown-key-ignored-accepts`), the encrypted-envelope outer object (`payload-encryption/unknown-outer-field-ignored`, where an ignored field is not AAD-bound), the handshake and receipt objects (accepted, not rejected; the reference validators strip unknown keys from the parsed object) and unknown audit event types in chain processing (§3.4). On a tolerant surface an implementation MUST NOT reject on an unknown field's presence.
 
 ### 3.2 Unknown Message Types
 

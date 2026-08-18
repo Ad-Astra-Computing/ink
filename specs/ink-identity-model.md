@@ -5,7 +5,12 @@ document. It states the identity facts that had no normative home and cites the
 single home of every fact that already had one; it does not restate a rule
 another spec owns.
 **Authors:** Ad Astra Computing
-**Last updated:** 2026-08-16
+**Last updated:** 2026-08-18
+**Decision of record:** the position this document specifies, that key-derived
+principals are the identity root and that AT Protocol is one optional
+owner-linkage pipeline among several, was ratified on 2026-08-18. The rationale,
+the costs and the long-term constraint are in
+[`governance/decisions/0001-key-derived-principals-are-the-identity-root.md`](../governance/decisions/0001-key-derived-principals-are-the-identity-root.md).
 
 Requirement keywords **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT**, and
 **MAY** are used per RFC 2119.

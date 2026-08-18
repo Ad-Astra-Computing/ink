@@ -4,7 +4,7 @@
 
 An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
 
-**Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.15.0`[^ck] and `next` is `0.16.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.15.0`[^ck] and `next` is `0.17.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
 
 `ink/0.2` is a version of the intent-envelope body-signature domain and nothing else. It is a backward-compatible minor over `ink/0.1`, changing only that domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. It is the recommended `protocol` value for new intent envelopes. The Agent Card, handshake, discovery query, authorization challenge/grant/chain, receipt and audit objects have no `ink/0.2` form and MUST carry `protocol: "ink/0.1"`; stamping `ink/0.2` on any of them is rejected. `ink/0.1` remains fully supported for intents too: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
@@ -40,7 +40,7 @@ Message types cover intents, challenges, resolutions, receipts, audit events, en
 
 A foreign sender's first envelope to an unestablished recipient is a `connection_request` — the bootstrap intent for first contact. Receivers that opt in to foreign senders verify the body signature against the inline key extracted from the sender's DID (trust-on-first-use) and SHOULD reject any other intent type from a sender they have no prior relationship with; richer intent types (`intro_request`, `ask`, `follow_up`, `schedule_meeting`) presume the sender is already a known contact. See the [Accepting Foreign Senders guide](https://ink.tulpa.network/guides/accepting-foreign-senders/) for the receive-side rules and [`examples/foreign-sender-receiver/`](examples/foreign-sender-receiver/) for a reference implementation.
 
-INK assumes [AT Protocol](https://atproto.com) for identity by default but isn't coupled to it. Any system that can publish an Ed25519 signing key under a stable identifier can participate.
+INK's default identity is key-derived and self-certifying: a `tulpa:` or `ink:` agentId whose multibase tail IS the agent's genesis Ed25519 key, so the identifier carries its own signing authority with no directory, registry or issuer behind it. A `did:web` identity whose DID document roots the key is equally supported, and any other system that publishes an Ed25519 signing key under a stable identifier can participate. Binding an agent to a human owner is a separate, optional layer: [AT Protocol](https://atproto.com) is one pipeline for it and never what makes a signature valid. See [`specs/ink-identity-model.md`](specs/ink-identity-model.md) and the ruling in [`governance/decisions/0001-key-derived-principals-are-the-identity-root.md`](governance/decisions/0001-key-derived-principals-are-the-identity-root.md).
 
 ## Install
 
@@ -122,7 +122,7 @@ Added in `0.7.0`:
 
 Added in `0.12.0`:
 
-- `parseSignedBodyBytes(bytes)` parses a raw signed body from its bytes, decoding with a fatal UTF-8 decoder then rejecting a lone surrogate escape before JSON parse, and throws `ParseSignedBodyError` with a `reason` of `"utf8"` or `"surrogate"` that names which gate rejected. A receiver holding raw body bytes uses it instead of a lenient string decode, because a lenient decode substitutes U+FFFD for invalid bytes and would verify a signature over bytes the signer never signed. See [`CHANGELOG.md`](CHANGELOG.md).
+- `parseSignedBodyBytes(bytes)` parses a raw signed body from its bytes, decoding with a fatal UTF-8 decoder then rejecting a lone surrogate escape and a number literal outside the IEEE-754 double range before JSON parse, and throws `ParseSignedBodyError` with a `reason` of `"utf8"`, `"surrogate"` or `"number-range"` that names which gate rejected. A receiver holding raw body bytes uses it instead of a lenient string decode, because a lenient decode substitutes U+FFFD for invalid bytes and would verify a signature over bytes the signer never signed. See [`CHANGELOG.md`](CHANGELOG.md).
 
 Added in `0.14.0`:
 

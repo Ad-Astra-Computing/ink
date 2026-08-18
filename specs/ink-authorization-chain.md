@@ -189,9 +189,7 @@ extension. A wrapper carrying fewer than 2 links rejects as `schema`.
   when it is longer than 65536 bytes, before it is decoded. The bound is generous:
   the largest well-formed four-link chain is far under it, so a presentation
   padded past 65536 bytes is not legitimate and need not be decoded to be refused.
-  A verifier handed an already-decoded wrapper applies the structural bounds
-  instead, so the byte cap is then the responsibility of whatever layer received
-  the bytes and decoded them, the same split the grant draws.
+  It is the size cap of the *Raw body* section below.
 - **Card resolution safety.** A verifier resolving an issuer's Agent Card to check
   a link signature MUST gate every resolution through the private-hostname
   classification and connect-time pinning rules of
@@ -200,6 +198,30 @@ extension. A wrapper carrying fewer than 2 links rejects as `schema`.
   the connection to the resolved address it checked. A verifier SHOULD cache
   resolved cards so a chain re-presented, and a prefix shared across sibling
   chains, does not re-fetch.
+
+## Raw body
+
+Every link is a signed body, so a verifier MUST apply the raw-body gate and
+enforcement order of
+[`ink-signed-string-safety.md`](ink-signed-string-safety.md) to the presented
+wrapper: the size cap above, then raw UTF-8 validity, then the lone-surrogate
+escape scan, then the out-of-range number-literal scan, all on the bytes, before
+the document is parsed.
+
+Verification therefore takes the raw bytes, not a value someone else parsed. The
+distinction is not stylistic. JSON member semantics are last-wins, so a duplicate
+member shadows an out-of-range literal ahead of it: the value never reaches the
+parsed wrapper, every link canonicalizes to the bytes its signature covers and
+every signature verifies. A verifier that inspects only the parsed value accepts
+that presentation and a verifier that gates the bytes refuses it, which is an
+accept-versus-reject split in a signed path chosen by whoever writes the bytes.
+The size cap is in the same position for the same reason: JSON permits unbounded
+whitespace between tokens and whitespace vanishes at canonicalization, so a
+schema-valid chain padded past any structural bound still carries link signatures
+that verify.
+
+Every one of these is a structural rejection, reported as `schema`, decided before
+pass 1.
 
 ## Re-delegation opt-in
 

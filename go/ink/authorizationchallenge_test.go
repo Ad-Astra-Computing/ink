@@ -6,9 +6,10 @@ import (
 )
 
 // TestChallengeByteBound covers the raw-byte ceiling the shared conformance
-// corpus cannot express, because a conformance case carries an already-decoded
-// challenge object. A raw body past MaxChallengeBodyBytes is refused as schema
-// before the decoder runs.
+// corpus does not carry: a case proving it would have to embed a body larger
+// than the 64 KiB cap, which is not worth that much corpus weight when the rule
+// is a length comparison. A raw body past MaxChallengeBodyBytes is refused as
+// schema before the decoder runs.
 func TestChallengeByteBound(t *testing.T) {
 	if MaxChallengeBodyBytes != 64*1024 {
 		t.Fatalf("MaxChallengeBodyBytes = %d, want 65536", MaxChallengeBodyBytes)

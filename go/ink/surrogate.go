@@ -7,9 +7,17 @@ import (
 )
 
 // ParseSignedBody validates and parses a raw JSON signed body. It rejects raw
-// invalid UTF-8 and a lone UTF-16 surrogate escape before unmarshaling, because
+// invalid UTF-8, a lone UTF-16 surrogate escape, a number literal outside the
+// IEEE-754 double range, and an object member name written with an escape
+// sequence, all before unmarshaling. The first two matter because
 // encoding/json would otherwise silently rewrite either to U+FFFD and the body
 // that reaches VerifyInkSignature would differ from the one the signer signed.
+// The third matters because parsers disagree about it outright: JSON.parse
+// decodes 1e309 to Infinity and returns the document, encoding/json refuses it,
+// so the rule is enforced here rather than left to the parser. The fourth
+// matters in the other direction: encoding/json decodes escaped member names
+// correctly, so Go enforces a rule it does not itself need, in order to admit
+// the same set of bodies as an implementation running on an affected V8.
 // A receiver MUST parse a signed body through this rather than json.Unmarshal
 // directly; VerifyInkSignature takes an already-parsed body and cannot recover
 // dropped bytes on its own.
@@ -19,6 +27,12 @@ func ParseSignedBody(rawBody []byte) (interface{}, error) {
 	}
 	if ContainsLoneSurrogateEscape(rawBody) {
 		return nil, errors.New("signed body contains an unpaired UTF-16 surrogate")
+	}
+	if ContainsOutOfRangeNumberLiteral(rawBody) {
+		return nil, errors.New("signed body contains a number literal outside the IEEE-754 double range")
+	}
+	if ContainsEscapedMemberName(rawBody) {
+		return nil, errors.New("signed body contains an object member name written with an escape sequence")
 	}
 	var body interface{}
 	if err := json.Unmarshal(rawBody, &body); err != nil {
@@ -115,4 +129,21 @@ func parseHex4(b []byte, idx int) (int, bool) {
 		}
 	}
 	return v, true
+}
+
+// ParseSignedObject is ParseSignedBody for a caller that requires a JSON object
+// at the root, which every signed INK artifact does. It exists so the four
+// text-level rules live in exactly one place: a verifier that inlined its own
+// subset fell behind when a rule was added, and Go then admitted artifacts the
+// reference rejected.
+func ParseSignedObject(raw []byte) (map[string]interface{}, bool) {
+	v, err := ParseSignedBody(raw)
+	if err != nil {
+		return nil, false
+	}
+	obj, ok := v.(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+	return obj, true
 }

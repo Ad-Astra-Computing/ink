@@ -27,6 +27,10 @@ If you find a gap or a bypass, please open an issue in this repo.
 
 ## Build
 
+Node 24 is the only prerequisite. With nix,
+`nix develop ..#foreign-sender-receiver` from this directory supplies one
+without installing anything globally.
+
 ```sh
 cd examples/foreign-sender-receiver
 npm install

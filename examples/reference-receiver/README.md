@@ -82,6 +82,11 @@ current pre-1.0 line, while the default `latest` resolves to the most recent
 release a maintainer has stamped adopter-grade, which may lag `next`. Both
 currently satisfy this example's floor.
 
+Node 24 is the only prerequisite. With nix,
+`nix develop ..#reference-receiver` from this directory supplies one without
+installing anything globally. Wrangler comes from this example's own
+`package.json`, so `npm install` is what puts it on your path.
+
 ```sh
 cd examples/reference-receiver
 npm install

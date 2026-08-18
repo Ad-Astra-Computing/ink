@@ -11,7 +11,16 @@
       pkgs = nixpkgs.legacyPackages.${system};
     in {
       default = pkgs.mkShell {
-        packages = [pkgs.nodejs_24 pkgs.git pkgs.gitleaks pkgs.zizmor];
+        packages = [
+          pkgs.nodejs_24
+          # Matches the `go 1.26` directive in go/go.mod, so the devshell
+          # builds and tests the Go implementation without setup-go.
+          pkgs.go_1_26
+          pkgs.actionlint
+          pkgs.git
+          pkgs.gitleaks
+          pkgs.zizmor
+        ];
         shellHook = ''
           cat <<'BANNER'
 
@@ -39,7 +48,7 @@
         pname = "ink";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-pPaPXDJvJfCGpm563PJhPr5xYPtYKld2HqagUR5KB18=";
+        npmDepsHash = "sha256-GD6HW5gD+zhMn8s46s11MPN/FtD42o6+3UShlxWI/68=";
         nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
@@ -64,7 +73,7 @@
         pname = "ink-cli";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-pPaPXDJvJfCGpm563PJhPr5xYPtYKld2HqagUR5KB18=";
+        npmDepsHash = "sha256-GD6HW5gD+zhMn8s46s11MPN/FtD42o6+3UShlxWI/68=";
         nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''

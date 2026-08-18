@@ -126,6 +126,71 @@ describe("verifyAgentCardSignature — accept paths", () => {
     expect(result.reason).toBe("signed_authenticated");
   });
 
+  // §4.1 preimage: the link signature covers JCS(link minus `signature`) with
+  // NOTHING else stripped. A verifier that rebuilt it from the three named
+  // members would leave every other member of a received link unsigned in
+  // effect, and would exclude the `algorithm` member §4.1 reserves for a later
+  // additive minor from ever being covered.
+  it("covers an unrecognised link member, and rejects its mutation", async () => {
+    const agentId = deriveAgentId(G.pub);
+    const link1Body = { keySetVersion: 1, signing: [signingEntry("kA", A, "active")], prevKeyId: "g" };
+    const link1 = { ...link1Body, signature: await signRotationLink(link1Body, G.priv) };
+    // The reserved extension shape: a link carrying a per-entry `algorithm`.
+    const link2Body = {
+      keySetVersion: 2,
+      signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")],
+      prevKeyId: "kA",
+      algorithm: "Ed25519",
+    };
+    const link2 = { ...link2Body, signature: await signRotationLink(link2Body, A.priv) };
+
+    const mkCard = async (chain: unknown[]) => {
+      // The whole point of these fixtures is a link the schema type does not
+      // describe, so the chain is built untyped and cast at the card boundary.
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("kA", A, "retired"), signingEntry("kB", B, "active")], encryption: [] };
+      card.currentSigningKeyId = "kB";
+      card.keySetVersion = 2;
+      card.rotationChain = chain as AgentCard["rotationChain"];
+      return attachCardSignature(card, "kB", B.priv);
+    };
+
+    // Signer and verifier agree on the full-link preimage, so the link with the
+    // unknown member verifies as signed.
+    const accepted = await verifyAgentCardSignature(await mkCard([link1, link2]), agentId, PROFILE_10);
+    expect(accepted.authenticated).toBe(true);
+    expect(accepted.reason).toBe("signed_authenticated");
+
+    // Mutating the unknown member breaks the signature. Under a three-field
+    // reconstruction this forgery would still have verified.
+    const mutated = { ...link2, algorithm: "Ed448" };
+    const rejected = await verifyAgentCardSignature(await mkCard([link1, mutated]), agentId, PROFILE_10);
+    expect(rejected.rejected).toBe(true);
+    expect(rejected.reason).toBe("chain_link_invalid_signature");
+
+    // Same on link 1, whose signer is a root candidate rather than a prior
+    // link's committed entry.
+    const rootBody = { keySetVersion: 1, signing: [signingEntry("g1", G, "active")], prevKeyId: "g", algorithm: "Ed25519" };
+    const rootLink = { ...rootBody, signature: await signRotationLink(rootBody, G.priv) };
+    const mkRootCard = async (link: unknown) => {
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.rotationChain = [link] as AgentCard["rotationChain"];
+      return attachCardSignature(card, "g1", G.priv);
+    };
+    const rootAccepted = await verifyAgentCardSignature(await mkRootCard(rootLink), agentId, PROFILE_10);
+    expect(rootAccepted.authenticated).toBe(true);
+    const rootRejected = await verifyAgentCardSignature(
+      await mkRootCard({ ...rootLink, algorithm: "Ed448" }),
+      agentId,
+      PROFILE_10,
+    );
+    expect(rootRejected.rejected).toBe(true);
+    expect(rootRejected.reason).toBe("chain_link_invalid_signature");
+  });
+
   it("legacy bootstrap-keyId card, accept", async () => {
     const agentId = deriveAgentId(G.pub);
     // No keys.signing set → legacy single-key card. keyId MUST be `bootstrap`

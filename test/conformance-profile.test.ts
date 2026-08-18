@@ -41,6 +41,12 @@ const FROZEN_PROFILES = {
     "private-hostname",
     "replay-freshness",
     "signature-base",
+    // Added to the frozen base set pre-1.0, deliberately. The escaped
+    // member-name rule is a narrowing of the signed-body grammar, taken now
+    // because a receiver on an affected V8 otherwise disagrees with a Go
+    // receiver about which bytes a signature covers. See
+    // specs/ink-signed-string-safety.md and specs/ink-compatibility-policy.md.
+    "signed-body-member-name",
     "signed-body-utf8",
     "timestamp-validity",
   ],

@@ -62,16 +62,11 @@ func signAgentCardTest(t *testing.T, card map[string]interface{}, priv ed25519.P
 }
 
 // signRotationLinkTest computes a link signature over ink/card-rotation\n +
-// JCS({keySetVersion, signing, prevKeyId}), the exact bytes the verifier
-// reconstructs.
+// JCS(link without `signature`) (§4.1): the whole link minus the one member
+// that cannot commit to itself, nothing else stripped.
 func signRotationLinkTest(t *testing.T, link map[string]interface{}, priv ed25519.PrivateKey) string {
 	t.Helper()
-	obj := map[string]interface{}{
-		"keySetVersion": link["keySetVersion"],
-		"signing":       link["signing"],
-		"prevKeyId":     link["prevKeyId"],
-	}
-	return signOverDomainTest(t, cardRotationDomain, obj, priv)
+	return signOverDomainTest(t, cardRotationDomain, stripCardKey(link, "signature"), priv)
 }
 
 // signedLink builds a full rotation link (body plus its signature).
@@ -217,6 +212,73 @@ func TestCardVerify_RotatedChainAccept(t *testing.T) {
 
 	res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: Profile10})
 	expectAccept(t, res, ReasonSignedAuthenticated)
+}
+
+// §4.1 preimage: a link signature covers JCS(link minus `signature`) with
+// NOTHING else stripped. A verifier that rebuilt the preimage from the three
+// named members would leave every other member of a received link outside the
+// signature and freely mutable, and would exclude the `algorithm` member §4.1
+// reserves for a later additive minor from ever being covered.
+func TestCardVerify_UnknownLinkMemberIsCovered(t *testing.T) {
+	g := fixedKeypair(t, 1)
+	a := fixedKeypair(t, 2)
+	b := fixedKeypair(t, 3)
+	agentID := deriveAgentID(g)
+
+	link1 := signedLink(t, 1, []interface{}{signingEntry("kA", a, "active")}, "g", g.priv)
+	// The reserved extension shape: a link carrying an `algorithm` member.
+	link2 := map[string]interface{}{
+		"keySetVersion": 2,
+		"signing":       []interface{}{signingEntry("kA", a, "retired"), signingEntry("kB", b, "active")},
+		"prevKeyId":     "kA",
+		"algorithm":     "Ed25519",
+	}
+	link2["signature"] = signRotationLinkTest(t, link2, a.priv)
+
+	mkCard := func(chain ...interface{}) map[string]interface{} {
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = keySet(signingEntry("kA", a, "retired"), signingEntry("kB", b, "active"))
+		card["currentSigningKeyId"] = "kB"
+		card["keySetVersion"] = 2
+		card["rotationChain"] = chain
+		return attachCardSignature(t, card, "kB", b.priv)
+	}
+
+	// Signer and verifier agree on the full-link preimage.
+	res := VerifyAgentCardSignature(mustWire(t, mkCard(link1, link2)), agentID, CardVerifyOptions{Profile: Profile10})
+	expectAccept(t, res, ReasonSignedAuthenticated)
+
+	// Mutating the unknown member breaks the signature. Under a three-field
+	// reconstruction this forgery would still have verified.
+	mutated := stripCardKey(link2, "algorithm")
+	mutated["algorithm"] = "Ed448"
+	res = VerifyAgentCardSignature(mustWire(t, mkCard(link1, mutated)), agentID, CardVerifyOptions{Profile: Profile10})
+	expectReject(t, res, ReasonChainLinkInvalidSig)
+
+	// Same on link 1, whose signer is a root candidate rather than an entry of
+	// a prior link's committed set.
+	root := map[string]interface{}{
+		"keySetVersion": 1,
+		"signing":       []interface{}{signingEntry("g1", g, "active")},
+		"prevKeyId":     "g",
+		"algorithm":     "Ed25519",
+	}
+	root["signature"] = signRotationLinkTest(t, root, g.priv)
+	mkRootCard := func(link interface{}) map[string]interface{} {
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = keySet(signingEntry("g1", g, "active"))
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		card["rotationChain"] = []interface{}{link}
+		return attachCardSignature(t, card, "g1", g.priv)
+	}
+	res = VerifyAgentCardSignature(mustWire(t, mkRootCard(root)), agentID, CardVerifyOptions{Profile: Profile10})
+	expectAccept(t, res, ReasonSignedAuthenticated)
+
+	mutatedRoot := stripCardKey(root, "algorithm")
+	mutatedRoot["algorithm"] = "Ed448"
+	res = VerifyAgentCardSignature(mustWire(t, mkRootCard(mutatedRoot)), agentID, CardVerifyOptions{Profile: Profile10})
+	expectReject(t, res, ReasonChainLinkInvalidSig)
 }
 
 func TestCardVerify_LegacyBootstrapAccept(t *testing.T) {

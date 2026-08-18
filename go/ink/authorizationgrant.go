@@ -3,8 +3,6 @@ package ink
 import (
 	"crypto/ed25519"
 	"encoding/base64"
-	"encoding/json"
-	"unicode/utf8"
 )
 
 // authorizationGrantTopLevelKeys is the exact set of members an authorization
@@ -118,13 +116,11 @@ func VerifyAuthorizationGrant(raw []byte, issuerPublicKey []byte, ctx Authorizat
 	if len(raw) > MaxGrantBodyBytes {
 		return false, GrantReasonSchema
 	}
-	// The grant is a signed artifact: encoding/json rewrites invalid UTF-8 or a
-	// lone surrogate to U+FFFD, so reject both before parsing.
-	if !utf8.Valid(raw) || ContainsLoneSurrogateEscape(raw) {
-		return false, GrantReasonSchema
-	}
-	var obj map[string]interface{}
-	if err := json.Unmarshal(raw, &obj); err != nil {
+	// The artifact is signed over its raw bytes, so every text-level rule of
+	// ink-signed-string-safety.md runs before parsing. Routed through the
+	// shared parser so a new rule cannot reach some verifiers and not others.
+	obj, okParse := ParseSignedObject(raw)
+	if !okParse {
 		return false, GrantReasonSchema
 	}
 	// Post-parse structural bounds walk, mirroring the reference node, depth, and

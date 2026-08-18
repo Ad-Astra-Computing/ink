@@ -108,15 +108,31 @@ field is required:
   a slow user consent.
 - `signature`: the Ed25519 body signature, base64url without padding.
 
-### Byte bound
+### Raw body
 
-A challenge presented as raw bytes MUST be rejected as `schema` when it is longer
-than 65536 bytes, before it is decoded. The bound is generous, well past the size
-of any well-formed challenge, so a challenge padded past 65536 bytes with
-whitespace or other padding is not a legitimate request and need not be decoded to
-be refused. A verifier handed an already-decoded object applies the structural
-bounds instead, so the byte bound is then the responsibility of whatever layer
-received the bytes and decoded them, the same split the grant draws.
+A challenge is a signed body, so a verifier MUST apply the raw-body gate and
+enforcement order of
+[`ink-signed-string-safety.md`](ink-signed-string-safety.md): the size cap, then
+raw UTF-8 validity, then the lone-surrogate escape scan, then the out-of-range
+number-literal scan, all on the bytes, before the document is parsed. The size cap
+is 65536 bytes, the same figure the grant profile uses. The bound is generous,
+well past the size of any well-formed challenge, so a challenge padded past 65536
+bytes with whitespace or other padding is not a legitimate request and need not be
+decoded to be refused.
+
+Verification therefore takes the raw bytes, not a value someone else parsed. The
+distinction is not stylistic. JSON member semantics are last-wins, so a duplicate
+member shadows an out-of-range literal ahead of it: the value never reaches the
+parsed challenge, the challenge canonicalizes to the bytes the signature covers
+and the signature verifies. A verifier that inspects only the parsed value accepts
+that challenge and a verifier that gates the bytes refuses it, which is an
+accept-versus-reject split in a signed path chosen by whoever writes the bytes.
+The size cap is in the same position for the same reason: JSON permits unbounded
+whitespace between tokens and whitespace vanishes at canonicalization, so a
+schema-valid challenge padded past any structural bound still carries a signature
+that verifies.
+
+Every one of these is a structural rejection, reported as `schema`.
 
 ### Signature
 
@@ -135,8 +151,10 @@ The user's agent verifies a challenge before minting a grant, running these
 checks in order and rejecting at the first failure with a stable reason for each,
 the same order and style the grant verifier uses:
 
-1. **Structure and byte safety** (`schema`). The raw bytes must be valid UTF-8
-   with no lone UTF-16 surrogate escape, and the object must satisfy the schema
+1. **Structure and byte safety** (`schema`). The raw bytes must pass the gate of
+   *Raw body* above, so they must be within the size cap, valid UTF-8, and carry
+   neither a lone UTF-16 surrogate escape nor an out-of-range number literal, and
+   the object must satisfy the schema
    above, including the distinct-scope rule, the registry-membership rule for
    every `requestedScope` entry, the required `identity.assert` entry, the
    bare-host `did:web` grammar for `rp`, the positive-window rule, the

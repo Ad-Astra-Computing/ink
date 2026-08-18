@@ -96,11 +96,39 @@ freshness window of [`ink-protocol.md`](ink-protocol.md) §3.5: a query is a
 single signed request, not a credential with its own window, so it ages by the
 same rule as every other INK message.
 
+## Raw body
+
+An envelope is a signed body, so a verifier MUST apply the raw-body gate and
+enforcement order of
+[`ink-signed-string-safety.md`](ink-signed-string-safety.md): the size cap, then
+raw UTF-8 validity, then the lone-surrogate escape scan, then the out-of-range
+number-literal scan, all on the bytes, before the document is parsed. The size
+cap is 65536 bytes, the same figure the grant profile uses. A maximal envelope is
+about 3,300 schema-bounded code units, and the wire form is not canonical JSON,
+so a sender may spell any character as a six-byte `\uXXXX` escape: roughly 20 KiB
+at worst. The cap refuses a body orders of magnitude past that without decoding
+it.
+
+Verification therefore takes the raw bytes, not a value someone else parsed. The
+distinction is not stylistic. JSON member semantics are last-wins, so a duplicate
+member shadows an out-of-range literal ahead of it: the value never reaches the
+parsed envelope, the envelope canonicalizes to the bytes the signature covers and
+the signature verifies. A verifier that inspects only the parsed value accepts
+that envelope and a verifier that gates the bytes refuses it, which is an
+accept-versus-reject split in a signed path chosen by whoever writes the bytes.
+The size cap is in the same position for the same reason: JSON permits unbounded
+whitespace between tokens and whitespace vanishes at canonicalization, so a
+schema-valid envelope padded past any structural bound still carries a signature
+that verifies.
+
+Every one of these is a structural rejection, reported as `schema`.
+
 ## Acceptance
 
 A conformant verifier accepts an envelope if and only if all of the following
 hold, checked in this order:
 
+0. Its raw bytes pass the gate above and parse as JSON.
 1. It is structurally valid under the schema above.
 2. The signature verifies against the requester's public key.
 3. The signed `to` equals one of the verifier's own identifiers.

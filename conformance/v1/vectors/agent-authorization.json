@@ -1853,6 +1853,99 @@
       }
     },
     {
+      "caseId": "raw-challenge-accepts",
+      "description": "The same signed challenge presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so the signature still covers it.",
+      "input": {
+        "challengeRaw": "{  \"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_challenge\",\"rp\":\"did:web:rp.example\",\"nonce\":\"nonce-challenge-000000001\",\"requestedScope\":[\"identity.assert\",\"profile.read\"],\"redirectUri\":\"https://rp.example/callback\",\"issuedAt\":\"2026-07-16T12:00:00.000Z\",\"expiresAt\":\"2026-07-16T12:05:00.000Z\",\"signature\":\"kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ\"}",
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "shadowed-number-literal-rejects",
+      "description": "An out-of-range number literal shadowed by a later duplicate member rejects. Member semantics are last-wins, so the literal never reaches the parsed challenge and the signature over the canonical form still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same signed challenge.",
+      "input": {
+        "challengeRaw": "{\"protocol\":1e309,\"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_challenge\",\"rp\":\"did:web:rp.example\",\"nonce\":\"nonce-challenge-000000001\",\"requestedScope\":[\"identity.assert\",\"profile.read\"],\"redirectUri\":\"https://rp.example/callback\",\"issuedAt\":\"2026-07-16T12:00:00.000Z\",\"expiresAt\":\"2026-07-16T12:05:00.000Z\",\"signature\":\"kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ\"}",
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "live-number-literal-rejects",
+      "description": "An out-of-range number literal in a live member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.",
+      "input": {
+        "challengeRaw": "{\"protocol\":1e309,\"type\":\"network.ink.authorization_challenge\",\"rp\":\"did:web:rp.example\",\"nonce\":\"nonce-challenge-000000001\",\"requestedScope\":[\"identity.assert\",\"profile.read\"],\"redirectUri\":\"https://rp.example/callback\",\"issuedAt\":\"2026-07-16T12:00:00.000Z\",\"expiresAt\":\"2026-07-16T12:05:00.000Z\",\"signature\":\"kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ\"}",
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "shadowed-underflow-accepts",
+      "description": "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the challenge behind it verifies. The gate is a range test, not a ban on exponents.",
+      "input": {
+        "challengeRaw": "{\"protocol\":1e-400,\"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_challenge\",\"rp\":\"did:web:rp.example\",\"nonce\":\"nonce-challenge-000000001\",\"requestedScope\":[\"identity.assert\",\"profile.read\"],\"redirectUri\":\"https://rp.example/callback\",\"issuedAt\":\"2026-07-16T12:00:00.000Z\",\"expiresAt\":\"2026-07-16T12:05:00.000Z\",\"signature\":\"kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ\"}",
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "raw-lone-surrogate-escape-rejects",
+      "description": "A lone UTF-16 surrogate escape in the raw text rejects structurally, before the signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.",
+      "input": {
+        "challengeRaw": "{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_challenge\",\"rp\":\"did:web:rp.example\",\"nonce\":\"\\ud800nonce-challenge-000000001\",\"requestedScope\":[\"identity.assert\",\"profile.read\"],\"redirectUri\":\"https://rp.example/callback\",\"issuedAt\":\"2026-07-16T12:00:00.000Z\",\"expiresAt\":\"2026-07-16T12:05:00.000Z\",\"signature\":\"kjsTFFGAPXia6vHcbv12Sr7rhpKX3JGrl9HaCoVB9rVJxbb9HTyGQNmWEc-TtcFqs-Lrycc0fGuZ45xtR93OAQ\"}",
+        "keys": [
+          {
+            "keyId": "rp-active",
+            "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+            "status": "active"
+          }
+        ],
+        "now": "2026-07-16T12:02:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
       "caseId": "derived-id-determinism",
       "description": "The derived grantId over the four binding fields is deterministic and matches the pinned base64url-nopad SHA-256 digest.",
       "input": {

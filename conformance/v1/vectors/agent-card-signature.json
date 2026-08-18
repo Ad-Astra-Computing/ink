@@ -99,6 +99,56 @@
       }
     },
     {
+      "caseId": "non-ascii-member-order-accept",
+      "description": "A signed card carrying extension members named U+FF21 and U+1F511 verifies only if the card signature is computed over members sorted by UTF-16 code unit, which puts the astral name first. A canonicalizer that sorts by code point or by UTF-8 byte builds different signed bytes and rejects an authentic card.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "updatedAt": "2026-07-20T00:00:00Z",
+          "Ａ": "bmp",
+          "🔑": "astral",
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "Jx9eBmRnD1JrhaSkhFOYfSgALmOVaNoVe9AWxFl5iY83-MhdknGF18NJdeMnqRYqV2xF8FGA7kTJTtfgFC7bCA"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated"
+      }
+    },
+    {
       "caseId": "rotated-signer-valid-chain-accept",
       "description": "A rotated signer whose genesis-to-head chain verifies, versions strictly increasing and contiguous, head set corresponding exactly to keys.signing.",
       "input": {
@@ -385,6 +435,12 @@
       "expect": {
         "result": "accept",
         "reason": "signed_authenticated"
+      },
+      "optionalBehavior": {
+        "id": "cold-chain-extension-residual",
+        "alternative": "reject",
+        "spec": "specs/ink-agent-card-signature.md §6",
+        "rationale": "§6 records cold acceptance of a forged chain-extension as an inherent RESIDUAL of an unwitnessed hash chain, not as a requirement to accept, and RECOMMENDS external head observation to close it. An implementation that applies a stricter cold policy, refusing a chain head it cannot corroborate, is conformant and rejects here."
       }
     },
     {
@@ -644,6 +700,12 @@
         "result": "accept",
         "reason": "signed_authenticated",
         "auditEvent": "card.anchor_unverified"
+      },
+      "optionalBehavior": {
+        "id": "didweb-warm-resolver-unavailable",
+        "alternative": "reject",
+        "spec": "specs/ink-agent-card-signature.md §4.2",
+        "rationale": "§4.2 says a WARM verifier MAY continue under signature-plus-continuity when the DID resolver is unreachable. A verifier that instead fails closed, as a cold verifier MUST, is equally conformant and rejects here."
       }
     },
     {
@@ -673,6 +735,154 @@
       "expect": {
         "result": "accept",
         "reason": "unsigned_first_contact_accepted"
+      }
+    },
+    {
+      "caseId": "chain-link-1-unknown-member-accept",
+      "description": "A rotation link carrying an unrecognised member (the reserved `algorithm`) verifies when the signature covers the WHOLE link minus `signature`, which is what makes that extension point additive. Link 1, so the root-candidate branch is the one exercised.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "g1",
+                  "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "algorithm": "Ed25519",
+              "signature": "P2DktKLjK6tulRR-SrIi7yrCzNoCCDeu0V3WxB-Os-HifG8ecct2Iel7XAIcVYIFEskgVXaq_6XdckctLZ1HBw"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "00BGYNOYleowB-pSPxMgfS86Mz__7i26zlP-zJRnY_Mzv6Dh-ghNd08fDbH1Glc0Sw6sYacptOW-dBXEb4LABA"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated"
+      }
+    },
+    {
+      "caseId": "chain-link-unknown-member-accept",
+      "description": "The same full-link coverage on a later link, whose signer is resolved from the prior link's committed set rather than from a root candidate.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "kA",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                "status": "retired",
+                "validFrom": "2026-01-01T00:00:00Z"
+              },
+              {
+                "keyId": "kB",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "kB",
+          "keySetVersion": 2,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "signature": "IDtnuVDo_PtVbq3JnC4jp54QnynYUHI5BGJvfoQGbzRrjFcbRzuuxvbvS9szEk4drBGEpAEv2vT16dvlsPXxCw"
+            },
+            {
+              "keySetVersion": 2,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "retired"
+                },
+                {
+                  "keyId": "kB",
+                  "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "kA",
+              "algorithm": "Ed25519",
+              "signature": "h0gShrE_UVusDS6BkqWGYaLt5c8myUB59-Jjw7XUHLgPSe5QuSfikgRL_novuIDCMH8b4dQz-QkYfZ-3mMsMDg"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "kB",
+            "signature": "_G7VX1seQcAjco38uDp_o6gZA5Z6Jk27e5SEqMmprVrj5s0WOedYjn6kXftNTathCcxtAKJPNtxEJfUufj-ZCg"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated"
       }
     },
     {
@@ -1699,6 +1909,154 @@
           "cardSignature": {
             "keyId": "kB",
             "signature": "DB3EtoRDXQV-6OyNbwm4ERzB3wERBF5HVgo_gGhfRg3AaTkfaT4DUIP0rDaXYlxR_341EfcpVU4U8nPFsrtPDQ"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain_link_invalid_signature"
+      }
+    },
+    {
+      "caseId": "chain-link-1-unknown-member-mutated-reject",
+      "description": "An unrecognised member of link 1 mutated after signing. Full-link coverage means the mutation breaks the signature, so link 1 roots to no candidate (the key-derived link-1 failure reason).",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "g1",
+                  "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "algorithm": "Ed448",
+              "signature": "P2DktKLjK6tulRR-SrIi7yrCzNoCCDeu0V3WxB-Os-HifG8ecct2Iel7XAIcVYIFEskgVXaq_6XdckctLZ1HBw"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "4vCaP1-38wvv5IwdeEMHB7jB1pBWzUHVFVSJVvBUD6nzlg5RF5xY9UCutSMba6FI6q6eKNuoFE11zHIs0ZiqDg"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain_link_invalid_signature"
+      }
+    },
+    {
+      "caseId": "chain-link-unknown-member-mutated-reject",
+      "description": "An unrecognised member of a later link mutated after signing. A verifier that rebuilt the preimage from the three named members would accept this forgery.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "kA",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                "status": "retired",
+                "validFrom": "2026-01-01T00:00:00Z"
+              },
+              {
+                "keyId": "kB",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "kB",
+          "keySetVersion": 2,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "signature": "IDtnuVDo_PtVbq3JnC4jp54QnynYUHI5BGJvfoQGbzRrjFcbRzuuxvbvS9szEk4drBGEpAEv2vT16dvlsPXxCw"
+            },
+            {
+              "keySetVersion": 2,
+              "signing": [
+                {
+                  "keyId": "kA",
+                  "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+                  "status": "retired"
+                },
+                {
+                  "keyId": "kB",
+                  "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "kA",
+              "algorithm": "Ed448",
+              "signature": "h0gShrE_UVusDS6BkqWGYaLt5c8myUB59-Jjw7XUHLgPSe5QuSfikgRL_novuIDCMH8b4dQz-QkYfZ-3mMsMDg"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "kB",
+            "signature": "LEYJ8TDPH7HUBbbwYGP2LwQ7mS4cIIBZK3NA0cKjhN4-kcsXk9whEBZmNbxlmxBv8ducvd4tXApAnMzlt7W9Bw"
           }
         },
         "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",

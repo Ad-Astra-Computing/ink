@@ -11,6 +11,10 @@ code that runs on Workers runs on plain Node, and the bundle proves it.
 
 ## Run it with Docker
 
+Node 24 and a container runtime are the only prerequisites. With nix,
+`nix develop ..#docker-receiver` from this directory supplies both without
+installing anything globally.
+
 ```sh
 npm install
 npm run keygen > .env        # mint a receiver identity

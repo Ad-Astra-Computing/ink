@@ -3,6 +3,7 @@ import { dualWireType } from "./wire-type.js";
 import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
 import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
+import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
 
 // A minimal scoped authorization grant, the "Sign in with INK" primitive. An
 // issuer signs a bounded capability for a subject to present to one named
@@ -36,15 +37,19 @@ const SCOPE_MAX = 64;
 export const MAX_GRANT_LIFETIME_MS = 10 * 60 * 1000;
 
 /**
- * Byte-length ceiling on a raw grant body, the byte-layer counterpart to the
- * structural schema bounds. A receiver holding raw grant bytes MUST reject a body
- * longer than this as `schema` before it decodes the bytes, per the *Byte bound*
- * rule in the spec: the largest well-formed grant is around 12 KiB, so a body
- * padded past 65536 bytes is not a legitimate presentation and need not be
- * decoded. This reference `verifyAuthorizationGrant` takes an already-decoded
- * object and applies the structural bounds instead, so this constant is the
- * contract for whatever layer received the bytes, the same rule the Go
- * `MaxGrantBodyBytes` enforces on its bytes API. See
+ * Byte-length ceiling on a raw grant body, enforced before the body is decoded.
+ * The largest well-formed grant is around 12 KiB of UTF-8: eleven members whose
+ * sizes the schema pins (an issuer, a subject and an audience of 512 UTF-16 code
+ * units each, a grantId of 256, a scope array of up to 64 entries of up to 128, an
+ * 86-character signature, two timestamps, a protocol and a type literal and a
+ * boolean), so a body padded past 65536 bytes is not a legitimate presentation and
+ * need not be decoded at all. `verifyAuthorizationGrant` enforces it on the bytes
+ * it is handed, the same figure the Go `MaxGrantBodyBytes` enforces.
+ *
+ * The cap is not redundant with the structural bounds walk: JSON permits unbounded
+ * whitespace between tokens, and whitespace vanishes at canonicalization, so a
+ * schema-valid grant padded with megabytes of spaces carries a signature that
+ * still verifies. Without a byte cap that body is admitted. See
  * [`specs/ink-authorization-grant.md`](../../specs/ink-authorization-grant.md).
  */
 export const MAX_GRANT_BODY_BYTES = 65536;
@@ -269,7 +274,22 @@ export async function buildAuthorizationGrant(
  * signature is checked before any context decision, so a grant with a bad
  * signature never reveals whether its audience or window would have passed.
  *
+ * The input is the **raw body bytes**, not a parsed value. A grant is a signed
+ * body, so it is subject to the raw-body gate of
+ * [`specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md)
+ * §"Enforcement order": invalid UTF-8, a lone UTF-16 surrogate escape and a number
+ * literal outside the IEEE-754 double range are all rules about the bytes that no
+ * longer exist once the body is parsed. A verifier that took a parsed value could
+ * not run them, and could not run them on a caller's behalf either: a duplicate
+ * member shadows an out-of-range literal (JSON member semantics are last-wins), so
+ * the value layer never sees it, the grant canonicalizes cleanly and its signature
+ * verifies, while an implementation that gates the bytes refuses the same grant
+ * outright. That is an accept-versus-reject split in a signed path, choosable by
+ * anyone who can write the bytes, so the bytes are the input. This is the "Sign in
+ * with INK" primitive, which is exactly where such a split is worth the most.
+ *
  * Check order (each returns its own reason on the first failure):
+ *   0. byte cap, raw-body gate, JSON parse               -> "schema"
  *   1. structural schema + byte safety + lifetime cap    -> "schema"
  *   2. issuer signature over the canonical grant         -> "signature"
  *   3. audience binding (confused-deputy defense)         -> "audience"
@@ -289,17 +309,36 @@ export async function buildAuthorizationGrant(
  * computed.
  */
 export async function verifyAuthorizationGrant(
-  raw: unknown,
+  raw: Uint8Array,
   issuerPublicKey: Uint8Array,
   context: AuthorizationGrantVerifyContext,
 ): Promise<AuthorizationGrantVerifyResult> {
   try {
-    // Bounds first: a hostile object that blows past the node/char caps is
-    // rejected before Zod or canonicalization walks it.
-    if (!isWithinBounds(raw)) {
+    // A caller on an untyped boundary can still hand over something that is not
+    // bytes; that is a verifier input error, not a grant this function can rule
+    // on, and it fails closed rather than being coerced.
+    if (!ArrayBuffer.isView(raw) || !(raw instanceof Uint8Array)) {
       return { ok: false, reason: "schema" };
     }
-    const parsed = AuthorizationGrantSchema.safeParse(raw);
+    // The byte cap runs before the decoder: an oversized blob is refused without
+    // being decoded at all.
+    if (raw.length > MAX_GRANT_BODY_BYTES) {
+      return { ok: false, reason: "schema" };
+    }
+    // The raw-body gate, then the parse. ParseSignedBodyError and the native
+    // SyntaxError from a malformed body are both structural rejections.
+    let value: unknown;
+    try {
+      value = parseSignedBodyBytes(raw);
+    } catch {
+      return { ok: false, reason: "schema" };
+    }
+    // Bounds next: a hostile object that blows past the node/char caps is
+    // rejected before Zod or canonicalization walks it.
+    if (!isWithinBounds(value)) {
+      return { ok: false, reason: "schema" };
+    }
+    const parsed = AuthorizationGrantSchema.safeParse(value);
     if (!parsed.success) {
       return { ok: false, reason: "schema" };
     }

@@ -59,6 +59,76 @@ start of a JSON document, so a body that begins with a BOM passes the byte gate
 and then rejects at the JSON parse step. A byte gate that silently strips the BOM
 would accept a body whose canonical bytes differ from what the signer signed.
 
+## Numeric literal range
+
+A receiver MUST reject a signed body whose raw JSON text contains a number
+literal whose value is outside the IEEE-754 double range, before JSON parsing. A
+signer MUST NOT sign such a body.
+
+The hazard is the same shape as the two above, but the parsers do not merely
+represent the value differently, they disagree about whether the document exists
+at all. ECMAScript `JSON.parse` decodes `1e309` to `Infinity` and returns the
+document; Go's `encoding/json` refuses the whole document with a range error. A
+literal that underflows (`1e-400`) is not affected: every IEEE-754 parser decodes
+it to `0`, so implementations already agree on it and it stays accepted.
+
+This rule lives at the raw gate rather than after parsing because the number
+profile of [`ink-jcs-number-profile.md`](ink-jcs-number-profile.md) is a check on
+decoded **values**, and a value the parser never produces is a value the profile
+never sees. JSON member semantics are last-wins, so a duplicate member shadows
+the literal: `{"a":1e309,"a":1}` decodes to `{"a":1}` under a parser that
+tolerates the literal, canonicalizes cleanly and gets a signature verified over
+those canonical bytes, while a parser that refuses the document rejects the body
+outright. The two implementations then admit different byte strings as signed
+bodies, which is a consensus failure in the signature path and is reachable by
+anyone who can choose the bytes of a signed body. Rejecting the literal at the
+raw gate makes the admitted set a property of the protocol instead of a property
+of whichever JSON parser an implementation happens to link.
+
+The check is on the raw JSON **text**, so it reads number-like characters only
+outside strings: `{"note":"1e309"}` carries no number literal and is accepted. A
+run of number characters that is not a well-formed number is left to the JSON
+parser, which rejects the document on its own.
+
+## Escaped member names
+
+A receiver MUST reject a signed body whose raw JSON text contains an object
+member name written with any escape sequence, before JSON parsing. A signer MUST
+NOT sign a body containing an object key that would serialize as an escaped
+member name, which under RFC 8785's minimal escaping means a key containing a
+quotation mark, a reverse solidus, or any character in `U+0000`–`U+001F`.
+`U+007F` is not escaped and stays permitted.
+
+The three rules above address parsers that represent a value differently or
+refuse a document. This one addresses a parser that returns a **different member
+name than the document contains**. V8 sizes the character span for a member name
+from a pointer into the raw source text using the name's decoded length, then
+compares that span against an existing hidden-class transition name and, on a
+match, adopts the transition's name as the property key without decoding the
+escape. So `{"x":{"\\":1},"y":{"\n":2}}` yields a `y` whose sole member is named
+`\`, not a newline. The wrong name is a real property, so it survives
+serialization and reaches canonicalization.
+
+The precondition is that the member name's raw spelling is longer than its
+decoded value, which requires an escape. Banning escaped member names removes
+the precondition outright, independent of what any particular runtime holds in
+its transition tables, which is why the rule is stated on the raw text rather
+than as a check for the corruption itself. Detecting the corruption after the
+fact is not a workable substitute: the recovered member names cannot be compared
+as a set, because `{"a":1,"\u0061":2}` legitimately collapses to a single member,
+and a substituted name can coincide with a name the document already contains.
+
+The rule is on the raw JSON **text** and applies to member names only. An escape
+in a string value or an array element is unaffected: `{"note":"line\nbreak"}` is
+accepted. A string is a member name exactly when the next non-whitespace
+character after its closing quotation mark is a colon.
+
+Implementations whose JSON parser decodes escaped member names correctly, which
+includes Go's `encoding/json`, MUST enforce this rule anyway. The purpose is not
+to protect that implementation but to keep the set of admitted bodies a property
+of the protocol: an implementation that accepted such a body would disagree with
+a conforming implementation about which bytes a signature covers.
+
 ## Enforcement order
 
 A receiver processes a signed body in this order, rejecting at the first failure:
@@ -67,13 +137,22 @@ A receiver processes a signed body in this order, rejecting at the first failure
 2. enforce the size cap;
 3. reject any raw bytes that are not valid UTF-8;
 4. reject any unpaired surrogate escape in the raw JSON text;
-5. parse the JSON;
-6. apply schema and complexity bounds;
-7. canonicalize and verify the signature.
+5. reject any number literal outside the IEEE-754 double range in the raw JSON
+   text;
+6. reject any object member name written with an escape sequence in the raw JSON
+   text;
+7. parse the JSON;
+8. apply schema and complexity bounds;
+9. canonicalize and verify the signature.
 
-Steps 3 and 4 must run before step 5: once the JSON is parsed, the raw
-provenance, and with it the ability to detect the original invalid bytes or
-surrogate, is gone.
+Steps 3 through 6 must run before step 7: once the JSON is parsed, the raw
+provenance, and with it the ability to detect the original invalid bytes, the
+surrogate, the out-of-range literal or the original member name, is gone. Step 5
+in particular cannot be moved after step 7 in any form, because a parser that
+rejects the document outright never reaches step 7 and a parser that does not has
+already discarded the shadowed literal. Step 6 likewise cannot be moved after
+step 7, because the substituted member name is indistinguishable from a name the
+sender chose.
 
 ## Conformance
 
@@ -91,3 +170,11 @@ truncated multibyte sequence, an overlong encoding, the byte `0xFF`, and
 UTF-16-encoded bytes), and a valid-UTF-8 body whose text carries a lone
 surrogate escape, which rejects because the surrogate scan still runs once the
 UTF-8 check passes.
+
+The numeric-literal rule is pinned in both places it acts. `signed-body-utf8`
+covers the gate itself: a bare out-of-range literal as the whole body, one in a
+member value, one shadowed by a later duplicate member, and an underflowing
+exponent that stays accepted. `jcs-number` covers what the gate protects, the
+canonicalization step: the shadowed literal rejects rather than canonicalizing to
+the surviving member, an in-range duplicate member still canonicalizes last-wins,
+and an underflowing exponent canonicalizes to `0`.

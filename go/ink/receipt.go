@@ -76,15 +76,27 @@ func parseReceiptInt(n json.Number, min int) (int, bool) {
 // the verifier would then canonicalize different signed bytes than the
 // reference, and it parses leafIndex and treeSize as integer-valued JSON numbers
 // rather than requiring a specific spelling. A receiver MUST verify a receipt
-// through this parse, the way the signed-body path goes through ParseSignedBody.
+// through this parse, the way the signed-body path goes through ParseSignedBody:
+// it applies the same four text-level rules (invalid UTF-8, lone surrogate
+// escape, out-of-range number literal, escaped member name) before unmarshaling.
 func ParseInclusionReceipt(raw []byte) (InclusionReceipt, bool) {
 	if len(raw) > MaxInclusionReceiptBytes {
 		return InclusionReceipt{}, false
 	}
+	// The receipt is a signed artifact, so every text-level rule of
+	// ink-signed-string-safety.md applies. It unmarshals into a typed struct
+	// rather than a map, so the rules run here directly instead of through
+	// ParseSignedObject; keep this list in step with ParseSignedBody.
 	if !utf8.Valid(raw) {
 		return InclusionReceipt{}, false
 	}
 	if ContainsLoneSurrogateEscape(raw) {
+		return InclusionReceipt{}, false
+	}
+	if ContainsOutOfRangeNumberLiteral(raw) {
+		return InclusionReceipt{}, false
+	}
+	if ContainsEscapedMemberName(raw) {
 		return InclusionReceipt{}, false
 	}
 	var rr struct {

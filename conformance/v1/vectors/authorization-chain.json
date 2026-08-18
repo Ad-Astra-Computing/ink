@@ -3160,6 +3160,119 @@
         "result": "reject",
         "reason": "schema"
       }
+    },
+    {
+      "caseId": "raw-chain-accepts",
+      "description": "The same signed chain presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so every link signature still covers it.",
+      "input": {
+        "chainRaw": "{  \"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_chain\",\"links\":[{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:origin.example\",\"subject\":\"did:web:delegate-1.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\",\"messages:send\",\"delegation.extend\"],\"grantId\":\"chain-2link-root-000000001\",\"issuedAt\":\"2026-07-11T12:00:00.000Z\",\"expiresAt\":\"2026-07-11T12:30:00.000Z\",\"signature\":\"r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ\"},{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:delegate-1.example\",\"subject\":\"did:web:delegate-2.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\"],\"grantId\":\"chain-2link-head-000000001\",\"issuedAt\":\"2026-07-11T12:05:00.000Z\",\"expiresAt\":\"2026-07-11T12:10:00.000Z\",\"parent\":\"typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4\",\"signature\":\"3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA\"}]}",
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "shadowed-number-literal-rejects",
+      "description": "An out-of-range number literal shadowed by a later duplicate wrapper member rejects. Member semantics are last-wins, so the literal never reaches the parsed chain and every link signature still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same presented chain.",
+      "input": {
+        "chainRaw": "{\"protocol\":1e309,\"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_chain\",\"links\":[{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:origin.example\",\"subject\":\"did:web:delegate-1.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\",\"messages:send\",\"delegation.extend\"],\"grantId\":\"chain-2link-root-000000001\",\"issuedAt\":\"2026-07-11T12:00:00.000Z\",\"expiresAt\":\"2026-07-11T12:30:00.000Z\",\"signature\":\"r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ\"},{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:delegate-1.example\",\"subject\":\"did:web:delegate-2.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\"],\"grantId\":\"chain-2link-head-000000001\",\"issuedAt\":\"2026-07-11T12:05:00.000Z\",\"expiresAt\":\"2026-07-11T12:10:00.000Z\",\"parent\":\"typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4\",\"signature\":\"3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA\"}]}",
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "live-number-literal-rejects",
+      "description": "An out-of-range number literal in a live wrapper member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.",
+      "input": {
+        "chainRaw": "{\"protocol\":1e309,\"type\":\"network.ink.authorization_chain\",\"links\":[{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:origin.example\",\"subject\":\"did:web:delegate-1.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\",\"messages:send\",\"delegation.extend\"],\"grantId\":\"chain-2link-root-000000001\",\"issuedAt\":\"2026-07-11T12:00:00.000Z\",\"expiresAt\":\"2026-07-11T12:30:00.000Z\",\"signature\":\"r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ\"},{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:delegate-1.example\",\"subject\":\"did:web:delegate-2.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\"],\"grantId\":\"chain-2link-head-000000001\",\"issuedAt\":\"2026-07-11T12:05:00.000Z\",\"expiresAt\":\"2026-07-11T12:10:00.000Z\",\"parent\":\"typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4\",\"signature\":\"3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA\"}]}",
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "shadowed-underflow-accepts",
+      "description": "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the chain behind it verifies. The gate is a range test, not a ban on exponents.",
+      "input": {
+        "chainRaw": "{\"protocol\":1e-400,\"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_chain\",\"links\":[{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:origin.example\",\"subject\":\"did:web:delegate-1.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\",\"messages:send\",\"delegation.extend\"],\"grantId\":\"chain-2link-root-000000001\",\"issuedAt\":\"2026-07-11T12:00:00.000Z\",\"expiresAt\":\"2026-07-11T12:30:00.000Z\",\"signature\":\"r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ\"},{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:delegate-1.example\",\"subject\":\"did:web:delegate-2.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\"],\"grantId\":\"chain-2link-head-000000001\",\"issuedAt\":\"2026-07-11T12:05:00.000Z\",\"expiresAt\":\"2026-07-11T12:10:00.000Z\",\"parent\":\"typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4\",\"signature\":\"3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA\"}]}",
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "raw-lone-surrogate-escape-rejects",
+      "description": "A lone UTF-16 surrogate escape in the raw text rejects structurally, before any signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.",
+      "input": {
+        "chainRaw": "{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.authorization_chain\",\"links\":[{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:origin.example\",\"subject\":\"did:web:delegate-1.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\",\"messages:send\",\"delegation.extend\"],\"grantId\":\"chain-2link-root-000000001\",\"issuedAt\":\"2026-07-11T12:00:00.000Z\",\"expiresAt\":\"2026-07-11T12:30:00.000Z\",\"signature\":\"r3D6x5Cpuo8W49hNAEtnD5CbNNlPuTbwKJGL14QoF2QMI39lO6wo0-Ej18hX43ywoeUyZIokYhttsCa0mANVCQ\"},{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.delegation_link\",\"issuer\":\"did:web:delegate-1.example\",\"subject\":\"did:web:delegate-2.example\",\"audience\":\"did:web:service.example\",\"scope\":[\"profile:read\"],\"grantId\":\"\\ud800chain-2link-head-000000001\",\"issuedAt\":\"2026-07-11T12:05:00.000Z\",\"expiresAt\":\"2026-07-11T12:10:00.000Z\",\"parent\":\"typj76gbyCYqXQOIdStQ8FXyGCRg9ry6n6qSy2Ivdk4\",\"signature\":\"3FVonAfWU-yHPa3GLTmd3k-oeebFfNGnKx6x5bjXAFByIeaWIvuhEMKFv7V6maCZpYK8OESqcpNgKgODzPtFCA\"}]}",
+        "issuerKeys": [
+          {
+            "publicKeyHex": "4e210e9b0e1ae559e7e55fe769585dd50f1133f95a0e62d6f5a0bf3daeccc29c",
+            "status": "active"
+          },
+          {
+            "publicKeyHex": "fa7b385eba42fb70c97f9e935a6148211a599c102e6d6fae10074a226f13b970",
+            "status": "active"
+          }
+        ],
+        "audience": "did:web:service.example",
+        "now": "2026-07-11T12:06:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
     }
   ]
 }

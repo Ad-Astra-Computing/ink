@@ -52,15 +52,30 @@ required except `requireVerifiedOwner`:
   Absent means the grant does not require owner verification.
 - `signature`: the Ed25519 body signature, base64url without padding.
 
-### Byte bound
+### Raw body
 
-A grant presented as raw bytes MUST be rejected as `schema` when it is longer
-than 65536 bytes, before it is decoded. The bound is generous: the largest
-well-formed grant is around 12 KiB of UTF-8, so a grant padded past 65536 bytes
-with whitespace or other padding is not a legitimate presentation and need not
-be decoded to be refused. A verifier handed an already-decoded object applies the
-structural bounds instead of the byte bound, so the byte bound is then the
-responsibility of whatever layer received the bytes and decoded them.
+A grant is a signed body, so a verifier MUST apply the raw-body gate and
+enforcement order of
+[`ink-signed-string-safety.md`](ink-signed-string-safety.md): the size cap, then
+raw UTF-8 validity, then the lone-surrogate escape scan, then the out-of-range
+number-literal scan, all on the bytes, before the document is parsed. The size
+cap is 65536 bytes. The bound is generous: the largest well-formed grant is around
+12 KiB of UTF-8, so a grant padded past 65536 bytes with whitespace or other
+padding is not a legitimate presentation and need not be decoded to be refused.
+
+Verification therefore takes the raw bytes, not a value someone else parsed. The
+distinction is not stylistic. JSON member semantics are last-wins, so a duplicate
+member shadows an out-of-range literal ahead of it: the value never reaches the
+parsed grant, the grant canonicalizes to the bytes the signature covers and the
+signature verifies. A verifier that inspects only the parsed value accepts that
+grant and a verifier that gates the bytes refuses it, which is an
+accept-versus-reject split in a signed path chosen by whoever writes the bytes,
+in the primitive an agent signs in with. The size cap is in the same position for
+the same reason: JSON permits unbounded whitespace between tokens and whitespace
+vanishes at canonicalization, so a schema-valid grant padded past any structural
+bound still carries a signature that verifies.
+
+Every one of these is a structural rejection, reported as `schema`.
 
 ## Signature
 
@@ -84,8 +99,10 @@ set of already-seen grant ids, an optional revocation predicate, and an optional
 owner status. Verification runs these checks in order and rejects at the first
 failure, with a stable reason for each:
 
-1. **Structure and byte safety** (`schema`). The raw bytes must be valid UTF-8
-   with no lone UTF-16 surrogate escape, and the object must satisfy the schema
+1. **Structure and byte safety** (`schema`). The raw bytes must pass the gate of
+   *Raw body* above, so they must be within the size cap, valid UTF-8, and carry
+   neither a lone UTF-16 surrogate escape nor an out-of-range number literal, and
+   the object must satisfy the schema
    above, including the distinct-scope rule, the positive-window rule, the
    maximum-lifetime bound, and the base64url signature shape. String safety is
    structural: a grant carrying a lone UTF-16 surrogate rejects as `schema`
@@ -260,7 +277,8 @@ profile does not mandate audit; it notes that the `grantId`, `issuer`,
 
 ## Acceptance
 
-A conformant verifier accepts a grant if and only if it is structurally valid
+A conformant verifier accepts a grant if and only if its raw bytes pass the gate
+of *Raw body* above and parse as JSON, it is structurally valid
 under the schema above (including the maximum-lifetime bound), its signature
 verifies against the issuer key, its `audience` matches the verifying service, its
 signed `subject` matches any presenter the caller supplied, its window is within

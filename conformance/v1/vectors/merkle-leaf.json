@@ -69,6 +69,17 @@
       }
     },
     {
+      "caseId": "non-ascii-member-order-accepts",
+      "description": "An event whose member names include U+FF21 and U+1F511 pins the leaf digest only under RFC 8785 member ordering by UTF-16 code unit, which puts the astral key first. A canonicalizer sorting by code point or by UTF-8 byte commits a different leaf, and every inclusion proof over it diverges.",
+      "input": {
+        "eventRaw": "{\"id\":\"evt-4\",\"Ａ\":\"bmp\",\"🔑\":\"astral\"}"
+      },
+      "expect": {
+        "result": "accept",
+        "leafHash": "746ebd99d48df752a82d3586d687a8dfdb3110d35595fafe2552fb14234c13b9"
+      }
+    },
+    {
       "caseId": "array-not-object-rejects",
       "description": "A JSON array is not an audit event object and is rejected.",
       "input": {

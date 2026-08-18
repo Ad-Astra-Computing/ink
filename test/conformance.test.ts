@@ -10,6 +10,7 @@ import {
   checkReplay,
   parseInkTimestampMs,
   containsLoneSurrogateEscape,
+  containsEscapedMemberName,
   parseSignedBodyBytes,
   verifyInclusionProof,
   verifyConsistencyProof,
@@ -36,6 +37,10 @@ import {
   deriveChallengeGrantId,
   verifyAgentCardSignature,
   parseInkAuthHeader,
+  verifyInkAuth,
+  buildAuthHeader,
+  MessageEnvelopeSchema,
+  verifyMessage,
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey, DiscoveryQueryKey } from "../src/index.js";
@@ -50,9 +55,34 @@ import type { CandidateKey } from "../src/index.js";
 const v1Dir = fileURLToPath(new URL("../conformance/v1/", import.meta.url).href);
 const vectorsDir = v1Dir + "vectors/";
 
+interface OptionalBehavior {
+  id: string;
+  alternative: "accept" | "reject";
+  spec: string;
+  rationale: string;
+}
+
+// Which branch of each optional behavior THIS implementation takes. A case
+// carrying `optionalBehavior` pins a decision the spec leaves to the
+// implementation: `expect.result` is the branch the reference takes and
+// `optionalBehavior.alternative` is the other conformant outcome. Every id in
+// the corpus MUST appear here, and the runner asserts the declared branch
+// exactly, so the category keeps its full discriminating power while a
+// conformant implementation that takes the other branch stays conformant by
+// editing one line here. A conformance report SHOULD publish this map.
+const OPTIONAL_BEHAVIOR_POLICY: Record<string, "pinned" | "alternative"> = {
+  // §4.2: a warm did:web verifier MAY continue when the resolver is
+  // unreachable. The reference continues and emits card.anchor_unverified.
+  "didweb-warm-resolver-unavailable": "pinned",
+  // §6: cold acceptance of a forged chain extension is a documented residual,
+  // not an obligation. The reference accepts and documents the residual.
+  "cold-chain-extension-residual": "pinned",
+};
+
 interface VectorCase {
   caseId: string;
   description: string;
+  optionalBehavior?: OptionalBehavior;
   input: Record<string, unknown>;
   expect: { result: "accept" | "reject"; reason?: string; auditEvent?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 }
@@ -78,18 +108,25 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       return { result: ok ? "accept" : "reject" };
     }
     case "discovery-query-envelope": {
-      const { envelope, publicKeyHex, audience, now, seenNonces } = input as {
-        envelope: unknown;
+      const { envelope, envelopeRaw, publicKeyHex, audience, now, seenNonces } = input as {
+        envelope?: unknown;
+        envelopeRaw?: string;
         publicKeyHex: string;
         audience: string | string[];
         now: string;
         seenNonces?: DiscoveryQueryKey[];
       };
+      // The verifier takes the raw body bytes, because the raw-body gate is a
+      // rule about bytes a parsed value has already lost. A case that exercises
+      // that gate carries `envelopeRaw`, the exact wire text; every other case
+      // carries the envelope as a value and is serialized here the way a sender
+      // would.
+      const bodyText = envelopeRaw ?? JSON.stringify(envelope);
       // The directory context comes straight from the vector: its own identity
       // (one spelling or several), its clock and the (from, nonce) pairs it has
       // already burned. A verifier accepts iff the result is ok; on reject the
       // typed reason is pinned too.
-      const result = await verifyDiscoveryQueryEnvelope(envelope, hexToBytes(publicKeyHex), {
+      const result = await verifyDiscoveryQueryEnvelope(new TextEncoder().encode(bodyText), hexToBytes(publicKeyHex), {
         audience,
         now,
         seenNonces,
@@ -99,6 +136,7 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "authorization-grant": {
       const {
         grant,
+        grantRaw,
         issuerPublicKeyHex,
         audience,
         now,
@@ -108,7 +146,8 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         verifiedOwner,
         maxLifetimeMs,
       } = input as {
-        grant: unknown;
+        grant?: unknown;
+        grantRaw?: string;
         issuerPublicKeyHex: string;
         audience: string;
         now: string;
@@ -122,8 +161,14 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       // becomes a denylist predicate keyed by the (issuer, grantId) pair, and the
       // seen set, presenter, and owner status pass through. A verifier accepts iff
       // the result is ok; on reject the typed reason is pinned too.
+      // The verifier takes the raw body bytes, because the raw-body gate is a
+      // rule about bytes a parsed value has already lost. A case that exercises
+      // that gate carries `grantRaw`, the exact wire text; every other case
+      // carries the grant as a value and is serialized here the way a presenter
+      // would.
       const revoked = revokedGrants ?? [];
-      const result = await verifyAuthorizationGrant(grant, hexToBytes(issuerPublicKeyHex), {
+      const grantBody = new TextEncoder().encode(grantRaw ?? JSON.stringify(grant));
+      const result = await verifyAuthorizationGrant(grantBody, hexToBytes(issuerPublicKeyHex), {
         audience,
         now,
         presenter,
@@ -137,6 +182,7 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     case "authorization-chain": {
       const {
         chain,
+        chainRaw,
         issuerKeys,
         audience,
         now,
@@ -145,7 +191,8 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         revokedGrants,
         verifiedOwner,
       } = input as {
-        chain: unknown;
+        chain?: unknown;
+        chainRaw?: string;
         issuerKeys: Array<{ publicKeyHex: string; status: ChainIssuerKey["status"] }>;
         audience: string;
         now: string;
@@ -158,10 +205,13 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       // aligned root-first to `links`, the revocation list becomes a denylist
       // predicate keyed by the (issuer, grantId) pair, and the seen set, presenter,
       // and owner status pass through. A verifier accepts iff the result is ok; on
-      // reject the typed reason is pinned too.
+      // reject the typed reason is pinned too. The verifier takes the raw body
+      // bytes: a case that exercises the raw-body gate carries `chainRaw`, the
+      // exact wire text, and every other case carries the chain as a value.
       const keys: ChainIssuerKey[] = issuerKeys.map((k) => ({ publicKey: hexToBytes(k.publicKeyHex), status: k.status }));
       const revoked = revokedGrants ?? [];
-      const result = await verifyAuthorizationChain(chain, {
+      const chainBody = new TextEncoder().encode(chainRaw ?? JSON.stringify(chain));
+      const result = await verifyAuthorizationChain(chainBody, {
         audience,
         now,
         issuerKeys: keys,
@@ -173,7 +223,13 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
     }
     case "agent-authorization": {
-      const { challenge } = input as { challenge: Record<string, unknown> };
+      // The verifier takes the raw body bytes: a case that exercises the
+      // raw-body gate carries `challengeRaw`, the exact wire text, and every
+      // other case carries the challenge as a value.
+      const { challenge, challengeRaw } = input as {
+        challenge?: Record<string, unknown>;
+        challengeRaw?: string;
+      };
       // A case with no `keys` is a derive-only case: it pins the exact
       // challenge-derived grantId for fixed inputs, independent of signature.
       if (input.keys === undefined) {
@@ -194,7 +250,8 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         validUntil: k.validUntil,
         revokedAt: k.revokedAt,
       }));
-      const result = await verifyAuthorizationChallenge(challenge, candidates, { now });
+      const challengeBody = new TextEncoder().encode(challengeRaw ?? JSON.stringify(challenge));
+      const result = await verifyAuthorizationChallenge(challengeBody, candidates, { now });
       if (!result.ok) return { result: "reject", reason: result.reason };
       // On accept, also derive the grantId so a vector can pin it: the answering
       // identity assertion adopts exactly this id as its grantId.
@@ -210,18 +267,24 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     }
     case "jcs-number": {
       try {
-        const parsed = JSON.parse(input.bodyRaw as string);
+        // Through the signed-body gate, not a bare JSON.parse: the raw-text
+        // rules (UTF-8, lone surrogates, out-of-range number literals) run
+        // before parsing on a real signed body, and one of them decides a case
+        // in this category that the value profile cannot see.
+        const parsed = parseSignedBodyBytes(new TextEncoder().encode(input.bodyRaw as string));
         return { result: "accept", canonicalString: jcsCanonicalize(parsed) };
       } catch {
         return { result: "reject" };
       }
     }
     case "key-rotation": {
-      const { signInput, signature, keys, hintKeyId } = input as {
+      const { signInput, signature, keys, hintKeyId, liveAuth, liveAuthAllowRetired } = input as {
         signInput: Parameters<typeof verifyInkSignatureWithKeys>[0];
         signature: string;
         keys: Array<{ keyId: string; publicKeyHex: string; status: CandidateKey["status"]; validFrom?: string; validUntil?: string; revokedAt?: string }>;
         hintKeyId?: string;
+        liveAuth?: boolean;
+        liveAuthAllowRetired?: boolean;
       };
       const candidates: CandidateKey[] = keys.map((k) => ({
         keyId: k.keyId,
@@ -231,6 +294,33 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         validUntil: k.validUntil,
         revokedAt: k.revokedAt,
       }));
+      if (liveAuth) {
+        // Live transport auth runs the production middleware, not the bare
+        // primitive, so the retired-key default of §3.3 is exercised where it
+        // actually lives. The vector timestamps are fixed, so the clock the
+        // freshness check reads is pinned to the message instant; nothing else
+        // about the middleware is stubbed.
+        const messageMs = parseInkTimestampMs(signInput.timestamp);
+        const realNow = Date.now;
+        Date.now = () => messageMs ?? realNow();
+        try {
+          const auth = await verifyInkAuth({
+            authHeader: buildAuthHeader(signature, hintKeyId),
+            method: signInput.method,
+            path: signInput.path,
+            recipientAgentId: signInput.recipientDid,
+            body: signInput.body as Record<string, unknown>,
+            resolveKeySet: () => candidates,
+            requireActiveKey: liveAuthAllowRetired ? false : undefined,
+            nonceStore: "deferred",
+          });
+          return auth.valid
+            ? { result: "accept", keyStatus: auth.keyStatus, keyId: auth.keyId }
+            : { result: "reject", reason: auth.error };
+        } finally {
+          Date.now = realNow;
+        }
+      }
       const r = await verifyInkSignatureWithKeys(signInput, signature, candidates, hintKeyId);
       return { result: r.verified ? "accept" : "reject", keyStatus: r.keyStatus, keyId: r.keyId };
     }
@@ -245,6 +335,10 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     }
     case "jcs-string-safety": {
       const reject = containsLoneSurrogateEscape(input.bodyRaw as string);
+      return { result: reject ? "reject" : "accept" };
+    }
+    case "signed-body-member-name": {
+      const reject = containsEscapedMemberName(input.bodyRaw as string);
       return { result: reject ? "reject" : "accept" };
     }
     case "signed-body-utf8": {
@@ -413,13 +507,31 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       if (selected === undefined) return reject;
       // 3. request agreement
       const reqEnv = t.request.signInput.body as Record<string, unknown>;
+      // 3a. envelope structure (§3.1): every intent envelope carries protocol,
+      // id, correlationId, createdAt, from, to, intent, payload and signature,
+      // and no unknown top-level member. A receiver validates this before it
+      // spends any signature work, so the transcript pins it here.
+      if (!MessageEnvelopeSchema.safeParse(reqEnv).success) return reject;
       if (reqEnv.protocol !== selected) return reject;
       if (reqEnv.intent !== "connection_request") return reject;
       if (!ConnectionRequestPayloadSchema.safeParse(reqEnv.payload).success) return reject;
       if (t.request.signInput.timestamp !== reqEnv.timestamp) return reject;
-      // 4. request signature
+      // 3b. endpoint binding: the signed PATH is the path component of the
+      // card's endpoint. INK reserves no fixed inbound path, so the card is
+      // the only thing binding sender and receiver to one spelling.
+      let cardPath: string;
+      try {
+        cardPath = new URL(fetched.card.endpoint).pathname;
+      } catch {
+        return reject;
+      }
+      if (t.request.signInput.path !== cardPath) return reject;
+      // 4. request signatures: the §3.3 transport signature over the delivered
+      // body, and the §3.6 body signature the envelope carries, both against the
+      // sender's key.
       const reqOk = await verifyInkSignature(t.request.signInput, t.request.signature, hexToBytes(t.request.senderPublicKeyHex));
       if (!reqOk) return reject;
+      if (!(await verifyMessage(reqEnv, hexToBytes(t.request.senderPublicKeyHex)))) return reject;
       // 5. replay / freshness
       const replay = checkReplay({
         messageTimestamp: reqEnv.timestamp as string,
@@ -430,14 +542,16 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       if (!replay.accepted) return reject;
       // 6. response agreement
       const respEnv = t.response.signInput.body as Record<string, unknown>;
+      if (!MessageEnvelopeSchema.safeParse(respEnv).success) return reject;
       if (respEnv.protocol !== selected) return reject;
       if (respEnv.intent !== "connection_response") return reject;
       const respPayload = ConnectionResponsePayloadSchema.safeParse(respEnv.payload);
       if (!respPayload.success || respPayload.data.status !== "accepted") return reject;
       if (t.response.signInput.timestamp !== respEnv.timestamp) return reject;
-      // 7. response signature
+      // 7. response signatures, transport and body, against the receiver's key.
       const respOk = await verifyInkSignature(t.response.signInput, t.response.signature, hexToBytes(t.response.receiverPublicKeyHex));
       if (!respOk) return reject;
+      if (!(await verifyMessage(respEnv, hexToBytes(t.response.receiverPublicKeyHex)))) return reject;
       return { result: "accept", canonicalString: selected };
     }
     default:
@@ -481,6 +595,20 @@ describe("ink/1 conformance vectors", () => {
       for (const c of doc.cases) {
         it(`${c.caseId}: ${c.description}`, async () => {
           const actual = await evaluate(doc.category, c.input);
+          if (c.optionalBehavior !== undefined) {
+            const branch = OPTIONAL_BEHAVIOR_POLICY[c.optionalBehavior.id];
+            // An undeclared optional behavior is a drift failure, not a pass:
+            // an implementation must state which branch it takes.
+            expect(branch, `${c.caseId}: undeclared optional behavior ${c.optionalBehavior.id}`).toBeDefined();
+            expect(c.optionalBehavior.alternative, c.caseId).not.toBe(c.expect.result);
+            if (branch === "alternative") {
+              // This implementation takes the other conformant branch: the
+              // outcome is pinned to the alternative and the reference's
+              // reason/audit expectations do not apply.
+              expect(actual.result, c.caseId).toBe(c.optionalBehavior.alternative);
+              return;
+            }
+          }
           expect(actual.result, c.caseId).toBe(c.expect.result);
           if (c.expect.reason !== undefined) {
             expect(actual.reason, c.caseId).toBe(c.expect.reason);
@@ -516,6 +644,29 @@ describe("ink/1 conformance vectors", () => {
       }
     });
   }
+
+  // Only the runners that consult OPTIONAL_BEHAVIOR_POLICY can honor the tag.
+  // Tagging a case in any other category would silently pin one branch again, so
+  // the honoring set is frozen here and grows only with a runner that reads it.
+  const OPTIONAL_BEHAVIOR_CATEGORIES = new Set(["agent-card-signature", "agent-card-signature-phase-c"]);
+
+  it("declares every optional behavior in the corpus and tags it only where a runner honors it", () => {
+    const seen = new Set<string>();
+    for (const doc of docs) {
+      for (const c of doc.cases) {
+        if (c.optionalBehavior === undefined) continue;
+        expect(OPTIONAL_BEHAVIOR_CATEGORIES.has(doc.category), `${doc.category}/${c.caseId}`).toBe(true);
+        expect(OPTIONAL_BEHAVIOR_POLICY[c.optionalBehavior.id], c.caseId).toBeDefined();
+        expect(c.optionalBehavior.alternative, c.caseId).not.toBe(c.expect.result);
+        seen.add(c.optionalBehavior.id);
+      }
+    }
+    // No stale declaration either: a policy entry with no case left in the
+    // corpus is a decision recorded about nothing.
+    for (const id of Object.keys(OPTIONAL_BEHAVIOR_POLICY)) {
+      expect(seen.has(id), id).toBe(true);
+    }
+  });
 
   it("covers the kernel categories", () => {
     const categories = new Set(docs.map((d) => d.category));

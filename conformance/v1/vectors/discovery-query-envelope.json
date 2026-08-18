@@ -881,6 +881,74 @@
         "result": "reject",
         "reason": "expired"
       }
+    },
+    {
+      "caseId": "raw-envelope-accepts",
+      "description": "The same signed envelope presented as raw wire text verifies: whitespace between tokens is legal JSON and vanishes at canonicalization, so the signature still covers it.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelopeRaw": "{  \"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.discovery_query\",\"from\":\"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"to\":\"did:web:directory.example\",\"nonce\":\"conformance-discovery-nonce-1\",\"timestamp\":\"2026-07-09T00:00:00.000Z\",\"query\":{\"tags\":[\"go\",\"typescript\"],\"scope\":\"public\",\"limit\":10},\"signature\":\"WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg\"}",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "shadowed-number-literal-rejects",
+      "description": "An out-of-range number literal shadowed by a later duplicate member rejects. Member semantics are last-wins, so the literal never reaches the parsed envelope and the signature over the canonical form still verifies; only a gate on the raw text sees it, and without one two implementations admit different byte strings for the same signed envelope.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelopeRaw": "{\"protocol\":1e309,\"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.discovery_query\",\"from\":\"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"to\":\"did:web:directory.example\",\"nonce\":\"conformance-discovery-nonce-1\",\"timestamp\":\"2026-07-09T00:00:00.000Z\",\"query\":{\"tags\":[\"go\",\"typescript\"],\"scope\":\"public\",\"limit\":10},\"signature\":\"WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg\"}",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "live-number-literal-rejects",
+      "description": "An out-of-range number literal in a live member rejects at the raw gate, before the schema can rule on the Infinity a lenient parser would hand it.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelopeRaw": "{\"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.discovery_query\",\"from\":\"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"to\":\"did:web:directory.example\",\"nonce\":\"conformance-discovery-nonce-1\",\"timestamp\":\"2026-07-09T00:00:00.000Z\",\"query\":{\"tags\":[\"go\",\"typescript\"],\"scope\":\"public\",\"limit\":1e309},\"signature\":\"WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg\"}",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "shadowed-underflow-accepts",
+      "description": "An underflowing exponent is in range: every IEEE-754 parser decodes 1e-400 to 0, so a shadowed one is not gated and the envelope behind it verifies. The gate is a range test, not a ban on exponents.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelopeRaw": "{\"protocol\":1e-400,\"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.discovery_query\",\"from\":\"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"to\":\"did:web:directory.example\",\"nonce\":\"conformance-discovery-nonce-1\",\"timestamp\":\"2026-07-09T00:00:00.000Z\",\"query\":{\"tags\":[\"go\",\"typescript\"],\"scope\":\"public\",\"limit\":10},\"signature\":\"WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg\"}",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "raw-lone-surrogate-escape-rejects",
+      "description": "A lone UTF-16 surrogate escape in the raw text rejects structurally, before the signature: a parser that rewrites it to U+FFFD would canonicalize something other than what was sent.",
+      "input": {
+        "audience": "did:web:directory.example",
+        "now": "2026-07-09T00:00:01.000Z",
+        "envelopeRaw": "{\"protocol\":\"ink/0.1\",\"type\":\"network.tulpa.discovery_query\",\"from\":\"tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"to\":\"did:web:directory.example\",\"nonce\":\"\\ud800conformance-discovery-nonce-1\",\"timestamp\":\"2026-07-09T00:00:00.000Z\",\"query\":{\"tags\":[\"go\",\"typescript\"],\"scope\":\"public\",\"limit\":10},\"signature\":\"WvmZcVIqP0Vut4jr3J9ufg0JxJEq6Wh5xO_7DNfESIAo5tUn9yO7Y7qmumIapOpmSntGHFUGf_zrM9TzMXMtBg\"}",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
     }
   ]
 }
