@@ -179,4 +179,18 @@ describe("the body-signature path refuses an unsafe key", () => {
       signMessage({ protocol: "ink/0.1", note: "line\nbreak" } as Record<string, unknown>, priv),
     ).resolves.toBeTypeOf("string");
   });
+
+  it("fails closed rather than throwing when verifying an unsafe key", async () => {
+    // The verify half of the guard. It cannot be isolated by comparing against
+    // a passing verification, because the key is part of the signed content, so
+    // any body carrying it fails on the signature too. What IS specific to the
+    // guard is the manner of failure: it sits before canonicalize, so an unsafe
+    // key returns false instead of escaping as an exception from the
+    // canonicalizer. A caller that hands a parsed object straight to
+    // verifyMessage has no raw text to gate, and a throw there would surface as
+    // a server fault rather than a rejected message.
+    const pub = new Uint8Array(32).fill(3);
+    const body = { protocol: "ink/0.1", note: "ok", signature: "x".repeat(86), [KEY]: 1 };
+    await expect(verifyMessage(body as Record<string, unknown>, pub)).resolves.toBe(false);
+  });
 });
