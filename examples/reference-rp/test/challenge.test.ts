@@ -8,6 +8,16 @@ import { describe, it, expect } from "vitest";
 import { verifyAuthorizationChallenge } from "@adastracomputing/ink";
 import { createIdentity, activeSigningKeys, buildChallenge, completionUri } from "../src/index.ts";
 
+/**
+ * Serialize an artifact to the bytes a verifier checks. The wire form is bytes
+ * and the signature covers those bytes, so every verifier takes them rather
+ * than a parsed object.
+ */
+function artifactBytes(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+
 describe("RP challenge", () => {
   it("verifies against the RP's active signing key", async () => {
     const rp = await createIdentity("rp.example");
@@ -18,7 +28,7 @@ describe("RP challenge", () => {
       requestedScope: ["profile.read"],
       now,
     });
-    const result = await verifyAuthorizationChallenge(challenge, activeSigningKeys(rp), {
+    const result = await verifyAuthorizationChallenge(artifactBytes(challenge), activeSigningKeys(rp), {
       now: new Date(now + 1000).toISOString(),
     });
     expect(result.ok).toBe(true);
@@ -30,7 +40,7 @@ describe("RP challenge", () => {
     const challenge = await buildChallenge({ rp, redirectUri: completionUri(rp, "/callback") });
     const flipped = challenge.nonce[0] === "0" ? "1" : "0";
     const tampered = { ...challenge, nonce: flipped + challenge.nonce.slice(1) };
-    const result = await verifyAuthorizationChallenge(tampered, activeSigningKeys(rp), {
+    const result = await verifyAuthorizationChallenge(artifactBytes(tampered), activeSigningKeys(rp), {
       now: new Date().toISOString(),
     });
     expect(result.ok).toBe(false);
@@ -44,7 +54,7 @@ describe("RP challenge", () => {
     // The card resolves the honest RP key, but the challenge below carries the
     // real RP's fields; verifying it against the impostor's card fails the
     // signature, since the impostor did not sign it.
-    const result = await verifyAuthorizationChallenge(challenge, activeSigningKeys(impostor), {
+    const result = await verifyAuthorizationChallenge(artifactBytes(challenge), activeSigningKeys(impostor), {
       now: new Date().toISOString(),
     });
     expect(result.ok).toBe(false);
@@ -60,7 +70,7 @@ describe("RP challenge", () => {
       now,
       windowMs: 60_000,
     });
-    const result = await verifyAuthorizationChallenge(challenge, activeSigningKeys(rp), {
+    const result = await verifyAuthorizationChallenge(artifactBytes(challenge), activeSigningKeys(rp), {
       now: new Date(now + 120_000).toISOString(),
     });
     expect(result.ok).toBe(false);
