@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { containsEscapedMemberName, hasUnsafeObjectKey } from "./member-name.js";
 import { parseSignedBodyText, ParseSignedBodyError } from "./parse-signed-body.js";
+import { signMessage, verifyMessage } from "./sign.js";
 
 describe("the V8 defect this rule exists for", () => {
   // Not a test of our code: a characterisation of the runtime, so that if a
@@ -150,5 +151,46 @@ describe("hasUnsafeObjectKey", () => {
       expect(hasUnsafeObjectKey({ [key]: 1 })).toBe(true);
       expect(containsEscapedMemberName(JSON.stringify({ [key]: 1 }))).toBe(true);
     }
+  });
+});
+
+describe("the body-signature path refuses an unsafe key", () => {
+  // §3.6 canonicalizes in sign.ts, not through jcsCanonicalize, so it needed
+  // the check separately. Go's JCSCanonicalize already refused these, so
+  // without this the two implementations disagreed about what can be signed,
+  // which is the divergence this whole rule exists to remove.
+  const KEY = 'a"b';
+  const priv = new Uint8Array(32).fill(7);
+
+  it("refuses to sign an object whose key would need escaping", async () => {
+    await expect(
+      signMessage({ protocol: "ink/0.1", [KEY]: 1 } as Record<string, unknown>, priv),
+    ).rejects.toThrow(/object key/);
+  });
+
+  it("refuses to sign a nested unsafe key", async () => {
+    await expect(
+      signMessage({ protocol: "ink/0.1", a: { "b\\c": 1 } } as Record<string, unknown>, priv),
+    ).rejects.toThrow(/object key/);
+  });
+
+  it("still signs an object whose keys are all safe", async () => {
+    await expect(
+      signMessage({ protocol: "ink/0.1", note: "line\nbreak" } as Record<string, unknown>, priv),
+    ).resolves.toBeTypeOf("string");
+  });
+
+  it("fails closed rather than throwing when verifying an unsafe key", async () => {
+    // The verify half of the guard. It cannot be isolated by comparing against
+    // a passing verification, because the key is part of the signed content, so
+    // any body carrying it fails on the signature too. What IS specific to the
+    // guard is the manner of failure: it sits before canonicalize, so an unsafe
+    // key returns false instead of escaping as an exception from the
+    // canonicalizer. A caller that hands a parsed object straight to
+    // verifyMessage has no raw text to gate, and a throw there would surface as
+    // a server fault rather than a rejected message.
+    const pub = new Uint8Array(32).fill(3);
+    const body = { protocol: "ink/0.1", note: "ok", signature: "x".repeat(86), [KEY]: 1 };
+    await expect(verifyMessage(body as Record<string, unknown>, pub)).resolves.toBe(false);
   });
 });
