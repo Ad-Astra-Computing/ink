@@ -198,89 +198,89 @@ describe("Authorization header length caps", () => {
 
 describe("fetchAgentCard rejects unsafe baseUrl values", () => {
   it("rejects non-https schemes", async () => {
-    expect(await fetchAgentCard("tulpa:zX", "http://example.com")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "ftp://example.com")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "file:///etc/passwd")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "javascript:alert(1)")).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "http://example.com", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "ftp://example.com", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "file:///etc/passwd", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "javascript:alert(1)", { requireSafeFetch: false })).toBeNull();
   });
 
   it("rejects baseUrls containing userinfo", async () => {
-    expect(await fetchAgentCard("tulpa:zX", "https://user:pass@example.com")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://attacker@trusted.example.com")).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://user:pass@example.com", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://attacker@trusted.example.com", { requireSafeFetch: false })).toBeNull();
   });
 
   it("rejects malformed baseUrls", async () => {
-    expect(await fetchAgentCard("tulpa:zX", "not a url")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "")).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "not a url", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "", { requireSafeFetch: false })).toBeNull();
   });
 
   it("rejects loopback / private / link-local hosts by default (SSRF defense)", async () => {
-    expect(await fetchAgentCard("tulpa:zX", "https://localhost")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://localhost.")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://x.localhost")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://127.0.0.1")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://10.0.0.1")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://192.168.1.1")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://172.16.0.1")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://169.254.169.254")).toBeNull(); // cloud metadata
-    expect(await fetchAgentCard("tulpa:zX", "https://[::1]")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://[fe80::1]")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://[fd12:3456:789a::1]")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://2130706433")).toBeNull(); // 127.0.0.1 as decimal
+    expect(await fetchAgentCard("tulpa:zX", "https://localhost", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://localhost.", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://x.localhost", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://127.0.0.1", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://10.0.0.1", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://192.168.1.1", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://172.16.0.1", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://169.254.169.254", { requireSafeFetch: false })).toBeNull(); // cloud metadata
+    expect(await fetchAgentCard("tulpa:zX", "https://[::1]", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://[fe80::1]", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://[fd12:3456:789a::1]", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://2130706433", { requireSafeFetch: false })).toBeNull(); // 127.0.0.1 as decimal
     // WHATWG URL canonicalizes [::ffff:127.0.0.1] to [::ffff:7f00:1]
-    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:127.0.0.1]")).toBeNull();
-    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:7f00:1]")).toBeNull(); // hex form of 127.0.0.1
-    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:c0a8:1]")).toBeNull(); // 192.168.0.1 in hex
-    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:a9fe:a9fe]")).toBeNull(); // 169.254.169.254 cloud metadata in hex
+    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:127.0.0.1]", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:7f00:1]", { requireSafeFetch: false })).toBeNull(); // hex form of 127.0.0.1
+    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:c0a8:1]", { requireSafeFetch: false })).toBeNull(); // 192.168.0.1 in hex
+    expect(await fetchAgentCard("tulpa:zX", "https://[::ffff:a9fe:a9fe]", { requireSafeFetch: false })).toBeNull(); // 169.254.169.254 cloud metadata in hex
     // Documented and reserved IPv6 ranges are blocked
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001:db8::1]")).toBeNull(); // documentation
-    expect(await fetchAgentCard("tulpa:zX", "https://[100::1]")).toBeNull();      // discard-only
-    expect(await fetchAgentCard("tulpa:zX", "https://[ff00::1]")).toBeNull();     // multicast
-    expect(await fetchAgentCard("tulpa:zX", "https://[fc00::1]")).toBeNull();     // ULA
-    expect(await fetchAgentCard("tulpa:zX", "https://[64:ff9b::1]")).toBeNull();  // NAT64 well-known
-    expect(await fetchAgentCard("tulpa:zX", "https://[64:ff9b:1::1]")).toBeNull(); // local IPv4/IPv6 translation
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001:db8::1]", { requireSafeFetch: false })).toBeNull(); // documentation
+    expect(await fetchAgentCard("tulpa:zX", "https://[100::1]", { requireSafeFetch: false })).toBeNull();      // discard-only
+    expect(await fetchAgentCard("tulpa:zX", "https://[ff00::1]", { requireSafeFetch: false })).toBeNull();     // multicast
+    expect(await fetchAgentCard("tulpa:zX", "https://[fc00::1]", { requireSafeFetch: false })).toBeNull();     // ULA
+    expect(await fetchAgentCard("tulpa:zX", "https://[64:ff9b::1]", { requireSafeFetch: false })).toBeNull();  // NAT64 well-known
+    expect(await fetchAgentCard("tulpa:zX", "https://[64:ff9b:1::1]", { requireSafeFetch: false })).toBeNull(); // local IPv4/IPv6 translation
     // 6to4 tunneling private v4 via 2002::/16
-    expect(await fetchAgentCard("tulpa:zX", "https://[2002:c0a8:0101::1]")).toBeNull(); // 192.168.1.1 over 6to4
-    expect(await fetchAgentCard("tulpa:zX", "https://[2002:7f00:0001::1]")).toBeNull(); // 127.0.0.1 over 6to4
-    expect(await fetchAgentCard("tulpa:zX", "https://[2002:a9fe:a9fe::1]")).toBeNull(); // 169.254.169.254 over 6to4
+    expect(await fetchAgentCard("tulpa:zX", "https://[2002:c0a8:0101::1]", { requireSafeFetch: false })).toBeNull(); // 192.168.1.1 over 6to4
+    expect(await fetchAgentCard("tulpa:zX", "https://[2002:7f00:0001::1]", { requireSafeFetch: false })).toBeNull(); // 127.0.0.1 over 6to4
+    expect(await fetchAgentCard("tulpa:zX", "https://[2002:a9fe:a9fe::1]", { requireSafeFetch: false })).toBeNull(); // 169.254.169.254 over 6to4
     // Additional 2001::/16 special-use blocks
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001::1]")).toBeNull();      // Teredo (2001::/32)
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001:2::1]")).toBeNull();    // BMWG benchmarking
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001:10::1]")).toBeNull();   // ORCHID deprecated
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001:1f::1]")).toBeNull();   // ORCHID range
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001:20::1]")).toBeNull();   // ORCHIDv2
-    expect(await fetchAgentCard("tulpa:zX", "https://[2001:2f::1]")).toBeNull();   // ORCHIDv2 range
-    expect(await fetchAgentCard("tulpa:zX", "https://[100:0:0:1::1]")).toBeNull(); // dummy IPv6 prefix RFC 7600
-    expect(await fetchAgentCard("tulpa:zX", "https://[3fff::1]")).toBeNull();      // BMWG IPv6 benchmarking
-    expect(await fetchAgentCard("tulpa:zX", "https://[3fff:ffff::1]")).toBeNull(); // BMWG range
-    expect(await fetchAgentCard("tulpa:zX", "https://[5f00::1]")).toBeNull();      // SRv6 SIDs
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001::1]", { requireSafeFetch: false })).toBeNull();      // Teredo (2001::/32)
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001:2::1]", { requireSafeFetch: false })).toBeNull();    // BMWG benchmarking
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001:10::1]", { requireSafeFetch: false })).toBeNull();   // ORCHID deprecated
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001:1f::1]", { requireSafeFetch: false })).toBeNull();   // ORCHID range
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001:20::1]", { requireSafeFetch: false })).toBeNull();   // ORCHIDv2
+    expect(await fetchAgentCard("tulpa:zX", "https://[2001:2f::1]", { requireSafeFetch: false })).toBeNull();   // ORCHIDv2 range
+    expect(await fetchAgentCard("tulpa:zX", "https://[100:0:0:1::1]", { requireSafeFetch: false })).toBeNull(); // dummy IPv6 prefix RFC 7600
+    expect(await fetchAgentCard("tulpa:zX", "https://[3fff::1]", { requireSafeFetch: false })).toBeNull();      // BMWG IPv6 benchmarking
+    expect(await fetchAgentCard("tulpa:zX", "https://[3fff:ffff::1]", { requireSafeFetch: false })).toBeNull(); // BMWG range
+    expect(await fetchAgentCard("tulpa:zX", "https://[5f00::1]", { requireSafeFetch: false })).toBeNull();      // SRv6 SIDs
     // Additional IANA special-use IPv4 blocks
-    expect(await fetchAgentCard("tulpa:zX", "https://100.64.0.1")).toBeNull(); // CGNAT
-    expect(await fetchAgentCard("tulpa:zX", "https://100.127.0.1")).toBeNull(); // CGNAT
-    expect(await fetchAgentCard("tulpa:zX", "https://198.18.0.1")).toBeNull(); // benchmarking
-    expect(await fetchAgentCard("tulpa:zX", "https://192.0.2.1")).toBeNull(); // TEST-NET-1
-    expect(await fetchAgentCard("tulpa:zX", "https://198.51.100.1")).toBeNull(); // TEST-NET-2
-    expect(await fetchAgentCard("tulpa:zX", "https://203.0.113.1")).toBeNull(); // TEST-NET-3
-    expect(await fetchAgentCard("tulpa:zX", "https://224.0.0.1")).toBeNull(); // multicast
-    expect(await fetchAgentCard("tulpa:zX", "https://239.255.255.250")).toBeNull(); // SSDP multicast
-    expect(await fetchAgentCard("tulpa:zX", "https://240.0.0.1")).toBeNull(); // reserved
-    expect(await fetchAgentCard("tulpa:zX", "https://255.255.255.255")).toBeNull(); // broadcast
-    expect(await fetchAgentCard("tulpa:zX", "https://192.88.99.1")).toBeNull(); // deprecated 6to4
+    expect(await fetchAgentCard("tulpa:zX", "https://100.64.0.1", { requireSafeFetch: false })).toBeNull(); // CGNAT
+    expect(await fetchAgentCard("tulpa:zX", "https://100.127.0.1", { requireSafeFetch: false })).toBeNull(); // CGNAT
+    expect(await fetchAgentCard("tulpa:zX", "https://198.18.0.1", { requireSafeFetch: false })).toBeNull(); // benchmarking
+    expect(await fetchAgentCard("tulpa:zX", "https://192.0.2.1", { requireSafeFetch: false })).toBeNull(); // TEST-NET-1
+    expect(await fetchAgentCard("tulpa:zX", "https://198.51.100.1", { requireSafeFetch: false })).toBeNull(); // TEST-NET-2
+    expect(await fetchAgentCard("tulpa:zX", "https://203.0.113.1", { requireSafeFetch: false })).toBeNull(); // TEST-NET-3
+    expect(await fetchAgentCard("tulpa:zX", "https://224.0.0.1", { requireSafeFetch: false })).toBeNull(); // multicast
+    expect(await fetchAgentCard("tulpa:zX", "https://239.255.255.250", { requireSafeFetch: false })).toBeNull(); // SSDP multicast
+    expect(await fetchAgentCard("tulpa:zX", "https://240.0.0.1", { requireSafeFetch: false })).toBeNull(); // reserved
+    expect(await fetchAgentCard("tulpa:zX", "https://255.255.255.255", { requireSafeFetch: false })).toBeNull(); // broadcast
+    expect(await fetchAgentCard("tulpa:zX", "https://192.88.99.1", { requireSafeFetch: false })).toBeNull(); // deprecated 6to4
     // 24-bit special-use blocks that now use full-octet checks
-    expect(await fetchAgentCard("tulpa:zX", "https://192.31.196.1")).toBeNull(); // AS112-v4
-    expect(await fetchAgentCard("tulpa:zX", "https://192.52.193.1")).toBeNull(); // AMT
-    expect(await fetchAgentCard("tulpa:zX", "https://192.175.48.1")).toBeNull(); // Direct Delegation AS112
+    expect(await fetchAgentCard("tulpa:zX", "https://192.31.196.1", { requireSafeFetch: false })).toBeNull(); // AS112-v4
+    expect(await fetchAgentCard("tulpa:zX", "https://192.52.193.1", { requireSafeFetch: false })).toBeNull(); // AMT
+    expect(await fetchAgentCard("tulpa:zX", "https://192.175.48.1", { requireSafeFetch: false })).toBeNull(); // Direct Delegation AS112
     // Negative controls: addresses adjacent to special-use blocks must be allowed
     let called = false;
     const orig = globalThis.fetch;
     try {
       globalThis.fetch = (async () => { called = true; return new Response("{}", { status: 404 }); }) as typeof fetch;
       // 192.31.197.0 is one /24 over from AS112-v4 — should be allowed
-      await fetchAgentCard("tulpa:zX", "https://192.31.197.1");
+      await fetchAgentCard("tulpa:zX", "https://192.31.197.1", { requireSafeFetch: false });
       expect(called).toBe(true);
       called = false;
       // 192.0.3.0 is just past TEST-NET-1
-      await fetchAgentCard("tulpa:zX", "https://192.0.3.1");
+      await fetchAgentCard("tulpa:zX", "https://192.0.3.1", { requireSafeFetch: false });
       expect(called).toBe(true);
     } finally {
       globalThis.fetch = orig;
@@ -293,11 +293,11 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
     try {
       globalThis.fetch = (async () => { called = true; return new Response("{}", { status: 404 }); }) as typeof fetch;
       // Cloudflare's public IPv6 (2606:4700::6810:84e5) — must be allowed.
-      await fetchAgentCard("tulpa:zX", "https://[2606:4700::6810:84e5]");
+      await fetchAgentCard("tulpa:zX", "https://[2606:4700::6810:84e5]", { requireSafeFetch: false });
       expect(called).toBe(true);
       called = false;
       // Public Google DNS over v6
-      await fetchAgentCard("tulpa:zX", "https://[2001:4860:4860::8888]");
+      await fetchAgentCard("tulpa:zX", "https://[2001:4860:4860::8888]", { requireSafeFetch: false });
       expect(called).toBe(true);
     } finally {
       globalThis.fetch = orig;
@@ -309,7 +309,7 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
     const orig = globalThis.fetch;
     try {
       globalThis.fetch = (async () => { called = true; return new Response("{}", { status: 404 }); }) as typeof fetch;
-      await fetchAgentCard("tulpa:zX", "https://127.0.0.1", { allowPrivateHosts: true });
+      await fetchAgentCard("tulpa:zX", "https://127.0.0.1", { allowPrivateHosts: true, requireSafeFetch: false });
       expect(called).toBe(true);
     } finally {
       globalThis.fetch = orig;
@@ -317,10 +317,10 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
   });
 
   it("rejects agentId values that would normalise to dot-segments", async () => {
-    expect(await fetchAgentCard(".", "https://example.com")).toBeNull();
-    expect(await fetchAgentCard("..", "https://example.com")).toBeNull();
-    expect(await fetchAgentCard("foo/../bar", "https://example.com")).toBeNull();
-    expect(await fetchAgentCard("foo\\..\\bar", "https://example.com")).toBeNull();
+    expect(await fetchAgentCard(".", "https://example.com", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("..", "https://example.com", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("foo/../bar", "https://example.com", { requireSafeFetch: false })).toBeNull();
+    expect(await fetchAgentCard("foo\\..\\bar", "https://example.com", { requireSafeFetch: false })).toBeNull();
   });
 
   it("runtime-validates the card via Zod schema (rejects malformed shapes)", async () => {
@@ -331,7 +331,7 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
         JSON.stringify({ protocol: "ink/0.1", agentId: "tulpa:zX" }),
         { status: 200 },
       )) as typeof fetch;
-      expect(await fetchAgentCard("tulpa:zX", "https://example.com")).toBeNull();
+      expect(await fetchAgentCard("tulpa:zX", "https://example.com", { requireSafeFetch: false })).toBeNull();
     } finally {
       globalThis.fetch = orig;
     }
@@ -364,7 +364,7 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
       // application/json so the response passes the discovery content-type gate
       // and the request reaches the endpoint-host SSRF check under test.
       globalThis.fetch = (async () => new Response(JSON.stringify(evil), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
-      expect(await fetchAgentCard("tulpa:zVictim2", "https://example.com")).toBeNull();
+      expect(await fetchAgentCard("tulpa:zVictim2", "https://example.com", { requireSafeFetch: false })).toBeNull();
     } finally {
       globalThis.fetch = orig;
     }
@@ -387,7 +387,7 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
       // application/json so the response passes the discovery content-type gate
       // and the request reaches the endpoint-host SSRF check under test.
       globalThis.fetch = (async () => new Response(JSON.stringify(evil), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
-      expect(await fetchAgentCard("tulpa:zVictim", "https://example.com")).toBeNull();
+      expect(await fetchAgentCard("tulpa:zVictim", "https://example.com", { requireSafeFetch: false })).toBeNull();
     } finally {
       globalThis.fetch = orig;
     }
@@ -413,7 +413,7 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
         capturedInit = init;
         return new Response("{}", { status: 200 });
       }) as typeof fetch;
-      await fetchAgentCard("tulpa:zX", "https://example.com");
+      await fetchAgentCard("tulpa:zX", "https://example.com", { requireSafeFetch: false });
       expect(capturedInit?.redirect).toBe("manual");
     } finally {
       globalThis.fetch = orig;
@@ -431,7 +431,7 @@ describe("fetchAgentCard rejects unsafe baseUrl values", () => {
       // Raw baseUrl contains URL-encoded CRLF in the path. The parsed URL
       // normalizes; the constructed fetch URL must not carry the original
       // raw bytes that could be interpreted as headers by a downstream proxy.
-      await fetchAgentCard("tulpa:zX", "https://example.com/%0d%0aX-Injected:%20bad");
+      await fetchAgentCard("tulpa:zX", "https://example.com/%0d%0aX-Injected:%20bad", { requireSafeFetch: false });
       // The actual fetch URL was built from `parsedBase.origin + normalized path`.
       // It must not contain literal CR/LF bytes (the WHATWG URL serializer
       // would percent-encode them in the pathname).
@@ -469,7 +469,7 @@ describe("fetchAgentCard binds result to requested agentId", () => {
     }) as typeof fetch;
 
     try {
-      const card = await fetchAgentCard(requestedId, "https://example.com");
+      const card = await fetchAgentCard(requestedId, "https://example.com", { requireSafeFetch: false });
       expect(card).toBeNull();
     } finally {
       globalThis.fetch = originalFetch;
@@ -494,7 +494,7 @@ describe("fetchAgentCard binds result to requested agentId", () => {
     }) as typeof fetch;
 
     try {
-      const card = await fetchAgentCard(requestedId, "https://example.com");
+      const card = await fetchAgentCard(requestedId, "https://example.com", { requireSafeFetch: false });
       expect(card).not.toBeNull();
     } finally {
       globalThis.fetch = originalFetch;

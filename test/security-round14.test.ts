@@ -187,6 +187,57 @@ describe("pre-canonicalize bound check rejects pathological bodies", () => {
   });
 });
 
+describe("fetchAgentCard: requireSafeFetch is on by default", () => {
+  it("returns null and never touches the network when no options are supplied at all", async () => {
+    let called = false;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      const card = await fetchAgentCard("agent-id", "https://example.com");
+      expect(card).toBeNull();
+      expect(called).toBe(false);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("falls back to the ambient fetch only on an explicit requireSafeFetch: false opt-out", async () => {
+    let called = false;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
+    }) as typeof fetch;
+    try {
+      await fetchAgentCard("agent-id", "https://example.com", { requireSafeFetch: false });
+      expect(called).toBe(true);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+
+  it("an options object that omits requireSafeFetch still fails closed", async () => {
+    let called = false;
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () => {
+      called = true;
+      return new Response("{}", { status: 200 });
+    }) as typeof fetch;
+    try {
+      const card = await fetchAgentCard("agent-id", "https://example.com", {
+        allowPrivateHosts: true,
+      });
+      expect(card).toBeNull();
+      expect(called).toBe(false);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
+
 describe("fetchAgentCard: requireSafeFetch fails closed without a custom fetch", () => {
   it("returns null and never touches the network when requireSafeFetch is set and no fetch is supplied", async () => {
     let called = false;

@@ -417,7 +417,8 @@ func validateRotationChain(v interface{}) bool {
 	return true
 }
 
-// ValidateAgentCard validates the canonical .well-known/ink/agent.json document
+// ValidateAgentCard validates the Agent Card document served at the versioned
+// discovery path /ink/v1/<agentId>/agent.json (specs/ink-agent-card-discovery-fetch.md)
 // against AgentCardSchema (src/models/agent-card.ts). The card and its inner
 // objects are not strict (unknown keys are ignored) except the embedded profile
 // snapshot, which is strict. Endpoint fields use the pinned INK endpoint URL
