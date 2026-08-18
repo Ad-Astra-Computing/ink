@@ -18,8 +18,8 @@
 
 import {
   verifyAuthorizationGrant,
+  parseSignedBodyBytes,
   parseInkTimestampMs,
-  type AuthorizationGrant,
   type AuthorizationGrantReason,
 } from "@adastracomputing/ink";
 import type { Identity, Directory } from "./identity.ts";
@@ -59,7 +59,12 @@ export interface CompletionRequest {
   sessionId: string;
   /** The URL the grant was delivered to, checked against the challenge redirect. */
   completionUri: string;
-  grant: AuthorizationGrant;
+  /**
+   * The grant exactly as it arrived, in bytes. The signature covers the bytes,
+   * so the RP verifies those rather than a parsed object: anything that reparses
+   * or reserializes on the way in can change what is actually verified.
+   */
+  grantRaw: Uint8Array;
   /** The RP clock. Defaults to now. */
   now?: number;
 }
@@ -89,7 +94,19 @@ export interface CompletionRequest {
  */
 export async function completeSignIn(request: CompletionRequest): Promise<CompletionResult> {
   const nowMs = request.now ?? Date.now();
-  const { grant } = request;
+
+  // The issuer must be read before verification, because it selects the key to
+  // verify against. Reading it through the signed-body gate means a body the
+  // verifier would refuse cannot even reach the directory lookup. Every check
+  // after verification uses `verified.grant`, never this pre-verification read.
+  let issuerHint: string;
+  try {
+    const peeked = parseSignedBodyBytes(request.grantRaw) as { issuer?: unknown };
+    if (typeof peeked?.issuer !== "string") return { ok: false, reason: "grant:schema" };
+    issuerHint = peeked.issuer;
+  } catch {
+    return { ok: false, reason: "grant:schema" };
+  }
 
   // 1. Context binding. A completion that owns no live context is refused before
   // any signature work: the context expiring at the challenge's `expiresAt` is
@@ -115,7 +132,7 @@ export async function completeSignIn(request: CompletionRequest): Promise<Comple
   // 3. Issuer resolution. In production the RP fetches the issuer's Agent Card at
   // its derived origin under the private-hostname gate; here the directory stands
   // in. Either way an issuer the RP cannot resolve to a usable key is rejected.
-  const issuerKey = request.directory.resolve(grant.issuer);
+  const issuerKey = request.directory.resolve(issuerHint);
   if (issuerKey === null) {
     return { ok: false, reason: "issuer_unresolved" };
   }
@@ -124,7 +141,7 @@ export async function completeSignIn(request: CompletionRequest): Promise<Comple
   // (the confused-deputy defense) and to the seen set (replay). No presenter is
   // passed: over a browser redirect none is authenticated, so the grant is a
   // bearer artifact whose presentation the context binding in step 1 governs.
-  const verified = await verifyAuthorizationGrant(grant, issuerKey, {
+  const verified = await verifyAuthorizationGrant(request.grantRaw, issuerKey, {
     audience: request.rp.did,
     now: new Date(nowMs).toISOString(),
     seenGrants: request.store.seenGrants(),
@@ -132,6 +149,10 @@ export async function completeSignIn(request: CompletionRequest): Promise<Comple
   if (!verified.ok) {
     return { ok: false, reason: `grant:${verified.reason}` };
   }
+
+  // From here on the grant is the verified one, parsed by the verifier from the
+  // exact bytes it checked the signature over.
+  const grant = verified.grant;
 
   // 5. Profile acceptance checklist. These are RP-local rules the base verifier
   // does not know; each refuses the sign-in without a new wire reason.

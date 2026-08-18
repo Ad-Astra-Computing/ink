@@ -14,11 +14,17 @@ name: weekly-conformance
 # Recorded against the soak's corpus-greenness criterion in
 # governance/releases/1.0-readiness-evidence.md, which asks for a weekly re-run
 # at a pinned release tag. So a scheduled run verifies two commits: the default
-# branch head, and the highest released `v*` tag, which is the tag a soak
-# window pins. The ledger entry for a soak week is then a scheduled run nobody
-# had to remember to start. When both resolve to the same commit the work is
-# done once and labelled as covering both. A manual dispatch still verifies
-# exactly the one ref it is given.
+# branch head, and the highest released `v*` tag.
+#
+# The highest `v*` tag is NOT by itself a soak anchor. No soak window is open
+# while the conformance corpus is generated from the implementation it
+# validates, so this job re-verifying the newest tag is corpus-greenness
+# evidence and nothing more. When a window does open it will pin a specific
+# tag, and that pin lives in the readiness evidence, not in this heuristic.
+#
+# When both refs resolve to the same commit the work is done once and labelled
+# as covering both. A manual dispatch still verifies exactly the one ref it is
+# given.
 
 on:
   schedule:

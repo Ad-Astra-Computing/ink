@@ -8,6 +8,16 @@ import { describe, it, expect } from "vitest";
 import { completeSignIn, createIdentity } from "../src/index.ts";
 import { makeWorld, activeSigningKeys, buildChallenge, mintGrant, type World } from "./harness.ts";
 
+/**
+ * Serialize an artifact to the bytes a verifier checks. The wire form is bytes
+ * and the signature covers those bytes, so every verifier takes them rather
+ * than a parsed object.
+ */
+function artifactBytes(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+
 const AT = Date.parse("2026-07-17T12:00:00Z");
 
 /** Open a sign-in context in `world` for a challenge with the given options. */
@@ -30,7 +40,7 @@ describe("RP completion, happy path", () => {
   it("signs the user in when the assertion is honest", async () => {
     const world = await makeWorld();
     const challenge = await openContext(world);
-    const minted = await world.agent.respond(challenge, activeSigningKeys(world.rp), {
+    const minted = await world.agent.respond(artifactBytes(challenge), activeSigningKeys(world.rp), {
       consentedScope: ["profile.read"],
       now: AT,
     });
@@ -43,7 +53,7 @@ describe("RP completion, happy path", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant: minted.grant,
+      grantRaw: artifactBytes(minted.grant),
       now: AT + 1000,
     });
     expect(result.ok).toBe(true);
@@ -56,7 +66,7 @@ describe("RP completion, happy path", () => {
   it("signs in a bare identity.assert when the user declines every capability", async () => {
     const world = await makeWorld();
     const challenge = await openContext(world, { requestedScope: [] });
-    const minted = await world.agent.respond(challenge, activeSigningKeys(world.rp), { now: AT });
+    const minted = await world.agent.respond(artifactBytes(challenge), activeSigningKeys(world.rp), { now: AT });
     expect(minted.ok).toBe(true);
     if (!minted.ok) return;
     expect(minted.grant.scope).toEqual(["identity.assert"]);
@@ -67,7 +77,7 @@ describe("RP completion, happy path", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant: minted.grant,
+      grantRaw: artifactBytes(minted.grant),
       now: AT + 1000,
     });
     expect(result.ok).toBe(true);
@@ -85,7 +95,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: "unknown-session",
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "no_context" });
@@ -101,7 +111,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 120_000,
     });
     expect(result).toEqual({ ok: false, reason: "context_expired" });
@@ -117,7 +127,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: "https://rp.example/some/other/path",
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "redirect_mismatch" });
@@ -136,7 +146,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "issuer_unresolved" });
@@ -160,7 +170,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant: tampered,
+      grantRaw: artifactBytes(tampered),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "grant:signature" });
@@ -180,7 +190,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "grant:audience" });
@@ -201,7 +211,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 60_000,
     });
     expect(result).toEqual({ ok: false, reason: "grant:expired" });
@@ -219,7 +229,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(first.ok).toBe(true);
@@ -229,7 +239,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 2000,
     });
     expect(replay).toEqual({ ok: false, reason: "grant:replay" });
@@ -248,7 +258,7 @@ describe("RP completion, fail closed", () => {
         store: world.store,
         sessionId: world.sessionId,
         completionUri: world.redirectUri,
-        grant,
+        grantRaw: artifactBytes(grant),
         now: AT + 1000,
       });
     const [a, b] = await Promise.all([call(), call()]);
@@ -270,7 +280,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "issuer_not_subject" });
@@ -288,7 +298,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "grant_id_not_derived" });
@@ -309,7 +319,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "mint_window" });
@@ -327,7 +337,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "owner_field_present" });
@@ -345,7 +355,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "scope_missing_identity_assert" });
@@ -364,7 +374,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "scope_not_identity_assertion_token" });
@@ -383,7 +393,7 @@ describe("RP completion, fail closed", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant,
+      grantRaw: artifactBytes(grant),
       now: AT + 1000,
     });
     expect(result).toEqual({ ok: false, reason: "scope_not_requested" });
