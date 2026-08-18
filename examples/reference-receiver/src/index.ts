@@ -2,10 +2,17 @@
  * INK Reference Receiver — Cloudflare Worker entry point.
  *
  * Routes:
- *   GET  /.well-known/did.json            → did:web doc
- *   GET  /.well-known/ink/agent.json      → agent card
- *   POST /ink/v1/inbound                  → envelope handler
- *   GET  /                                → minimal HTML landing page
+ *   GET  /.well-known/did.json               → did:web doc
+ *   GET  /ink/v1/:agentId/agent.json         → agent card (discovery surface)
+ *   GET  /.well-known/ink/agent.json         → agent card (alias, same bytes)
+ *   POST /ink/v1/inbound                     → envelope handler
+ *   GET  /                                   → minimal HTML landing page
+ *
+ * `/ink/v1/:agentId/agent.json` is the path the reference library's
+ * `fetchAgentCard` builds, so a consumer that only knows the DID and the
+ * origin can reach this receiver's card. `/.well-known/ink/agent.json` stays
+ * as an alias serving byte-identical bytes for consumers that resolve through
+ * the well-known convention.
  *
  * The worker is the smallest plausibly-useful INK receiver: it
  * publishes a stable DID, accepts envelopes from `did:key:` and
@@ -71,6 +78,53 @@ function jsonResponse(value: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+/**
+ * Match `/ink/v1/<agentId>/agent.json` and return the decoded agentId, or
+ * null when the path is not a versioned card path. The segment is a single
+ * path component: a DID's colons arrive percent-encoded, and anything that
+ * is not valid percent-encoding is not a card path.
+ */
+export function matchVersionedCardPath(path: string): string | null {
+  const m = /^\/ink\/v1\/([^/]+)\/agent\.json$/.exec(path);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1]!);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The served card body, built and signed once per isolate.
+ *
+ * Caching is what makes the versioned path and the well-known alias
+ * byte-identical: the card carries an `updatedAt` stamp and a signature over
+ * the whole object, so rebuilding per request would hand two callers two
+ * different (both valid) documents. One body per identity per isolate also
+ * keeps the Ed25519 signing off the hot path.
+ */
+let cachedCard: { did: string; body: string } | null = null;
+async function cachedCardBody(
+  id: { identity: Awaited<ReturnType<typeof loadReceiverIdentity>>; host: string; did: string },
+): Promise<string> {
+  if (cachedCard && cachedCard.did === id.did) return cachedCard.body;
+  const card = await buildAgentCard({ did: id.did, host: id.host, identity: id.identity });
+  const body = JSON.stringify(card);
+  cachedCard = { did: id.did, body };
+  return body;
+}
+
+function cardResponse(body: string): Response {
+  return new Response(body, {
+    status: 200,
+    headers: {
+      "content-type": "application/json",
+      "cache-control": "no-store",
+      ...BASE_SECURITY_HEADERS,
+    },
+  });
+}
+
 function landingResponse(html: string): Response {
   return new Response(html, {
     status: 200,
@@ -130,7 +184,18 @@ export default {
       return jsonResponse(buildDidDocument({ did: id.did, host: id.host, identity: id.identity }));
     }
     if (method === "GET" && path === "/.well-known/ink/agent.json") {
-      return jsonResponse(await buildAgentCard({ did: id.did, host: id.host, identity: id.identity }));
+      return cardResponse(await cachedCardBody(id));
+    }
+    // Versioned discovery path. The agentId segment is percent-encoded by the
+    // client (a DID carries colons), so decode before comparing. A card is
+    // served only for THIS receiver's own agentId: any other id is a 404, not
+    // a card for someone else.
+    if (method === "GET") {
+      const versioned = matchVersionedCardPath(path);
+      if (versioned !== null) {
+        if (versioned !== id.did) return jsonResponse({ error: "not_found" }, { status: 404 });
+        return cardResponse(await cachedCardBody(id));
+      }
     }
     if (method === "POST" && path === "/ink/v1/inbound") {
       return handleInbound(req, env, ctx, id);
@@ -239,7 +304,7 @@ function landingHtml(did: string, host: string): string {
   const safeDid = escapeHtml(did);
   const origin = `https://${host}`;
   const didDocUrl = `${origin}/.well-known/did.json`;
-  const agentUrl = `${origin}/.well-known/ink/agent.json`;
+  const agentUrl = `${origin}/ink/v1/${encodeURIComponent(did)}/agent.json`;
   const inboundUrl = `${origin}/ink/v1/inbound`;
   return [
     "<!doctype html>",
@@ -326,7 +391,7 @@ function landingHtml(did: string, host: string): string {
     "</div>",
     "<div class=\"links\">",
     "<a href=\"/.well-known/did.json\">Open DID doc</a>",
-    "<a href=\"/.well-known/ink/agent.json\">Open agent card</a>",
+    "<a href=\"" + escapeHtml(new URL(agentUrl).pathname) + "\">Open agent card</a>",
     "</div>",
     "</section>",
     "</div>",

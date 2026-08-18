@@ -69,6 +69,23 @@ describe("dockerized reference receiver under Node", () => {
     expect(card.agentId).toBe(`did:web:${HOST}`);
   });
 
+  it("serves the same card on the versioned discovery path", async () => {
+    const did = `did:web:${HOST}`;
+    const res = await fetch(`${base}/ink/v1/${encodeURIComponent(did)}/agent.json`);
+    expect(res.status).toBe(200);
+    const versioned = await res.text();
+    const wellKnown = await (await fetch(`${base}/.well-known/ink/agent.json`)).text();
+    expect(versioned).toBe(wellKnown);
+    expect((JSON.parse(versioned) as { agentId: string }).agentId).toBe(did);
+  });
+
+  it("does not serve a card for another agentId", async () => {
+    const res = await fetch(
+      `${base}/ink/v1/${encodeURIComponent("did:web:other.example")}/agent.json`,
+    );
+    expect(res.status).toBe(404);
+  });
+
   it("serves a did:web document", async () => {
     const res = await fetch(`${base}/.well-known/did.json`);
     expect(res.status).toBe(200);

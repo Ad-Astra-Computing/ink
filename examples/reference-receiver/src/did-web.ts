@@ -43,7 +43,10 @@ export function buildDidDocument(cfg: DidDocConfig): unknown {
       {
         id: `${cfg.did}#ink-agent-card`,
         type: "InkAgentCard",
-        serviceEndpoint: `https://${cfg.host}/.well-known/ink/agent.json`,
+        // The versioned discovery path, the one `fetchAgentCard` builds.
+        // `/.well-known/ink/agent.json` still serves the same bytes for
+        // consumers that resolve by convention rather than by service entry.
+        serviceEndpoint: `https://${cfg.host}/ink/v1/${encodeURIComponent(cfg.did)}/agent.json`,
       },
     ],
   };

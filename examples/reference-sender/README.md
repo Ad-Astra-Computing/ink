@@ -39,7 +39,7 @@ delivered: status 200
 |------|--------|--------------|
 | Identity | `src/identity.ts` | Mint an ephemeral `did:key`, or load a stable one from a seed. The multibase public key IS the DID, so a receiver decodes the verification key inline with no fetch. |
 | Envelope | `src/envelope.ts` | Assemble the canonical fields, attach the domain-separated body signature (`signMessage`), then re-validate with `validateMessage` so a malformed envelope never leaves the process. |
-| Discovery | `src/discovery.ts` | `did:web` → fetch the well-known Agent Card behind an SSRF gate, apply the discovery response contract (status 200, JSON, size cap, `AgentCardSchema`, protocol, agentId binding), then read the inbox with `resolveAgentInbox`. `did:key` → the endpoint must be supplied with `--endpoint`. |
+| Discovery | `src/discovery.ts` | `did:web` → resolve the DID document, honour an `InkAgentCard` service entry on the same authority when one is declared, otherwise fetch the versioned card path `/ink/v1/<agentId>/agent.json`, all behind an SSRF gate. Apply the discovery response contract (status 200, JSON, size cap, `AgentCardSchema`, protocol, agentId binding), then read the inbox with `resolveAgentInbox`. `did:key` → the endpoint must be supplied with `--endpoint`. |
 | Transport | `src/transport.ts` | SSRF-validate the target URL (host check in `src/host-safety.ts`), sign the INK §3.3 Authorization over `{method, path, recipientDid, body, timestamp}`, POST with a bounded timeout, `redirect: "manual"`, and a capped response read. |
 
 `src/index.ts` ties them together as `sendIntent`. `src/cli.ts` is the thin
@@ -63,8 +63,13 @@ separate on purpose:
 
 - **`did:key:`** — self-certifying, no SSRF surface, the quickest target.
   There is no service endpoint to look up, so pass `--endpoint`.
-- **`did:web:`** — the inbox is discovered from the Agent Card at
-  `https://<host>/.well-known/ink/agent.json`. Pass `--endpoint` to override.
+- **`did:web:`** — the inbox is discovered from the Agent Card at the versioned
+  discovery path, `https://<host>/ink/v1/<agentId>/agent.json`, or at the
+  `InkAgentCard` service endpoint the DID document names when it names one on
+  the same authority. The `/.well-known/ink/agent.json` alias is never fetched:
+  a resolver must not depend on it, so a peer that publishes only the alias is
+  not discoverable. A `%3A`-encoded port is carried into both discovery and
+  delivery. Pass `--endpoint` to override.
 
 ## Identity
 

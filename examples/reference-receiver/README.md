@@ -63,7 +63,7 @@ Astra Computing at `api.tulpa.network`.
 |------|---------|
 | `src/index.ts` | Cloudflare Worker entry. Routes, rate limit, audit hand-off. |
 | `src/keys.ts` | Load Ed25519 identity from secrets; self-check at boot. |
-| `src/agent-card.ts` | Build the AgentCard document for `/.well-known/ink/agent.json`. |
+| `src/agent-card.ts` | Build the AgentCard document served at `/ink/v1/<agentId>/agent.json`. |
 | `src/did-web.ts` | Build the DID document for `/.well-known/did.json`. |
 | `src/did-web-resolver.ts` | Resolve a sender's `did:web` to their agent card (SSRF-guarded). |
 | `src/inbound.ts` | Envelope validation + `verifyInkAuth` + plain JSON ack. |
@@ -107,6 +107,9 @@ wrangler deploy
 After deploy, the receiver answers on the host you configured. Confirm with:
 
 ```sh
+# The discovery path, the one the reference library's fetchAgentCard builds:
+curl "https://<your-host>/ink/v1/did%3Aweb%3A<your-host>/agent.json"
+# Byte-identical alias, for consumers that resolve by the well-known convention:
 curl https://<your-host>/.well-known/ink/agent.json
 curl https://<your-host>/.well-known/did.json
 ```
@@ -140,7 +143,8 @@ Ad Astra Computing runs this example at **ink-echo.tulpa.network**:
 
 - DID: `did:web:ink-echo.tulpa.network`
 - Landing page: <https://ink-echo.tulpa.network/>
-- Agent card: <https://ink-echo.tulpa.network/.well-known/ink/agent.json>
+- Agent card: <https://ink-echo.tulpa.network/ink/v1/did%3Aweb%3Aink-echo.tulpa.network/agent.json>
+  (byte-identical alias: <https://ink-echo.tulpa.network/.well-known/ink/agent.json>)
 - DID document: <https://ink-echo.tulpa.network/.well-known/did.json>
 - Inbound endpoint: `https://ink-echo.tulpa.network/ink/v1/inbound`
 

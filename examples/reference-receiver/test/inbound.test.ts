@@ -25,6 +25,10 @@ const RECEIVER_HOST = "receiver.example";
 const RECEIVER_DID = `did:web:${RECEIVER_HOST}`;
 const SENDER_HOST = "sender.example";
 const SENDER_DID = `did:web:${SENDER_HOST}`;
+// The versioned discovery path, the sole normative discovery surface. A
+// conforming resolver never reaches for the /.well-known alias
+// (specs/ink-resolver.md §3.2), so the fixtures serve this URL.
+const SENDER_CARD_URL = `https://${SENDER_HOST}/ink/v1/${encodeURIComponent(SENDER_DID)}/agent.json`;
 
 async function makeReceiver() {
   const kp = await generateKeypair();
@@ -137,6 +141,15 @@ describe("resolveDidKeySenderKeys", () => {
     expect(Array.from(out[0]!.publicKey)).toEqual(Array.from(kp.publicKey));
   });
 
+  it("labels the inline key as bootstrap provenance, not a card key", async () => {
+    // `status: "active"` is the verifier's eligibility flag; it must not be
+    // read as "a card publishes this key as active". Nothing publishes this
+    // key and no rotation can retire it, so provenance says so explicitly.
+    const kp = await generateKeypair();
+    const out = resolveDidKeySenderKeys(`did:key:${encodePublicKeyMultibase(kp.publicKey)}`);
+    expect(out[0]!.provenance).toBe("bootstrap");
+  });
+
   it("ignores a did:key URL fragment", async () => {
     const kp = await generateKeypair();
     const multibase = encodePublicKeyMultibase(kp.publicKey);
@@ -174,11 +187,20 @@ describe("resolveSenderKeys", () => {
     const { card } = await makeSenderWithCard();
     const fetcher = jsonFetcher({
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
-      [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
+      [SENDER_CARD_URL]: card,
     });
     const out = await resolveSenderKeys(SENDER_DID, { fetcher });
     expect(out.length).toBeGreaterThan(0);
     expect(out[0]!.publicKey.length).toBe(32);
+    // Card-published keys carry card provenance; only the inline did:key path
+    // is bootstrap.
+    expect(out.every((k) => k.provenance === "card")).toBe(true);
+  });
+
+  it("labels an inline did:key sender as bootstrap provenance", async () => {
+    const kp = await generateKeypair();
+    const out = await resolveSenderKeys(`did:key:${encodePublicKeyMultibase(kp.publicKey)}`);
+    expect(out.map((k) => k.provenance)).toEqual(["bootstrap"]);
   });
 });
 
@@ -263,7 +285,7 @@ describe("processInbound", () => {
     const auth = await signWithSender(envelope, senderKp);
     const fetcher = jsonFetcher({
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
-      [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
+      [SENDER_CARD_URL]: card,
     });
     const out = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
@@ -311,7 +333,7 @@ describe("processInbound", () => {
     const tampered = { ...envelope, correlationId: "corr-tampered" };
     const fetcher = jsonFetcher({
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
-      [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
+      [SENDER_CARD_URL]: card,
     });
     const out = await processInbound(enc(JSON.stringify(tampered)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
@@ -327,7 +349,7 @@ describe("processInbound", () => {
     const auth = await signWithSender(envelope, senderKp);
     const fetcher = jsonFetcher({
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
-      [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
+      [SENDER_CARD_URL]: card,
     });
     const out = await processInbound(enc(JSON.stringify(envelope)), auth, {
       identity: id, receiverDid: did, fetcher, nonceStore: new InMemoryNonceStore(),
@@ -379,7 +401,7 @@ describe("processInbound", () => {
     const nonceStore = new InMemoryNonceStore();
     const fetcher = jsonFetcher({
       [`https://${SENDER_HOST}/.well-known/did.json`]: { id: SENDER_DID, service: [] },
-      [`https://${SENDER_HOST}/.well-known/ink/agent.json`]: card,
+      [SENDER_CARD_URL]: card,
     });
     const envelope = buildPingEnvelope({ from: SENDER_DID, to: did });
     const auth = await signWithSender(envelope, senderKp);

@@ -23,8 +23,9 @@
  *     bracketed IPv6 form including mapped/reserved literals).
  *   - No hostnames resolving to private/loopback/link-local/cloud
  *     metadata ranges.
- *   - Identity binding for `did:web:` recipients: the URL hostname
- *     must equal the host extracted by `extractDidWebHost`. A
+ *   - Identity binding for `did:web:` recipients: the URL authority
+ *     (host, plus port when the DID names one) must equal the
+ *     authority extracted by `extractDidWebHost`. A
  *     malformed `did:web:` whose canonical host cannot be extracted
  *     is rejected outright; the binding is never disabled by
  *     fallthrough.
@@ -68,8 +69,9 @@ export type ForeignDeliveryError =
 export interface ForeignDeliveryInput {
   /** Caller-supplied recipient endpoint URL. */
   targetUrl: string;
-  /** Recipient's DID. For `did:web:` recipients the URL host must
-   *  equal the DID host. Other methods do not impose a host check. */
+  /** Recipient's DID. For `did:web:` recipients the URL authority must
+   *  equal the DID authority, port included. Other methods do not impose a
+   *  host check. */
   recipientDid: string;
   /** Signed INK envelope ready to POST. */
   envelope: Record<string, unknown>;
@@ -105,8 +107,21 @@ export function validateOutboundDeliveryUrl(
   if (isIpLiteralHost(host)) return { ok: false, reason: "private_host_blocked" };
   if (isPrivateHost(host)) return { ok: false, reason: "private_host_blocked" };
   if (options.requiredDidWebHost) {
-    const expected = options.requiredDidWebHost.toLowerCase().replace(/\.+$/, "");
-    const actual = host.toLowerCase().replace(/\.+$/, "");
+    // Compare authorities, not bare hostnames: a did:web that names a port
+    // binds to that port. `URL.host` omits the port only when it is the
+    // scheme default (443), which is exactly the case a portless did:web
+    // means. Trailing dots are stripped on the host label alone.
+    const normalizeAuthority = (value: string): string => {
+      const lower = value.toLowerCase();
+      const colon = lower.lastIndexOf(":");
+      const bracket = lower.lastIndexOf("]");
+      if (colon > bracket) {
+        return `${lower.slice(0, colon).replace(/\.+$/, "")}:${lower.slice(colon + 1)}`;
+      }
+      return lower.replace(/\.+$/, "");
+    };
+    const expected = normalizeAuthority(options.requiredDidWebHost);
+    const actual = normalizeAuthority(parsed.host);
     if (expected !== actual) return { ok: false, reason: "host_mismatch" };
   }
   return { ok: true, url: parsed };
@@ -115,8 +130,8 @@ export function validateOutboundDeliveryUrl(
 /**
  * Deliver a signed INK envelope to a foreign INK endpoint.
  *
- * Performs SSRF validation, identity binding (URL host == DID host
- * for did:web), HTTP signing per INK §3.3 over the target URL's
+ * Performs SSRF validation, identity binding (URL authority == DID
+ * authority for did:web), HTTP signing per INK §3.3 over the target URL's
  * pathname, then POSTs with bounded timeout, body cap, and no
  * redirect-following.
  */

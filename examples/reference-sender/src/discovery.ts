@@ -7,15 +7,21 @@
  *   - `did:key:` cannot publish a service endpoint — the identifier is
  *     just a key. There is nowhere to look it up, so the caller MUST
  *     supply the endpoint URL explicitly.
- *   - `did:web:` publishes an Agent Card at a well-known URL. This module
- *     fetches that card behind an SSRF gate, applies the discovery
- *     response contract (status 200, JSON content type, size cap, schema,
- *     protocol, and the agentId identity binding), and reads the inbox
- *     from the validated card with `resolveAgentInbox`. An explicit
- *     endpoint, when supplied, overrides discovery.
+ *   - `did:web:` publishes an Agent Card at the versioned discovery path
+ *     `<origin>/ink/v1/<agentId>/agent.json`. This module resolves the DID
+ *     document first and honours an `InkAgentCard` service entry on the same
+ *     authority when one is declared, otherwise it fetches the versioned
+ *     path. It applies the discovery response contract (status 200, JSON
+ *     content type, size cap, schema, protocol, and the agentId identity
+ *     binding) and reads the inbox from the validated card with
+ *     `resolveAgentInbox`. An explicit endpoint, when supplied, overrides
+ *     discovery.
  *
- * The card URL convention for `did:web:` matches the reference receiver:
- * the host-only form serves the card at `/.well-known/ink/agent.json`.
+ * The versioned path is the sole normative discovery surface
+ * (`specs/ink-resolver.md` §3.2): a resolver MUST NOT depend on the
+ * `/.well-known/ink/agent.json` alias or fall back to it, so a peer that
+ * publishes only the alias is not discoverable here. This matches the
+ * reference receiver's resolver.
  *
  * The SSRF gate here is the same static-literal classifier used on the
  * send path: https only, no userinfo, no fragment, no IP-literal or
@@ -26,6 +32,7 @@
 
 import { AgentCardSchema, resolveAgentInbox } from "@adastracomputing/ink";
 import { validateTargetUrl } from "./transport.ts";
+import { didWebOrigin } from "./host-safety.ts";
 
 const TIMEOUT_MS = 5_000;
 /** Discovery response body cap, matching the receiver's 64 KiB card cap. */
@@ -55,35 +62,50 @@ export interface ResolveEndpointInput {
   timeoutMs?: number;
 }
 
+export interface DidWebTargets {
+  /** Serialized authority: host, plus `:port` for any non-default port. */
+  host: string;
+  /** The DID document URL, per did:web 1.0. */
+  didDocUrl: string;
+  /**
+   * The versioned discovery path. The sole normative discovery surface: no
+   * `/.well-known/ink/agent.json` alias URL is derived, because a resolver
+   * MUST NOT depend on it (`specs/ink-resolver.md` §3.2).
+   */
+  versionedCardUrl: string;
+}
+
 /**
- * Derive the https URL the `did:web:` Agent Card is served from.
- *   did:web:host            → https://host/.well-known/ink/agent.json
- *   did:web:host:a:b        → https://host/a/b/ink/agent.json
+ * Derive the URLs a `did:web:` identifier resolves through.
+ *   did:web:host          → https://host/.well-known/did.json
+ *   did:web:host:a:b      → https://host/a/b/did.json
+ *   card, either form     → https://host/ink/v1/<encoded did>/agent.json
+ *
+ * A `%3A`-encoded port is carried, never dropped: resolving at the default
+ * port would silently target a different origin than the identifier names.
  */
-export function didWebCardUrl(did: string): string | null {
+export function didWebTargets(did: string): DidWebTargets | null {
   if (!did.startsWith("did:web:")) return null;
   const rest = did.slice("did:web:".length);
-  if (rest.length === 0) return null;
+  if (rest.length === 0 || rest.length > 1024) return null;
   const segments = rest.split(":");
-  const decoded: string[] = [];
-  for (const seg of segments) {
-    try {
-      const d = decodeURIComponent(seg);
-      if (!d) return null;
-      decoded.push(d);
-    } catch {
-      return null;
-    }
+  if (segments.some((seg) => seg.length === 0)) return null;
+  const origin = didWebOrigin(segments[0]!);
+  if (origin === null) return null;
+  const pathSegments = segments.slice(1);
+  const safeSegment = /^[A-Za-z0-9._~\-]+$/;
+  for (const seg of pathSegments) {
+    // "." and ".." satisfy the safe-char class but are traversal in a URL.
+    if (seg === "." || seg === ".." || !safeSegment.test(seg)) return null;
   }
-  const [authority, ...pathSegments] = decoded;
-  // A port-bearing did:web (`host%3Aport`) is unsupported and rejected, so
-  // discovery and the delivery host binding (`didWebHost`) stay on the same
-  // authority. A literal `:` in the decoded first segment is a port.
-  if (authority.includes(":")) return null;
-  if (pathSegments.length === 0) {
-    return `https://${authority}/.well-known/ink/agent.json`;
-  }
-  return `https://${authority}/${pathSegments.join("/")}/ink/agent.json`;
+  const didDocUrl = pathSegments.length === 0
+    ? `${origin}/.well-known/did.json`
+    : `${origin}/${pathSegments.join("/")}/did.json`;
+  return {
+    host: new URL(origin).host,
+    didDocUrl,
+    versionedCardUrl: `${origin}/ink/v1/${encodeURIComponent(did)}/agent.json`,
+  };
 }
 
 export async function resolveInboxEndpoint(
@@ -98,25 +120,83 @@ export async function resolveInboxEndpoint(
   if (!input.recipientDid.startsWith("did:web:")) {
     return { ok: false, reason: "unsupported_did_method" };
   }
-  const cardUrl = didWebCardUrl(input.recipientDid);
-  if (!cardUrl) return { ok: false, reason: "invalid_did_web" };
+  const targets = didWebTargets(input.recipientDid);
+  if (!targets) return { ok: false, reason: "invalid_did_web" };
 
-  // SSRF gate on the card URL. The card host equals the DID host by
+  // SSRF gate on the derived URLs. The card host equals the DID host by
   // construction, so the value here is the https / userinfo / fragment /
   // IP-literal / private-host checks; `allowPrivateHosts` relaxes only the
   // private-host refusal for local dev. The derived URL is well-formed https,
   // so the only reachable failure is a blocked private host.
-  const validated = validateTargetUrl(cardUrl, { allowPrivateHosts: input.allowPrivateHosts });
+  const validated = validateTargetUrl(targets.versionedCardUrl, {
+    allowPrivateHosts: input.allowPrivateHosts,
+  });
   if (!validated.ok) {
     return { ok: false, reason: "private_host_blocked" };
   }
 
-  const fetched = await fetchCard(cardUrl, input.fetchImpl ?? fetch, input.timeoutMs ?? TIMEOUT_MS);
+  const doFetch = input.fetchImpl ?? fetch;
+  const timeoutMs = input.timeoutMs ?? TIMEOUT_MS;
+
+  // The DID document is OPTIONAL input: it can name an `InkAgentCard` service
+  // endpoint, and when it does not (or is unreachable) the versioned discovery
+  // path stands on its own. There is no alias fallback beyond it.
+  let cardUrl = targets.versionedCardUrl;
+  const serviceEndpoint = await resolveServiceEndpoint(
+    targets, doFetch, timeoutMs, input.allowPrivateHosts,
+  );
+  if (serviceEndpoint) cardUrl = serviceEndpoint;
+
+  const fetched = await fetchCard(cardUrl, doFetch, timeoutMs);
   if (!fetched) return { ok: false, reason: "card_unreachable" };
 
   const card = evaluateCardResponse(fetched, input.recipientDid);
   if (!card) return { ok: false, reason: "card_rejected" };
   return { ok: true, endpoint: resolveAgentInbox(card), source: "did-web-card" };
+}
+
+/**
+ * Fetch the DID document and return the `InkAgentCard` service endpoint it
+ * declares, or null. The endpoint MUST be https and on the DID's own
+ * authority (host AND port): did:web identity binding puts the card on the
+ * host the identifier names, and the https check stops a document pointing at
+ * `http://example.com/agent.json` from letting an on-path attacker substitute
+ * a key. Any failure returns null, which leaves the versioned path in place.
+ */
+async function resolveServiceEndpoint(
+  targets: DidWebTargets,
+  doFetch: typeof fetch,
+  timeoutMs: number,
+  allowPrivateHosts?: boolean,
+): Promise<string | null> {
+  const fetched = await fetchCard(targets.didDocUrl, doFetch, timeoutMs);
+  if (!fetched || fetched.status !== 200) return null;
+  let doc: unknown;
+  try {
+    doc = JSON.parse(fetched.body);
+  } catch {
+    return null;
+  }
+  if (doc === null || typeof doc !== "object") return null;
+  const services = (doc as { service?: unknown }).service;
+  if (!Array.isArray(services)) return null;
+  for (const entry of services) {
+    if (entry === null || typeof entry !== "object") continue;
+    const { type, serviceEndpoint } = entry as { type?: unknown; serviceEndpoint?: unknown };
+    if (type !== "InkAgentCard") continue;
+    if (typeof serviceEndpoint !== "string") return null;
+    let u: URL;
+    try {
+      u = new URL(serviceEndpoint);
+    } catch {
+      return null;
+    }
+    if (u.protocol !== "https:" || u.host.toLowerCase() !== targets.host) return null;
+    // Re-run the outbound gate: the endpoint came from a remote document.
+    const validated = validateTargetUrl(serviceEndpoint, { allowPrivateHosts });
+    return validated.ok ? serviceEndpoint : null;
+  }
+  return null;
 }
 
 interface FetchedCard {

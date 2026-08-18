@@ -65,7 +65,9 @@ describe("resolveDidWebTargets", () => {
     expect(t).not.toBeNull();
     expect(t!.host).toBe("example.com");
     expect(t!.didDocUrl).toBe("https://example.com/.well-known/did.json");
-    expect(t!.wellKnownCardUrl).toBe("https://example.com/.well-known/ink/agent.json");
+    expect(t!.versionedCardUrl).toBe(
+      `https://example.com/ink/v1/${encodeURIComponent("did:web:example.com")}/agent.json`,
+    );
   });
 
   it("returns null on non-did:web", () => {
@@ -99,7 +101,65 @@ describe("resolveDidWebTargets", () => {
   });
 });
 
+// A `%3A` in the host part of a did:web identifier is a port. Dropping it and
+// resolving at the default port silently retargets a different origin, so the
+// rule is: carry the port, or reject the identifier. Never drop it.
+describe("resolveDidWebTargets carries the %3A port", () => {
+  it("carries the port into every derived URL", () => {
+    const t = resolveDidWebTargets("did:web:example.com%3A8443");
+    expect(t).not.toBeNull();
+    expect(t!.host).toBe("example.com:8443");
+    expect(t!.didDocUrl).toBe("https://example.com:8443/.well-known/did.json");
+    expect(t!.versionedCardUrl).toBe(
+      `https://example.com:8443/ink/v1/${encodeURIComponent("did:web:example.com%3A8443")}/agent.json`,
+    );
+  });
+
+  it("carries the port on path-form identifiers", () => {
+    const t = resolveDidWebTargets("did:web:example.com%3A8443:user:alice");
+    expect(t!.didDocUrl).toBe("https://example.com:8443/user/alice/did.json");
+    expect(t!.host).toBe("example.com:8443");
+  });
+
+  it("rejects rather than drops a malformed port", () => {
+    expect(resolveDidWebTargets("did:web:example.com%3A")).toBeNull();       // empty
+    expect(resolveDidWebTargets("did:web:example.com%3Aabc")).toBeNull();    // not numeric
+    expect(resolveDidWebTargets("did:web:example.com%3A0")).toBeNull();      // out of range
+    expect(resolveDidWebTargets("did:web:example.com%3A08443")).toBeNull();  // leading zero
+    expect(resolveDidWebTargets("did:web:example.com%3A65536")).toBeNull();  // out of range
+    expect(resolveDidWebTargets("did:web:example.com%3A8443%3A9")).toBeNull(); // two markers
+    expect(resolveDidWebTargets("did:web:example.com%3a8443")).toBeNull();   // lowercase marker
+    expect(resolveDidWebTargets("did:web:example.com%3A8443:.")).toBeNull(); // dot segment
+  });
+
+  // The W3C did:web method allows an optional percent-encoded port and bans no
+  // value, so `%3A443` is a legal identifier and refusing it is an interop bug.
+  // It names the default https origin, which is exactly where it resolves. The
+  // sign-in profile's extra ban on an explicit 443 is profile-local
+  // (`deriveRpOrigin`) and does not reach this path.
+  it("accepts an explicit 443 and resolves it at the default origin", () => {
+    const t = resolveDidWebTargets("did:web:example.com%3A443");
+    expect(t).not.toBeNull();
+    expect(t!.host).toBe("example.com");
+    expect(t!.didDocUrl).toBe("https://example.com/.well-known/did.json");
+    // The identity is still the ported spelling: it is carried in the path.
+    expect(t!.versionedCardUrl).toBe(
+      `https://example.com/ink/v1/${encodeURIComponent("did:web:example.com%3A443")}/agent.json`,
+    );
+  });
+
+  it("still rejects a private or IP-literal host that carries a port", () => {
+    expect(resolveDidWebTargets("did:web:localhost%3A8443")).toBeNull();
+    expect(resolveDidWebTargets("did:web:127.0.0.1%3A8443")).toBeNull();
+    expect(resolveDidWebTargets("did:web:10.1%3A8443")).toBeNull();
+  });
+});
+
 describe("resolveAgentCardForDidWeb", () => {
+  const DID = "did:web:example.com";
+  const VERSIONED = `https://example.com/ink/v1/${encodeURIComponent(DID)}/agent.json`;
+  const WELL_KNOWN = "https://example.com/.well-known/ink/agent.json";
+
   function buildCard(agentId: string) {
     const endpoint = "https://example.com/ink/v1/inbound";
     return {
@@ -124,25 +184,52 @@ describe("resolveAgentCardForDidWeb", () => {
     expect(result).toBeNull();
   });
 
-  it("falls back to well-known card when did doc lacks InkAgentCard service", async () => {
-    const card = buildCard("did:web:example.com");
+  it("uses the versioned discovery path when the did doc lacks an InkAgentCard service", async () => {
+    const card = buildCard(DID);
     const fetcher = (async (url: string | URL) => {
       const u = String(url);
       if (u === "https://example.com/.well-known/did.json") {
-        return new Response(JSON.stringify({ id: "did:web:example.com", service: [] }), {
+        return new Response(JSON.stringify({ id: DID, service: [] }), {
           status: 200, headers: { "content-type": "application/json" },
         });
       }
-      if (u === "https://example.com/.well-known/ink/agent.json") {
+      if (u === VERSIONED) {
         return new Response(JSON.stringify(card), {
           status: 200, headers: { "content-type": "application/json" },
         });
       }
       return new Response("not found", { status: 404 });
     }) as typeof fetch;
-    const result = await resolveAgentCardForDidWeb("did:web:example.com", { fetcher });
+    const result = await resolveAgentCardForDidWeb(DID, { fetcher });
     expect(result).not.toBeNull();
-    expect((result as { agentId: string }).agentId).toBe("did:web:example.com");
+    expect((result as { agentId: string }).agentId).toBe(DID);
+  });
+
+  // ink-resolver.md §3.2: the versioned path is the sole normative discovery
+  // surface. A resolver MUST NOT depend on the /.well-known alias or fall back
+  // to it, so a peer that serves ONLY the alias is not discoverable here — and
+  // the alias must not even be requested.
+  it("does not discover a peer that serves only the well-known alias", async () => {
+    const card = buildCard(DID);
+    const requested: string[] = [];
+    const fetcher = (async (url: string | URL) => {
+      const u = String(url);
+      requested.push(u);
+      if (u === "https://example.com/.well-known/did.json") {
+        return new Response(JSON.stringify({ id: DID, service: [] }), {
+          status: 200, headers: { "content-type": "application/json" },
+        });
+      }
+      if (u === WELL_KNOWN) {
+        return new Response(JSON.stringify(card), {
+          status: 200, headers: { "content-type": "application/json" },
+        });
+      }
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+    const result = await resolveAgentCardForDidWeb(DID, { fetcher });
+    expect(result).toBeNull();
+    expect(requested).not.toContain(WELL_KNOWN);
   });
 
   it("ignores InkAgentCard service entries that point at a different host (identity binding)", async () => {
@@ -155,16 +242,16 @@ describe("resolveAgentCardForDidWeb", () => {
           service: [{ type: "InkAgentCard", serviceEndpoint: "https://attacker.example/agent.json" }],
         }), { status: 200, headers: { "content-type": "application/json" } });
       }
-      if (u === "https://example.com/.well-known/ink/agent.json") {
+      if (u === VERSIONED) {
         return new Response(JSON.stringify(card), {
           status: 200, headers: { "content-type": "application/json" },
         });
       }
       return new Response("nope", { status: 404 });
     }) as typeof fetch;
-    const result = await resolveAgentCardForDidWeb("did:web:example.com", { fetcher });
+    const result = await resolveAgentCardForDidWeb(DID, { fetcher });
     expect(result).not.toBeNull();
-    // The attacker.example URL was rejected; we still got the well-known card.
+    // The attacker.example URL was rejected; we fell through to the versioned path.
   });
 
   it("rejects a card whose agentId doesn't match the DID we resolved", async () => {
@@ -187,7 +274,7 @@ describe("resolveAgentCardForDidWeb", () => {
           service: [{ type: "InkAgentCard", serviceEndpoint: "http://example.com/agent.json" }],
         }), { status: 200, headers: { "content-type": "application/json" } });
       }
-      if (u === "https://example.com/.well-known/ink/agent.json") {
+      if (u === VERSIONED) {
         return new Response(JSON.stringify(card), {
           status: 200, headers: { "content-type": "application/json" },
         });
