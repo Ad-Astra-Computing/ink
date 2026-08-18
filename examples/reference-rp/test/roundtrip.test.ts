@@ -9,6 +9,16 @@ import { describe, it, expect } from "vitest";
 import { completeSignIn, buildChallenge, completionUri } from "../src/index.ts";
 import { makeWorld, activeSigningKeys } from "./harness.ts";
 
+/**
+ * Serialize an artifact to the bytes a verifier checks. The wire form is bytes
+ * and the signature covers those bytes, so every verifier takes them rather
+ * than a parsed object.
+ */
+function artifactBytes(value: unknown): Uint8Array {
+  return new TextEncoder().encode(JSON.stringify(value));
+}
+
+
 const AT = Date.parse("2026-07-17T12:00:00Z");
 
 describe("RP and user agent round trip", () => {
@@ -22,7 +32,7 @@ describe("RP and user agent round trip", () => {
     });
     await world.store.open(world.sessionId, challenge);
 
-    const minted = await world.agent.respond(challenge, activeSigningKeys(world.rp), {
+    const minted = await world.agent.respond(artifactBytes(challenge), activeSigningKeys(world.rp), {
       consentedScope: ["profile.read"],
       now: AT,
     });
@@ -35,7 +45,7 @@ describe("RP and user agent round trip", () => {
       store: world.store,
       sessionId: world.sessionId,
       completionUri: world.redirectUri,
-      grant: minted.grant,
+      grantRaw: artifactBytes(minted.grant),
       now: AT + 1000,
     });
     expect(result.ok).toBe(true);
@@ -50,7 +60,7 @@ describe("RP and user agent round trip", () => {
       now: AT,
     });
     const tampered = { ...challenge, redirectUri: completionUri(world.rp, "/elsewhere") };
-    const minted = await world.agent.respond(tampered, activeSigningKeys(world.rp), { now: AT });
+    const minted = await world.agent.respond(artifactBytes(tampered), activeSigningKeys(world.rp), { now: AT });
     expect(minted.ok).toBe(false);
     if (!minted.ok) expect(minted.reason).toBe("challenge:signature");
   });
@@ -62,9 +72,9 @@ describe("RP and user agent round trip", () => {
       redirectUri: world.redirectUri,
       now: AT,
     });
-    const first = await world.agent.respond(challenge, activeSigningKeys(world.rp), { now: AT });
+    const first = await world.agent.respond(artifactBytes(challenge), activeSigningKeys(world.rp), { now: AT });
     expect(first.ok).toBe(true);
-    const second = await world.agent.respond(challenge, activeSigningKeys(world.rp), { now: AT });
+    const second = await world.agent.respond(artifactBytes(challenge), activeSigningKeys(world.rp), { now: AT });
     expect(second.ok).toBe(false);
     if (!second.ok) expect(second.reason).toBe("mint_once");
   });
@@ -77,7 +87,7 @@ describe("RP and user agent round trip", () => {
       requestedScope: [],
       now: AT,
     });
-    const minted = await world.agent.respond(challenge, activeSigningKeys(world.rp), {
+    const minted = await world.agent.respond(artifactBytes(challenge), activeSigningKeys(world.rp), {
       consentedScope: ["profile.read"],
       now: AT,
     });
@@ -94,7 +104,7 @@ describe("RP and user agent round trip", () => {
     await world.store.open("session-A", challengeA);
     await world.store.open("session-B", challengeB);
 
-    const mintedA = await world.agent.respond(challengeA, activeSigningKeys(world.rp), { now: AT });
+    const mintedA = await world.agent.respond(artifactBytes(challengeA), activeSigningKeys(world.rp), { now: AT });
     expect(mintedA.ok).toBe(true);
     if (!mintedA.ok) return;
 
@@ -106,7 +116,7 @@ describe("RP and user agent round trip", () => {
       store: world.store,
       sessionId: "session-B",
       completionUri: world.redirectUri,
-      grant: mintedA.grant,
+      grantRaw: artifactBytes(mintedA.grant),
       now: AT + 1000,
     });
     expect(crossed).toEqual({ ok: false, reason: "grant_id_not_derived" });
@@ -118,7 +128,7 @@ describe("RP and user agent round trip", () => {
       store: world.store,
       sessionId: "session-A",
       completionUri: world.redirectUri,
-      grant: mintedA.grant,
+      grantRaw: artifactBytes(mintedA.grant),
       now: AT + 1000,
     });
     expect(ownResult.ok).toBe(true);

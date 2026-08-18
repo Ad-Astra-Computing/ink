@@ -17,7 +17,7 @@
     "send": "node bin/ink-send.mjs"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.7.0"
+    "@adastracomputing/ink": "^0.17.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",

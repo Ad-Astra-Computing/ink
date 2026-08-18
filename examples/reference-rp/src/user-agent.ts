@@ -14,7 +14,6 @@ import {
   verifyAuthorizationChallenge,
   deriveChallengeGrantId,
   buildAuthorizationGrant,
-  type AuthorizationChallenge,
   type AuthorizationChallengeReason,
   type AuthorizationGrant,
   type CandidateKey,
@@ -55,7 +54,7 @@ export class UserAgent {
    * window, so it always falls inside the mint window the RP checks.
    */
   async respond(
-    challenge: AuthorizationChallenge,
+    challengeRaw: Uint8Array,
     rpCandidateKeys: CandidateKey[],
     options: { consentedScope?: string[]; now?: number } = {},
   ): Promise<MintResult> {
@@ -63,7 +62,7 @@ export class UserAgent {
 
     // The agent verifies the challenge before minting anything. A tampered,
     // wrongly signed, not-yet-valid, or expired challenge is refused here.
-    const verified = await verifyAuthorizationChallenge(challenge, rpCandidateKeys, {
+    const verified = await verifyAuthorizationChallenge(challengeRaw, rpCandidateKeys, {
       now: new Date(nowMs).toISOString(),
     });
     if (!verified.ok) {
