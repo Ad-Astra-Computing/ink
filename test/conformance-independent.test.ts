@@ -23,6 +23,8 @@ import { decodePublicKeyMultibase } from "../conformance/v1/independent/multibas
 import { canonicalPrincipal } from "../conformance/v1/independent/principal.mjs";
 // @ts-expect-error see above
 import { jcs } from "../conformance/v1/independent/jcs.mjs";
+// @ts-expect-error see above
+import { merkleLeafHash, auditQueryResponseSignatureBase } from "../conformance/v1/independent/audit-and-chain.mjs";
 
 const VECTORS = join(dirname(fileURLToPath(import.meta.url)), "..", "conformance", "v1", "vectors");
 const enc = new TextEncoder();
@@ -243,5 +245,91 @@ describe("the oracle enforces the §3.2 profile itself", () => {
 
   it("sorts members by UTF-16 code unit, not by insertion", () => {
     expect(jcs({ b: 1, a: 2, "\u00e9": 3, A: 4 })).toEqual('{"A":4,"a":2,"b":1,"é":3}');
+  });
+});
+
+// The base profile is 16 of the 29 categories. These cover the signed bytes in
+// the rest: grants and agent authorization reuse the §3.6 body base, so they
+// need no new construction, while the audit query response and the RFC 6962
+// leaf hash have their own domains.
+describe("non-base profiles", () => {
+  it("verifies every accepted authorization grant on the §3.6 body base", async () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("authorization-grant")) {
+      if (c.expect.result !== "accept") continue;
+      const grant = c.input?.grant;
+      const keyHex = c.input?.publicKeyHex ?? c.input?.issuerPublicKeyHex;
+      if (typeof grant?.signature !== "string" || typeof keyHex !== "string") continue;
+      exercised++;
+      if (!(await verify(grant.signature, bodySignatureBase(grant), fromHex(keyHex)))) failures.push(c.caseId);
+    }
+    expect(exercised, "no grants were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
+  it("verifies every accepted authorization challenge on the §3.6 body base", async () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("agent-authorization")) {
+      if (c.expect.result !== "accept") continue;
+      const ch = c.input?.challenge;
+      if (typeof ch?.signature !== "string") continue;
+      // `keys` is a map or list of the issuer's keys; the challenge names one.
+      const keys = c.input.keys;
+      const list: any[] = Array.isArray(keys)
+        ? keys
+        : keys && typeof keys === "object"
+          ? Object.entries(keys).map(([keyId, v]) => (typeof v === "string" ? { keyId, publicKeyHex: v } : { keyId, ...(v as object) }))
+          : [];
+      const hexKey = (list.find((k) => k?.keyId === ch.keyId) ?? list[0])?.publicKeyHex;
+      if (typeof hexKey !== "string") continue;
+      exercised++;
+      if (!(await verify(ch.signature, bodySignatureBase(ch), fromHex(hexKey)))) failures.push(c.caseId);
+    }
+    expect(exercised, "no authorization challenges were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
+  it("verifies every accepted discovery query envelope on the §3.6 body base", async () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("discovery-query-envelope")) {
+      if (c.expect.result !== "accept") continue;
+      const e = c.input?.envelope;
+      if (typeof e?.signature !== "string" || typeof c.input.publicKeyHex !== "string") continue;
+      exercised++;
+      if (!(await verify(e.signature, bodySignatureBase(e), fromHex(c.input.publicKeyHex)))) failures.push(c.caseId);
+    }
+    expect(exercised, "no discovery envelopes were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
+  it("verifies every accepted audit query response on its own domain", async () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("audit-query-response")) {
+      if (c.expect.result !== "accept") continue;
+      const r = c.input?.response;
+      if (typeof r?.serviceSignature !== "string" || typeof c.input.witnessPublicKeyHex !== "string") continue;
+      exercised++;
+      if (!(await verify(r.serviceSignature, auditQueryResponseSignatureBase(r), fromHex(c.input.witnessPublicKeyHex)))) {
+        failures.push(c.caseId);
+      }
+    }
+    expect(exercised, "no audit query responses were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
+  it("reproduces every RFC 6962 leaf hash from the raw event bytes", () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("merkle-leaf")) {
+      if (typeof c.expect.leafHash !== "string" || typeof c.input?.eventRaw !== "string") continue;
+      exercised++;
+      if (merkleLeafHash(JSON.parse(c.input.eventRaw)) !== c.expect.leafHash) failures.push(c.caseId);
+    }
+    expect(exercised, "no merkle leaves were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
   });
 });

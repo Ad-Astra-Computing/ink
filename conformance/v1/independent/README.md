@@ -19,10 +19,24 @@ from `src/`, `dist/` or the Go tree:
 | `body-signature.mjs` | body signature base and its version-keyed domain | `specs/ink-protocol.md` §3.6 |
 | `card-signature.mjs` | Agent Card and rotation-link bases | `specs/ink-agent-card-signature.md` §3.2, §5 |
 | `principal.mjs` | principal normalization | `specs/ink-protocol.md` §7 |
+| `audit-and-chain.mjs` | audit domains, RFC 6962 leaf, delegation parent hash | `specs/ink-protocol.md` §3.6, `specs/ink-merkle-leaf.md`, `specs/ink-authorization-chain.md` |
 
 `../../../test/conformance-independent.test.ts` re-verifies every signature the corpus records against bases
 built here. An accept case whose signature does not verify means the corpus and
 the spec disagree, which is the failure the corpus could not previously report.
+
+## Coverage
+
+The base profile's crypto-bearing vectors are covered, plus the signed bytes of
+the authorization, discovery and audit profiles. Grants and authorization
+challenges need no construction of their own: they sign under the §3.6 body
+base, so the same module covers them.
+
+Not yet covered, and honest about it: `payload-encryption` (an AEAD binding
+rather than a signature, so it needs X25519 and HKDF rather than a preimage),
+the witness `merkle-checkpoint`, `merkle-consistency` and `merkle-inclusion`
+proof recomputation, and the `authorization-chain` parent-hash linkage, whose
+construction is written here but not yet asserted against vectors.
 
 ## What independence does and does not mean
 
