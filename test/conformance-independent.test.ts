@@ -21,6 +21,8 @@ import { cardSignatureBase, rotationLinkSignatureBase } from "../conformance/v1/
 import { decodePublicKeyMultibase } from "../conformance/v1/independent/multibase.mjs";
 // @ts-expect-error see above
 import { canonicalPrincipal } from "../conformance/v1/independent/principal.mjs";
+// @ts-expect-error see above
+import { jcs } from "../conformance/v1/independent/jcs.mjs";
 
 const VECTORS = join(dirname(fileURLToPath(import.meta.url)), "..", "conformance", "v1", "vectors");
 const enc = new TextEncoder();
@@ -86,9 +88,20 @@ describe("agent card signature base, card spec §3.2", () => {
         unsigned++;
         continue;
       }
-      const signing = Array.isArray(card.keys?.signing) ? card.keys.signing : [];
-      const mb = signing.find((k: any) => k?.keyId === cs.keyId)?.publicKeyMultibase ?? card.publicKeyMultibase;
-      expect(typeof mb, `${c.caseId}: no public key resolves for cardSignature.keyId`).toEqual("string");
+      // Card spec §3.3 admits exactly two forms. A key-set card MUST resolve
+      // cardSignature.keyId inside keys.signing; only a legacy card with no
+      // keys.signing may use the top-level publicKeyMultibase, and then only
+      // under the literal keyId "bootstrap". A blanket fallback would let an
+      // accepted vector whose key-set signer is absent verify anyway, which is
+      // the case this check exists to catch.
+      const signing = Array.isArray(card.keys?.signing) ? card.keys.signing : null;
+      const mb =
+        signing === null
+          ? cs.keyId === "bootstrap"
+            ? card.publicKeyMultibase
+            : undefined
+          : signing.find((k: any) => k?.keyId === cs.keyId)?.publicKeyMultibase;
+      expect(typeof mb, `${c.caseId}: cardSignature.keyId ${cs.keyId} resolves to no key under §3.3`).toEqual("string");
       exercised++;
       if (!(await verify(cs.signature, cardSignatureBase(card), decodePublicKeyMultibase(mb)))) {
         failures.push(c.caseId);
@@ -106,16 +119,22 @@ describe("agent card signature base, card spec §3.2", () => {
       if (c.expect.result !== "accept") continue;
       const chain = c.input?.card?.rotationChain;
       if (!Array.isArray(chain)) continue;
-      const known = [...chain.flatMap((l: any) => l.signing ?? []), ...(c.input.card.keys?.signing ?? [])];
-      for (const link of chain) {
+      for (const [index, link] of chain.entries()) {
         expect(typeof link?.signature, `${c.caseId}: chain link on an accepted card is unsigned`).toEqual("string");
-        // The first link is signed by the genesis key, which on a key-derived
-        // card is the embedded publicKeyMultibase rather than a member of any
-        // committed set, so it carries no keyId to match on.
-        const mb =
-          known.find((k: any) => k?.keyId === link.prevKeyId)?.publicKeyMultibase ??
-          c.input.card.publicKeyMultibase;
-        expect(typeof mb, `${c.caseId}: link prevKeyId ${link.prevKeyId} resolves to no key`).toEqual("string");
+        // A link is signed by prevKeyId as it stood in the set committed by the
+        // PREVIOUS link, not by any key that appears anywhere in the chain.
+        // Pooling every link's set would verify a link against a key that was
+        // not active when it was made.
+        const priorSet: any[] = index === 0 ? [] : (chain[index - 1].signing ?? []);
+        const fromPriorSet = priorSet.find((k: any) => k?.keyId === link.prevKeyId)?.publicKeyMultibase;
+        // Only link 1 of a key-derived card roots in the embedded genesis key,
+        // which sits outside every committed set and so carries no keyId.
+        const genesis =
+          index === 0 && typeof c.input.card.publicKeyMultibase === "string"
+            ? c.input.card.publicKeyMultibase
+            : undefined;
+        const mb = fromPriorSet ?? genesis;
+        expect(typeof mb, `${c.caseId}: link ${index} prevKeyId ${link.prevKeyId} resolves to no key in the prior set`).toEqual("string");
         exercised++;
         if (!(await verify(link.signature, rotationLinkSignatureBase(link), decodePublicKeyMultibase(mb)))) {
           failures.push(`${c.caseId} v${link.keySetVersion}`);
@@ -165,5 +184,39 @@ describe("principal normalization, protocol §7", () => {
       if (canonicalPrincipal(c.input.agentId) !== c.expect.canonicalPrincipal) failures.push(c.caseId);
     }
     expect(failures).toEqual([]);
+  });
+});
+
+// The corpus cannot exercise every rule the oracle enforces. Mutation testing
+// showed a lone surrogate in a MEMBER NAME and several §3.2 bounds have no
+// vector at all, so removing those checks left the suite green. These assert
+// the oracle's own rules directly, otherwise the oracle silently loosens.
+describe("the oracle enforces the §3.2 profile itself", () => {
+  it("refuses a number outside the safe-integer profile", () => {
+    expect(() => jcs({ n: 1.5 })).toThrow(/safe integer/);
+    expect(() => jcs({ n: 2 ** 53 })).toThrow(/safe integer/);
+    expect(() => jcs({ n: Number.NaN })).toThrow(/safe integer/);
+    expect(() => jcs({ n: Number.POSITIVE_INFINITY })).toThrow(/safe integer/);
+    expect(() => jcs({ n: -0 })).toThrow(/negative zero/);
+    expect(jcs({ n: 100 })).toEqual('{"n":100}');
+  });
+
+  it("refuses a lone surrogate in a value and in a member name", () => {
+    expect(() => jcs({ s: "\ud800" })).toThrow(/lone surrogate in a string value/);
+    expect(() => jcs({ "\ud800": 1 })).toThrow(/lone surrogate in a member name/);
+    // A properly paired surrogate is ordinary text and must survive.
+    expect(jcs({ s: "\ud83d\ude00" })).toEqual('{"s":"😀"}');
+  });
+
+  it("bounds the walk", () => {
+    let deep: any = 1;
+    for (let i = 0; i < 40; i++) deep = { a: deep };
+    expect(() => jcs(deep)).toThrow(/depth exceeds/);
+    expect(() => jcs(Array.from({ length: 10001 }, (_, i) => i))).toThrow(/node count exceeds/);
+    expect(() => jcs({ s: "x".repeat(1200001) })).toThrow(/aggregate string length/);
+  });
+
+  it("sorts members by UTF-16 code unit, not by insertion", () => {
+    expect(jcs({ b: 1, a: 2, "\u00e9": 3, A: 4 })).toEqual('{"A":4,"a":2,"b":1,"é":3}');
   });
 });
