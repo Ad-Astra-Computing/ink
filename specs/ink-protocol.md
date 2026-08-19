@@ -545,12 +545,15 @@ An INK principal (the `agentId`, `from` and `to` values) is one of:
 - any other identifier, such as a `did:web:<host>` DID, carried through unchanged.
 
 `<multibase>` is `z` followed by base58btc of the multicodec-prefixed public
-key. The multicodec prefixes are `0xed 0x01` for Ed25519 (signing keys) and
-`0xec 0x01` for X25519 (encryption keys). A signing principal decodes to a
-32-byte Ed25519 public key that verifies the sender's transport and body
-signatures. Both accepted prefixes decode their tail identically, so a malformed
-tail is rejected the same way for each; the prefix is identity syntax, not
-signing authority.
+key. A principal decodes to a 32-byte Ed25519 public key under the multicodec
+`0xed 0x01`, and that key verifies the sender's transport and body signatures.
+
+The multicodec `0xec 0x01` denotes an X25519 encryption key. It appears in a
+card's `keys.encryption` set and never as a principal: an encryption key cannot
+verify a signature, so a principal derived from one could never authenticate.
+A `tulpa:`/`ink:` id whose body decodes under any multicodec other than
+`0xed 0x01` is therefore not a key-derived principal, and normalization keeps it
+opaque under the rule below rather than canonicalizing it.
 
 **Normalization (Frozen for 1.0).** Every per-sender security decision MUST key
 on a single prefix-independent **principal**, derived once at the storage
@@ -564,7 +567,15 @@ boundary from the raw `agentId`:
   principal;
 - a DID or any other identifier is returned unchanged;
 - a malformed multibase body is escaped to `raw:<agentId>` (the function stays
-  total; such an id cannot authenticate via the bootstrap path anyway).
+  total; such an id cannot authenticate via the bootstrap path anyway);
+- a well-formed body carrying a multicodec other than `0xed 0x01`, an X25519
+  encryption key most obviously, is escaped to `raw:<agentId>` as well. This
+  case is called out separately because such a body is NOT malformed and so is
+  not covered by the rule above: it decodes cleanly, and an implementation that
+  re-encodes the decoded bytes under `0xed 0x01` maps the encryption spelling of
+  a key onto the SIGNING principal of the same bytes, collapsing two distinct
+  agentIds onto one principal. The `principal-normalization` category pins this
+  with a vector whose two spellings carry identical key bytes.
 
 Normalization is DECODE-then-re-encode, not a prefix rewrite: an implementation
 that replaces `tulpa:`/`ink:` with `key:` textually maps a malformed, truncated,
