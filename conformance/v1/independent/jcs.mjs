@@ -45,20 +45,25 @@ export function jcs(value) {
   const budget = { nodes: 0, stringUnits: 0 };
   const out = serialize(value, budget, 0);
   if (out.length > MAX_OUTPUT) {
-    throw new Error(`§3.2: canonical output ${out.length} code units exceeds ${MAX_OUTPUT}`);
+    throw new Error(
+      `§3.2: canonical output ${out.length} code units exceeds ${MAX_OUTPUT}`,
+    );
   }
   // Both the UTF-16 code-unit length and the UTF-8 byte length are capped, so a
   // value under the code-unit ceiling that exceeds it in bytes is still refused.
   const bytes = new TextEncoder().encode(out).length;
   if (bytes > MAX_OUTPUT) {
-    throw new Error(`§3.2: canonical output ${bytes} bytes exceeds ${MAX_OUTPUT}`);
+    throw new Error(
+      `§3.2: canonical output ${bytes} bytes exceeds ${MAX_OUTPUT}`,
+    );
   }
   return out;
 }
 
 function serialize(value, budget, depth) {
   if (depth > MAX_DEPTH) throw new Error(`§3.2: depth exceeds ${MAX_DEPTH}`);
-  if (++budget.nodes > MAX_NODES) throw new Error(`§3.2: node count exceeds ${MAX_NODES}`);
+  if (++budget.nodes > MAX_NODES)
+    throw new Error(`§3.2: node count exceeds ${MAX_NODES}`);
 
   if (value === null) return "null";
   const t = typeof value;
@@ -70,7 +75,8 @@ function serialize(value, budget, depth) {
     // fractional part, within -(2^53 - 1)..2^53 - 1, and not negative zero.
     // NaN and the infinities are forbidden. A signer MUST refuse rather than
     // canonicalize an out-of-profile number, so this throws.
-    if (!Number.isSafeInteger(value)) throw new Error(`§3.2: ${String(value)} is not a safe integer`);
+    if (!Number.isSafeInteger(value))
+      throw new Error(`§3.2: ${String(value)} is not a safe integer`);
     if (Object.is(value, -0)) throw new Error("§3.2: negative zero");
     return JSON.stringify(value);
   }
@@ -78,7 +84,9 @@ function serialize(value, budget, depth) {
   if (t === "string") {
     budget.stringUnits += value.length;
     if (budget.stringUnits > MAX_STRING_UNITS) {
-      throw new Error(`§3.2: aggregate string length exceeds ${MAX_STRING_UNITS} code units`);
+      throw new Error(
+        `§3.2: aggregate string length exceeds ${MAX_STRING_UNITS} code units`,
+      );
     }
     return jsonString(value, "a string value");
   }
@@ -98,7 +106,9 @@ function serialize(value, budget, depth) {
     const members = keys.map((k) => {
       budget.stringUnits += k.length;
       if (budget.stringUnits > MAX_STRING_UNITS) {
-        throw new Error(`§3.2: aggregate string length exceeds ${MAX_STRING_UNITS} code units`);
+        throw new Error(
+          `§3.2: aggregate string length exceeds ${MAX_STRING_UNITS} code units`,
+        );
       }
       return `${jsonString(k, "a member name")}:${serialize(value[k], budget, depth + 1)}`;
     });

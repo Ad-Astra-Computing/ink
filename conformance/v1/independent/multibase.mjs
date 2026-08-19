@@ -14,7 +14,10 @@ export function base58Decode(text) {
   let n = 0n;
   for (const ch of text) {
     const digit = INDEX.get(ch);
-    if (digit === undefined) throw new Error(`base58: character ${JSON.stringify(ch)} is not in the alphabet`);
+    if (digit === undefined)
+      throw new Error(
+        `base58: character ${JSON.stringify(ch)} is not in the alphabet`,
+      );
     n = n * 58n + BigInt(digit);
   }
   const body = [];
@@ -51,16 +54,25 @@ export function base58Encode(bytes) {
 // A public key multibase is `z` + base58btc(0xed 0x01 || rawKey).
 export function decodePublicKeyMultibase(mb) {
   if (typeof mb !== "string" || !mb.startsWith("z")) {
-    throw new Error("public key multibase must start with the base58btc prefix `z`");
+    throw new Error(
+      "public key multibase must start with the base58btc prefix `z`",
+    );
   }
   const raw = base58Decode(mb.slice(1));
-  if (raw.length !== 34 || raw[0] !== ED25519_PUB[0] || raw[1] !== ED25519_PUB[1]) {
-    throw new Error("public key multibase is not a 32-byte ed25519-pub multicodec");
+  if (
+    raw.length !== 34 ||
+    raw[0] !== ED25519_PUB[0] ||
+    raw[1] !== ED25519_PUB[1]
+  ) {
+    throw new Error(
+      "public key multibase is not a 32-byte ed25519-pub multicodec",
+    );
   }
   return raw.slice(2);
 }
 
 export function encodePublicKeyMultibase(rawKey) {
-  if (rawKey.length !== 32) throw new Error("ed25519 public key must be 32 bytes");
+  if (rawKey.length !== 32)
+    throw new Error("ed25519 public key must be 32 bytes");
   return "z" + base58Encode(Uint8Array.from([...ED25519_PUB, ...rawKey]));
 }

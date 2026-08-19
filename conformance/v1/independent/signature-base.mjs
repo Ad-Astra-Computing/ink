@@ -7,7 +7,13 @@ import { jcs } from "./jcs.mjs";
 // `protocol` value; only the §3.6 body signature domain does.
 const DOMAIN = "ink/0.1";
 
-export function transportSignatureBase({ method, path, recipientDid, body, timestamp }) {
+export function transportSignatureBase({
+  method,
+  path,
+  recipientDid,
+  body,
+  timestamp,
+}) {
   // §3.3: the four scalar fields MUST NOT contain a CR or LF, because the base
   // is newline-delimited and an embedded newline lets two distinct inputs
   // collide on one signed string.
@@ -17,8 +23,10 @@ export function transportSignatureBase({ method, path, recipientDid, body, times
     ["recipientDid", recipientDid],
     ["timestamp", timestamp],
   ]) {
-    if (typeof value !== "string") throw new Error(`§3.3: ${name} is not a string`);
-    if (/[\r\n]/.test(value)) throw new Error(`§3.3: ${name} contains CR or LF`);
+    if (typeof value !== "string")
+      throw new Error(`§3.3: ${name} is not a string`);
+    if (/[\r\n]/.test(value))
+      throw new Error(`§3.3: ${name} contains CR or LF`);
   }
 
   // §3.3: METHOD is the uppercase HTTP method. Normalizing a lowercase one here
