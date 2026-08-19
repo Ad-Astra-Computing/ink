@@ -115,6 +115,7 @@ describe("agent card signature base, card spec §3.2", () => {
   it("verifies every rotation link on an accepted card", async () => {
     const failures: string[] = [];
     let exercised = 0;
+    let didWebRooted = 0;
     for (const c of cases("agent-card-signature")) {
       if (c.expect.result !== "accept") continue;
       const chain = c.input?.card?.rotationChain;
@@ -127,13 +128,29 @@ describe("agent card signature base, card spec §3.2", () => {
         // not active when it was made.
         const priorSet: any[] = index === 0 ? [] : (chain[index - 1].signing ?? []);
         const fromPriorSet = priorSet.find((k: any) => k?.keyId === link.prevKeyId)?.publicKeyMultibase;
-        // Only link 1 of a key-derived card roots in the embedded genesis key,
-        // which sits outside every committed set and so carries no keyId.
-        const genesis =
-          index === 0 && typeof c.input.card.publicKeyMultibase === "string"
-            ? c.input.card.publicKeyMultibase
+        // Only link 1 roots outside the chain, and it roots in the IDENTITY
+        // ROOT, not in a card field. For a key-derived card that root is the
+        // multibase inside the agentId itself, which no card edit can move.
+        // Rooting in card.publicKeyMultibase instead would let an accepted
+        // vector sign link 1 with a mutable field and still pass here.
+        //
+        // NOT currently exercised: no vector has a card.publicKeyMultibase that
+        // differs from the agentId's key, so swapping this back to the card
+        // field leaves the suite green. The rule is right, the corpus just
+        // cannot tell the two apart yet. Tracked as a coverage gap.
+        const agentId: unknown = c.input.card.agentId;
+        const keyDerivedRoot =
+          typeof agentId === "string" && (agentId.startsWith("tulpa:") || agentId.startsWith("ink:"))
+            ? agentId.slice(agentId.indexOf(":") + 1)
             : undefined;
-        const mb = fromPriorSet ?? genesis;
+        if (index === 0 && keyDerivedRoot === undefined) {
+          // A did:web chain roots in the resolved DID verification keys, which
+          // this vector does not carry. Nothing to check rather than something
+          // weak to check.
+          didWebRooted++;
+          continue;
+        }
+        const mb = fromPriorSet ?? (index === 0 ? keyDerivedRoot : undefined);
         expect(typeof mb, `${c.caseId}: link ${index} prevKeyId ${link.prevKeyId} resolves to no key in the prior set`).toEqual("string");
         exercised++;
         if (!(await verify(link.signature, rotationLinkSignatureBase(link), decodePublicKeyMultibase(mb)))) {
@@ -141,7 +158,7 @@ describe("agent card signature base, card spec §3.2", () => {
         }
       }
     }
-    expect(exercised, "no rotation links were exercised").toBeGreaterThan(0);
+    expect(exercised, `no rotation links were exercised (${didWebRooted} skipped as did:web rooted)`).toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
 });
@@ -214,6 +231,14 @@ describe("the oracle enforces the §3.2 profile itself", () => {
     expect(() => jcs(deep)).toThrow(/depth exceeds/);
     expect(() => jcs(Array.from({ length: 10001 }, (_, i) => i))).toThrow(/node count exceeds/);
     expect(() => jcs({ s: "x".repeat(1200001) })).toThrow(/aggregate string length/);
+  });
+
+  it("caps the canonical output in code units and, separately, in bytes", () => {
+    // Under the 1.2M aggregate-string ceiling but over the 1 MiB output.
+    expect(() => jcs({ s: "x".repeat(1_100_000) })).toThrow(/code units exceeds/);
+    // Under BOTH the aggregate ceiling and the code-unit output cap, but three
+    // bytes per character in UTF-8, so only the byte cap can catch it.
+    expect(() => jcs({ s: "\u4f60".repeat(600_000) })).toThrow(/bytes exceeds/);
   });
 
   it("sorts members by UTF-16 code unit, not by insertion", () => {
