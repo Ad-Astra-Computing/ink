@@ -1,4 +1,5 @@
-// RFC 8785 (JCS), written from the RFC rather than from `src/`. The corpus this
+// RFC 8785 (JCS) under INK's §3.2 profile, written from the RFC and the spec
+// rather than from `src/`. The corpus this
 // generator emits is the evidence that the implementation is correct, so it must
 // not be produced by that implementation. See conformance/v1/README.md.
 //
@@ -14,17 +15,37 @@ export function jcs(value) {
   if (t === "boolean") return value ? "true" : "false";
 
   if (t === "number") {
-    // §3.2.2.3: ECMAScript Number::toString, which excludes NaN and Infinity
-    // because they have no JSON representation at all.
-    if (!Number.isFinite(value)) {
-      throw new Error(`jcs: non-finite number ${String(value)}`);
+    // Protocol §3.2 narrows RFC 8785 to a portable subset: a number in a signed
+    // body MUST be a safe integer, with no fractional part, within
+    // -(2^53 - 1)..2^53 - 1, and not negative zero. NaN and the infinities are
+    // forbidden. A signer MUST refuse rather than canonicalize an
+    // out-of-profile number, so this throws rather than emitting bytes.
+    if (!Number.isSafeInteger(value)) {
+      throw new Error(`§3.2: ${String(value)} is not a safe integer`);
     }
+    if (Object.is(value, -0)) throw new Error("§3.2: negative zero");
     return JSON.stringify(value);
   }
 
-  // §3.2.2.2: the RFC 8259 escape set, shortest form, which is what
-  // JSON.stringify emits for a well-formed string.
-  if (t === "string") return JSON.stringify(value);
+  if (t === "string") {
+    // Protocol §3.2: a value carrying an unpaired UTF-16 surrogate MUST be
+    // rejected before signing or verifying. A `\uXXXX` escape for a lone
+    // surrogate is not portable, since a Go JSON parser rewrites it to U+FFFD
+    // and changes the canonical bytes. JSON.stringify would happily escape one.
+    for (let i = 0; i < value.length; i++) {
+      const unit = value.charCodeAt(i);
+      const isHigh = unit >= 0xd800 && unit <= 0xdbff;
+      const isLow = unit >= 0xdc00 && unit <= 0xdfff;
+      if (!isHigh && !isLow) continue;
+      const next = value.charCodeAt(i + 1);
+      const paired = isHigh && next >= 0xdc00 && next <= 0xdfff;
+      if (!paired) throw new Error(`§3.2: lone surrogate at index ${i}`);
+      i++;
+    }
+    // Otherwise RFC 8785 §3.2.2.2: the RFC 8259 escape set, shortest form,
+    // which is what JSON.stringify emits for a well-formed string.
+    return JSON.stringify(value);
+  }
 
   if (Array.isArray(value)) {
     // §3.2.3: array order is preserved. An undefined element is `null` in JSON,

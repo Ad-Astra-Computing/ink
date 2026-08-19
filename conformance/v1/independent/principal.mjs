@@ -4,12 +4,10 @@
 // one, and the corpus must not be produced by the code it is checking.
 import { base58Decode, encodePublicKeyMultibase } from "./multibase.mjs";
 
-// §7: the multicodec prefixes are 0xed 0x01 for Ed25519 signing keys and
-// 0xec 0x01 for X25519 encryption keys. Both decode their tail identically, so
-// a malformed tail is rejected the same way for each; the prefix is identity
-// syntax, not a capability grant.
+// §7: a signing principal decodes to a 32-byte Ed25519 public key, multicodec
+// 0xed 0x01. The X25519 multicodec 0xec 0x01 appears in a card's key set but is
+// not a principal.
 const ED25519_PUB = [0xed, 0x01];
-const X25519_PUB = [0xec, 0x01];
 
 // §7: normalization is DECODE-then-re-encode, not a prefix rewrite. Replacing
 // `tulpa:`/`ink:` with `key:` textually would map a malformed, truncated,
@@ -38,9 +36,15 @@ export function canonicalPrincipal(agentId) {
     return `raw:${agentId}`;
   }
 
+  // §7: "A signing principal decodes to a 32-byte Ed25519 public key that
+  // verifies the sender's transport and body signatures." An X25519 body
+  // (0xec 0x01) is well formed but is an encryption key, so it is not a signing
+  // principal and is kept opaque. Canonicalizing it would be worse than useless:
+  // re-encoding the decoded bytes under the Ed25519 multicodec maps the
+  // encryption spelling of a key onto the SIGNING principal of the same bytes,
+  // collapsing two distinct agentIds into one security bucket.
   const isEd = raw.length === 34 && raw[0] === ED25519_PUB[0] && raw[1] === ED25519_PUB[1];
-  const isX = raw.length === 34 && raw[0] === X25519_PUB[0] && raw[1] === X25519_PUB[1];
-  if (!isEd && !isX) return `raw:${agentId}`;
+  if (!isEd) return `raw:${agentId}`;
 
   // Re-encode from the decoded key, so a non-canonical encoding of the same key
   // collapses onto the same principal and a sender cannot re-encode to dodge a
