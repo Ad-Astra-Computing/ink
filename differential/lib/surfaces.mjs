@@ -388,7 +388,7 @@ export const SURFACES = [
     seedFrom: [{ category: "merkle-checkpoint", map: (i) => ({ body: i.body }) }],
     randomize: (rng) =>
       [
-        rng.pick(["origin", "", "a b", "origin ", randomString(rng)]),
+        rng.pick(["origin", "", "a b", "origin\u0000", randomString(rng)]),
         rng.pick(["0", "1", "10", "01", "+1", "-1", "1e2", " 1", "9007199254740993", "18446744073709551616", ""]),
         rng.pick(["ab".repeat(32), "AB".repeat(32), "ab".repeat(31), "ab".repeat(33), "zz".repeat(32), ""]),
       ].join("\n") + rng.pick(["\n", "", "\n\n", "\r\n"]),
