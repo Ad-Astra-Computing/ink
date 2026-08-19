@@ -32,11 +32,22 @@ the authorization, discovery and audit profiles. Grants and authorization
 challenges need no construction of their own: they sign under the §3.6 body
 base, so the same module covers them.
 
-Not yet covered, and honest about it: `payload-encryption` (an AEAD binding
-rather than a signature, so it needs X25519 and HKDF rather than a preimage),
-the witness `merkle-checkpoint`, `merkle-consistency` and `merkle-inclusion`
-proof recomputation, and the `authorization-chain` parent-hash linkage, whose
-construction is written here but not yet asserted against vectors.
+Not yet covered, and honest about it:
+
+- `payload-encryption`, an AEAD binding rather than a signature, so it needs
+  X25519 and HKDF rather than a preimage.
+- The witness `merkle-checkpoint`, `merkle-consistency` and `merkle-inclusion`
+  proof recomputation.
+- `inclusion-receipt`, whose witness signature covers `ink/audit-inclusion/v1\n`
+  and its committed fields.
+- The per-event `agentSignature` under `ink/audit-event\n` carried INSIDE
+  audit-query-response vectors. The response's own `serviceSignature` is
+  checked; the events it carries are not.
+- `authorization-chain` link signatures, which use the §3.6 body base, and the
+  parent-hash linkage, whose construction is written in `audit-and-chain.mjs`
+  but is not yet asserted against vectors.
+- `handshake-message`, `merkle-checkpoint` and `merkle-consistency` carry no
+  crypto artifact at all, so there is nothing here for this to check.
 
 ## What independence does and does not mean
 
