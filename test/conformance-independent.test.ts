@@ -303,14 +303,24 @@ describe("non-base profiles", () => {
         : keys && typeof keys === "object"
           ? Object.entries(keys).map(([keyId, v]) => (typeof v === "string" ? { keyId, publicKeyHex: v } : { keyId, ...(v as object) }))
           : [];
-      // The challenge carries no keyId: it is signed by the relying party's
-      // ACTIVE signing key, so that is what resolves it. No first-key fallback,
-      // which would verify against an arbitrary other key and pass a vector
-      // whose signer never resolved at all.
-      const matches = list.filter((k) => k?.status === "active");
-      if (matches.length !== 1 || typeof matches[0].publicKeyHex !== "string") { t.unresolved.push(c.caseId); continue; }
+      // The challenge carries no keyId: it is signed by an ACTIVE relying-party
+      // signing key. Key rotation permits overlapping active keys, so any one
+      // of them may be the signer and the oracle tries each. What it will not
+      // do is fall back to a key that is not active, which would verify a
+      // challenge signed by a retired or revoked key.
+      //
+      // NOT currently exercised: no vector carries a non-active RP key that
+      // would verify, so dropping the status filter leaves the suite green.
+      // The rule is right, the corpus cannot yet tell. Tracked with the other
+      // coverage gaps.
+      const candidates = list.filter((k) => k?.status === "active" && typeof k.publicKeyHex === "string");
+      if (candidates.length === 0) { t.unresolved.push(c.caseId); continue; }
       t.exercised++;
-      if (!(await verify(ch.signature, bodySignatureBase(ch), fromHex(matches[0].publicKeyHex)))) failures.push(c.caseId);
+      let verified = false;
+      for (const k of candidates) {
+        if (await verify(ch.signature, bodySignatureBase(ch), fromHex(k.publicKeyHex))) { verified = true; break; }
+      }
+      if (!verified) failures.push(c.caseId);
     }
     settle(t, "authorization challenges", failures);
   });
