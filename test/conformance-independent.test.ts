@@ -605,38 +605,52 @@ describe("audit and delegation profiles", () => {
     expect(failures).toEqual([]);
   });
 
-  it("verifies every delegation link on the §3.6 body base", async () => {
+  it("verifies every delegation link against its own issuer key", async () => {
     let exercised = 0;
+    let rawParsed = 0;
     const failures: string[] = [];
+    const unresolved: string[] = [];
     for (const c of cases("authorization-chain")) {
       if (c.expect.result !== "accept") continue;
-      const links = c.input?.chain?.links;
-      // Only active issuer keys are candidates. Any link that verifies under a
-      // non-active key would be a finding, not a pass.
-      const keys = (c.input?.issuerKeys ?? []).filter(
-        (k: any) =>
-          k?.status === "active" && typeof k.publicKeyHex === "string",
-      );
-      if (!Array.isArray(links) || keys.length === 0) continue;
-      for (const link of links) {
-        if (typeof link?.signature !== "string") continue;
-        exercised++;
-        let ok = false;
-        for (const k of keys) {
-          if (
-            await verify(
-              link.signature,
-              bodySignatureBase(link),
-              fromHex(k.publicKeyHex),
-            )
-          ) {
-            ok = true;
-            break;
-          }
+      // Some accepted vectors carry the chain only as raw bytes, to pin
+      // parse-level behaviour. Skipping those would make "every delegation
+      // link" false, so they are parsed here rather than quietly dropped.
+      let chain = c.input?.chain;
+      if (!chain && typeof c.input?.chainRaw === "string") {
+        try {
+          chain = JSON.parse(c.input.chainRaw);
+          rawParsed++;
+        } catch {
+          unresolved.push(`${c.caseId} (unparseable chainRaw)`);
+          continue;
         }
-        if (!ok) failures.push(`${c.caseId} ${link.grantId}`);
+      }
+      const links = chain?.links;
+      const issuerKeys = c.input?.issuerKeys;
+      if (!Array.isArray(links) || !Array.isArray(issuerKeys)) continue;
+      if (links.length !== issuerKeys.length) {
+        unresolved.push(`${c.caseId} (${links.length} links, ${issuerKeys.length} keys)`);
+        continue;
+      }
+      for (const [i, link] of links.entries()) {
+        if (typeof link?.signature !== "string") continue;
+        // issuerKeys is aligned root-to-head, so a link resolves to ITS OWN
+        // issuer key. Pooling every active key in the chain and accepting any
+        // match would pass a link signed by the wrong issuer, which is the
+        // substitution this is supposed to catch.
+        const key = issuerKeys[i];
+        if (key?.status !== "active" || typeof key.publicKeyHex !== "string") {
+          unresolved.push(`${c.caseId} link ${i} has no active issuer key`);
+          continue;
+        }
+        exercised++;
+        if (!(await verify(link.signature, bodySignatureBase(link), fromHex(key.publicKeyHex)))) {
+          failures.push(`${c.caseId} ${link.grantId ?? i}`);
+        }
       }
     }
+    expect(unresolved, "chains whose issuer key could not be resolved").toEqual([]);
+    expect(rawParsed, "no chainRaw accept vector was parsed").toBeGreaterThan(0);
     expect(exercised, "no delegation links were exercised").toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
