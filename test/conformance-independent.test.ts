@@ -23,6 +23,8 @@ import { decodePublicKeyMultibase } from "../conformance/v1/independent/multibas
 import { canonicalPrincipal } from "../conformance/v1/independent/principal.mjs";
 // @ts-expect-error see above
 import { jcs } from "../conformance/v1/independent/jcs.mjs";
+// @ts-expect-error see above
+import { merkleLeafHash, auditQueryResponseSignatureBase } from "../conformance/v1/independent/audit-and-chain.mjs";
 
 const VECTORS = join(dirname(fileURLToPath(import.meta.url)), "..", "conformance", "v1", "vectors");
 const enc = new TextEncoder();
@@ -243,5 +245,111 @@ describe("the oracle enforces the §3.2 profile itself", () => {
 
   it("sorts members by UTF-16 code unit, not by insertion", () => {
     expect(jcs({ b: 1, a: 2, "\u00e9": 3, A: 4 })).toEqual('{"A":4,"a":2,"b":1,"é":3}');
+  });
+});
+
+// The base profile is 16 of the 29 categories. These cover the signed bytes in
+// the rest: grants and agent authorization reuse the §3.6 body base, so they
+// need no new construction, while the audit query response and the RFC 6962
+// leaf hash have their own domains.
+describe("non-base profiles", () => {
+  // A vector with no signature at all is out of scope for a signature oracle
+  // and is skipped. A vector that HAS a signature whose key will not resolve is
+  // a different thing entirely: it means the oracle could not check something it
+  // was supposed to check, so that count must be zero. Collapsing the two into
+  // one `continue` is how an oracle quietly stops testing.
+  type Tally = { exercised: number; noSignature: string[]; unresolved: string[] };
+  const tally = (): Tally => ({ exercised: 0, noSignature: [], unresolved: [] });
+  function settle(t: Tally, label: string, failures: string[]) {
+    expect(t.unresolved, `${label}: signed vectors whose key did not resolve`).toEqual([]);
+    expect(t.exercised, `${label}: nothing exercised (${t.noSignature.length} unsigned)`).toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  }
+
+  // Confirmed with the spec authors' text: grants, authorization challenges and
+  // discovery envelopes sign under the §3.6 body base and have no domain of
+  // their own.
+  const bodySigned: Array<[string, string, (c: Case) => { obj: any; keyHex: unknown }]> = [
+    ["authorization-grant", "grants", (c) => ({ obj: c.input?.grant, keyHex: c.input?.publicKeyHex ?? c.input?.issuerPublicKeyHex })],
+    ["discovery-query-envelope", "discovery envelopes", (c) => ({ obj: c.input?.envelope, keyHex: c.input?.publicKeyHex })],
+  ];
+
+  for (const [category, label, pick] of bodySigned) {
+    it(`verifies every accepted ${label} on the §3.6 body base`, async () => {
+      const t = tally();
+      const failures: string[] = [];
+      for (const c of cases(category)) {
+        if (c.expect.result !== "accept") continue;
+        const { obj, keyHex } = pick(c);
+        if (typeof obj?.signature !== "string") { t.noSignature.push(c.caseId); continue; }
+        if (typeof keyHex !== "string") { t.unresolved.push(c.caseId); continue; }
+        t.exercised++;
+        if (!(await verify(obj.signature, bodySignatureBase(obj), fromHex(keyHex)))) failures.push(c.caseId);
+      }
+      settle(t, label, failures);
+    });
+  }
+
+  it("verifies every accepted authorization challenge on the §3.6 body base", async () => {
+    const t = tally();
+    const failures: string[] = [];
+    for (const c of cases("agent-authorization")) {
+      if (c.expect.result !== "accept") continue;
+      const ch = c.input?.challenge;
+      if (typeof ch?.signature !== "string") { t.noSignature.push(c.caseId); continue; }
+      const keys = c.input.keys;
+      const list: any[] = Array.isArray(keys)
+        ? keys
+        : keys && typeof keys === "object"
+          ? Object.entries(keys).map(([keyId, v]) => (typeof v === "string" ? { keyId, publicKeyHex: v } : { keyId, ...(v as object) }))
+          : [];
+      // The challenge carries no keyId: it is signed by an ACTIVE relying-party
+      // signing key. Key rotation permits overlapping active keys, so any one
+      // of them may be the signer and the oracle tries each. What it will not
+      // do is fall back to a key that is not active, which would verify a
+      // challenge signed by a retired or revoked key.
+      //
+      // NOT currently exercised: no vector carries a non-active RP key that
+      // would verify, so dropping the status filter leaves the suite green.
+      // The rule is right, the corpus cannot yet tell. Tracked with the other
+      // coverage gaps.
+      const candidates = list.filter((k) => k?.status === "active" && typeof k.publicKeyHex === "string");
+      if (candidates.length === 0) { t.unresolved.push(c.caseId); continue; }
+      t.exercised++;
+      let verified = false;
+      for (const k of candidates) {
+        if (await verify(ch.signature, bodySignatureBase(ch), fromHex(k.publicKeyHex))) { verified = true; break; }
+      }
+      if (!verified) failures.push(c.caseId);
+    }
+    settle(t, "authorization challenges", failures);
+  });
+
+  it("verifies every accepted audit query response on its own domain", async () => {
+    const t = tally();
+    const failures: string[] = [];
+    for (const c of cases("audit-query-response")) {
+      if (c.expect.result !== "accept") continue;
+      const r = c.input?.response;
+      if (typeof r?.serviceSignature !== "string") { t.noSignature.push(c.caseId); continue; }
+      if (typeof c.input.witnessPublicKeyHex !== "string") { t.unresolved.push(c.caseId); continue; }
+      t.exercised++;
+      if (!(await verify(r.serviceSignature, auditQueryResponseSignatureBase(r), fromHex(c.input.witnessPublicKeyHex)))) {
+        failures.push(c.caseId);
+      }
+    }
+    settle(t, "audit query responses", failures);
+  });
+
+  it("reproduces every RFC 6962 leaf hash from the raw event bytes", () => {
+    const t = tally();
+    const failures: string[] = [];
+    for (const c of cases("merkle-leaf")) {
+      if (typeof c.expect.leafHash !== "string") { t.noSignature.push(c.caseId); continue; }
+      if (typeof c.input?.eventRaw !== "string") { t.unresolved.push(c.caseId); continue; }
+      t.exercised++;
+      if (merkleLeafHash(JSON.parse(c.input.eventRaw)) !== c.expect.leafHash) failures.push(c.caseId);
+    }
+    settle(t, "merkle leaves", failures);
   });
 });
