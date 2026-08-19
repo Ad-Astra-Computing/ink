@@ -10,25 +10,37 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as ed from "@noble/ed25519";
-// @ts-expect-error the independent modules are deliberately plain .mjs with no
+// Untyped by design; see test/independent-modules.d.ts.
 // dependency on this package's types, so they cannot drift toward src/.
 import { transportSignatureBase } from "../conformance/v1/independent/signature-base.mjs";
-// @ts-expect-error see above
 import { bodySignatureBase } from "../conformance/v1/independent/body-signature.mjs";
-// @ts-expect-error see above
-import { cardSignatureBase, rotationLinkSignatureBase } from "../conformance/v1/independent/card-signature.mjs";
-// @ts-expect-error see above
+import {
+  cardSignatureBase,
+  rotationLinkSignatureBase,
+} from "../conformance/v1/independent/card-signature.mjs";
 import { decodePublicKeyMultibase } from "../conformance/v1/independent/multibase.mjs";
-// @ts-expect-error see above
 import { canonicalPrincipal } from "../conformance/v1/independent/principal.mjs";
-// @ts-expect-error see above
 import { jcs } from "../conformance/v1/independent/jcs.mjs";
-// @ts-expect-error see above
-import { merkleLeafHash, auditQueryResponseSignatureBase } from "../conformance/v1/independent/audit-and-chain.mjs";
+import {
+  merkleLeafHash,
+  auditQueryResponseSignatureBase,
+  auditEventSignatureBase,
+  inclusionReceiptSignatureBase,
+  recomputeMerkleRoot,
+} from "../conformance/v1/independent/audit-and-chain.mjs";
 
-const VECTORS = join(dirname(fileURLToPath(import.meta.url)), "..", "conformance", "v1", "vectors");
+const VECTORS = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "conformance",
+  "v1",
+  "vectors",
+);
 const enc = new TextEncoder();
-const b64u = (s: string) => Uint8Array.from(Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
+const b64u = (s: string) =>
+  Uint8Array.from(
+    Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64"),
+  );
 const fromHex = (h: string) => Uint8Array.from(Buffer.from(h, "hex"));
 
 type Case = { caseId: string; input: any; expect: any };
@@ -53,22 +65,34 @@ describe("transport signature base, protocol §3.3", () => {
       if (!signInput || !signature || !publicKeyHex) {
         // An accept case missing its artifacts cannot be checked, and silently
         // skipping it is how a check goes hollow. Fail instead.
-        expect(c.expect.result, `${c.caseId}: accept case is missing signInput, signature or key`).not.toEqual("accept");
+        expect(
+          c.expect.result,
+          `${c.caseId}: accept case is missing signInput, signature or key`,
+        ).not.toEqual("accept");
         continue;
       }
       exercised++;
       let ok = false;
       try {
-        ok = await verify(signature, transportSignatureBase(signInput), fromHex(publicKeyHex));
+        ok = await verify(
+          signature,
+          transportSignatureBase(signInput),
+          fromHex(publicKeyHex),
+        );
       } catch {
         // A scalar carrying CR or LF cannot build a base at all, which is how
         // §3.3 rejects it. That is the expected path for those cases.
         if (c.expect.result === "reject") continue;
-        throw new Error(`${c.caseId}: base construction threw on an accept case`);
+        throw new Error(
+          `${c.caseId}: base construction threw on an accept case`,
+        );
       }
       if (c.expect.result === "accept" && !ok) failures.push(c.caseId);
     }
-    expect(exercised, "no signature-base vectors were exercised").toBeGreaterThan(0);
+    expect(
+      exercised,
+      "no signature-base vectors were exercised",
+    ).toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
 });
@@ -96,21 +120,38 @@ describe("agent card signature base, card spec §3.2", () => {
       // under the literal keyId "bootstrap". A blanket fallback would let an
       // accepted vector whose key-set signer is absent verify anyway, which is
       // the case this check exists to catch.
-      const signing = Array.isArray(card.keys?.signing) ? card.keys.signing : null;
+      const signing = Array.isArray(card.keys?.signing)
+        ? card.keys.signing
+        : null;
       const mb =
         signing === null
           ? cs.keyId === "bootstrap"
             ? card.publicKeyMultibase
             : undefined
           : signing.find((k: any) => k?.keyId === cs.keyId)?.publicKeyMultibase;
-      expect(typeof mb, `${c.caseId}: cardSignature.keyId ${cs.keyId} resolves to no key under §3.3`).toEqual("string");
+      expect(
+        typeof mb,
+        `${c.caseId}: cardSignature.keyId ${cs.keyId} resolves to no key under §3.3`,
+      ).toEqual("string");
       exercised++;
-      if (!(await verify(cs.signature, cardSignatureBase(card), decodePublicKeyMultibase(mb)))) {
+      if (
+        !(await verify(
+          cs.signature,
+          cardSignatureBase(card),
+          decodePublicKeyMultibase(mb),
+        ))
+      ) {
         failures.push(c.caseId);
       }
     }
-    expect(exercised, "no accepted agent-card-signature vectors were exercised").toBeGreaterThan(0);
-    expect(unsigned, "every accepted card was unsigned, so nothing was verified").toBeLessThan(exercised);
+    expect(
+      exercised,
+      "no accepted agent-card-signature vectors were exercised",
+    ).toBeGreaterThan(0);
+    expect(
+      unsigned,
+      "every accepted card was unsigned, so nothing was verified",
+    ).toBeLessThan(exercised);
     expect(failures).toEqual([]);
   });
 
@@ -123,13 +164,19 @@ describe("agent card signature base, card spec §3.2", () => {
       const chain = c.input?.card?.rotationChain;
       if (!Array.isArray(chain)) continue;
       for (const [index, link] of chain.entries()) {
-        expect(typeof link?.signature, `${c.caseId}: chain link on an accepted card is unsigned`).toEqual("string");
+        expect(
+          typeof link?.signature,
+          `${c.caseId}: chain link on an accepted card is unsigned`,
+        ).toEqual("string");
         // A link is signed by prevKeyId as it stood in the set committed by the
         // PREVIOUS link, not by any key that appears anywhere in the chain.
         // Pooling every link's set would verify a link against a key that was
         // not active when it was made.
-        const priorSet: any[] = index === 0 ? [] : (chain[index - 1].signing ?? []);
-        const fromPriorSet = priorSet.find((k: any) => k?.keyId === link.prevKeyId)?.publicKeyMultibase;
+        const priorSet: any[] =
+          index === 0 ? [] : (chain[index - 1].signing ?? []);
+        const fromPriorSet = priorSet.find(
+          (k: any) => k?.keyId === link.prevKeyId,
+        )?.publicKeyMultibase;
         // Only link 1 roots outside the chain, and it roots in the IDENTITY
         // ROOT, not in a card field. For a key-derived card that root is the
         // multibase inside the agentId itself, which no card edit can move.
@@ -142,7 +189,8 @@ describe("agent card signature base, card spec §3.2", () => {
         // cannot tell the two apart yet. Tracked as a coverage gap.
         const agentId: unknown = c.input.card.agentId;
         const keyDerivedRoot =
-          typeof agentId === "string" && (agentId.startsWith("tulpa:") || agentId.startsWith("ink:"))
+          typeof agentId === "string" &&
+          (agentId.startsWith("tulpa:") || agentId.startsWith("ink:"))
             ? agentId.slice(agentId.indexOf(":") + 1)
             : undefined;
         if (index === 0 && keyDerivedRoot === undefined) {
@@ -153,14 +201,26 @@ describe("agent card signature base, card spec §3.2", () => {
           continue;
         }
         const mb = fromPriorSet ?? (index === 0 ? keyDerivedRoot : undefined);
-        expect(typeof mb, `${c.caseId}: link ${index} prevKeyId ${link.prevKeyId} resolves to no key in the prior set`).toEqual("string");
+        expect(
+          typeof mb,
+          `${c.caseId}: link ${index} prevKeyId ${link.prevKeyId} resolves to no key in the prior set`,
+        ).toEqual("string");
         exercised++;
-        if (!(await verify(link.signature, rotationLinkSignatureBase(link), decodePublicKeyMultibase(mb)))) {
+        if (
+          !(await verify(
+            link.signature,
+            rotationLinkSignatureBase(link),
+            decodePublicKeyMultibase(mb),
+          ))
+        ) {
           failures.push(`${c.caseId} v${link.keySetVersion}`);
         }
       }
     }
-    expect(exercised, `no rotation links were exercised (${didWebRooted} skipped as did:web rooted)`).toBeGreaterThan(0);
+    expect(
+      exercised,
+      `no rotation links were exercised (${didWebRooted} skipped as did:web rooted)`,
+    ).toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
 });
@@ -175,10 +235,21 @@ describe("first contact transcript, protocol §3.3 and §3.6", () => {
         [c.input?.request, "senderPublicKeyHex"],
         [c.input?.response, "receiverPublicKeyHex"],
       ] as const) {
-        if (!leg?.signInput || typeof leg.signature !== "string" || typeof leg[keyField] !== "string") continue;
+        if (
+          !leg?.signInput ||
+          typeof leg.signature !== "string" ||
+          typeof leg[keyField] !== "string"
+        )
+          continue;
         exercised++;
         const key = fromHex(leg[keyField]);
-        if (!(await verify(leg.signature, transportSignatureBase(leg.signInput), key))) {
+        if (
+          !(await verify(
+            leg.signature,
+            transportSignatureBase(leg.signInput),
+            key,
+          ))
+        ) {
           failures.push(`${c.caseId} ${keyField} transport`);
         }
         const body = leg.signInput.body;
@@ -196,11 +267,17 @@ describe("first contact transcript, protocol §3.3 and §3.6", () => {
 
 describe("principal normalization, protocol §7", () => {
   it("derives the same principal the corpus records", () => {
-    const accepted = cases("principal-normalization").filter((c) => c.expect.result === "accept");
-    expect(accepted.length, "no accept cases found; the category was renamed or dropped").toBeGreaterThan(0);
+    const accepted = cases("principal-normalization").filter(
+      (c) => c.expect.result === "accept",
+    );
+    expect(
+      accepted.length,
+      "no accept cases found; the category was renamed or dropped",
+    ).toBeGreaterThan(0);
     const failures: string[] = [];
     for (const c of accepted) {
-      if (canonicalPrincipal(c.input.agentId) !== c.expect.canonicalPrincipal) failures.push(c.caseId);
+      if (canonicalPrincipal(c.input.agentId) !== c.expect.canonicalPrincipal)
+        failures.push(c.caseId);
     }
     expect(failures).toEqual([]);
   });
@@ -221,8 +298,12 @@ describe("the oracle enforces the §3.2 profile itself", () => {
   });
 
   it("refuses a lone surrogate in a value and in a member name", () => {
-    expect(() => jcs({ s: "\ud800" })).toThrow(/lone surrogate in a string value/);
-    expect(() => jcs({ "\ud800": 1 })).toThrow(/lone surrogate in a member name/);
+    expect(() => jcs({ s: "\ud800" })).toThrow(
+      /lone surrogate in a string value/,
+    );
+    expect(() => jcs({ "\ud800": 1 })).toThrow(
+      /lone surrogate in a member name/,
+    );
     // A properly paired surrogate is ordinary text and must survive.
     expect(jcs({ s: "\ud83d\ude00" })).toEqual('{"s":"😀"}');
   });
@@ -231,20 +312,28 @@ describe("the oracle enforces the §3.2 profile itself", () => {
     let deep: any = 1;
     for (let i = 0; i < 40; i++) deep = { a: deep };
     expect(() => jcs(deep)).toThrow(/depth exceeds/);
-    expect(() => jcs(Array.from({ length: 10001 }, (_, i) => i))).toThrow(/node count exceeds/);
-    expect(() => jcs({ s: "x".repeat(1200001) })).toThrow(/aggregate string length/);
+    expect(() => jcs(Array.from({ length: 10001 }, (_, i) => i))).toThrow(
+      /node count exceeds/,
+    );
+    expect(() => jcs({ s: "x".repeat(1200001) })).toThrow(
+      /aggregate string length/,
+    );
   });
 
   it("caps the canonical output in code units and, separately, in bytes", () => {
     // Under the 1.2M aggregate-string ceiling but over the 1 MiB output.
-    expect(() => jcs({ s: "x".repeat(1_100_000) })).toThrow(/code units exceeds/);
+    expect(() => jcs({ s: "x".repeat(1_100_000) })).toThrow(
+      /code units exceeds/,
+    );
     // Under BOTH the aggregate ceiling and the code-unit output cap, but three
     // bytes per character in UTF-8, so only the byte cap can catch it.
     expect(() => jcs({ s: "\u4f60".repeat(600_000) })).toThrow(/bytes exceeds/);
   });
 
   it("sorts members by UTF-16 code unit, not by insertion", () => {
-    expect(jcs({ b: 1, a: 2, "\u00e9": 3, A: 4 })).toEqual('{"A":4,"a":2,"b":1,"é":3}');
+    expect(jcs({ b: 1, a: 2, "\u00e9": 3, A: 4 })).toEqual(
+      '{"A":4,"a":2,"b":1,"é":3}',
+    );
   });
 });
 
@@ -258,20 +347,47 @@ describe("non-base profiles", () => {
   // a different thing entirely: it means the oracle could not check something it
   // was supposed to check, so that count must be zero. Collapsing the two into
   // one `continue` is how an oracle quietly stops testing.
-  type Tally = { exercised: number; noSignature: string[]; unresolved: string[] };
-  const tally = (): Tally => ({ exercised: 0, noSignature: [], unresolved: [] });
+  type Tally = {
+    exercised: number;
+    noSignature: string[];
+    unresolved: string[];
+  };
+  const tally = (): Tally => ({
+    exercised: 0,
+    noSignature: [],
+    unresolved: [],
+  });
   function settle(t: Tally, label: string, failures: string[]) {
-    expect(t.unresolved, `${label}: signed vectors whose key did not resolve`).toEqual([]);
-    expect(t.exercised, `${label}: nothing exercised (${t.noSignature.length} unsigned)`).toBeGreaterThan(0);
+    expect(
+      t.unresolved,
+      `${label}: signed vectors whose key did not resolve`,
+    ).toEqual([]);
+    expect(
+      t.exercised,
+      `${label}: nothing exercised (${t.noSignature.length} unsigned)`,
+    ).toBeGreaterThan(0);
     expect(failures).toEqual([]);
   }
 
   // Confirmed with the spec authors' text: grants, authorization challenges and
   // discovery envelopes sign under the §3.6 body base and have no domain of
   // their own.
-  const bodySigned: Array<[string, string, (c: Case) => { obj: any; keyHex: unknown }]> = [
-    ["authorization-grant", "grants", (c) => ({ obj: c.input?.grant, keyHex: c.input?.publicKeyHex ?? c.input?.issuerPublicKeyHex })],
-    ["discovery-query-envelope", "discovery envelopes", (c) => ({ obj: c.input?.envelope, keyHex: c.input?.publicKeyHex })],
+  const bodySigned: Array<
+    [string, string, (c: Case) => { obj: any; keyHex: unknown }]
+  > = [
+    [
+      "authorization-grant",
+      "grants",
+      (c) => ({
+        obj: c.input?.grant,
+        keyHex: c.input?.publicKeyHex ?? c.input?.issuerPublicKeyHex,
+      }),
+    ],
+    [
+      "discovery-query-envelope",
+      "discovery envelopes",
+      (c) => ({ obj: c.input?.envelope, keyHex: c.input?.publicKeyHex }),
+    ],
   ];
 
   for (const [category, label, pick] of bodySigned) {
@@ -281,10 +397,23 @@ describe("non-base profiles", () => {
       for (const c of cases(category)) {
         if (c.expect.result !== "accept") continue;
         const { obj, keyHex } = pick(c);
-        if (typeof obj?.signature !== "string") { t.noSignature.push(c.caseId); continue; }
-        if (typeof keyHex !== "string") { t.unresolved.push(c.caseId); continue; }
+        if (typeof obj?.signature !== "string") {
+          t.noSignature.push(c.caseId);
+          continue;
+        }
+        if (typeof keyHex !== "string") {
+          t.unresolved.push(c.caseId);
+          continue;
+        }
         t.exercised++;
-        if (!(await verify(obj.signature, bodySignatureBase(obj), fromHex(keyHex)))) failures.push(c.caseId);
+        if (
+          !(await verify(
+            obj.signature,
+            bodySignatureBase(obj),
+            fromHex(keyHex),
+          ))
+        )
+          failures.push(c.caseId);
       }
       settle(t, label, failures);
     });
@@ -296,12 +425,19 @@ describe("non-base profiles", () => {
     for (const c of cases("agent-authorization")) {
       if (c.expect.result !== "accept") continue;
       const ch = c.input?.challenge;
-      if (typeof ch?.signature !== "string") { t.noSignature.push(c.caseId); continue; }
+      if (typeof ch?.signature !== "string") {
+        t.noSignature.push(c.caseId);
+        continue;
+      }
       const keys = c.input.keys;
       const list: any[] = Array.isArray(keys)
         ? keys
         : keys && typeof keys === "object"
-          ? Object.entries(keys).map(([keyId, v]) => (typeof v === "string" ? { keyId, publicKeyHex: v } : { keyId, ...(v as object) }))
+          ? Object.entries(keys).map(([keyId, v]) =>
+              typeof v === "string"
+                ? { keyId, publicKeyHex: v }
+                : { keyId, ...(v as object) },
+            )
           : [];
       // The challenge carries no keyId: it is signed by an ACTIVE relying-party
       // signing key. Key rotation permits overlapping active keys, so any one
@@ -313,12 +449,26 @@ describe("non-base profiles", () => {
       // would verify, so dropping the status filter leaves the suite green.
       // The rule is right, the corpus cannot yet tell. Tracked with the other
       // coverage gaps.
-      const candidates = list.filter((k) => k?.status === "active" && typeof k.publicKeyHex === "string");
-      if (candidates.length === 0) { t.unresolved.push(c.caseId); continue; }
+      const candidates = list.filter(
+        (k) => k?.status === "active" && typeof k.publicKeyHex === "string",
+      );
+      if (candidates.length === 0) {
+        t.unresolved.push(c.caseId);
+        continue;
+      }
       t.exercised++;
       let verified = false;
       for (const k of candidates) {
-        if (await verify(ch.signature, bodySignatureBase(ch), fromHex(k.publicKeyHex))) { verified = true; break; }
+        if (
+          await verify(
+            ch.signature,
+            bodySignatureBase(ch),
+            fromHex(k.publicKeyHex),
+          )
+        ) {
+          verified = true;
+          break;
+        }
       }
       if (!verified) failures.push(c.caseId);
     }
@@ -331,10 +481,22 @@ describe("non-base profiles", () => {
     for (const c of cases("audit-query-response")) {
       if (c.expect.result !== "accept") continue;
       const r = c.input?.response;
-      if (typeof r?.serviceSignature !== "string") { t.noSignature.push(c.caseId); continue; }
-      if (typeof c.input.witnessPublicKeyHex !== "string") { t.unresolved.push(c.caseId); continue; }
+      if (typeof r?.serviceSignature !== "string") {
+        t.noSignature.push(c.caseId);
+        continue;
+      }
+      if (typeof c.input.witnessPublicKeyHex !== "string") {
+        t.unresolved.push(c.caseId);
+        continue;
+      }
       t.exercised++;
-      if (!(await verify(r.serviceSignature, auditQueryResponseSignatureBase(r), fromHex(c.input.witnessPublicKeyHex)))) {
+      if (
+        !(await verify(
+          r.serviceSignature,
+          auditQueryResponseSignatureBase(r),
+          fromHex(c.input.witnessPublicKeyHex),
+        ))
+      ) {
         failures.push(c.caseId);
       }
     }
@@ -345,11 +507,151 @@ describe("non-base profiles", () => {
     const t = tally();
     const failures: string[] = [];
     for (const c of cases("merkle-leaf")) {
-      if (typeof c.expect.leafHash !== "string") { t.noSignature.push(c.caseId); continue; }
-      if (typeof c.input?.eventRaw !== "string") { t.unresolved.push(c.caseId); continue; }
+      if (typeof c.expect.leafHash !== "string") {
+        t.noSignature.push(c.caseId);
+        continue;
+      }
+      if (typeof c.input?.eventRaw !== "string") {
+        t.unresolved.push(c.caseId);
+        continue;
+      }
       t.exercised++;
-      if (merkleLeafHash(JSON.parse(c.input.eventRaw)) !== c.expect.leafHash) failures.push(c.caseId);
+      if (merkleLeafHash(JSON.parse(c.input.eventRaw)) !== c.expect.leafHash)
+        failures.push(c.caseId);
     }
     settle(t, "merkle leaves", failures);
+  });
+});
+
+describe("audit and delegation profiles", () => {
+  it("verifies every accepted inclusion receipt over its five committed members", async () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("inclusion-receipt")) {
+      if (c.expect.result !== "accept") continue;
+      const r = c.input?.receipt;
+      if (
+        typeof r?.serviceSignature !== "string" ||
+        typeof c.input.witnessPublicKeyHex !== "string"
+      )
+        continue;
+      exercised++;
+      if (
+        !(await verify(
+          r.serviceSignature,
+          inclusionReceiptSignatureBase(r),
+          fromHex(c.input.witnessPublicKeyHex),
+        ))
+      ) {
+        failures.push(c.caseId);
+      }
+    }
+    expect(exercised, "no inclusion receipts were exercised").toBeGreaterThan(
+      0,
+    );
+    expect(failures).toEqual([]);
+  });
+
+  it("recomputes the RFC 6962 root for every inclusion proof, accept and reject alike", () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("merkle-inclusion")) {
+      const i = c.input;
+      if (typeof i?.leafHash !== "string") continue;
+      exercised++;
+      const got = recomputeMerkleRoot(
+        i.leafHash,
+        i.inclusionProof ?? [],
+        i.leafIndex,
+        i.treeSize,
+      );
+      // Reject cases matter as much as accepts here: a walk that accepts a
+      // padded or short proof is exactly the bug this pins.
+      const ok =
+        c.expect.result === "accept" ? got === i.rootHash : got !== i.rootHash;
+      if (!ok) failures.push(`${c.caseId} (${c.expect.result})`);
+    }
+    expect(exercised, "no inclusion proofs were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
+  it("verifies the per-event agentSignature carried inside a query response", async () => {
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("audit-query-response")) {
+      if (c.expect.result !== "accept") continue;
+      const events = c.input?.response?.events;
+      const keys = c.input?.agentKeysHex;
+      if (!Array.isArray(events) || !keys) continue;
+      for (const ev of events) {
+        if (typeof ev?.agentSignature !== "string") continue;
+        const key = keys[ev.agentId];
+        if (typeof key !== "string") continue;
+        exercised++;
+        if (
+          !(await verify(
+            ev.agentSignature,
+            auditEventSignatureBase(ev),
+            fromHex(key),
+          ))
+        ) {
+          failures.push(`${c.caseId} ${ev.id}`);
+        }
+      }
+    }
+    expect(exercised, "no per-event signatures were exercised").toBeGreaterThan(
+      0,
+    );
+    expect(failures).toEqual([]);
+  });
+
+  it("verifies every delegation link against its own issuer key", async () => {
+    let exercised = 0;
+    let rawParsed = 0;
+    const failures: string[] = [];
+    const unresolved: string[] = [];
+    for (const c of cases("authorization-chain")) {
+      if (c.expect.result !== "accept") continue;
+      // Some accepted vectors carry the chain only as raw bytes, to pin
+      // parse-level behaviour. Skipping those would make "every delegation
+      // link" false, so they are parsed here rather than quietly dropped.
+      let chain = c.input?.chain;
+      if (!chain && typeof c.input?.chainRaw === "string") {
+        try {
+          chain = JSON.parse(c.input.chainRaw);
+          rawParsed++;
+        } catch {
+          unresolved.push(`${c.caseId} (unparseable chainRaw)`);
+          continue;
+        }
+      }
+      const links = chain?.links;
+      const issuerKeys = c.input?.issuerKeys;
+      if (!Array.isArray(links) || !Array.isArray(issuerKeys)) continue;
+      if (links.length !== issuerKeys.length) {
+        unresolved.push(`${c.caseId} (${links.length} links, ${issuerKeys.length} keys)`);
+        continue;
+      }
+      for (const [i, link] of links.entries()) {
+        if (typeof link?.signature !== "string") continue;
+        // issuerKeys is aligned root-to-head, so a link resolves to ITS OWN
+        // issuer key. Pooling every active key in the chain and accepting any
+        // match would pass a link signed by the wrong issuer, which is the
+        // substitution this is supposed to catch.
+        const key = issuerKeys[i];
+        if (key?.status !== "active" || typeof key.publicKeyHex !== "string") {
+          unresolved.push(`${c.caseId} link ${i} has no active issuer key`);
+          continue;
+        }
+        exercised++;
+        if (!(await verify(link.signature, bodySignatureBase(link), fromHex(key.publicKeyHex)))) {
+          failures.push(`${c.caseId} ${link.grantId ?? i}`);
+        }
+      }
+    }
+    expect(unresolved, "chains whose issuer key could not be resolved").toEqual([]);
+    expect(rawParsed, "no chainRaw accept vector was parsed").toBeGreaterThan(0);
+    expect(exercised, "no delegation links were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
   });
 });

@@ -19,7 +19,7 @@ from `src/`, `dist/` or the Go tree:
 | `body-signature.mjs` | body signature base and its version-keyed domain | `specs/ink-protocol.md` §3.6 |
 | `card-signature.mjs` | Agent Card and rotation-link bases | `specs/ink-agent-card-signature.md` §3.2, §5 |
 | `principal.mjs` | principal normalization | `specs/ink-protocol.md` §7 |
-| `audit-and-chain.mjs` | audit domains, RFC 6962 leaf, delegation parent hash | `specs/ink-protocol.md` §3.6, `specs/ink-merkle-leaf.md`, `specs/ink-authorization-chain.md` |
+| `audit-and-chain.mjs` | audit domains, inclusion-receipt base, RFC 6962 leaf and proof walk, delegation parent hash | `specs/ink-protocol.md` §3.6, `specs/ink-merkle-leaf.md`, `specs/ink-merkle-inclusion.md`, `specs/ink-inclusion-receipt.md`, `specs/ink-authorization-chain.md` |
 
 `../../../test/conformance-independent.test.ts` re-verifies every signature the corpus records against bases
 built here. An accept case whose signature does not verify means the corpus and
@@ -36,18 +36,15 @@ Not yet covered, and honest about it:
 
 - `payload-encryption`, an AEAD binding rather than a signature, so it needs
   X25519 and HKDF rather than a preimage.
-- The witness `merkle-checkpoint`, `merkle-consistency` and `merkle-inclusion`
-  proof recomputation.
-- `inclusion-receipt`, whose witness signature covers `ink/audit-inclusion/v1\n`
-  and its committed fields.
-- The per-event `agentSignature` under `ink/audit-event\n` carried INSIDE
-  audit-query-response vectors. The response's own `serviceSignature` is
-  checked; the events it carries are not.
-- `authorization-chain` link signatures, which use the §3.6 body base, and the
-  parent-hash linkage, whose construction is written in `audit-and-chain.mjs`
-  but is not yet asserted against vectors.
-- `handshake-message`, `merkle-checkpoint` and `merkle-consistency` carry no
-  crypto artifact at all, so there is nothing here for this to check.
+- The witness `merkle-checkpoint` and `merkle-consistency` proofs. Neither
+  category carries a crypto artifact in the corpus today, so there is nothing
+  here for this to check.
+- `handshake-message`, same reason.
+
+Everything else that carries a signature or a hash is covered: the base profile,
+grants, authorization challenges, discovery envelopes, audit query responses and
+their per-event `agentSignature`, inclusion receipts, the RFC 6962 leaf hash and
+inclusion-proof walk, and delegation link signatures.
 
 ## What independence does and does not mean
 
@@ -56,6 +53,21 @@ defines number and string serialization by reference to ECMAScript, so
 `JSON.stringify` on a scalar is the normative algorithm rather than a shortcut
 past it. Ed25519 itself stays on `@noble/ed25519`: the signature primitive is
 not what these vectors are testing, the bytes fed to it are.
+
+## Read the profile, not the RFC you remember
+
+`recomputeMerkleRoot` was written twice. The first version used RFC 6962's
+`PATH` ordering from memory, where the leaf-adjacent sibling comes first.
+`ink-merkle-inclusion.md` orders proof elements **top-down**, the reverse, and
+says so plainly. The corpus rejected every multi-leaf proof until it was read.
+
+The second version consumed the proof top-down but still combined hashes in the
+same pass, which mispairs any leaf that is not at index 0. The split is decided
+from the root down and the hashing runs from the leaf up; those are two
+directions and they need two passes.
+
+Both were caught by the corpus, which is the arrangement working. Neither would
+have been caught by reading `src/`.
 
 ## Adding a construction
 

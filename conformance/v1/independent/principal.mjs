@@ -14,7 +14,8 @@ const ED25519_PUB = [0xed, 0x01];
 // non-canonically encoded or wrongly-typed body to a `key:` principal that no
 // key can authenticate, handing it a security scope of its own.
 export function canonicalPrincipal(agentId) {
-  if (typeof agentId !== "string") throw new Error("§7: agentId is not a string");
+  if (typeof agentId !== "string")
+    throw new Error("§7: agentId is not a string");
 
   // §7: a raw `key:` input is never a legitimate agentId, so it is escaped
   // rather than passed through, or it could forge a collision with a
@@ -43,7 +44,8 @@ export function canonicalPrincipal(agentId) {
   // re-encoding the decoded bytes under the Ed25519 multicodec maps the
   // encryption spelling of a key onto the SIGNING principal of the same bytes,
   // collapsing two distinct agentIds into one security bucket.
-  const isEd = raw.length === 34 && raw[0] === ED25519_PUB[0] && raw[1] === ED25519_PUB[1];
+  const isEd =
+    raw.length === 34 && raw[0] === ED25519_PUB[0] && raw[1] === ED25519_PUB[1];
   if (!isEd) return `raw:${agentId}`;
 
   // Re-encode from the decoded key, so a non-canonical encoding of the same key
