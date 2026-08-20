@@ -1,0 +1,112 @@
+# Differential fuzzing between the TypeScript reference and the Go
+# implementation. See differential/README.md for what it does and does not
+# prove.
+#
+# Two budgets: a few thousand cases on every pull request, which costs seconds,
+# and a large budget on a schedule, which costs minutes. The pull-request run
+# uses a FIXED seed so a failure is reproducible from the log alone; the
+# scheduled run takes a random one and prints it, because that is where the
+# searching happens.
+#
+# Everything runs through `nix develop`. The Go decider needs a toolchain, and
+# the flake already pins one; declaring node and go versions here as well would
+# be a second source that can drift from flake.lock.
+
+name: differential
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "Seed to replay a finding"
+        required: false
+      cases:
+        description: "Case budget"
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: differential-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  differential:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
+
+      # Same npm cache key as ci.yml, so the two jobs share the download.
+      - name: Cache npm
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      # The TypeScript decider runs under tsx, which is a node_modules binary,
+      # so the fuzzer cannot start without this. Nix supplies the toolchains,
+      # not the package's own dependencies.
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
+      # The negative control, and it runs FIRST. A count of agreeing cases is
+      # only evidence if the comparison can report a disagreement at all, so a
+      # harness that detects nothing must fail before its clean run is allowed
+      # to mean anything. Two surfaces, because the fault is injected per
+      # surface and one passing does not prove the mechanism works elsewhere.
+      - name: self-test
+        run: |
+          nix develop --command node differential/run.mjs --self-test private-hostname --cases 200
+          nix develop --command node differential/run.mjs --self-test signature-base --cases 200
+
+      - name: pull request budget
+        if: github.event_name == 'pull_request'
+        run: nix develop --command node differential/run.mjs --cases 5000 --seed 1
+
+      # Dispatch inputs reach the shell through the environment, never through
+      # template expansion into the run block. Expanding them inline is code
+      # injection: whoever can trigger the workflow chooses the text, and
+      # zizmor fails the build for it.
+      - name: scheduled budget
+        if: github.event_name != 'pull_request'
+        env:
+          CASES: ${{ inputs.cases || '400000' }}
+          SEED: ${{ inputs.seed || '' }}
+        run: |
+          set -euo pipefail
+          case "$CASES" in ''|*[!0-9]*) echo "cases must be digits"; exit 1 ;; esac
+          if [ -n "$SEED" ]; then
+            case "$SEED" in *[!0-9]*) echo "seed must be digits"; exit 1 ;; esac
+            nix develop --command node differential/run.mjs --cases "$CASES" --batch 20000 --seed "$SEED"
+          else
+            nix develop --command node differential/run.mjs --cases "$CASES" --batch 20000
+          fi
+
+      # A finding that dies with the job that found it is worthless. The run
+      # seed is in the log, so the artifact plus the seed reproduces it.
+      - name: upload findings
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: differential-findings
+          path: differential/findings/
+          if-no-files-found: ignore
