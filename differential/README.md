@@ -294,11 +294,11 @@ shrunk.
 
 Throughput is roughly 1,200 cases per second across all thirteen surfaces on one
 core, so a per-PR budget of a few thousand costs seconds and a scheduled budget
-of a few hundred thousand costs minutes. `ci-snippet.yml` is the workflow, ready
-to copy to `.github/workflows/differential.yml`: the self-test plus 5,000 cases
-on every pull request, 400,000 on a nightly schedule, findings uploaded as an
-artifact on failure. It is kept here rather than in `.github/workflows` so that
-turning the harness into a gate is a deliberate move.
+of a few hundred thousand costs minutes. `.github/workflows/differential.yml`
+runs it: the self-test plus 5,000 cases on a fixed seed for every pull request,
+400,000 on a nightly schedule, findings uploaded as an artifact on failure. It
+goes through `nix develop`, so the Go decider builds from the toolchain
+`flake.lock` pins rather than a version declared a second time in the workflow.
 
 ## When it finds something
 
