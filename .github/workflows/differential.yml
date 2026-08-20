@@ -53,6 +53,21 @@ jobs:
       - name: Cache Nix store
         uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
 
+      # Same npm cache key as ci.yml, so the two jobs share the download.
+      - name: Cache npm
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      # The TypeScript decider runs under tsx, which is a node_modules binary,
+      # so the fuzzer cannot start without this. Nix supplies the toolchains,
+      # not the package's own dependencies.
+      - name: Install npm deps
+        run: nix develop --command npm ci
+
       # The negative control, and it runs FIRST. A count of agreeing cases is
       # only evidence if the comparison can report a disagreement at all, so a
       # harness that detects nothing must fail before its clean run is allowed
