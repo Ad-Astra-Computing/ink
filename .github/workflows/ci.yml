@@ -200,11 +200,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
-
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
         with:
@@ -228,16 +223,23 @@ jobs:
       - name: TypeScript reference, staged vectors
         run: nix develop --command npm run test:staged
 
+      # Runs through the devshell so the Go here is the one flake.lock pins,
+      # the same one a contributor gets from `nix develop`. `nix develop` reads
+      # the flake from the current directory, so this cannot use
+      # `working-directory: go`; the cd happens inside the command.
       - name: Go verifier, staged vectors
-        working-directory: go
         env:
           INK_STAGED_CONFORMANCE: "1"
         run: |
-          go test ./ink/
-          log="${RUNNER_TEMP:-/tmp}/staged.log"
-          go test ./ink/ -run TestAgentCardSignaturePhaseC -v | tee "$log"
-          # A skip exits 0, so assert the staged test actually ran and passed.
-          grep -q '^--- PASS: TestAgentCardSignaturePhaseC' "$log"
+          nix develop --command bash -c '
+            set -euo pipefail
+            cd go
+            go test ./ink/
+            log="${RUNNER_TEMP:-/tmp}/staged.log"
+            go test ./ink/ -run TestAgentCardSignaturePhaseC -v | tee "$log"
+            # A skip exits 0, so assert the staged test actually ran and passed.
+            grep -q "^--- PASS: TestAgentCardSignaturePhaseC" "$log"
+          '
 
   go-ts-interop:
     runs-on: ubuntu-latest
@@ -245,11 +247,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
