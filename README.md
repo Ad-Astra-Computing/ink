@@ -38,7 +38,7 @@ Every INK message is an Ed25519-signed envelope over a [JCS](https://datatracker
 
 Message types cover intents, challenges, resolutions, receipts, audit events, encrypted payloads, and authenticated agent-card queries. Handshake messages carry a correlation ID; audit and receipt messages do not. Key rotation is governed by an authority rule documented in [`docs/key-rotation-rule.md`](docs/key-rotation-rule.md): the Agent Card's published key set is canonical, revoked keys never verify, and a stale bootstrap key cannot bypass rotation.
 
-A foreign sender's first envelope to an unestablished recipient is a `connection_request` — the bootstrap intent for first contact. Receivers that opt in to foreign senders verify the body signature against the inline key extracted from the sender's DID (trust-on-first-use) and SHOULD reject any other intent type from a sender they have no prior relationship with; richer intent types (`intro_request`, `ask`, `follow_up`, `schedule_meeting`) presume the sender is already a known contact. See the [Accepting Foreign Senders guide](https://ink.tulpa.network/guides/accepting-foreign-senders/) for the receive-side rules and [`examples/foreign-sender-receiver/`](examples/foreign-sender-receiver/) for a reference implementation.
+A foreign sender's first envelope to an unestablished recipient is a `connection_request`, the bootstrap intent for first contact. Receivers that opt in to foreign senders verify the body signature against the inline key extracted from the sender's DID (trust-on-first-use) and SHOULD reject any other intent type from a sender they have no prior relationship with; richer intent types (`intro_request`, `ask`, `follow_up`, `schedule_meeting`) presume the sender is already a known contact. See the [Accepting Foreign Senders guide](https://ink.tulpa.network/guides/accepting-foreign-senders/) for the receive-side rules and [`examples/foreign-sender-receiver/`](examples/foreign-sender-receiver/) for a reference implementation.
 
 INK's default identity is key-derived and self-certifying: a `tulpa:` or `ink:` agentId whose multibase tail IS the agent's genesis Ed25519 key, so the identifier carries its own signing authority with no directory, registry or issuer behind it. A `did:web` identity whose DID document roots the key is equally supported, and any other system that publishes an Ed25519 signing key under a stable identifier can participate. Binding an agent to a human owner is a separate, optional layer: [AT Protocol](https://atproto.com) is one pipeline for it and never what makes a signature valid. See [`specs/ink-identity-model.md`](specs/ink-identity-model.md) and the ruling in [`governance/decisions/0001-key-derived-principals-are-the-identity-root.md`](governance/decisions/0001-key-derived-principals-are-the-identity-root.md).
 
@@ -48,7 +48,7 @@ INK's default identity is key-derived and self-certifying: a `tulpa:` or `ink:` 
 npm install @adastracomputing/ink
 ```
 
-The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly — no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
+The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly, with no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
 
 From 0.1.3 onward, receivers can also import `validateMessage` (canonical envelope + payload-schema parse, throws on drift) and `decodeEncryptionKeyMultibase` (X25519 multibase → 32 bytes, the companion to `decodePublicKeyMultibase` for Ed25519). These let an implementer drop the inline schema guard and key-decode helpers the previous guides asked them to write. `MessageEnvelope` (type) and `MessageEnvelopeSchema` (Zod constant) are also re-exported for adopters who want to type their parser surface against the canonical schema.
 
@@ -199,7 +199,7 @@ INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the un
 
 ## Interoperability
 
-INK is a wire protocol. Any compatible service that publishes a DID and exposes an `/ink/v1/...` endpoint can accept signed envelopes from agents that live on other platforms — cross-platform interop is a primary design goal.
+INK is a wire protocol. Any compatible service that publishes a DID and exposes an `/ink/v1/...` endpoint can accept signed envelopes from agents that live on other platforms. Cross-platform interop is a primary design goal.
 
 [`tulpa.network`](https://tulpa.network) is one current example of an accepting endpoint. Its receive side resolves inbound senders against published Agent Cards and applies operator-level and per-user acceptance policies; see [docs.tulpa.network/guide/foreign-agents](https://docs.tulpa.network/guide/foreign-agents/) for how a Tulpa user opts in. The protocol is intended to support other accepting endpoints.
 
