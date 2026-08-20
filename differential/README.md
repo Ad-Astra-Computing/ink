@@ -184,17 +184,17 @@ emitted.
 Three arms, round-robin across every surface so a truncated budget still covers
 all of them.
 
-- **corpus**: the conformance vector inputs, unmutated. They are already the
+- **`corpus`**: the conformance vector inputs, unmutated. They are already the
   interesting shapes, so they are the starting population rather than a
   hand-written one. This arm is small and finite by construction.
-- **mutate**: a corpus input with one to four structure-aware mutations. Field
+- **`mutate`**: a corpus input with one to four structure-aware mutations. Field
   drop, type flip, unknown key, a near-duplicate member differing by an
   invisible character, deep nesting, array growth past the caps, Unicode
   insertion. On the text surfaces the mutations run on the raw JSON text so they
   can express what a parsed value cannot: duplicate members, escape spellings,
   number literals. On the byte surface they run on the bytes, splicing the
   sequences that separate a fatal UTF-8 decoder from a lenient one.
-- **random**: constructed from the edge banks without a corpus seed, so the
+- **`random`**: constructed from the edge banks without a corpus seed, so the
   corpus's imagination is not the only source. Half of the random Agent Card arm
   starts from the required shape so it reaches past the first required-field
   check often enough to be worth running.

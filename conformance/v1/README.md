@@ -63,7 +63,7 @@ additive field then.
 
 ## Categories
 
-- **principal-normalization**: `tulpa:` and `ink:` aliases of one key collapse
+- **`principal-normalization`**: `tulpa:` and `ink:` aliases of one key collapse
   to the same canonical principal; a literal `key:` agentId is escaped rather
   than confused with that principal; DIDs pass through; an empty id is rejected.
   Four cases pin that the mapping DECODES the multibase body and re-encodes it
@@ -73,7 +73,7 @@ additive field then.
   string-replace passes every other case in the category and turns all four into
   `key:` principals, each with its own blocklist entry, rate-limit window and
   nonce scope.
-- **signature-base**: a signature over the canonical signature base verifies;
+- **`signature-base`**: a signature over the canonical signature base verifies;
   reordering JSON members of the signed body does not change the canonical bytes;
   altering a signed field or the key fails verification. Two cases pin the
   boundary between the two signature kinds on a body that carries a `signature`
@@ -87,14 +87,14 @@ additive field then.
   a recipientDid carrying a CR, each against a signature that genuinely verifies
   over those bytes, so an implementation that omits the check accepts two
   different requests under one signature.
-- **authorization-header**: the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]`
+- **`authorization-header`**: the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]`
   transport Authorization header (§3.3). A well-formed header extracts the 86-char
   signature and the optional keyId; a wrong scheme, a wrong signature length or
   alphabet, stray or missing whitespace, an embedded CR/LF, an empty or over-long
   or ill-formed keyId, a second parameter, or trailing data are all rejected. An
   empty header is `missing_authorization`; every other malformed value is
   `invalid_auth_scheme`.
-- **jcs-number**: a signed-body number must be a safe integer (`|v| <= 2^53-1`,
+- **`jcs-number`**: a signed-body number must be a safe integer (`|v| <= 2^53-1`,
   not negative zero); an accepted body pins the exact canonical bytes. A safe
   integer, including one written with an exponent (`1e2` to `100`), is accepted;
   a fraction, an above-safe magnitude, a negative zero, and the integer just past
@@ -106,7 +106,7 @@ additive field then.
   shadowed case is the one a value-level check cannot make, because the parser
   drops the literal before any value exists. See
   [`../../specs/ink-jcs-number-profile.md`](../../specs/ink-jcs-number-profile.md).
-- **key-rotation**: a signature is verified against a key set under the
+- **`key-rotation`**: a signature is verified against a key set under the
   authority rule: an active key verifies; a retired key verifies only while its
   validity window contains the message timestamp; a revoked key, an expired key,
   and a key set without the signing key all fail. Accept cases also pin the
@@ -118,24 +118,24 @@ additive field then.
   `retired_key_for_live_auth`, unless `liveAuthAllowRetired` opts into a bounded
   rotation grace window. An implementation that returns the primitive's answer
   to its transport-auth caller passes one layer and fails the other.
-- **replay-freshness**: a message is accepted only inside the freshness window
+- **`replay-freshness`**: a message is accepted only inside the freshness window
   (5 minutes old to 30 seconds ahead of the receiver clock) and only if its
   nonce has not been seen; a stale or future timestamp, a duplicate nonce, and a
   malformed nonce all reject. Both edges are pinned to the millisecond and both
   are inclusive: exactly 300000 ms old and exactly 30000 ms ahead accept, one
   millisecond past either rejects, so a window of the wrong width or a comparison
   of the wrong strictness diverges instead of passing on a coarse case.
-- **timestamp-validity**: INK timestamps use one strict RFC 3339 date-time
+- **`timestamp-validity`**: INK timestamps use one strict RFC 3339 date-time
   grammar at millisecond precision; a full UTC or numeric-offset value is accepted
   and pins its epoch milliseconds, while a date-only, zoneless, space-separated,
   lowercase-`t`, comma-fraction, or out-of-range value rejects. See
   [`../../specs/ink-timestamp-grammar.md`](../../specs/ink-timestamp-grammar.md).
-- **jcs-string-safety**: a signed body must not carry a `\uXXXX` escape for an
+- **`jcs-string-safety`**: a signed body must not carry a `\uXXXX` escape for an
   unpaired UTF-16 surrogate in any member name or value; the scan runs on the raw
   JSON text before parsing, because a parser that rewrites a lone surrogate to
   U+FFFD would sign different bytes. See
   [`../../specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md).
-- **signed-body-utf8**: a signed body must be valid UTF-8 in its raw bytes,
+- **`signed-body-utf8`**: a signed body must be valid UTF-8 in its raw bytes,
   checked before parsing, because a lenient decode substitutes U+FFFD and would
   verify over bytes the signer never signed. The raw body rides in a hex-encoded
   `bodyHex` field a JSON string cannot express. Valid multibyte UTF-8 accepts,
@@ -153,7 +153,7 @@ additive field then.
   shadows it, while the same characters inside a string, an underflowing
   exponent, and the largest finite double all accept. See
   [`../../specs/ink-signed-string-safety.md`](../../specs/ink-signed-string-safety.md).
-- **merkle-inclusion**: an RFC 6962 inclusion-proof walk: a leaf hash and a
+- **`merkle-inclusion`**: an RFC 6962 inclusion-proof walk: a leaf hash and a
   top-down list of sibling hashes recompute the claimed Merkle root, with internal
   nodes hashed `SHA-256(0x01 || left || right)`. Every leaf position in a
   power-of-two and a non-power-of-two tree accepts; a tampered root, an
@@ -161,7 +161,7 @@ additive field then.
   a treeSize past the JavaScript safe-integer range, and a malformed element all
   reject, so a mis-ordered or under-checked walker diverges. See
   [`../../specs/ink-merkle-inclusion.md`](../../specs/ink-merkle-inclusion.md).
-- **merkle-consistency**: an RFC 6962 consistency proof: that the tree of
+- **`merkle-consistency`**: an RFC 6962 consistency proof: that the tree of
   `first` leaves is an append-only prefix of the tree of `second` leaves, the
   check that detects a forked (split-view) log rather than one that merely grew.
   A boundary matrix of prefixes accepts (power-of-two and non-power-of-two first
@@ -170,7 +170,7 @@ additive field then.
   a non-empty root for `first = 0`, a malformed node, and a size past the
   safe-integer range all reject. See
   [`../../specs/ink-merkle-consistency.md`](../../specs/ink-merkle-consistency.md).
-- **merkle-checkpoint**: the C2SP tlog-checkpoint body grammar a witness
+- **`merkle-checkpoint`**: the C2SP tlog-checkpoint body grammar a witness
   publishes its log head as: three lines (origin, decimal tree size, 64-hex root
   hash) plus a trailing newline. An accepted body pins its canonical
   re-serialization; a missing or extra newline, trailing junk, an empty origin, a
@@ -178,14 +178,14 @@ additive field then.
   non-hex root hash, and an oversized body all reject, so a parser differential
   cannot let a malformed checkpoint through one implementation. See
   [`../../specs/ink-merkle-checkpoint.md`](../../specs/ink-merkle-checkpoint.md).
-- **merkle-leaf**: the RFC 6962 leaf hash a witness commits for one audit
+- **`merkle-leaf`**: the RFC 6962 leaf hash a witness commits for one audit
   event: `SHA-256(0x00 || JCS(event-without-agentSignature))`. An accepted event
   pins the exact digest; reordering members or attaching an `agentSignature`
   does not change it, while a non-object, a lone surrogate, and an
   unsafe-integer number reject, so the leaf path enforces the same signed-body
   profile as signing. See
   [`../../specs/ink-merkle-leaf.md`](../../specs/ink-merkle-leaf.md).
-- **inclusion-receipt**: end-to-end verification of a witness inclusion receipt:
+- **`inclusion-receipt`**: end-to-end verification of a witness inclusion receipt:
   structural validation, the witness Ed25519 service signature over
   `"ink/audit-inclusion/v1\n"` plus the JCS of the committed fields, an optional
   event-bound leaf-to-root proof walk, and an optional later-checkpoint
@@ -195,7 +195,7 @@ additive field then.
   rolled-back or forked checkpoint all reject, so a verifier that skips or
   mis-orders a step diverges. See
   [`../../specs/ink-inclusion-receipt.md`](../../specs/ink-inclusion-receipt.md).
-- **audit-query-response**: end-to-end verification of a witness audit-query
+- **`audit-query-response`**: end-to-end verification of a witness audit-query
   response: structure, the requester and messageId bindings, the witness envelope
   Ed25519 signature, the per-event scope rule, the events-to-proofs one-to-one
   mapping, every Merkle proof walk, the required per-event agent signature, and an
@@ -204,7 +204,7 @@ additive field then.
   violations, mapping violations, a tampered proof, a wrong-key or unresolvable
   agent signature, and a rolled-back or forked checkpoint all reject. See
   [`../../specs/ink-audit-query-response.md`](../../specs/ink-audit-query-response.md).
-- **handshake-message**: schema validation for the three INK handshake messages
+- **`handshake-message`**: schema validation for the three INK handshake messages
   (challenge, rejection, resolution): the protocol and type literals, the enum
   fields, the UTF-16 string and array caps, and the handshake timestamp grammar
   (a UTC date-time with a literal Z, no offset). A valid message of each type
@@ -212,14 +212,14 @@ additive field then.
   required field, an oversized string or array, an out-of-range or offset
   timestamp, and a malformed backoff hint all reject. See
   [`../../specs/ink-handshake-message.md`](../../specs/ink-handshake-message.md).
-- **connection-payload**: schema validation for the connection_request and
+- **`connection-payload`**: schema validation for the connection_request and
   connection_response payloads, which are strict (an unknown key rejects) and
   embed a profile snapshot and availability config. A valid request and response
   accept; an unknown kind, an unknown key at any level, an unknown enum, a
   missing required field, an oversized string or array, and a type-confused field
   all reject. See
   [`../../specs/ink-connection-payload.md`](../../specs/ink-connection-payload.md).
-- **agent-card**: schema validation for the Agent Card discovery document, including a pinned endpoint URL grammar (https, no
+- **`agent-card`**: schema validation for the Agent Card discovery document, including a pinned endpoint URL grammar (https, no
   userinfo, no fragment, no control/whitespace) used for all endpoint fields, the
   nested capabilities, key entries, and governance, and the invariant that
   inboxEndpoint equals endpoint when both are present. A minimal and a full card
@@ -231,7 +231,7 @@ additive field then.
   an unknown member on either is ignored rather than rejected, which is what makes
   a later minor additive (`ink-compatibility-policy.md` §3.1). See
   [`../../specs/ink-agent-card.md`](../../specs/ink-agent-card.md).
-- **agent-card-fetch**: the discovery response-handling contract over synthetic
+- **`agent-card-fetch`**: the discovery response-handling contract over synthetic
   response metadata (status, Content-Type, Content-Length, body, requested
   agentId, DID under resolution): status must be 200, Content-Type must be
   application/json with at most a utf-8 charset, the body is capped at 64 KiB by
@@ -242,7 +242,7 @@ additive field then.
   that step unchanged. The request-side SSRF gate and card-content
   host checks are out of scope. See
   [`../../specs/ink-agent-card-discovery-fetch.md`](../../specs/ink-agent-card-discovery-fetch.md).
-- **agent-card-signature**: the self-authenticating card verifier. The
+- **`agent-card-signature`**: the self-authenticating card verifier. The
   `cardSignature` proof binds the full card under `ink/agent-card`, resolved to
   the current active signing key or the legacy `bootstrap` key. Rooting is by
   principal kind: a key-derived id walks its rotation chain from the embedded
@@ -263,7 +263,7 @@ additive field then.
   pre-Phase-C decision stands, including over a `1.0` profile input, so the
   category tests the flag rather than the profile string. See
   [`../../specs/ink-agent-card-signature.md`](../../specs/ink-agent-card-signature.md) §10.1.
-- **private-hostname**: the SSRF host-safety gate over a hostname string:
+- **`private-hostname`**: the SSRF host-safety gate over a hostname string:
   accept means a public destination, reject means loopback, private, link-local,
   IANA special-use, or a malformed IP-shaped name (an over-range octet, a
   malformed IPv6 literal, or an IPv6 zone id all fail closed). Covers IPv4 and
@@ -271,7 +271,7 @@ additive field then.
   and bare literals, and FQDN/case normalization. Hostname strings only; URL
   parsing is out of scope. See
   [`../../specs/ink-private-hostname.md`](../../specs/ink-private-hostname.md).
-- **payload-encryption**: ECIES payload decryption (§3.4): X25519 key
+- **`payload-encryption`**: ECIES payload decryption (§3.4): X25519 key
   agreement, HKDF-SHA256, and AES-256-GCM with the outer envelope bound as AAD.
   A valid envelope decrypts to exact plaintext bytes when the mandatory
   recipient DID matches the inner `to`; the AAD binds a `recipientKey` (the
@@ -283,7 +283,7 @@ additive field then.
   malformed or wrong-length ephemeral key or nonce, an all-zero (low-order)
   shared secret, and an inner/outer `from` mismatch all reject. See
   [`../../specs/ink-payload-encryption.md`](../../specs/ink-payload-encryption.md).
-- **first-contact-transcript**: a complete stranger first-contact flow composed
+- **`first-contact-transcript`**: a complete stranger first-contact flow composed
   from the pinned primitives: discover the receiver's Agent Card, select a
   protocol version from `supportedProtocolVersions`, verify the signed
   `connection_request` under the freshness/replay rule, and verify the accepted
@@ -305,7 +305,7 @@ additive field then.
   wrong key all reject. A shortened envelope would fail a receiver that validates
   §3.1 before verifying, so the corpus must not contain one. See
   [`../../specs/ink-first-contact-transcript.md`](../../specs/ink-first-contact-transcript.md).
-- **discovery-query-envelope**: schema validation, requester-key signature
+- **`discovery-query-envelope`**: schema validation, requester-key signature
   verification, audience binding, the freshness window and nonce replay for the
   authenticated discovery query envelope. Each case carries the directory's own
   verification context: its identity (`audience`, one spelling or the list of
@@ -342,7 +342,7 @@ additive field then.
   exponents; and the same envelope presented as whitespace-padded wire text
   verifies, because whitespace vanishes at canonicalization. See
   [`../../specs/ink-discovery-query.md`](../../specs/ink-discovery-query.md).
-- **agent-authorization**: the sign-in challenge artifact: a bare-host `did:web`
+- **`agent-authorization`**: the sign-in challenge artifact: a bare-host `did:web`
   RP origin derivation, a registry-bounded `requestedScope`, a parser-independent
   literal redirectUri-prefix rule, an active-key-only RP signature checked at the
   verifier clock, the validity window and the challenge-derived `grantId`. A
@@ -370,7 +370,7 @@ additive field then.
   `issuedAt` or verifier clock and a challenge verified before `issuedAt` or after
   or exactly at `expiresAt` all reject. See
   [`../../specs/ink-agent-authorization.md`](../../specs/ink-agent-authorization.md).
-- **authorization-grant**: the scoped signed authorization grant: schema bounds,
+- **`authorization-grant`**: the scoped signed authorization grant: schema bounds,
   the issuer-key signature, the audience binding, the presentation binding, the
   validity window, replay, revocation and the optional owner-verification hook. A
   grant verified against the issuer key for its named audience inside its window
