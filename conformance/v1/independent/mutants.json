@@ -6,13 +6,15 @@
     "applies each mutant, runs the oracle suite, and requires the suite to",
     "FAIL; a survivor means the rule it disables is constrained by nothing.",
     "",
-    "Curated, not exhaustive: three rules the oracle enforces are exercised",
-    "by no vector, so their mutants would survive honestly. They are the",
-    "genesis rotation root taken from the agentId rather than the card",
-    "field, the non-active relying-party key refusal, and the card-signer",
-    "bootstrap fallback. Each needs a corpus vector, not a registry entry;",
-    "they are tracked as corpus coverage gaps and join this registry when",
-    "their vectors land.",
+    "Curated, not exhaustive. Rules whose mutants would survive honestly:",
+    "the genesis rotation root taken from the agentId, the non-active",
+    "relying-party key refusal, and the card-signer bootstrap fallback, each",
+    "waiting on a corpus vector. Two seal rules are also excluded: the",
+    "all-zero shared-secret refusal, which OpenSSL enforces natively so no",
+    "vector can isolate the explicit check, and the inner-from equality,",
+    "whose vector (inner-from-mismatch) also omits the recipient DID and so",
+    "rejects for that reason instead; an isolating vector is tracked with",
+    "the other corpus gaps.",
     "",
     "A find string that no longer matches is an error, not a skip: it means",
     "the module changed and this registry rotted. Update the entry with the",
@@ -151,6 +153,27 @@
       "rule": "accepted chainRaw vectors are parsed, not silently skipped",
       "find": "if (!chain && typeof c.input?.chainRaw === \"string\") {",
       "replace": "if (false) {"
+    },
+    {
+      "id": "seal-aad-no-domain",
+      "file": "conformance/v1/independent/seal.mjs",
+      "rule": "\u00a73.4: the AAD starts with the ink/0.1:envelope domain line",
+      "find": "const AAD_DOMAIN = \"ink/0.1:envelope\\n\";",
+      "replace": "const AAD_DOMAIN = \"\";"
+    },
+    {
+      "id": "seal-hkdf-wrong-info",
+      "file": "conformance/v1/independent/seal.mjs",
+      "rule": "\u00a73.4: the AES key derives with info ink/0.1/encrypt",
+      "find": "const HKDF_INFO = \"ink/0.1/encrypt\";",
+      "replace": "const HKDF_INFO = \"ink/0.1\";"
+    },
+    {
+      "id": "seal-skips-recipient-did",
+      "file": "conformance/v1/independent/seal.mjs",
+      "rule": "\u00a73.4 step 10: the inner to must equal the mandatory recipient DID",
+      "find": "if (typeof recipientDid !== \"string\" || recipientDid.length === 0) return null;\n    if (inner.to !== recipientDid) return null;",
+      "replace": ""
     }
   ]
 }

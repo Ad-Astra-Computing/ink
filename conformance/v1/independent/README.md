@@ -19,6 +19,7 @@ from `src/`, `dist/` or the Go tree:
 | `body-signature.mjs` | body signature base and its version-keyed domain | `specs/ink-protocol.md` §3.6 |
 | `card-signature.mjs` | Agent Card and rotation-link bases | `specs/ink-agent-card-signature.md` §3.2, §5 |
 | `principal.mjs` | principal normalization | `specs/ink-protocol.md` §7 |
+| `seal.mjs` | §3.4 sealed-envelope receive side: X25519, HKDF, AAD reconstruction, inner validation | `specs/ink-payload-encryption.md` |
 | `audit-and-chain.mjs` | audit domains, inclusion-receipt base, RFC 6962 leaf and proof walk, delegation parent hash | `specs/ink-protocol.md` §3.6, `specs/ink-merkle-leaf.md`, `specs/ink-merkle-inclusion.md`, `specs/ink-inclusion-receipt.md`, `specs/ink-authorization-chain.md` |
 
 `../../../test/conformance-independent.test.ts` re-verifies every signature the corpus records against bases
@@ -34,8 +35,6 @@ base, so the same module covers them.
 
 Not yet covered, and honest about it:
 
-- `payload-encryption`, an AEAD binding rather than a signature, so it needs
-  X25519 and HKDF rather than a preimage.
 - The witness `merkle-checkpoint` and `merkle-consistency` proofs. Neither
   category carries a crypto artifact in the corpus today, so there is nothing
   here for this to check.
