@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import * as ed from "@noble/ed25519";
 // Untyped by design; see test/independent-modules.d.ts.
+import { openSealedEnvelope } from "../conformance/v1/independent/seal.mjs";
 // dependency on this package's types, so they cannot drift toward src/.
 import { transportSignatureBase } from "../conformance/v1/independent/signature-base.mjs";
 import { bodySignatureBase } from "../conformance/v1/independent/body-signature.mjs";
@@ -662,6 +663,34 @@ describe("audit and delegation profiles", () => {
     expect(unresolved, "chains whose issuer key could not be resolved").toEqual([]);
     expect(rawParsed, "no chainRaw accept vector was parsed").toBeGreaterThan(0);
     expect(exercised, "no delegation links were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+});
+
+describe("payload encryption, protocol §3.4", () => {
+  it("opens every accepted seal to the pinned canonical bytes, and only those", () => {
+    let accepts = 0;
+    let rejects = 0;
+    const failures: string[] = [];
+    for (const c of cases("payload-encryption")) {
+      const got = openSealedEnvelope(
+        c.input.envelope,
+        c.input.recipientPrivateKeyHex,
+        c.input.recipientDid,
+      );
+      if (c.expect.result === "accept") {
+        accepts++;
+        if (got !== c.expect.canonicalString) failures.push(`${c.caseId}: wrong bytes or rejected`);
+      } else {
+        rejects++;
+        // The reject cases carry tampered AAD fields, wrong recipients and
+        // small-order points, so a decrypter that opens any of them is
+        // accepting a forgery. Both directions are asserted.
+        if (got !== null) failures.push(`${c.caseId}: opened a seal the corpus rejects`);
+      }
+    }
+    expect(accepts, "no accepted seals were exercised").toBeGreaterThan(0);
+    expect(rejects, "no rejected seals were exercised").toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
 });
