@@ -188,6 +188,14 @@ jobs:
       - name: Reference, staged vectors
         run: nix develop --command npm run test:staged
 
+      # The oracle suite re-verifies corpus signatures against spec-derived
+      # constructions; this proves that suite still bites by disabling each
+      # registered rule and requiring a red run. Registry:
+      # conformance/v1/independent/mutants.json. Required to hold at the
+      # soak-anchoring cut (governance/releases/1.0-readiness-evidence.md).
+      - name: Oracle mutation check
+        run: nix develop --command npm run check:mutants
+
       - name: Documented-fact drift check
         # CHECK_FACTS_REQUIRE_NPM turns an unreachable or disagreeing registry
         # into a failure instead of an unverified pin. On the weekly cadence

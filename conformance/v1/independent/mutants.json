@@ -1,0 +1,143 @@
+{
+  "format": "ink.oracle.mutants.v1",
+  "comment": [
+    "One entry per rule the independent oracle enforces. The harness in",
+    "scripts/check-oracle-mutants.mjs applies each mutant to its module,",
+    "runs the oracle suite, and requires the suite to FAIL. A mutant that",
+    "leaves the suite green means the rule it disables is not constrained",
+    "by any vector or self-test, which is exactly the hole a wrong",
+    "implementation would pass through.",
+    "",
+    "A find string that no longer matches is an error, not a skip: it means",
+    "the module changed and this registry rotted. Update the entry with the",
+    "rule it pins, or delete it with the rule it pinned."
+  ],
+  "mutants": [
+    {
+      "id": "jcs-unsorted-keys",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "RFC 8785: object members sort by UTF-16 code unit",
+      "find": "      .sort();",
+      "replace": "      ;"
+    },
+    {
+      "id": "jcs-accept-fractional",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: a signed-body number must be a safe integer",
+      "find": "if (!Number.isSafeInteger(value))",
+      "replace": "if (!Number.isFinite(value))"
+    },
+    {
+      "id": "jcs-accept-negative-zero",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: negative zero is refused",
+      "find": "if (Object.is(value, -0)) throw new Error(\"\u00a73.2: negative zero\");",
+      "replace": ""
+    },
+    {
+      "id": "jcs-member-name-surrogate",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: a lone surrogate in a MEMBER NAME is refused, not only in a value",
+      "find": "jsonString(k, \"a member name\")",
+      "replace": "JSON.stringify(k)"
+    },
+    {
+      "id": "jcs-depth-cap",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: the canonicalization walk is depth-bounded",
+      "find": "const MAX_DEPTH = 32;",
+      "replace": "const MAX_DEPTH = 100000;"
+    },
+    {
+      "id": "jcs-node-cap",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: the walk is node-bounded",
+      "find": "const MAX_NODES = 10000;",
+      "replace": "const MAX_NODES = 100000000;"
+    },
+    {
+      "id": "jcs-output-cap-units",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: canonical output is capped in UTF-16 code units",
+      "find": "if (out.length > MAX_OUTPUT) {",
+      "replace": "if (false) {"
+    },
+    {
+      "id": "jcs-output-cap-bytes",
+      "file": "conformance/v1/independent/jcs.mjs",
+      "rule": "\u00a73.2: canonical output is capped in UTF-8 bytes as well",
+      "find": "if (bytes > MAX_OUTPUT) {",
+      "replace": "if (false) {"
+    },
+    {
+      "id": "body-sig-keeps-signature",
+      "file": "conformance/v1/independent/body-signature.mjs",
+      "rule": "\u00a73.6: the signature member is removed before canonicalizing",
+      "find": "if (key !== \"signature\") withoutSignature[key] = object[key];",
+      "replace": "withoutSignature[key] = object[key];"
+    },
+    {
+      "id": "principal-accepts-x25519",
+      "file": "conformance/v1/independent/principal.mjs",
+      "rule": "\u00a77: only the Ed25519 multicodec forms a key-derived principal",
+      "find": "if (!isEd) return `raw:${agentId}`;",
+      "replace": "if (!isEd && !(raw.length === 34 && raw[0] === 0xec)) return `raw:${agentId}`;"
+    },
+    {
+      "id": "leaf-hash-no-domain-byte",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "RFC 6962: the leaf hash is domain-separated with 0x00",
+      "find": "hash.update(Uint8Array.from([0x00]));",
+      "replace": ""
+    },
+    {
+      "id": "node-hash-no-domain-byte",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "RFC 6962: the interior node hash is domain-separated with 0x01",
+      "find": "h.update(Uint8Array.from([0x01]));",
+      "replace": ""
+    },
+    {
+      "id": "proof-order-bottom-up",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "ink-merkle-inclusion.md: proof elements are ordered top-down",
+      "find": "for (let level = onLeft.length - 1; level >= 0; level--) {",
+      "replace": "for (let level = 0; level < onLeft.length; level++) {"
+    },
+    {
+      "id": "proof-length-unchecked",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "ink-merkle-inclusion.md: a padded or short proof is rejected",
+      "find": "if (proofHex.length !== onLeft.length) return null;",
+      "replace": ""
+    },
+    {
+      "id": "receipt-signs-whole-object",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "ink-inclusion-receipt.md: the witness signs the five committed members only",
+      "find": "jcs({ eventId, leafIndex, rootHash, timestamp, treeSize })",
+      "replace": "jcs(receipt)"
+    },
+    {
+      "id": "query-response-keeps-signature",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "\u00a73.6: the audit query response preimage excludes serviceSignature",
+      "find": "jcs(without(response, \"serviceSignature\"))",
+      "replace": "jcs(response)"
+    },
+    {
+      "id": "delegation-pools-issuer-keys",
+      "file": "test/conformance-independent.test.ts",
+      "rule": "ink-authorization-chain.md: a link resolves against ITS OWN issuer key",
+      "find": "const key = issuerKeys[i];",
+      "replace": "const key = issuerKeys.find((k: any) => k?.status === \"active\") ?? issuerKeys[i];"
+    },
+    {
+      "id": "delegation-skips-raw-chains",
+      "file": "test/conformance-independent.test.ts",
+      "rule": "accepted chainRaw vectors are parsed, not silently skipped",
+      "find": "if (!chain && typeof c.input?.chainRaw === \"string\") {",
+      "replace": "if (false) {"
+    }
+  ]
+}

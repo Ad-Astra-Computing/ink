@@ -46,6 +46,19 @@ grants, authorization challenges, discovery envelopes, audit query responses and
 their per-event `agentSignature`, inclusion receipts, the RFC 6962 leaf hash and
 inclusion-proof walk, and delegation link signatures.
 
+## The mutation registry
+
+`mutants.json` in this directory names one mutant per rule these modules
+enforce. `npm run check:mutants` applies each one, runs the oracle suite, and
+requires a red run; a mutant the suite survives means the rule it disables is
+constrained by nothing. The weekly conformance workflow runs it, so the claim
+that this oracle is not vacuous re-earns itself on cadence instead of resting on
+a demonstration performed once.
+
+A find string that stops matching fails the harness rather than skipping, so a
+refactor that would silently retire a mutant has to update the registry in the
+same change.
+
 ## What independence does and does not mean
 
 Independent of INK's code, not of the JavaScript runtime. RFC 8785 §3.2.2
