@@ -10,9 +10,13 @@
 // on every run. governance/releases/1.0-readiness-evidence.md §1 requires it to
 // hold at the soak-anchoring cut.
 //
-// A find string that no longer matches is an ERROR, not a skip. It means the
-// module changed and the registry rotted, and a rotted registry silently stops
-// proving anything.
+// The harness mutates tracked files in place, so it defends the tree three
+// ways. It refuses to start unless every file it will touch is clean in git,
+// which makes `git checkout -- <file>` the complete recovery from any crash it
+// cannot intercept. It snapshots every file up front and restores from the
+// snapshots on exit, including SIGINT and SIGTERM. And after restoring it runs
+// `git diff --exit-code` over the touched files, so "restored" means
+// byte-identical to HEAD rather than merely green.
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -27,6 +31,41 @@ const only = process.argv.slice(2);
 const mutants = only.length
   ? registry.mutants.filter((m) => only.includes(m.id))
   : registry.mutants;
+
+const files = [...new Set(mutants.map((m) => m.file))];
+
+function git(...args) {
+  return execFileSync("git", args, { cwd: root, stdio: "pipe" });
+}
+
+// Refuse a dirty target: with clean targets, recovery from anything up to and
+// including SIGKILL is `git checkout -- <files>`, and the final diff check
+// below is meaningful.
+try {
+  git("diff", "--exit-code", "--", ...files);
+  git("diff", "--cached", "--exit-code", "--", ...files);
+} catch {
+  console.error(
+    "refusing to run: a file this harness mutates has uncommitted changes.\n" +
+      `files: ${files.join(", ")}`,
+  );
+  process.exit(1);
+}
+
+const snapshots = new Map(files.map((f) => [f, readFileSync(join(root, f), "utf8")]));
+let restored = false;
+function restoreAll() {
+  if (restored) return;
+  for (const [f, contents] of snapshots) writeFileSync(join(root, f), contents);
+  restored = true;
+}
+process.on("exit", restoreAll);
+for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(sig, () => {
+    restoreAll();
+    process.exit(130);
+  });
+}
 
 function suitePasses() {
   try {
@@ -53,27 +92,27 @@ const survivors = [];
 const stale = [];
 
 for (const m of mutants) {
-  const path = join(root, m.file);
-  const original = readFileSync(path, "utf8");
+  const original = snapshots.get(m.file);
   if (!original.includes(m.find)) {
     stale.push(m.id);
     console.log(`stale    ${m.id}: find string no longer present in ${m.file}`);
     continue;
   }
-  writeFileSync(path, original.replace(m.find, m.replace));
-  try {
-    const caught = !suitePasses();
-    console.log(`${caught ? "caught  " : "SURVIVED"} ${m.id}  (${m.rule})`);
-    if (!caught) survivors.push(m.id);
-  } finally {
-    writeFileSync(path, original);
-  }
+  writeFileSync(join(root, m.file), original.replace(m.find, m.replace));
+  const caught = !suitePasses();
+  writeFileSync(join(root, m.file), original);
+  console.log(`${caught ? "caught  " : "SURVIVED"} ${m.id}  (${m.rule})`);
+  if (!caught) survivors.push(m.id);
 }
 
-// Restore is per-mutant, but verify the end state anyway: a harness that
-// leaves a mutant behind would be worse than no harness.
-if (!suitePasses()) {
-  console.error("the suite is red AFTER restoration; the working tree is dirty");
+restoreAll();
+
+// Byte-identical to HEAD, not merely green: a botched restore that left
+// semantically equivalent source would pass a test run and still be a lie.
+try {
+  git("diff", "--exit-code", "--", ...files);
+} catch {
+  console.error("a touched file differs from HEAD after restoration");
   process.exit(1);
 }
 

@@ -1,12 +1,18 @@
 {
   "format": "ink.oracle.mutants.v1",
   "comment": [
-    "One entry per rule the independent oracle enforces. The harness in",
-    "scripts/check-oracle-mutants.mjs applies each mutant to its module,",
-    "runs the oracle suite, and requires the suite to FAIL. A mutant that",
-    "leaves the suite green means the rule it disables is not constrained",
-    "by any vector or self-test, which is exactly the hole a wrong",
-    "implementation would pass through.",
+    "A curated mutant set: one entry per oracle rule that some vector or",
+    "self-test constrains. The harness in scripts/check-oracle-mutants.mjs",
+    "applies each mutant, runs the oracle suite, and requires the suite to",
+    "FAIL; a survivor means the rule it disables is constrained by nothing.",
+    "",
+    "Curated, not exhaustive: three rules the oracle enforces are exercised",
+    "by no vector, so their mutants would survive honestly. They are the",
+    "genesis rotation root taken from the agentId rather than the card",
+    "field, the non-active relying-party key refusal, and the card-signer",
+    "bootstrap fallback. Each needs a corpus vector, not a registry entry;",
+    "they are tracked as corpus coverage gaps and join this registry when",
+    "their vectors land.",
     "",
     "A find string that no longer matches is an error, not a skip: it means",
     "the module changed and this registry rotted. Update the entry with the",
@@ -75,6 +81,13 @@
       "rule": "\u00a73.6: the signature member is removed before canonicalizing",
       "find": "if (key !== \"signature\") withoutSignature[key] = object[key];",
       "replace": "withoutSignature[key] = object[key];"
+    },
+    {
+      "id": "transport-base-allows-newline",
+      "file": "conformance/v1/independent/signature-base.mjs",
+      "rule": "\u00a73.3: a scalar carrying CR or LF refuses at base construction",
+      "find": "if (/[\\r\\n]/.test(value))\n      throw new Error(`\u00a73.3: ${name} contains CR or LF`);",
+      "replace": "if (false)\n      throw new Error(`\u00a73.3: ${name} contains CR or LF`);"
     },
     {
       "id": "principal-accepts-x25519",
