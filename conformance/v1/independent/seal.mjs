@@ -17,7 +17,16 @@ const HKDF_INFO = "ink/0.1/encrypt";
 // Spec §"Reconstructs": the AAD domain line, then the JCS of the bound fields.
 const AAD_DOMAIN = "ink/0.1:envelope\n";
 
-const b64u = (s) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+// STRICT base64url: the grammar says "base64url, no padding", and Node's
+// decoder ignores characters it does not understand, so a permissive decode
+// accepts an envelope whose ciphertext carries bytes the grammar forbids. The
+// encoded length is capped BEFORE decoding (spec steps 3 and 6), so a hostile
+// field bounds work before it allocates anything.
+function b64u(s, maxEncoded) {
+  if (typeof s !== "string" || s.length === 0 || s.length > maxEncoded) return null;
+  if (!/^[A-Za-z0-9_-]+$/.test(s)) return null;
+  return Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64");
+}
 const toB64u = (buf) =>
   buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
@@ -47,14 +56,31 @@ function x25519PublicFromPrivate(privRaw) {
 // null-shaped result mirrors it.
 export function openSealedEnvelope(envelope, recipientPrivateKeyHex, recipientDid) {
   try {
+    // Steps 1 and 2 run before any cryptography: the type set is
+    // network.tulpa.encrypted plus its ink/0.4 alias (Protocol §wire
+    // namespace), and the scalars mirror the encrypt-side caps in UTF-16 code
+    // units, so decrypt accepts exactly the scalar set encrypt could have
+    // produced. Skipping these makes the oracle looser than the spec: a
+    // sender can produce a valid tag over an out-of-grammar envelope, and
+    // only these checks refuse it.
+    if (envelope.protocol !== "ink/0.1") return null;
+    if (envelope.type !== "network.tulpa.encrypted" && envelope.type !== "network.ink.encrypted")
+      return null;
+    const scalarOk = (v, max) => typeof v === "string" && v.length >= 1 && v.length <= max;
+    if (!scalarOk(envelope.from, 512)) return null;
+    if (!scalarOk(envelope.timestamp, 64)) return null;
+    if (!scalarOk(envelope.messageNonce, 256)) return null;
+
     const priv = Buffer.from(recipientPrivateKeyHex, "hex");
     if (priv.length !== 32) return null;
 
-    const ephemeral = b64u(envelope.ephemeralKey);
-    if (ephemeral.length !== 32) return null;
+    // 32 bytes is exactly 43 unpadded base64url characters, and 12 bytes is
+    // exactly 16, so the encoded caps are the exact lengths.
+    const ephemeral = b64u(envelope.ephemeralKey, 43);
+    if (ephemeral === null || ephemeral.length !== 32) return null;
 
-    const nonce = b64u(envelope.nonce);
-    if (nonce.length !== 12) return null;
+    const nonce = b64u(envelope.nonce, 16);
+    if (nonce === null || nonce.length !== 12) return null;
 
     const secret = diffieHellman({
       privateKey: rawPrivate(priv),
@@ -94,8 +120,10 @@ export function openSealedEnvelope(envelope, recipientPrivateKeyHex, recipientDi
       ),
     ]);
 
-    const raw = b64u(envelope.ciphertext);
-    if (raw.length < 17) return null;
+    // The ciphertext cap mirrors the §3.2 canonical-output ceiling, since the
+    // plaintext is a canonicalized inner message and GCM adds 16 bytes.
+    const raw = b64u(envelope.ciphertext, 1400000);
+    if (raw === null || raw.length < 17) return null;
     const tag = raw.subarray(raw.length - 16);
     const body = raw.subarray(0, raw.length - 16);
 
