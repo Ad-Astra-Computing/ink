@@ -72,6 +72,14 @@ describe("transport signature base, protocol §3.3", () => {
         continue;
       }
       exercised++;
+      // §3.3: a scalar carrying CR or LF must refuse at base construction,
+      // because the collision vectors carry a signature that VERIFIES over the
+      // collided base; a builder that constructs it anyway authenticates two
+      // distinct inputs with one signature. The throw is therefore asserted,
+      // not merely tolerated, or a builder that stopped refusing would still
+      // pass this suite.
+      const scalars = [signInput.method, signInput.path, signInput.recipientDid, signInput.timestamp];
+      const carriesNewline = scalars.some((v) => typeof v === "string" && /[\r\n]/.test(v));
       let ok = false;
       try {
         ok = await verify(
@@ -80,12 +88,14 @@ describe("transport signature base, protocol §3.3", () => {
           fromHex(publicKeyHex),
         );
       } catch {
-        // A scalar carrying CR or LF cannot build a base at all, which is how
-        // §3.3 rejects it. That is the expected path for those cases.
         if (c.expect.result === "reject") continue;
         throw new Error(
           `${c.caseId}: base construction threw on an accept case`,
         );
+      }
+      if (carriesNewline) {
+        failures.push(`${c.caseId}: a CR/LF scalar built a base instead of refusing`);
+        continue;
       }
       if (c.expect.result === "accept" && !ok) failures.push(c.caseId);
     }

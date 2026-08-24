@@ -54,6 +54,7 @@
     "check:facts": "tsx scripts/check-doc-facts.ts",
     "check:release-pin": "tsx scripts/check-release-pin.ts",
     "check:pack": "./scripts/check-pack.sh",
+    "check:mutants": "node scripts/check-oracle-mutants.mjs",
     "gen:body-vectors": "tsx scripts/gen-body-signature-vectors.ts",
     "prepack": "npm run build",
     "prepublishOnly": "npm run build",
