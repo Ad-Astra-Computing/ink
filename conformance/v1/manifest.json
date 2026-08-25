@@ -17,8 +17,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card.md",
       "summary": "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound.",
-      "caseCount": 49,
-      "sha256": "328ab6ebc9caebd932614b2a74f99433adf13cbc1d2a48fb7ce77de77cab4bcc"
+      "caseCount": 53,
+      "sha256": "4a8828e4ffaca4ae3dcfe5b1f45415bcd7c175ce17e32a966ae32c59e79c2e57"
     },
     {
       "id": "agent-card-fetch",

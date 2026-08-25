@@ -101,7 +101,7 @@
               {
                 "keyId": "k2",
                 "algorithm": "X25519",
-                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "publicKeyMultibase": "z6LScHSpp1zxR9PnMCdLTLTDwUAM3aRvmBMXueib1t3vSNg8",
                 "status": "active",
                 "validFrom": "2026-06-16T00:00:00.000Z"
               }
@@ -1045,6 +1045,186 @@
               {
                 "keyId": "",
                 "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-role-ed25519-in-encryption-slot-rejects",
+      "description": "An encryption entry whose multibase decodes to the 0xed01 Ed25519 multicodec is rejected: the roles are disjoint and the multicodec enforces it.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": [
+              {
+                "keyId": "k2",
+                "algorithm": "X25519",
+                "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-role-x25519-in-signing-slot-rejects",
+      "description": "A signing entry whose multibase decodes to the 0xec01 X25519 multicodec is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6LScHSpp1zxR9PnMCdLTLTDwUAM3aRvmBMXueib1t3vSNg8",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": [
+              {
+                "keyId": "k2",
+                "algorithm": "X25519",
+                "publicKeyMultibase": "z6LScHSpp1zxR9PnMCdLTLTDwUAM3aRvmBMXueib1t3vSNg8",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-undecodable-multibase-rejects",
+      "description": "A key entry whose multibase body does not decode is rejected; a z prefix alone is not a key.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "zJUNK",
+                "status": "active",
+                "validFrom": "2026-06-16T00:00:00.000Z"
+              }
+            ],
+            "encryption": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "key-algorithm-contradicts-slot-rejects",
+      "description": "A signing entry labeled X25519 is rejected even when its key bytes are valid Ed25519: the label must name the role's algorithm.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "ask",
+              "ping"
+            ],
+            "intentsSent": [
+              "ask"
+            ]
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "k1",
+                "algorithm": "X25519",
                 "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
                 "status": "active",
                 "validFrom": "2026-06-16T00:00:00.000Z"

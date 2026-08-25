@@ -6,6 +6,27 @@ import { KeyEntrySchema, KeyStatusSchema } from "./key-entry.js";
 import { InkTransportSchema, AgentCardVisibilitySchema, type AgentCardVisibility } from "./ink-handshake.js";
 import { isInkEndpointUrl } from "./endpoint-url.js";
 import { isInkTimestamp } from "../crypto/timestamp.js";
+import { decodePublicKeyMultibase, decodeEncryptionKeyMultibase } from "../crypto/keys.js";
+
+// Identity model §4.1: the key roles are disjoint and the multicodec enforces
+// it. A signing slot MUST decode to 0xed01 plus 32 bytes (Ed25519) and an
+// encryption slot to 0xec01 plus 32 bytes (X25519); the algorithm label MUST
+// name the role's algorithm. The decoders throw on the wrong codec, a wrong
+// length, or an undecodable body, which is exactly the §4.1 reject set.
+const decodesForRole = (role: "signing" | "encryption", entry: { publicKeyMultibase: string; algorithm: string }): boolean => {
+  try {
+    if (role === "signing") {
+      if (entry.algorithm !== "Ed25519") return false;
+      decodePublicKeyMultibase(entry.publicKeyMultibase);
+    } else {
+      if (entry.algorithm !== "X25519") return false;
+      decodeEncryptionKeyMultibase(entry.publicKeyMultibase);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // Opt-in discoverability descriptor (#188). A card MAY carry a `discovery`
 // object that opts the agent in to being surfaced by a directory/index. It is
@@ -157,6 +178,18 @@ export const AgentCardSchema = z.object({
   keys: z.object({
     signing: z.array(KeyEntrySchema).max(32),
     encryption: z.array(KeyEntrySchema).max(32),
+  }).superRefine((keys, ctx) => {
+    for (const role of ["signing", "encryption"] as const) {
+      keys[role].forEach((entry, i) => {
+        if (!decodesForRole(role, entry)) {
+          ctx.addIssue({
+            code: "custom",
+            path: [role, i, "publicKeyMultibase"],
+            message: `§4.1: a ${role} key must decode to the ${role === "signing" ? "0xed01 Ed25519" : "0xec01 X25519"} multicodec`,
+          });
+        }
+      });
+    }
   }).optional(),
   currentSigningKeyId: z.string().max(128).optional(),
   currentEncryptionKeyId: z.string().max(128).optional(),
