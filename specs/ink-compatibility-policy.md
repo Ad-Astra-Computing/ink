@@ -71,9 +71,12 @@ that authenticates only a payload subset (`responseSignature` over `JCS(events)`
 `serviceSignature` over `{eventId, leafIndex, treeSize, rootHash, timestamp}`)
 and not the envelope `type`. The relabel-rejection guarantee above therefore
 cannot hold for them, so the vendor-neutral spelling is withheld until a future
-wire change brings `type` under their signature. Every other type either signs
-its full body (handshake, receipt, audit-query-response) or binds `type` into
-its AEAD AAD (encrypted), so dual-accept is relabel-safe.
+wire change brings `type` under their signature. Neutral-only types (Protocol
+§6) are outside dual-accept from the other side: each has a single registered
+spelling, `network.ink.<suffix>`, and no legacy form to accept. Every other
+dual-spelled type either signs its full body (handshake, receipt,
+audit-query-response) or binds `type` into its AEAD AAD (encrypted), so its
+dual-accept is relabel-safe.
 
 The `handshake-message`, `payload-encryption`, and `audit-query-response`
 conformance categories pin both spellings, including the relabel-rejection
