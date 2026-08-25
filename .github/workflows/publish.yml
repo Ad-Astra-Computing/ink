@@ -67,6 +67,13 @@ jobs:
       - name: Tests
         run: nix develop --command npm test
 
+      # The soak anchoring condition requires a green mutation run AT the
+      # release commit (governance/releases/1.0-readiness-evidence.md §1); the
+      # weekly cadence re-earns the claim between cuts but a release may sit
+      # days past the last weekly run on a different tree.
+      - name: Oracle mutation check
+        run: nix develop --command npm run check:mutants
+
       - name: Typecheck
         run: nix develop --command npm run typecheck
 
@@ -184,6 +191,13 @@ jobs:
 
       - name: Tests
         run: nix develop --command npm test
+
+      # The soak anchoring condition requires a green mutation run AT the
+      # release commit (governance/releases/1.0-readiness-evidence.md §1); the
+      # weekly cadence re-earns the claim between cuts but a release may sit
+      # days past the last weekly run on a different tree.
+      - name: Oracle mutation check
+        run: nix develop --command npm run check:mutants
 
       - name: Typecheck
         run: nix develop --command npm run typecheck
