@@ -8,11 +8,8 @@
     "",
     "Curated, not exhaustive. Rules whose mutants would survive honestly:",
     "the genesis rotation root taken from the agentId, the non-active",
-    "relying-party key refusal, and the card-signer bootstrap fallback, each",
     "waiting on a corpus vector. Two seal rules are also excluded: the",
     "all-zero shared-secret refusal, which OpenSSL enforces natively so no",
-    "vector can isolate the explicit check, and the inner-from equality,",
-    "whose vector (inner-from-mismatch) also omits the recipient DID and so",
     "rejects for that reason instead; an isolating vector is tracked with",
     "the other corpus gaps.",
     "",
@@ -174,6 +171,20 @@
       "rule": "\u00a73.4 step 10: the inner to must equal the mandatory recipient DID",
       "find": "if (typeof recipientDid !== \"string\" || recipientDid.length === 0) return null;\n    if (inner.to !== recipientDid) return null;",
       "replace": ""
+    },
+    {
+      "id": "seal-skips-inner-from",
+      "file": "conformance/v1/independent/seal.mjs",
+      "rule": "\u00a73.4 step 10: the inner from must equal the outer from (isolated by the fixed inner-from-mismatch vector)",
+      "find": "if (inner.from !== envelope.from) return null;",
+      "replace": ""
+    },
+    {
+      "id": "challenge-accepts-non-active-key",
+      "file": "test/conformance-independent.test.ts",
+      "rule": "agent-authorization: only an ACTIVE relying-party key is a signer candidate",
+      "find": "const candidates = keys.filter((k: any) => k?.status === \"active\" && typeof k.publicKeyHex === \"string\");",
+      "replace": "const candidates = keys.filter((k: any) => typeof k.publicKeyHex === \"string\");"
     }
   ]
 }

@@ -234,6 +234,38 @@ describe("agent card signature base, card spec §3.2", () => {
     ).toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
+
+  it("roots a rejected chain in the agentId, not the card field", async () => {
+    // card-field-rooted-chain-reject carries a link 1 signed by the key in
+    // card.publicKeyMultibase, which differs from the agentId's key. The link
+    // must FAIL under the identity root and VERIFY under the card field, or the
+    // vector does not distinguish the two roots and this check pins nothing.
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("agent-card-signature")) {
+      if (c.expect.result !== "reject") continue;
+      const card = c.input?.card;
+      const chain = card?.rotationChain;
+      if (!Array.isArray(chain) || chain.length === 0) continue;
+      const link = chain[0];
+      if (typeof link?.signature !== "string") continue;
+      const agentId: unknown = card.agentId;
+      const idRoot =
+        typeof agentId === "string" && (agentId.startsWith("tulpa:") || agentId.startsWith("ink:"))
+          ? agentId.slice(agentId.indexOf(":") + 1)
+          : undefined;
+      const fieldRoot = card.publicKeyMultibase;
+      if (idRoot === undefined || typeof fieldRoot !== "string" || idRoot === fieldRoot) continue;
+      const base = rotationLinkSignatureBase(link);
+      const underField = await verify(link.signature, base, decodePublicKeyMultibase(fieldRoot));
+      if (!underField) continue; // some other defect; not this rule's case
+      exercised++;
+      const underId = await verify(link.signature, base, decodePublicKeyMultibase(idRoot));
+      if (underId) failures.push(`${c.caseId}: link 1 verifies under the identity root too`);
+    }
+    expect(exercised, "no card-field-rooted reject chains were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
 });
 
 describe("first contact transcript, protocol §3.3 and §3.6", () => {
@@ -484,6 +516,34 @@ describe("non-base profiles", () => {
       if (!verified) failures.push(c.caseId);
     }
     settle(t, "authorization challenges", failures);
+  });
+
+  it("refuses a challenge whose only matching key is not active", async () => {
+    // retired-key-rejects-signature and revoked-key-rejects-signature carry a
+    // key whose MATERIAL verifies the signature; only its status disqualifies
+    // it. An oracle without the status filter verifies these and diverges from
+    // the corpus, so the reject cases are consumed here rather than skipped.
+    let exercised = 0;
+    const failures: string[] = [];
+    for (const c of cases("agent-authorization")) {
+      if (c.expect.result !== "reject") continue;
+      const ch = c.input?.challenge;
+      const keys = c.input?.keys;
+      if (typeof ch?.signature !== "string" || !Array.isArray(keys)) continue;
+      const nonActive = keys.filter((k: any) => k?.status && k.status !== "active" && typeof k.publicKeyHex === "string");
+      if (nonActive.length === 0 || keys.some((k: any) => k?.status === "active")) continue;
+      // The material must actually verify, or this case pins nothing.
+      let materialVerifies = false;
+      for (const k of nonActive) {
+        if (await verify(ch.signature, bodySignatureBase(ch), fromHex(k.publicKeyHex))) { materialVerifies = true; break; }
+      }
+      if (!materialVerifies) continue;
+      exercised++;
+      const candidates = keys.filter((k: any) => k?.status === "active" && typeof k.publicKeyHex === "string");
+      if (candidates.length !== 0) failures.push(`${c.caseId}: a non-active key survived the status filter`);
+    }
+    expect(exercised, "no non-active-key rejects were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
   });
 
   it("verifies every accepted audit query response on its own domain", async () => {

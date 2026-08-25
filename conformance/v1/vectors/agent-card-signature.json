@@ -2868,6 +2868,67 @@
       }
     },
     {
+      "caseId": "card-field-rooted-chain-reject",
+      "description": "A one-link chain signed by the key in card.publicKeyMultibase, which differs from the key inside the agentId. The identity root is the agentId; a verifier rooting link 1 in the mutable card field accepts a chain the identity's holder never signed.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mko9hTggMwjSTEaJaPUfE6tqcy2xvU6BnNq3e3o8qVBiyH",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "kB",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "kB",
+          "keySetVersion": 1,
+          "rotationChain": [
+            {
+              "keySetVersion": 1,
+              "signing": [
+                {
+                  "keyId": "kB",
+                  "publicKeyMultibase": "z6MkvRXNYcE7MMduynWTgeKbDaT1iijDSC8pZqXZc8rHPrf2",
+                  "status": "active"
+                }
+              ],
+              "prevKeyId": "g",
+              "signature": "nVo8EAFuOUJCX4ypSChxnkocVqDT2HeGwLds-1WHdBJUsCSHn7tCKEZksI2bOoX8SEjfjshOuPhc9GF0nZ0GDw"
+            }
+          ],
+          "cardSignature": {
+            "keyId": "kB",
+            "signature": "OHxjZM2EFjTJf87RgFmsturMVLMbjquUElzmCQOseJNaraydSyRrYgwBZOOKRzUhGHGk8q3b55bpzpHqwEVjCA"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "chain_link_invalid_signature"
+      }
+    },
+    {
       "caseId": "genesis-key-mismatch-reject",
       "description": "A no-chain key-derived card whose signing key is not byte-equal to the embedded genesis key.",
       "input": {

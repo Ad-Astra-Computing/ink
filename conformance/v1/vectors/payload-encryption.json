@@ -133,7 +133,7 @@
     },
     {
       "caseId": "inner-from-mismatch",
-      "description": "The decrypted inner `from` must equal the outer envelope `from`.",
+      "description": "The decrypted inner `from` must equal the outer envelope `from`. The recipient DID is supplied and the inner `to` matches it, so the inner/outer `from` consistency check is the ONLY rule this case exercises; without the DID it would reject for the missing binding instead and never isolate this rule.",
       "input": {
         "envelope": {
           "protocol": "ink/0.1",
@@ -145,7 +145,8 @@
           "timestamp": "2026-01-01T00:00:00.000Z",
           "messageNonce": "01HENCRYPTNONCE0000000000AA"
         },
-        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3"
+        "recipientPrivateKeyHex": "64e8a9e5fc8b6bb5be28a27888a0eb749322de2d4066a4e2ec4f0addc65359f3",
+        "recipientDid": "did:web:recipient.example.com"
       },
       "expect": {
         "result": "reject"

@@ -2648,6 +2648,21 @@ vectorFile("agent-card-fetch", [
     c.currentSigningKeyId = "g1"; // no keySetVersion
     return attach(c, "g1", G.priv);
   })();
+  // Link 1 signed by the key the CARD FIELD carries (A), while the agentId
+  // embeds G. A verifier that roots the chain in the mutable
+  // card.publicKeyMultibase accepts this; rooting in the agentId, which no card
+  // edit can move, rejects it. Until this case, every vector carried the same
+  // key in both places, so the two roots were indistinguishable.
+  const cardFieldRootedChain = await (async () => {
+    const l1 = await mkLink({ keySetVersion: 1, signing: [linkEntry("kB", B, "active")], prevKeyId: "g" }, A.priv);
+    const c = acsBaseCard(keyDerivedId, A.mb);
+    c.keys = { signing: [signingEntry("kB", B, "active")], encryption: [] };
+    c.currentSigningKeyId = "kB";
+    c.keySetVersion = 1;
+    c.rotationChain = [l1];
+    return attach(c, "kB", B.priv);
+  })();
+
   const genesisMismatch = await (async () => {
     // No chain, signed by A, which is not byte-equal to the genesis key G.
     const c = acsBaseCard(keyDerivedId, G.mb);
@@ -2893,6 +2908,7 @@ vectorFile("agent-card-fetch", [
     acsReject("signer-absent-from-signing-reject", "cardSignature.keyId names no entry in the card's own signing set.", { card: signerAbsent, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "signer_absent_from_signing" }),
     acsReject("missing-current-signing-key-id-reject", "A signed key-set card with no currentSigningKeyId.", { card: missingCurrent, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "missing_current_signing_key_id" }),
     acsReject("missing-key-set-version-reject", "A signed card that omits keySetVersion, the sole monotonic quantity the continuity rules compare.", { card: missingKsv, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "missing_key_set_version" }),
+    acsReject("card-field-rooted-chain-reject", "A one-link chain signed by the key in card.publicKeyMultibase, which differs from the key inside the agentId. The identity root is the agentId; a verifier rooting link 1 in the mutable card field accepts a chain the identity's holder never signed.", { card: cardFieldRootedChain, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "chain_link_invalid_signature" }),
     acsReject("genesis-key-mismatch-reject", "A no-chain key-derived card whose signing key is not byte-equal to the embedded genesis key.", { card: genesisMismatch, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "genesis_key_mismatch" }),
     acsReject("card-duplicate-key-id-reject", "The card's own keys.signing set repeats a keyId, making signer resolution ambiguous.", { card: cardDuplicateKeyId, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "duplicate_key_id" }),
     acsReject("invalid-key-encoding-reject", "The signer entry's publicKeyMultibase is an X25519 (0xec01) key where an Ed25519 (0xed01) key is required.", { card: invalidKeyEncoding, agentId: keyDerivedId, options: { profile: "pre-1.0" } }, { reason: "invalid_key_encoding" }),
@@ -3178,8 +3194,9 @@ async function sealUnbound(plaintext, senderDid, recipientPubHex, timestamp, mes
     },
     {
       caseId: "inner-from-mismatch",
-      description: "The decrypted inner `from` must equal the outer envelope `from`.",
-      input: { envelope: innerMismatchEnv, recipientPrivateKeyHex: recipientPrivHex },
+      description:
+        "The decrypted inner `from` must equal the outer envelope `from`. The recipient DID is supplied and the inner `to` matches it, so the inner/outer `from` consistency check is the ONLY rule this case exercises; without the DID it would reject for the missing binding instead and never isolate this rule.",
+      input: { envelope: innerMismatchEnv, recipientPrivateKeyHex: recipientPrivHex, recipientDid },
       expect: rej,
     },
     {

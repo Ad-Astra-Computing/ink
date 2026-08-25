@@ -35,8 +35,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card-signature.md",
       "summary": "Self-authenticating Agent Card proof: the cardSignature proof, rotation-chain rooting by principal kind, head binding, the unsigned-card ratchet, and the continuity and rollback rules.",
-      "caseCount": 49,
-      "sha256": "13809304b8c02199c1ec3f00d6e2e2d4a2e9ec6c535390ad7a4da9d0fbbd020c"
+      "caseCount": 50,
+      "sha256": "621971ee7012b98b2f3ae64f929b122a3bb79c3b83fa13c9876ae033563f79c2"
     },
     {
       "id": "agent-card-signature-phase-c",
@@ -198,7 +198,7 @@
       "spec": "specs/ink-payload-encryption.md",
       "summary": "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope.",
       "caseCount": 22,
-      "sha256": "b87a114d1282f829aaf5717ca339c8fa74926548406ca9b28d5ce13438e5a44e"
+      "sha256": "c2dff822a7e296748f6c801be935cc0783d162d5316b5d0d09c5b4d8b194fb43"
     },
     {
       "id": "principal-normalization",
