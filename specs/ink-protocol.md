@@ -527,9 +527,12 @@ verification.
 `network.tulpa.*` only. Each carries a detached signature that authenticates a
 payload subset and not the envelope `type`, so the relabel-rejection guarantee
 cannot hold for them; the vendor-neutral spelling is withheld until a future wire
-change brings `type` under their signature. Every other registered type either
-signs its full body or binds `type` into its AEAD AAD, so its dual-accept is
-relabel-safe.
+change brings `type` under their signature. Every registered type that has both
+spellings either signs its full body or binds `type` into its AEAD AAD, so its
+dual-accept is relabel-safe. A **neutral-only** type has one registered spelling
+and nothing to dual-accept: it was allocated after the vendor-neutral namespace
+existed, its `network.tulpa.<suffix>` is unregistered, and a receiver rejects
+it.
 
 **Allocation rule.** A new message type is a reverse-domain suffix added under
 the minor-version rule of

@@ -47,10 +47,13 @@ The vendor-neutral prefix `network.ink.*` is introduced as a
 backward-compatible, receiver-first transition, the same shape as the `ink/0.2`
 body-signature change:
 
-- A conforming receiver MUST dual-accept both spellings of every message type:
-  `network.tulpa.<suffix>` and `network.ink.<suffix>` are equivalent on receipt
-  (e.g. `network.ink.challenge` validates wherever `network.tulpa.challenge`
-  does).
+- A conforming receiver MUST dual-accept both spellings of every message type
+  that has both: `network.tulpa.<suffix>` and `network.ink.<suffix>` are
+  equivalent on receipt (e.g. `network.ink.challenge` validates wherever
+  `network.tulpa.challenge` does). A type the Protocol §6 registry marks
+  **neutral-only** was allocated after this transition and has a single
+  registered spelling, `network.ink.<suffix>`; its `network.tulpa.*` form is
+  unregistered and rejected.
 - A sender MUST continue to EMIT `network.tulpa.*` by default. Emitting the
   vendor-neutral spelling is opt-in and reserved for a future negotiated
   capability, so a receiver that has not yet upgraded never sees the new prefix.
