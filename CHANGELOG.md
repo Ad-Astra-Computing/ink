@@ -4,6 +4,49 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## 0.18.0, the corpus checks itself
+
+### Changes
+
+- No runtime changes. `src/` and `bin/` are byte-for-byte the 0.17.0 code, so
+  every signature, canonicalization and decrypt decision is unchanged. This
+  release carries the conformance corpus, the specs and the governance record.
+
+- The corpus is re-verified against constructions written from the spec text.
+  [`conformance/v1/independent/`](conformance/v1/independent/) implements each
+  signing construction, the RFC 6962 tree rules and the sealed-envelope receive
+  side from their normative sections, importing nothing from the
+  implementation, and the test suite checks every signature, hash and AEAD
+  decision the corpus records against them. A mutation registry
+  ([`conformance/v1/independent/mutants.json`](conformance/v1/independent/mutants.json))
+  proves the check bites: disabling any registered rule turns the suite red,
+  verified weekly and at every release cut.
+
+- Corpus: one vector added, one corrected, 821 vectors total. New
+  `agent-card-signature/card-field-rooted-chain-reject` distinguishes a
+  rotation chain rooted in the agentId from one rooted in the mutable
+  `card.publicKeyMultibase`; both implementations already rejected it, and the
+  corpus can now tell. `payload-encryption/inner-from-mismatch` now supplies
+  the recipient DID, so it exercises only the inner/outer `from` consistency
+  rule its name states. Manifest anchor
+  `375a65adf67bdbc3057a19a700dabcd3200831687936492fb3951c0ea5458fb3`.
+
+- [`specs/ink-protocol.md`](specs/ink-protocol.md) §7 now states that only the
+  `0xed 0x01` multicodec forms a key-derived principal. A well-formed X25519
+  body escapes to `raw:` like a malformed one; both implementations already did
+  this, and the spec no longer invites an implementer to canonicalize it.
+
+- The differential fuzzer runs in CI: a fixed-seed budget on every pull
+  request, 400,000 cases nightly, self-test first. See
+  [`differential/README.md`](differential/README.md).
+
+- Governance: the soak anchoring condition in
+  [`governance/releases/1.0-readiness-evidence.md`](governance/releases/1.0-readiness-evidence.md)
+  §1 was ruled on and re-drafted. The soak anchors on the first release cut
+  after the condition holds, which is this release. The second-implementation
+  residual is tracked in
+  [#301](https://github.com/Ad-Astra-Computing/ink/issues/301).
+
 ## 0.17.0, identity model, resolver spec and two fail-closed guards
 
 ### Changes
