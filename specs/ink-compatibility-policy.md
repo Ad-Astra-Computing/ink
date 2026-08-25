@@ -54,8 +54,10 @@ body-signature change:
   **neutral-only** was allocated after this transition and has a single
   registered spelling, `network.ink.<suffix>`; its `network.tulpa.*` form is
   unregistered and rejected.
-- A sender MUST continue to EMIT `network.tulpa.*` by default. Emitting the
-  vendor-neutral spelling is opt-in and reserved for a future negotiated
+- For a dual-spelled type a sender MUST continue to EMIT `network.tulpa.*` by
+  default; a neutral-only type has only its `network.ink.*` string to emit.
+  Emitting the vendor-neutral spelling of a dual-spelled type is opt-in and
+  reserved for a future negotiated
   capability, so a receiver that has not yet upgraded never sees the new prefix.
 - The dual-accept is a pure receiver-side leniency and is INDEPENDENT of the
   signed `protocol` field (which governs only the body-signature domain). It is

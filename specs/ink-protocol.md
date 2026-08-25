@@ -488,10 +488,11 @@ validates wherever `network.tulpa.<suffix>` does. A suffix marked
 **neutral-only** below was allocated after the vendor-neutral namespace existed,
 so it has no legacy spelling to carry: its one registered string is
 `network.ink.<suffix>`, and `network.tulpa.<suffix>` for it is unregistered and
-rejected. A sender MUST continue to EMIT `network.tulpa.*`
-by default; emitting the vendor-neutral spelling is opt-in and reserved for a
-negotiated capability, so a receiver that has not upgraded never sees the new
-prefix. Dual-accept is a pure receiver-side leniency, independent of the signed
+rejected. For a dual-spelled suffix a sender MUST continue to EMIT
+`network.tulpa.*` by default; emitting the vendor-neutral spelling is opt-in and
+reserved for a negotiated capability, so a receiver that has not upgraded never
+sees the new prefix. A neutral-only suffix has only its `network.ink.*` string
+to emit. Dual-accept is a pure receiver-side leniency, independent of the signed
 `protocol` field, and is not gated on `ink/0.2`. A validated message keeps its
 actual `type` string; every signature, hash, receipt and AEAD binding is over
 the spelling on the wire, never a normalized one, so relabelling a message fails
