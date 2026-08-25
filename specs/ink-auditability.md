@@ -461,7 +461,7 @@ The audit service:
 1. Accepts signed `InkAuditEvent` submissions from agents
 2. Appends them to a **Merkle tree** (not just a hash chain, enables efficient inclusion proofs)
 3. Returns a **signed inclusion receipt** proving the event was recorded at a specific tree position and timestamp
-4. Serves **inclusion proofs** on demand (per-submission via the inclusion receipt and per-query via the signed `audit_query_response` envelope). **Consistency proofs** between two arbitrary checkpoints are not in scope for alpha.3; consistency-proof verification against external `tlog-witness` cosigners (§7.0) is the alpha.3 mitigation against split-view attacks.
+4. Serves **inclusion proofs** on demand (per-submission via the inclusion receipt and per-query via the signed `audit_query_response` envelope). **Consistency proofs** between two checkpoints are served and verified per [`ink-merkle-consistency.md`](ink-merkle-consistency.md) (`verifyConsistencyProof`, shipped in 0.5.0), alongside consistency-proof verification against external `tlog-witness` cosigners (§7.0), as the mitigations against split-view attacks.
 
 The service CANNOT forge events that verifiers will accept, because every returned event carries the submitting agent's Ed25519 `agentSignature` and §7.3 verifiers re-check it against the agent's published keys. A witness that commits a fabricated event_json into its Merkle tree can produce a valid inclusion proof, but verifiers will reject the response when the agent signature fails to validate. (Verifiers that walk Merkle proofs without checking `agentSignature` lose this guarantee; see §7.5.) The service CAN prove:
 - That a specific event was submitted at a specific time (inclusion)

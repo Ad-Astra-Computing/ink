@@ -483,8 +483,12 @@ historical artifact of INK's origin and does not imply Tulpa ownership; Ad Astra
 Computing stewards INK.
 
 **Dual-accept rule (Frozen for 1.0).** A conforming receiver MUST accept both
-spellings of every registered suffix; `network.ink.<suffix>` validates wherever
-`network.tulpa.<suffix>` does. A sender MUST continue to EMIT `network.tulpa.*`
+spellings of every registered suffix that has both; `network.ink.<suffix>`
+validates wherever `network.tulpa.<suffix>` does. A suffix marked
+**neutral-only** below was allocated after the vendor-neutral namespace existed,
+so it has no legacy spelling to carry: its one registered string is
+`network.ink.<suffix>`, and `network.tulpa.<suffix>` for it is unregistered and
+rejected. A sender MUST continue to EMIT `network.tulpa.*`
 by default; emitting the vendor-neutral spelling is opt-in and reserved for a
 negotiated capability, so a receiver that has not upgraded never sees the new
 prefix. Dual-accept is a pure receiver-side leniency, independent of the signed
@@ -514,8 +518,10 @@ verification.
 | `agent_card_response` | Card query response | yes | ink-containment-phase1-implementation-spec |
 | `agent_card_denied` | Card query denial | yes | ink-containment-phase1-implementation-spec |
 | `discovery_query` | Directory discovery query | yes | ink-discovery-query |
-| `authorization_challenge` | Sign in with INK challenge | yes | ink-agent-authorization |
+| `authorization_challenge` | Sign in with INK challenge | **neutral-only** | ink-agent-authorization |
 | `authorization_grant` | Sign in with INK grant | yes | ink-authorization-grant |
+| `delegation_link` | Delegation chain link | **neutral-only** | ink-authorization-chain |
+| `authorization_chain` | Delegation chain container | **neutral-only** | ink-authorization-chain |
 
 **Excluded from dual-accept.** `audit_response` and `audit_inclusion` stay
 `network.tulpa.*` only. Each carries a detached signature that authenticates a
