@@ -4,6 +4,23 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Breaking
+
+- Agent Card validation now enforces the identity model §4.1 key-role rule.
+  A `keys.signing` entry must decode to the `0xed01` Ed25519 multicodec and a
+  `keys.encryption` entry to `0xec01` X25519, each 32 bytes, with the
+  algorithm label naming the role's algorithm. A card that previously
+  validated with a role-mismatched, mislabeled or undecodable key now
+  rejects. Such a key could never verify a signature or complete an ECDH, so
+  no working deployment is affected; a card that trips this was already
+  unusable in that role. Both implementations enforce it (`AgentCardSchema`,
+  Go `ValidateAgentCard`) and the `agent-card` conformance category pins
+  accept and reject sides. The corpus's own `full-card-accepts` vector
+  previously carried the Ed25519 key in its encryption slot and has been
+  corrected.
+
 ## 0.18.0, the corpus checks itself
 
 ### Changes

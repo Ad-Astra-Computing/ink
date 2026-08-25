@@ -94,6 +94,32 @@ func DecodePublicKeyMultibase(multibase string) ([]byte, error) {
 	return key, nil
 }
 
+// x25519Multicodec is the multicodec prefix for an X25519 public key (0xec 0x01).
+var x25519Multicodec = []byte{0xec, 0x01}
+
+// DecodeEncryptionKeyMultibase decodes a multibase base58btc X25519 public key
+// (z-prefixed, 0xec 0x01 multicodec) to its raw 32 bytes.
+func DecodeEncryptionKeyMultibase(multibase string) ([]byte, error) {
+	if n := utf16Len(multibase); n == 0 || n > 1024 {
+		return nil, errors.New("multibase must be a non-empty string under 1024 chars")
+	}
+	if !strings.HasPrefix(multibase, "z") {
+		return nil, errors.New("expected multibase base58btc prefix 'z'")
+	}
+	decoded, err := decodeBase58(multibase[1:])
+	if err != nil {
+		return nil, err
+	}
+	if len(decoded) < 2 || decoded[0] != x25519Multicodec[0] || decoded[1] != x25519Multicodec[1] {
+		return nil, errors.New("invalid X25519 multicodec prefix")
+	}
+	key := decoded[2:]
+	if len(key) != 32 {
+		return nil, errors.New("invalid X25519 public key length")
+	}
+	return key, nil
+}
+
 // EncodePublicKeyMultibase encodes a raw 32-byte Ed25519 public key as a
 // z-prefixed multibase base58btc string with the 0xed 0x01 multicodec.
 func EncodePublicKeyMultibase(publicKey []byte) (string, error) {

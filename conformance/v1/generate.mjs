@@ -2175,6 +2175,10 @@ vectorFile("connection-payload", [
 // present. See specs/ink-agent-card.md.
 const acTs = "2026-06-16T00:00:00.000Z";
 const acKey = { keyId: "k1", algorithm: "Ed25519", publicKeyMultibase: mb, status: "active", validFrom: acTs };
+// Identity model §4.1: an encryption entry decodes to 0xec01 X25519, never the
+// signing key's 0xed01. Deterministic bytes so the corpus is reproducible.
+const acEncMb = encodeEncryptionKeyMultibase(new Uint8Array(32).fill(9));
+const acEncKey = { keyId: "k2", algorithm: "X25519", publicKeyMultibase: acEncMb, status: "active", validFrom: acTs };
 const acCard = {
   protocol: "ink/0.1",
   agentId: "did:web:a.example",
@@ -2197,7 +2201,7 @@ const acFullCard = {
     auditExchange: true,
     thirdPartyAudit: { services: [{ endpoint: "https://audit.example/submit", did: "did:web:audit.example", publicKey: "zAudit" }], submitPolicy: "high_value" },
   },
-  keys: { signing: [acKey], encryption: [{ ...acKey, keyId: "k2", algorithm: "X25519" }] },
+  keys: { signing: [acKey], encryption: [acEncKey] },
   currentSigningKeyId: "k1",
   keySetVersion: 3,
   supportedProtocolVersions: ["ink/0.1", "ink/0.2"],
@@ -2251,6 +2255,13 @@ vectorFile("agent-card", [
   acReject("key-bad-timestamp-rejects", "A key entry with a non-strict validFrom timestamp is rejected.", { ...acCard, keys: { signing: [{ ...acKey, validFrom: "2026-06-16" }], encryption: [] } }),
   acReject("key-bad-algorithm-rejects", "A key entry with an unknown algorithm is rejected.", { ...acCard, keys: { signing: [{ ...acKey, algorithm: "RSA" }], encryption: [] } }),
   acReject("key-missing-id-rejects", "A key entry with an empty keyId is rejected.", { ...acCard, keys: { signing: [{ ...acKey, keyId: "" }], encryption: [] } }),
+  // Identity model §4.1: the roles are disjoint and the multicodec enforces
+  // it. A signing slot decodes to 0xed01 plus 32 bytes, an encryption slot to
+  // 0xec01 plus 32 bytes, and the algorithm label names the role's algorithm.
+  acReject("key-role-ed25519-in-encryption-slot-rejects", "An encryption entry whose multibase decodes to the 0xed01 Ed25519 multicodec is rejected: the roles are disjoint and the multicodec enforces it.", { ...acCard, keys: { signing: [acKey], encryption: [{ ...acEncKey, publicKeyMultibase: mb }] } }),
+  acReject("key-role-x25519-in-signing-slot-rejects", "A signing entry whose multibase decodes to the 0xec01 X25519 multicodec is rejected.", { ...acCard, keys: { signing: [{ ...acKey, publicKeyMultibase: acEncMb }], encryption: [acEncKey] } }),
+  acReject("key-undecodable-multibase-rejects", "A key entry whose multibase body does not decode is rejected; a z prefix alone is not a key.", { ...acCard, keys: { signing: [{ ...acKey, publicKeyMultibase: "zJUNK" }], encryption: [] } }),
+  acReject("key-algorithm-contradicts-slot-rejects", "A signing entry labeled X25519 is rejected even when its key bytes are valid Ed25519: the label must name the role's algorithm.", { ...acCard, keys: { signing: [{ ...acKey, algorithm: "X25519" }], encryption: [] } }),
   // numbers / enums
   acReject("bad-key-set-version-rejects", "A non-positive keySetVersion is rejected.", { ...acCard, keySetVersion: 0 }),
   acReject("bad-visibility-rejects", "An unknown visibility is rejected.", { ...acCard, visibility: "secret" }),

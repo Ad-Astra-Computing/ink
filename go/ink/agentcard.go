@@ -165,14 +165,29 @@ var intentTypes = []string{
 // validateKeyEntry mirrors KeyEntrySchema (key-entry.ts): not strict (unknown
 // keys are allowed), strict-RFC3339 key-window timestamps, no length cap on
 // keyId or publicKeyMultibase beyond the prefix.
-func validateKeyEntry(m map[string]interface{}) bool {
+func validateKeyEntry(m map[string]interface{}, role string) bool {
 	if id, ok := m["keyId"].(string); !ok || id == "" {
 		return false
 	}
-	if alg, ok := m["algorithm"].(string); !ok || !inEnum(alg, "Ed25519", "X25519") {
+	// Identity model §4.1: the roles are disjoint and the multicodec enforces
+	// it. A signing entry is Ed25519 under 0xed01 and an encryption entry is
+	// X25519 under 0xec01, in the algorithm label AND in the decoded bytes.
+	wantAlg := "Ed25519"
+	if role == "encryption" {
+		wantAlg = "X25519"
+	}
+	if alg, ok := m["algorithm"].(string); !ok || alg != wantAlg {
 		return false
 	}
-	if pk, ok := m["publicKeyMultibase"].(string); !ok || !strings.HasPrefix(pk, "z") {
+	pk, ok := m["publicKeyMultibase"].(string)
+	if !ok || !strings.HasPrefix(pk, "z") {
+		return false
+	}
+	if role == "encryption" {
+		if _, err := DecodeEncryptionKeyMultibase(pk); err != nil {
+			return false
+		}
+	} else if _, err := DecodePublicKeyMultibase(pk); err != nil {
 		return false
 	}
 	if st, ok := m["status"].(string); !ok || !inEnum(st, "active", "retired", "revoked") {
@@ -260,7 +275,7 @@ func validateKeySet(m map[string]interface{}) bool {
 		}
 		for _, e := range arr {
 			ke, ok := e.(map[string]interface{})
-			if !ok || !validateKeyEntry(ke) {
+			if !ok || !validateKeyEntry(ke, key) {
 				return false
 			}
 		}
