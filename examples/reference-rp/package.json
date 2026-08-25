@@ -17,7 +17,7 @@
     "demo": "node bin/ink-rp-demo.mjs"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.17.0"
+    "@adastracomputing/ink": "^0.18.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
