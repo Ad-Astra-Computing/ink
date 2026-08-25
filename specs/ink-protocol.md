@@ -476,9 +476,9 @@ exchanged inside a handshake are pinned by
 
 ## 6. Message-type namespace registry
 
-Protocol messages carry a reverse-domain `type` string. Two prefixes are
-equivalent on receipt: the legacy `network.tulpa.<suffix>` and the
-vendor-neutral `network.ink.<suffix>`. The `network.tulpa.*` prefix is a
+Protocol messages carry a reverse-domain `type` string. For a dual-spelled
+registered suffix, two prefixes are equivalent on receipt: the legacy
+`network.tulpa.<suffix>` and the vendor-neutral `network.ink.<suffix>`. The `network.tulpa.*` prefix is a
 historical artifact of INK's origin and does not imply Tulpa ownership; Ad Astra
 Computing stewards INK.
 
