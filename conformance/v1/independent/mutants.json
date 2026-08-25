@@ -6,12 +6,10 @@
     "applies each mutant, runs the oracle suite, and requires the suite to",
     "FAIL; a survivor means the rule it disables is constrained by nothing.",
     "",
-    "Curated, not exhaustive. Rules whose mutants would survive honestly:",
-    "the genesis rotation root taken from the agentId, the non-active",
-    "waiting on a corpus vector. Two seal rules are also excluded: the",
-    "all-zero shared-secret refusal, which OpenSSL enforces natively so no",
-    "rejects for that reason instead; an isolating vector is tracked with",
-    "the other corpus gaps.",
+    "One rule is excluded on purpose: the all-zero shared-secret refusal in",
+    "seal.mjs. OpenSSL refuses the small-order computation natively, so no",
+    "vector can isolate the explicit check on this runtime; it stays in the",
+    "module as portability armor and is documented there.",
     "",
     "A find string that no longer matches is an error, not a skip: it means",
     "the module changed and this registry rotted. Update the entry with the",
@@ -185,6 +183,13 @@
       "rule": "agent-authorization: only an ACTIVE relying-party key is a signer candidate",
       "find": "const candidates = keys.filter((k: any) => k?.status === \"active\" && typeof k.publicKeyHex === \"string\");",
       "replace": "const candidates = keys.filter((k: any) => typeof k.publicKeyHex === \"string\");"
+    },
+    {
+      "id": "chain-roots-in-card-field",
+      "file": "test/conformance-independent.test.ts",
+      "rule": "the rejected-chain check verifies link 1 against the identity root, not the card field",
+      "find": "const underId = await verify(link.signature, base, decodePublicKeyMultibase(idRoot));",
+      "replace": "const underId = await verify(link.signature, base, decodePublicKeyMultibase(fieldRoot));"
     }
   ]
 }
