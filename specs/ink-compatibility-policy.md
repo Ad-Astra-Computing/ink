@@ -37,8 +37,10 @@ This version follows the same policy but is independent of the transport protoco
 
 ### 1.3 Wire-namespace prefix (`network.tulpa.*`)
 
-Message `type` fields throughout INK v0.1 carry the prefix
-`network.tulpa.*` (e.g. `network.tulpa.encrypted`, `network.tulpa.challenge`).
+Message `type` fields for INK v0.1's original message types carry the prefix
+`network.tulpa.*` (e.g. `network.tulpa.encrypted`, `network.tulpa.challenge`);
+types allocated after the vendor-neutral namespace existed are neutral-only
+(Protocol §6) and carry `network.ink.*` alone.
 This is a **historical artifact** of INK's origin at Tulpa and is *not*
 intended to imply Tulpa ownership of the protocol, Ad Astra Computing
 stewards INK; Tulpa is one product built on it.
