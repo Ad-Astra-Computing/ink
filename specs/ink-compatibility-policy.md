@@ -37,8 +37,10 @@ This version follows the same policy but is independent of the transport protoco
 
 ### 1.3 Wire-namespace prefix (`network.tulpa.*`)
 
-Message `type` fields throughout INK v0.1 carry the prefix
-`network.tulpa.*` (e.g. `network.tulpa.encrypted`, `network.tulpa.challenge`).
+Message `type` fields for INK v0.1's original message types carry the prefix
+`network.tulpa.*` (e.g. `network.tulpa.encrypted`, `network.tulpa.challenge`);
+types allocated after the vendor-neutral namespace existed are neutral-only
+(Protocol §6) and carry `network.ink.*` alone.
 This is a **historical artifact** of INK's origin at Tulpa and is *not*
 intended to imply Tulpa ownership of the protocol, Ad Astra Computing
 stewards INK; Tulpa is one product built on it.
@@ -47,12 +49,17 @@ The vendor-neutral prefix `network.ink.*` is introduced as a
 backward-compatible, receiver-first transition, the same shape as the `ink/0.2`
 body-signature change:
 
-- A conforming receiver MUST dual-accept both spellings of every message type:
-  `network.tulpa.<suffix>` and `network.ink.<suffix>` are equivalent on receipt
-  (e.g. `network.ink.challenge` validates wherever `network.tulpa.challenge`
-  does).
-- A sender MUST continue to EMIT `network.tulpa.*` by default. Emitting the
-  vendor-neutral spelling is opt-in and reserved for a future negotiated
+- A conforming receiver MUST dual-accept both spellings of every message type
+  that has both: `network.tulpa.<suffix>` and `network.ink.<suffix>` are
+  equivalent on receipt (e.g. `network.ink.challenge` validates wherever
+  `network.tulpa.challenge` does). A type the Protocol §6 registry marks
+  **neutral-only** was allocated after this transition and has a single
+  registered spelling, `network.ink.<suffix>`; its `network.tulpa.*` form is
+  unregistered and rejected.
+- For a dual-spelled type a sender MUST continue to EMIT `network.tulpa.*` by
+  default; a neutral-only type has only its `network.ink.*` string to emit.
+  Emitting the vendor-neutral spelling of a dual-spelled type is opt-in and
+  reserved for a future negotiated
   capability, so a receiver that has not yet upgraded never sees the new prefix.
 - The dual-accept is a pure receiver-side leniency and is INDEPENDENT of the
   signed `protocol` field (which governs only the body-signature domain). It is
@@ -68,9 +75,12 @@ that authenticates only a payload subset (`responseSignature` over `JCS(events)`
 `serviceSignature` over `{eventId, leafIndex, treeSize, rootHash, timestamp}`)
 and not the envelope `type`. The relabel-rejection guarantee above therefore
 cannot hold for them, so the vendor-neutral spelling is withheld until a future
-wire change brings `type` under their signature. Every other type either signs
-its full body (handshake, receipt, audit-query-response) or binds `type` into
-its AEAD AAD (encrypted), so dual-accept is relabel-safe.
+wire change brings `type` under their signature. Neutral-only types (Protocol
+§6) are outside dual-accept from the other side: each has a single registered
+spelling, `network.ink.<suffix>`, and no legacy form to accept. Every other
+dual-spelled type either signs its full body (handshake, receipt,
+audit-query-response) or binds `type` into its AEAD AAD (encrypted), so its
+dual-accept is relabel-safe.
 
 The `handshake-message`, `payload-encryption`, and `audit-query-response`
 conformance categories pin both spellings, including the relabel-rejection

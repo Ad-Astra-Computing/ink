@@ -535,7 +535,7 @@ Minimum required cases:
 ## Phase 3 ✓ (implemented 2026-03-25)
 - ✓ Witness integration: `signingKeyId` passed to transport auth on witness submit
 - ✓ `signingKeyId` recorded as a top-level field on `InkAuditEventSchema` for historical verification
-- ✓ keyId semantics: auth header takes precedence, unknown keyId falls through, revoked keyId rejected
+- ✓ keyId semantics: auth header takes precedence; a hint naming an unknown or revoked key is ignored and verification falls through to the active → retired scan, where a revoked key is never a candidate
 - ✓ Rotation observability: `signature.verified_retired`, `signature.revoked_rejected`, `key.rotated`, `key.revoked` audit event types
 - ✓ `keyStatus` in `MultiKeyVerifyResult` for retired-key observability
 - ✓ Audit bridge mappings: `key_rotated` → `key.rotated`, `key_revoked` → `key.revoked`

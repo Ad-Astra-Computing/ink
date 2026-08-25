@@ -217,8 +217,11 @@ algorithm:
 - it collapses the two method prefixes for one key onto one string, so a change
   of prefix cannot split one identity into two or evade state keyed on the
   other;
-- it is TOTAL: a well-formed input canonicalizes and every other input escapes,
-  so a caller does not have to handle a rejection on the security path;
+- it is TOTAL over well-formed string input: a recognized key spelling
+  canonicalizes and every other such input escapes, so a malformed key body is
+  never a rejection on the security path. Three argument shapes are input
+  errors rather than identities and throw: a non-string, an empty string and a
+  string over 512 UTF-16 code units;
 - it performs NO case folding, NO percent-decoding and NO host normalization on
   a foreign principal. A foreign principal is returned unchanged.
 

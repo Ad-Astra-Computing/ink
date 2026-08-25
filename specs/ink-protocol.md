@@ -476,18 +476,23 @@ exchanged inside a handshake are pinned by
 
 ## 6. Message-type namespace registry
 
-Protocol messages carry a reverse-domain `type` string. Two prefixes are
-equivalent on receipt: the legacy `network.tulpa.<suffix>` and the
-vendor-neutral `network.ink.<suffix>`. The `network.tulpa.*` prefix is a
+Protocol messages carry a reverse-domain `type` string. For a dual-spelled
+registered suffix, two prefixes are equivalent on receipt: the legacy
+`network.tulpa.<suffix>` and the vendor-neutral `network.ink.<suffix>`. The `network.tulpa.*` prefix is a
 historical artifact of INK's origin and does not imply Tulpa ownership; Ad Astra
 Computing stewards INK.
 
 **Dual-accept rule (Frozen for 1.0).** A conforming receiver MUST accept both
-spellings of every registered suffix; `network.ink.<suffix>` validates wherever
-`network.tulpa.<suffix>` does. A sender MUST continue to EMIT `network.tulpa.*`
-by default; emitting the vendor-neutral spelling is opt-in and reserved for a
-negotiated capability, so a receiver that has not upgraded never sees the new
-prefix. Dual-accept is a pure receiver-side leniency, independent of the signed
+spellings of every registered suffix that has both; `network.ink.<suffix>`
+validates wherever `network.tulpa.<suffix>` does. A suffix marked
+**neutral-only** below was allocated after the vendor-neutral namespace existed,
+so it has no legacy spelling to carry: its one registered string is
+`network.ink.<suffix>`, and `network.tulpa.<suffix>` for it is unregistered and
+rejected. For a dual-spelled suffix a sender MUST continue to EMIT
+`network.tulpa.*` by default; emitting the vendor-neutral spelling is opt-in and
+reserved for a negotiated capability, so a receiver that has not upgraded never
+sees the new prefix. A neutral-only suffix has only its `network.ink.*` string
+to emit. Dual-accept is a pure receiver-side leniency, independent of the signed
 `protocol` field, and is not gated on `ink/0.2`. A validated message keeps its
 actual `type` string; every signature, hash, receipt and AEAD binding is over
 the spelling on the wire, never a normalized one, so relabelling a message fails
@@ -514,16 +519,21 @@ verification.
 | `agent_card_response` | Card query response | yes | ink-containment-phase1-implementation-spec |
 | `agent_card_denied` | Card query denial | yes | ink-containment-phase1-implementation-spec |
 | `discovery_query` | Directory discovery query | yes | ink-discovery-query |
-| `authorization_challenge` | Sign in with INK challenge | yes | ink-agent-authorization |
+| `authorization_challenge` | Sign in with INK challenge | **neutral-only** | ink-agent-authorization |
 | `authorization_grant` | Sign in with INK grant | yes | ink-authorization-grant |
+| `delegation_link` | Delegation chain link | **neutral-only** | ink-authorization-chain |
+| `authorization_chain` | Delegation chain container | **neutral-only** | ink-authorization-chain |
 
 **Excluded from dual-accept.** `audit_response` and `audit_inclusion` stay
 `network.tulpa.*` only. Each carries a detached signature that authenticates a
 payload subset and not the envelope `type`, so the relabel-rejection guarantee
 cannot hold for them; the vendor-neutral spelling is withheld until a future wire
-change brings `type` under their signature. Every other registered type either
-signs its full body or binds `type` into its AEAD AAD, so its dual-accept is
-relabel-safe.
+change brings `type` under their signature. Every registered type that has both
+spellings either signs its full body or binds `type` into its AEAD AAD, so its
+dual-accept is relabel-safe. A **neutral-only** type has one registered spelling
+and nothing to dual-accept: it was allocated after the vendor-neutral namespace
+existed, its `network.tulpa.<suffix>` is unregistered, and a receiver rejects
+it.
 
 **Allocation rule.** A new message type is a reverse-domain suffix added under
 the minor-version rule of

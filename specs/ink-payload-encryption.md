@@ -26,7 +26,8 @@ A `network.tulpa.encrypted` envelope is a JSON object with these fields, all
 strings:
 
 - `protocol` — exactly `ink/0.1`.
-- `type` — exactly `network.tulpa.encrypted`.
+- `type` — `network.tulpa.encrypted`, or its vendor-neutral alias
+  `network.ink.encrypted` when the sender has negotiated it (Protocol §6).
 - `from` — the sender DID.
 - `ephemeralKey` — the sender's ephemeral X25519 public key, base64url, no padding.
 - `nonce` — the AES-GCM nonce, base64url, no padding.
@@ -52,7 +53,9 @@ producer emits is one a conformant decrypter can open.
 Given the envelope, the recipient's 32-byte X25519 private key, and the
 mandatory bound recipient DID, an implementation:
 
-1. Rejects unless `protocol` is `ink/0.1` and `type` is `network.tulpa.encrypted`.
+1. Rejects unless `protocol` is `ink/0.1` and `type` is
+   `network.tulpa.encrypted` or `network.ink.encrypted` (Protocol §6
+   dual-accept; the spelling on the wire is what the AAD binds).
 2. Rejects unless `from` (1 to 512), `timestamp` (1 to 64), and `messageNonce`
    (1 to 256) are non-empty strings within their length caps, measured in
    UTF-16 code units. These mirror the encrypt-side caps so decrypt accepts
