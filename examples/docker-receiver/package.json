@@ -15,7 +15,7 @@
     "test": "node build.mjs && vitest run"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.17.0"
+    "@adastracomputing/ink": "^0.18.0"
   },
   "devDependencies": {
     "esbuild": "^0.28.1",
