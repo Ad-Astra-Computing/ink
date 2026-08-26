@@ -62,7 +62,13 @@ jobs:
       # the cold nix build is an acceptable cost for removing that vector.
 
       - name: Install npm deps
-        run: nix develop --command npm ci
+        # --ignore-scripts: `npm ci` runs dependency preinstall/install/postinstall
+        # hooks by default, and this job holds `id-token: write` for npm
+        # provenance. That combination is the Shai-Hulud vector: a compromised
+        # transitive dependency's install hook would execute here with the
+        # trusted-publisher OIDC capability in reach. Nothing in this tree needs
+        # install hooks to build or test, so refuse to run them at all.
+        run: nix develop --command npm ci --ignore-scripts
 
       - name: Tests
         run: nix develop --command npm test
@@ -187,7 +193,13 @@ jobs:
       # job above: a poisoned cross-workflow cache could influence the artifact.
 
       - name: Install npm deps
-        run: nix develop --command npm ci
+        # --ignore-scripts: `npm ci` runs dependency preinstall/install/postinstall
+        # hooks by default, and this job holds `id-token: write` for npm
+        # provenance. That combination is the Shai-Hulud vector: a compromised
+        # transitive dependency's install hook would execute here with the
+        # trusted-publisher OIDC capability in reach. Nothing in this tree needs
+        # install hooks to build or test, so refuse to run them at all.
+        run: nix develop --command npm ci --ignore-scripts
 
       - name: Tests
         run: nix develop --command npm test
