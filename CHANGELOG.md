@@ -21,6 +21,19 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   previously carried the Ed25519 key in its encryption slot and has been
   corrected.
 
+### Changes
+
+- Protocol §5 no longer describes handshake messages as carrying an embedded
+  signature. Handshake messages define no `signature` member in either
+  implementation, in the shape profile or in the corpus; their authenticity
+  mechanism is the §3.3 transport signature, which binds the request path. The
+  §3.6 example list drops handshake messages, and §5 states that an
+  unrecognized `signature` key is ignored like any other unknown top-level key
+  and MUST NOT be treated as verified provenance. Three `handshake-message`
+  vectors pin that acceptance so no implementation starts rejecting or
+  verifying the key. An embedded signature may be specified post-1.0 as an
+  additive optional member. No behavior changes.
+
 ## 0.18.0, the corpus checks itself
 
 ### Changes

@@ -2090,6 +2090,13 @@ vectorFile("handshake-message", [
   hsAccept("challenge-ink-namespace-accepts", "A challenge using the vendor-neutral network.ink namespace validates.", { ...hsChallenge, type: "network.ink.challenge" }),
   hsAccept("rejection-ink-namespace-accepts", "A rejection using the vendor-neutral network.ink namespace validates.", { ...hsRejection, type: "network.ink.rejection" }),
   hsAccept("resolution-ink-namespace-accepts", "A resolution using the vendor-neutral network.ink namespace validates.", { ...hsResolution, type: "network.ink.resolution" }),
+  // Handshake messages define no embedded signature member (Protocol §5). An
+  // unrecognized signature key is ignored like any other unknown top-level key
+  // and MUST NOT be treated as verified provenance; an implementation that
+  // rejects it, or verifies it, diverges.
+  hsAccept("challenge-unknown-signature-key-accepts", "A challenge carrying an unknown top-level signature key validates; handshake messages define no embedded signature member and the key is ignored, never verified.", { ...hsChallenge, signature: "junk" }),
+  hsAccept("rejection-unknown-signature-key-accepts", "A rejection carrying an unknown top-level signature key validates and the key is ignored.", { ...hsRejection, signature: "junk" }),
+  hsAccept("resolution-unknown-signature-key-accepts", "A resolution carrying an unknown top-level signature key validates and the key is ignored.", { ...hsResolution, signature: "junk" }),
   // protocol / type
   hsReject("wrong-protocol-rejects", "A protocol other than ink/0.1 is rejected.", { ...hsChallenge, protocol: "ink/0.2" }),
   hsReject("wrong-type-rejects", "A type not matching any handshake message is rejected.", { ...hsChallenge, type: "network.tulpa.message" }),

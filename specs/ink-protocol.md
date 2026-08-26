@@ -387,8 +387,8 @@ category of `conformance/v1`.
 
 ### 3.6 Body signature and version-keyed domain separation
 
-An INK object that carries an embedded `signature` field (a receipt, a handshake
-message or a general signed object) is signed over its own canonical bytes,
+An INK object that carries an embedded `signature` field (a receipt or a
+general signed object) is signed over its own canonical bytes,
 under a version-keyed domain separator, distinct from the transport base of §3.3.
 
 **Construction (Frozen for 1.0).** Remove the `signature` field, canonicalize
@@ -443,14 +443,18 @@ per-sender intent rate, counterparty cooldown) are specified in
 
 ## 5. Handshake messages
 
-After discovery two agents MAY negotiate a connection through signed handshake
+After discovery two agents MAY negotiate a connection through handshake
 messages: a **challenge**, a **rejection** and a **resolution**. This is
 capability-gated on the containment and governance extension (the
 `containment`/`handshake-message` profile). Handshake messages travel over HTTP
-and are therefore signed under the §3.3 transport rules, and their embedded
-`signature`, when present, follows §3.6. A signature made for one handshake path
-(`/challenge`) MUST fail at another (`/rejection`), because the path is bound
-into the base.
+and are signed under the §3.3 transport rules, which are their authenticity
+mechanism. Because the path is bound into the transport base, a transport
+signature made for `/challenge` MUST fail at `/rejection`. Handshake messages
+define no embedded `signature` member: an unrecognized `signature` key is
+ignored like any other unknown top-level key per
+[`ink-handshake-message.md`](ink-handshake-message.md), and a receiver MUST NOT
+treat such a key as verified provenance. An embedded §3.6 signature MAY be
+specified post-1.0 as an additive optional member.
 
 - **challenge** (`network.tulpa.challenge`): `challengeType` is one of
   `mutual_connection_proof`, `identity_verification`, `availability_query`,

@@ -116,8 +116,8 @@
       "profile": "containment",
       "spec": "specs/ink-handshake-message.md",
       "summary": "Challenge, rejection, and resolution message validation.",
-      "caseCount": 29,
-      "sha256": "a155e26253ae0ac9de0c16fdcd8a917e1d21cb391cc863ef99d071fc5ee60b82"
+      "caseCount": 32,
+      "sha256": "b212175dfd33d03052ac1e052f0aab00f8918f6672a143068438443a0fdb60f9"
     },
     {
       "id": "inclusion-receipt",
