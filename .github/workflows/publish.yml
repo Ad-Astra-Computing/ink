@@ -352,6 +352,11 @@ jobs:
     # maintainer investigates and, if needed, re-points the dist-tag at the
     # previous good version. Treat it as the signal that the artifact adopters
     # install does not interoperate, not as a safety net that prevented it.
+    #
+    # The `promote` job is deliberately not covered. Moving a dist-tag ships no
+    # new bytes: the tarball it points at was already verified here when it was
+    # published, so re-running against the same artifact would prove nothing
+    # new. Verification tracks artifacts, not tags.
     needs: [publish, publish-latest]
     if: always() && (needs.publish.result == 'success' || needs.publish-latest.result == 'success')
     runs-on: ubuntu-latest
