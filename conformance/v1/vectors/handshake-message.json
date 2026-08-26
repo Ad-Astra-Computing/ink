@@ -177,6 +177,60 @@
       }
     },
     {
+      "caseId": "challenge-unknown-signature-key-accepts",
+      "description": "A challenge carrying an unknown top-level signature key validates; handshake messages define no embedded signature member and the key is ignored, never verified.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.challenge",
+          "intentRef": "intent-1",
+          "challengeType": "availability_query",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "signature": "junk"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "rejection-unknown-signature-key-accepts",
+      "description": "A rejection carrying an unknown top-level signature key validates and the key is ignored.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.rejection",
+          "intentRef": "intent-1",
+          "reason": "capacity",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "signature": "junk"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "resolution-unknown-signature-key-accepts",
+      "description": "A resolution carrying an unknown top-level signature key validates and the key is ignored.",
+      "input": {
+        "message": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.resolution",
+          "intentRef": "intent-1",
+          "outcome": "accepted",
+          "nonce": "n1",
+          "timestamp": "2026-06-16T12:00:00.000Z",
+          "signature": "junk"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
       "caseId": "wrong-protocol-rejects",
       "description": "A protocol other than ink/0.1 is rejected.",
       "input": {
