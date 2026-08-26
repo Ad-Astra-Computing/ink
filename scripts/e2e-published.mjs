@@ -63,7 +63,11 @@ try {
   console.log(`installing @adastracomputing/ink@${version} from the registry`);
   try {
     execFileSync("npm", ["init", "-y"], { cwd: dir, stdio: "ignore" });
-    execFileSync("npm", ["install", `@adastracomputing/ink@${version}`], {
+    // --ignore-scripts: nothing here needs install hooks, and this keeps
+    // registry lifecycle code from running at all. Import-time code still
+    // runs, which is unavoidable when the package under test IS the thing
+    // being exercised, so this must not run in a job holding a credential.
+    execFileSync("npm", ["install", "--ignore-scripts", `@adastracomputing/ink@${version}`], {
       cwd: dir,
       stdio: "ignore",
     });

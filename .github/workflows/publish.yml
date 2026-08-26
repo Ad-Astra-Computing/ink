@@ -128,23 +128,6 @@ jobs:
         # want the bleeding edge use `npm install @adastracomputing/ink@next`.
         run: npm publish --access public --provenance --tag next
 
-      - name: Verify the published artifact against a live receiver
-        # The interop lab proves the LOCAL build interoperates and runs on every
-        # PR. This proves the tarball adopters actually install does, which only
-        # has an answer once the publish above has landed. It is a verification
-        # and not a gate: npm cannot be un-published, so a failure here does not
-        # roll anything back, it tells a maintainer not to promote. Allowed to
-        # fail the job so that signal is loud.
-        run: |
-          for attempt in 1 2 3; do
-            if node scripts/e2e-published.mjs "$(node -p "require('./package.json').version")"; then
-              exit 0
-            fi
-            echo "attempt $attempt failed; the registry may not have propagated yet"
-            sleep 20
-          done
-          exit 1
-
       - name: Create GitHub Release from CHANGELOG
         # The release body is the matching CHANGELOG section, extracted by
         # scripts/changelog-section.sh so both publish paths read it the same
@@ -263,23 +246,6 @@ jobs:
         # new patch, so it lands on `latest` alone until the next `v*` release.
         run: npm publish --access public --provenance --tag latest
 
-      - name: Verify the published artifact against a live receiver
-        # The interop lab proves the LOCAL build interoperates and runs on every
-        # PR. This proves the tarball adopters actually install does, which only
-        # has an answer once the publish above has landed. It is a verification
-        # and not a gate: npm cannot be un-published, so a failure here does not
-        # roll anything back, it tells a maintainer not to promote. Allowed to
-        # fail the job so that signal is loud.
-        run: |
-          for attempt in 1 2 3; do
-            if node scripts/e2e-published.mjs "$(node -p "require('./package.json').version")"; then
-              exit 0
-            fi
-            echo "attempt $attempt failed; the registry may not have propagated yet"
-            sleep 20
-          done
-          exit 1
-
       - name: Create GitHub Release from CHANGELOG
         # Titled with the normalized version even though the git tag carries
         # the `latest-` prefix, and not marked prerelease: this release is the
@@ -366,3 +332,48 @@ jobs:
           npm dist-tag add "${PKG}@${PROMOTE_VERSION}" "$PROMOTE_TAG"
           echo "After:"
           npm dist-tag ls "$PKG"
+
+  verify-published:
+    # Post-hoc wire verification of the tarball that was just published.
+    #
+    # It runs as its OWN job, not as a step inside a publish job, because it
+    # installs and imports code from the public registry. A publish job holds
+    # `id-token: write` for npm provenance, and any registry code running
+    # there could mint an OIDC token and reuse the trusted-publisher identity.
+    # This job grants only `contents: read` for the checkout, so installed
+    # package and dependency code has no credential to reach for. Installs use
+    # --ignore-scripts for the same reason: nothing here needs lifecycle hooks.
+    #
+    # It also runs after the publishing job finishes rather than between its
+    # steps, so a failure cannot suppress the GitHub Release.
+    #
+    # This CANNOT gate a release. npm is already published and, on the
+    # publish-latest path, `latest` has already moved. A failure means a
+    # maintainer investigates and, if needed, re-points the dist-tag at the
+    # previous good version. Treat it as the signal that the artifact adopters
+    # install does not interoperate, not as a safety net that prevented it.
+    needs: [publish, publish-latest]
+    if: always() && (needs.publish.result == 'success' || needs.publish-latest.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
+        with:
+          node-version: 24
+
+      - name: Verify the published artifact against a live receiver
+        run: |
+          version="$(node -p "require('./package.json').version")"
+          for attempt in 1 2 3; do
+            if node scripts/e2e-published.mjs "$version"; then
+              exit 0
+            fi
+            echo "attempt $attempt failed; the registry may not have propagated yet"
+            sleep 20
+          done
+          exit 1
