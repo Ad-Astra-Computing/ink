@@ -28,7 +28,9 @@ import {
   verifyInkSignature,
   base64urlDecode,
   decodePublicKeyMultibase,
+  encodeEncryptionKeyMultibase,
 } from "@adastracomputing/ink";
+import { x25519 } from "@noble/curves/ed25519.js";
 
 export interface ReceiverIdentity {
   /** Raw Ed25519 32-byte private seed. Keep close. */
@@ -39,8 +41,31 @@ export interface ReceiverIdentity {
   publicKeyMultibase: string;
 }
 
+/**
+ * The receiver's OPTIONAL X25519 encryption identity, derived from a configured
+ * seed. Absent when no seed is set, which keeps encryption opt-in: a deployment
+ * that wants only the plaintext signed path changes nothing and advertises no
+ * encryption key.
+ */
+export interface ReceiverEncryptionIdentity {
+  /** Raw X25519 32-byte private scalar. Keep close. */
+  privateKey: Uint8Array;
+  /** Raw X25519 public key (32 bytes). */
+  publicKey: Uint8Array;
+  /** Multibase form under the 0xec01 X25519 multicodec, for `keys.encryption`. */
+  publicKeyMultibase: string;
+}
+
 export interface ReceiverEnv {
   INK_RECEIVER_SIGNING_SEED?: string;
+  /**
+   * Optional secret. 32 bytes of hex. Set it to give the receiver an X25519
+   * encryption identity so it can accept sealed envelopes (§3.4); leave it
+   * unset and the receiver serves a card with no encryption key, exactly as
+   * before. Deterministic in the seed on purpose, so a redeploy does not
+   * silently rotate the key out from under senders holding the old card.
+   */
+  INK_RECEIVER_ENCRYPTION_SEED?: string;
   INK_RECEIVER_PUBLIC_KEY_MULTIBASE?: string;
   INK_RECEIVER_HOST?: string;
   /**
@@ -120,4 +145,30 @@ export function deriveDidWeb(host: string): string {
     throw new Error(`invalid_host: ${JSON.stringify(host)} is not a bare lowercase host (no port, no path)`);
   }
   return `did:web:${h}`;
+}
+
+/**
+ * Derive the receiver's X25519 encryption identity from `INK_RECEIVER_ENCRYPTION_SEED`,
+ * or return null when none is configured.
+ *
+ * Throws on a malformed seed rather than deriving from whatever bytes happen to
+ * parse: a receiver that silently ran on a truncated seed would publish an
+ * encryption key nobody intended and could not decrypt to.
+ */
+export function loadEncryptionIdentity(env: ReceiverEnv): ReceiverEncryptionIdentity | null {
+  const raw = env.INK_RECEIVER_ENCRYPTION_SEED;
+  if (raw === undefined || raw === null || raw === "") return null;
+  if (typeof raw !== "string" || !/^[0-9a-fA-F]{64}$/.test(raw)) {
+    throw new Error("invalid_encryption_seed: INK_RECEIVER_ENCRYPTION_SEED must be 32 bytes of hex");
+  }
+  const privateKey = new Uint8Array(32);
+  for (let i = 0; i < 32; i += 1) {
+    privateKey[i] = Number.parseInt(raw.slice(i * 2, i * 2 + 2), 16);
+  }
+  const publicKey = x25519.getPublicKey(privateKey);
+  return {
+    privateKey,
+    publicKey,
+    publicKeyMultibase: encodeEncryptionKeyMultibase(publicKey),
+  };
 }

@@ -30,7 +30,7 @@
 
 import { buildAgentCard, resolveCardUpdatedAt } from "./agent-card.js";
 import { buildDidDocument } from "./did-web.js";
-import { loadReceiverIdentity, deriveDidWeb, selfCheckIdentity } from "./keys.js";
+import { loadReceiverIdentity, loadEncryptionIdentity, deriveDidWeb, selfCheckIdentity } from "./keys.js";
 import type { ReceiverEnv } from "./keys.js";
 import { processInbound, readBoundedBody } from "./inbound.js";
 import { checkRateLimit } from "./rate-limit.js";
@@ -68,11 +68,15 @@ const isolateNonceStore = new InMemoryNonceStore({ capacity: 4096 });
 async function prepareIdentity(env: Env) {
   const identity = loadReceiverIdentity(env);
   await selfCheckIdentity(identity);
+  // Optional: absent unless INK_RECEIVER_ENCRYPTION_SEED is set. A malformed
+  // seed throws here rather than at request time, so a bad deploy fails loudly
+  // instead of quietly serving a card with no encryption key.
+  const encryption = loadEncryptionIdentity(env);
   const host = env.INK_RECEIVER_HOST?.trim() ?? "";
   if (!host) throw new Error("missing_host: set INK_RECEIVER_HOST in wrangler vars");
   const did = deriveDidWeb(host);
   const cardUpdatedAt = resolveCardUpdatedAt(env);
-  return { identity, host, did, cardUpdatedAt };
+  return { identity, encryption, host, did, cardUpdatedAt };
 }
 
 /**
@@ -149,12 +153,21 @@ let cachedCard: { key: string; body: Promise<string> } | null = null;
 function cachedCardBody(id: PreparedIdentity): Promise<string> {
   // Keyed by every input the card body depends on, so a config change can
   // never be served from a stale entry.
-  const key = JSON.stringify([id.did, id.host, id.cardUpdatedAt, id.identity.publicKeyMultibase]);
+  // The encryption key is part of the cache key: a deployment that gains or
+  // rotates one must not keep serving the card that predates it.
+  const key = JSON.stringify([
+    id.did,
+    id.host,
+    id.cardUpdatedAt,
+    id.identity.publicKeyMultibase,
+    id.encryption?.publicKeyMultibase ?? null,
+  ]);
   if (cachedCard && cachedCard.key === key) return cachedCard.body;
   const body = buildAgentCard({
     did: id.did,
     host: id.host,
     identity: id.identity,
+    encryption: id.encryption,
     updatedAt: id.cardUpdatedAt,
   }).then((card) => JSON.stringify(card));
   const entry = { key, body };
