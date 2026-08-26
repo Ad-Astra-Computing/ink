@@ -128,6 +128,23 @@ jobs:
         # want the bleeding edge use `npm install @adastracomputing/ink@next`.
         run: npm publish --access public --provenance --tag next
 
+      - name: Verify the published artifact against a live receiver
+        # The interop lab proves the LOCAL build interoperates and runs on every
+        # PR. This proves the tarball adopters actually install does, which only
+        # has an answer once the publish above has landed. It is a verification
+        # and not a gate: npm cannot be un-published, so a failure here does not
+        # roll anything back, it tells a maintainer not to promote. Allowed to
+        # fail the job so that signal is loud.
+        run: |
+          for attempt in 1 2 3; do
+            if node scripts/e2e-published.mjs "$(node -p "require('./package.json').version")"; then
+              exit 0
+            fi
+            echo "attempt $attempt failed; the registry may not have propagated yet"
+            sleep 20
+          done
+          exit 1
+
       - name: Create GitHub Release from CHANGELOG
         # The release body is the matching CHANGELOG section, extracted by
         # scripts/changelog-section.sh so both publish paths read it the same
@@ -245,6 +262,23 @@ jobs:
         # `next` only if it was published there first; a promotion re-cut is a
         # new patch, so it lands on `latest` alone until the next `v*` release.
         run: npm publish --access public --provenance --tag latest
+
+      - name: Verify the published artifact against a live receiver
+        # The interop lab proves the LOCAL build interoperates and runs on every
+        # PR. This proves the tarball adopters actually install does, which only
+        # has an answer once the publish above has landed. It is a verification
+        # and not a gate: npm cannot be un-published, so a failure here does not
+        # roll anything back, it tells a maintainer not to promote. Allowed to
+        # fail the job so that signal is loud.
+        run: |
+          for attempt in 1 2 3; do
+            if node scripts/e2e-published.mjs "$(node -p "require('./package.json').version")"; then
+              exit 0
+            fi
+            echo "attempt $attempt failed; the registry may not have propagated yet"
+            sleep 20
+          done
+          exit 1
 
       - name: Create GitHub Release from CHANGELOG
         # Titled with the normalized version even though the git tag carries
