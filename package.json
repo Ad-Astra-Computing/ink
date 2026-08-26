@@ -54,6 +54,7 @@
     "check:facts": "tsx scripts/check-doc-facts.ts",
     "check:release-pin": "tsx scripts/check-release-pin.ts",
     "check:pack": "./scripts/check-pack.sh",
+    "check:workflows": "node scripts/check-workflow-trust.mjs",
     "e2e:published": "node scripts/e2e-published.mjs",
     "check:mutants": "node scripts/check-oracle-mutants.mjs",
     "gen:body-vectors": "tsx scripts/gen-body-signature-vectors.ts",
