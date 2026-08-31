@@ -328,6 +328,7 @@ async function handleInbound(
   }
   const outcome = await processInbound(body.bytes, req.headers.get("authorization") ?? undefined, {
     identity: id.identity,
+    encryption: id.encryption,
     receiverDid: id.did,
     nonceStore: isolateNonceStore,
   });
@@ -338,6 +339,7 @@ async function handleInbound(
         : outcome.verdict === "signature" ? "signature"
         : outcome.verdict === "unsupported_intent" ? "unsupported_intent"
         : outcome.verdict === "utf8" ? "utf8"
+        : outcome.verdict === "encryption" ? "encryption"
         : "oversize"}`,
       errorCode: outcome.errorCode,
     }));
