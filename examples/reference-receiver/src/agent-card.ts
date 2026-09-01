@@ -15,12 +15,20 @@
  */
 
 import { AgentCardSchema, signAgentCard, isInkTimestamp } from "@adastracomputing/ink";
-import type { ReceiverIdentity, ReceiverEnv } from "./keys.js";
+import type { ReceiverIdentity, ReceiverEncryptionIdentity, ReceiverEnv } from "./keys.js";
 
 export interface AgentCardConfig {
   did: string;
   host: string;
   identity: ReceiverIdentity;
+  /**
+   * Optional X25519 identity. When present the card publishes a `keys` block
+   * with the signing key and this encryption key, which is what lets a sender
+   * seal an envelope to this receiver (§3.4). When absent the card carries no
+   * `keys` block at all, exactly as before, and a sender that tries to encrypt
+   * is told the receiver advertises no encryption key.
+   */
+  encryption?: ReceiverEncryptionIdentity | null;
   /**
    * The card's `updatedAt`. Operator-supplied configuration, NOT a clock read.
    * See `resolveCardUpdatedAt`.
@@ -84,6 +92,13 @@ export function resolveCardUpdatedAt(env: Pick<ReceiverEnv, "INK_RECEIVER_CARD_U
  * sender can exercise the full wire against this target. `ping` and
  * `ask` round out a minimal liveness + query set.
  */
+/**
+ * `validFrom` for the published key entries. Configuration, not a clock read,
+ * for the same reason `updatedAt` is: a card whose key windows move on every
+ * request is a card nobody can cache or reason about.
+ */
+export const CARD_KEYS_VALID_FROM = "2026-08-26T00:00:00Z";
+
 export const SUPPORTED_INTENTS = ["ping", "ask", "connection_request", "intro_request"] as const;
 
 export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
@@ -100,6 +115,37 @@ export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
     endpoint,
     inboxEndpoint: endpoint,
     publicKeyMultibase: cfg.identity.publicKeyMultibase,
+    // The `keys` block appears only when an encryption identity is configured.
+    // Publishing a signing-only `keys` block would be a no-op restatement of
+    // `publicKeyMultibase`, so the two states stay meaningfully distinct: no
+    // block means no encryption, never "encryption you have to guess at".
+    ...(cfg.encryption
+      ? {
+          keys: {
+            signing: [
+              {
+                keyId: "receiver-signing-1",
+                algorithm: "Ed25519" as const,
+                publicKeyMultibase: cfg.identity.publicKeyMultibase,
+                status: "active" as const,
+                validFrom: CARD_KEYS_VALID_FROM,
+              },
+            ],
+            encryption: [
+              {
+                keyId: "receiver-encryption-1",
+                algorithm: "X25519" as const,
+                publicKeyMultibase: cfg.encryption.publicKeyMultibase,
+                status: "active" as const,
+                validFrom: CARD_KEYS_VALID_FROM,
+              },
+            ],
+          },
+          currentSigningKeyId: "receiver-signing-1",
+          currentEncryptionKeyId: "receiver-encryption-1",
+          keySetVersion: 1,
+        }
+      : {}),
     capabilities: {
       intentsAccepted: [...SUPPORTED_INTENTS],
       intentsSent: [] as Array<never>,
@@ -127,16 +173,22 @@ export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
     throw new Error(`agent_card_invalid: ${JSON.stringify(parsed.error.issues)}`);
   }
   // Phase B (producer MUST, ink-agent-card-signature.md §10). Sign the card so a
-  // cold verifier can establish key authority from the card itself. This is a
-  // legacy single-key card (no `keys.signing` set), so the signer keyId is the
-  // literal `bootstrap` and the verifying key is the top-level
-  // `publicKeyMultibase` (§3.3). The receiver is a did:web identity whose DID
-  // document (`/.well-known/did.json`) anchors exactly this key, so the signed
-  // card roots under §4.2. Sign the schema-parsed object so the bytes the
-  // verifier reconstructs from the served body match byte-for-byte.
+  // cold verifier can establish key authority from the card itself. Without an
+  // encryption identity this is a legacy single-key card (no `keys.signing`),
+  // so the signer keyId is the literal `bootstrap` and the verifying key is the
+  // top-level `publicKeyMultibase` (§3.3). With the `keys` block present the
+  // signer keyId MUST name the active signing entry and equal
+  // `currentSigningKeyId` (§3.3) — `bootstrap` on a key-set card is a verifier
+  // reject (`signer_absent_from_signing`), which would make the advertised
+  // X25519 key unusable for exactly the strict senders it exists for. The
+  // receiver is a did:web identity whose DID document (`/.well-known/did.json`)
+  // anchors this key, so the signed card roots under §4.2. Sign the
+  // schema-parsed object so the bytes the verifier reconstructs from the
+  // served body match byte-for-byte.
   const signature = await signAgentCard(
     parsed.data as unknown as Record<string, unknown>,
     cfg.identity.privateKey,
   );
-  return { ...parsed.data, cardSignature: { keyId: "bootstrap", signature } };
+  const signerKeyId = cfg.encryption ? "receiver-signing-1" : "bootstrap";
+  return { ...parsed.data, cardSignature: { keyId: signerKeyId, signature } };
 }

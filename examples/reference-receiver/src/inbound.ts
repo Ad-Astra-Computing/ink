@@ -23,8 +23,18 @@
  *     audit trail) or POST a separate signed INK envelope back to the
  *     sender's inbox.
  *
+ * Encrypted envelopes (§3.4): when the receiver has an encryption identity
+ * configured, an outer `network.tulpa.encrypted` / `network.ink.encrypted`
+ * envelope is accepted on the same endpoint. Transport auth is verified over
+ * the OUTER body first (the sender §3.3-signs what it POSTs), then the
+ * ciphertext is opened with the recipient-DID binding and the inner envelope
+ * runs through the same schema validation and intent allowlist as a plaintext
+ * one. The authentication chain needs no separate inner-signature check: the
+ * transport signature covers the ciphertext, the AAD binds the outer fields,
+ * and decryptInkPayload enforces inner.from === outer.from — the same
+ * transport-auth-is-the-authenticator stance as the plaintext path.
+ *
  * NOT in scope here:
- *  - End-to-end payload encryption.
  *  - Receipt persistence beyond the rolling 7-day KV audit log.
  *  - Signed responses (see Phase B note above).
  */
@@ -36,10 +46,12 @@ import {
   decodePublicKeyMultibase,
   parseSignedBodyBytes,
   ParseSignedBodyError,
+  decryptInkPayload,
+  bytesToHex,
   type CandidateKey,
   type MessageEnvelope,
 } from "@adastracomputing/ink";
-import type { ReceiverIdentity } from "./keys.js";
+import type { ReceiverIdentity, ReceiverEncryptionIdentity } from "./keys.js";
 import { SUPPORTED_INTENTS } from "./agent-card.js";
 import {
   resolveAgentCardForDidWebDetailed,
@@ -74,6 +86,11 @@ export type ResolvedCandidateKey = CandidateKey & {
 
 export interface InboundConfig {
   identity: ReceiverIdentity;
+  /**
+   * Optional §3.4 decryption identity. Absent means the receiver serves no
+   * encryption key on its card and refuses encrypted envelopes explicitly.
+   */
+  encryption?: ReceiverEncryptionIdentity | null;
   receiverDid: string;
   /** Injected for tests. */
   now?: () => number;
@@ -84,14 +101,19 @@ export interface InboundConfig {
    * provide an in-memory ring buffer at the worker level. Production
    * adopters should swap in a KV-backed store.
    */
-  nonceStore: { has(n: string): boolean | Promise<boolean>; add(n: string): void | Promise<void> };
+  nonceStore: {
+    has(n: string): boolean | Promise<boolean>;
+    add(n: string): void | Promise<void>;
+    /** Atomic check-and-record; preferred when present (see the OSS NonceStore). */
+    addIfAbsent?(n: string): boolean | Promise<boolean>;
+  };
 }
 
 export type InboundOutcome =
   | { kind: "ok"; intent: string; sender: string; response: unknown }
   | {
       kind: "rejected";
-      verdict: "utf8" | "schema" | "signature" | "unsupported_intent" | "oversize";
+      verdict: "utf8" | "schema" | "signature" | "unsupported_intent" | "oversize" | "encryption";
       sender: string;
       intent: string;
       errorCode: string;
@@ -310,6 +332,13 @@ export async function processInbound(
     }
     return { kind: "rejected", verdict: "schema", sender: "", intent: "", errorCode: "json_parse_failed" };
   }
+  // Encrypted outer envelopes (§3.4) take their own path: they do not fit the
+  // plaintext MessageEnvelope schema, and the plaintext order (schema before
+  // signature) maps here to "outer shape caps before transport auth, transport
+  // auth before decryption" — never AES work on an unauthenticated body.
+  if (isEncryptedEnvelope(raw)) {
+    return processEncryptedInbound(raw, authHeader, cfg);
+  }
   let envelope: MessageEnvelope;
   try {
     envelope = validateMessage(raw);
@@ -397,6 +426,170 @@ export async function processInbound(
     // but does NOT change which key authenticated — so a single key
     // holder must not be able to mint unbounded distinct buckets by
     // varying the fragment.
+    sender: canonicalizeSenderDid(envelope.from),
+    response: buildAckResponse(envelope, cfg),
+  };
+}
+
+/** The two accepted outer spellings; receivers dual-accept both (§6). */
+export const ENCRYPTED_MESSAGE_TYPES = ["network.tulpa.encrypted", "network.ink.encrypted"] as const;
+
+/** Whether a parsed body claims to be a §3.4 encrypted outer envelope. */
+export function isEncryptedEnvelope(raw: unknown): raw is Record<string, unknown> {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const t = (raw as Record<string, unknown>).type;
+  return typeof t === "string" && (ENCRYPTED_MESSAGE_TYPES as readonly string[]).includes(t);
+}
+
+/**
+ * Cheap scalar caps on the outer envelope BEFORE it is canonicalized for
+ * transport-auth verification. Mirrors the caps decryptInkPayload enforces, so
+ * nothing that would later be refused gets JCS-canonicalized first. Returns an
+ * errorCode or null.
+ */
+function encryptedOuterShapeError(outer: Record<string, unknown>): string | null {
+  if (outer.protocol !== "ink/0.1") return "outer_protocol_unsupported";
+  const s = (v: unknown, max: number): v is string =>
+    typeof v === "string" && v.length > 0 && v.length <= max;
+  if (!s(outer.from, 512)) return "outer_from_invalid";
+  if (!s(outer.timestamp, 64)) return "outer_timestamp_invalid";
+  // messageNonce is the §3.5 replay nonce for an encrypted envelope (the outer
+  // `nonce` is the AES-GCM IV), so it must meet the replay-nonce grammar, not
+  // just the AAD length cap.
+  if (typeof outer.messageNonce !== "string" || !/^[A-Za-z0-9_-]{16,256}$/.test(outer.messageNonce)) {
+    return "outer_message_nonce_invalid";
+  }
+  if (!s(outer.ephemeralKey, 64)) return "outer_ephemeral_key_invalid";
+  if (!s(outer.nonce, 32)) return "outer_nonce_invalid";
+  if (!s(outer.ciphertext, 1_400_000)) return "outer_ciphertext_invalid";
+  return null;
+}
+
+/**
+ * Drive a §3.4 encrypted outer envelope: shape caps, sender key resolution,
+ * transport auth over the OUTER body, decrypt with the recipient-DID binding,
+ * then the inner envelope through the same schema validation and intent
+ * allowlist as the plaintext path.
+ */
+export async function processEncryptedInbound(
+  outer: Record<string, unknown>,
+  authHeader: string | undefined,
+  cfg: InboundConfig,
+): Promise<InboundOutcome> {
+  const sender = safeReadString(outer, "from");
+  if (!cfg.encryption) {
+    // Explicit refusal, not a schema error: a conformant sender only seals to
+    // a key our card advertises, so reaching this means the sender ignored
+    // the card. Name the actual problem.
+    return {
+      kind: "rejected",
+      verdict: "encryption",
+      sender,
+      intent: "",
+      errorCode: "encryption_unsupported",
+      hint: "This receiver advertises no encryption key on its agent card and cannot decrypt. Send a plaintext signed envelope.",
+    };
+  }
+  const shape = encryptedOuterShapeError(outer);
+  if (shape !== null) {
+    return { kind: "rejected", verdict: "encryption", sender, intent: "", errorCode: shape };
+  }
+  const senderDid = outer.from as string;
+  const resolution = await resolveSenderKeysDetailed(senderDid, { fetcher: cfg.fetcher });
+  if (resolution.keys.length === 0) {
+    const reason = resolution.reason ?? "card_publishes_no_usable_key";
+    return {
+      kind: "rejected",
+      verdict: "signature",
+      sender,
+      intent: "",
+      errorCode: "sender_key_unresolved",
+      reason,
+      hint: senderKeyHint(reason),
+    };
+  }
+  // Transport auth over the OUTER body: the sender §3.3-signs exactly what it
+  // POSTs, so the ciphertext and every AAD-bound outer field are covered. The
+  // §3.5 replay nonce for an encrypted envelope is `messageNonce`, but the
+  // middleware reads `body.nonce` — which here is the AES-GCM IV. Recording
+  // the IV would let an authenticated sender replay one `messageNonce` under
+  // fresh IVs, so nonce handling is deferred to the explicit messageNonce
+  // check after verification.
+  const authResult = await verifyInkAuth({
+    authHeader,
+    method: "POST",
+    path: "/ink/v1/inbound",
+    recipientAgentId: cfg.receiverDid,
+    body: outer,
+    resolveKeySet: (agentId) => (agentId === senderDid ? resolution.keys : null),
+    nonceStore: "deferred",
+  });
+  if (!authResult.valid) {
+    return {
+      kind: "rejected",
+      verdict: "signature",
+      sender,
+      intent: "",
+      errorCode: `auth:${String(authResult.error).slice(0, 64)}`,
+    };
+  }
+  if (authResult.senderAgentId !== senderDid) {
+    return { kind: "rejected", verdict: "signature", sender, intent: "", errorCode: "from_field_mismatch" };
+  }
+  // Single-use check on `messageNonce`, AFTER signature verification (so a
+  // forged request never pollutes the store, matching the middleware's own
+  // ordering) and BEFORE decryption. Prefer the atomic form when the store
+  // has one; store errors fail closed.
+  const messageNonce = outer.messageNonce as string;
+  try {
+    let fresh: boolean;
+    if (typeof cfg.nonceStore.addIfAbsent === "function") {
+      fresh = await Promise.resolve(cfg.nonceStore.addIfAbsent(messageNonce));
+    } else {
+      fresh = !(await Promise.resolve(cfg.nonceStore.has(messageNonce)));
+      if (fresh) await Promise.resolve(cfg.nonceStore.add(messageNonce));
+    }
+    if (!fresh) {
+      return { kind: "rejected", verdict: "signature", sender, intent: "", errorCode: "auth:nonce_replay" };
+    }
+  } catch {
+    return { kind: "rejected", verdict: "signature", sender, intent: "", errorCode: "auth:nonce_store_error" };
+  }
+  // Decrypt AFTER auth. decryptInkPayload rebuilds the AAD (binding the type
+  // as received, the outer scalars, and our own static key), enforces
+  // inner.from === outer.from, and requires inner.to to equal the recipient
+  // DID we assert — so a mis-addressed or re-attributed envelope fails here,
+  // not in application code.
+  let inner: Record<string, unknown>;
+  try {
+    inner = await decryptInkPayload(
+      outer as unknown as Parameters<typeof decryptInkPayload>[0],
+      bytesToHex(cfg.encryption.privateKey),
+      cfg.receiverDid,
+    );
+  } catch (err) {
+    const code = err instanceof Error ? err.message.slice(0, 64) : "decrypt_error";
+    return { kind: "rejected", verdict: "encryption", sender, intent: "", errorCode: `decrypt:${code}` };
+  }
+  let envelope: MessageEnvelope;
+  try {
+    envelope = validateMessage(inner);
+  } catch (err) {
+    const code = err instanceof Error ? err.message.slice(0, 64) : "schema_error";
+    return { kind: "rejected", verdict: "schema", sender, intent: safeReadString(inner, "intent"), errorCode: `schema:${code}` };
+  }
+  if (!SUPPORTED_INTENTS.includes(envelope.intent as typeof SUPPORTED_INTENTS[number])) {
+    return {
+      kind: "rejected",
+      verdict: "unsupported_intent",
+      sender: envelope.from,
+      intent: envelope.intent,
+      errorCode: `unsupported_intent:${envelope.intent}`,
+    };
+  }
+  return {
+    kind: "ok",
+    intent: envelope.intent,
     sender: canonicalizeSenderDid(envelope.from),
     response: buildAckResponse(envelope, cfg),
   };
