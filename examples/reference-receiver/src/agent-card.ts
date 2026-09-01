@@ -173,16 +173,22 @@ export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
     throw new Error(`agent_card_invalid: ${JSON.stringify(parsed.error.issues)}`);
   }
   // Phase B (producer MUST, ink-agent-card-signature.md §10). Sign the card so a
-  // cold verifier can establish key authority from the card itself. This is a
-  // legacy single-key card (no `keys.signing` set), so the signer keyId is the
-  // literal `bootstrap` and the verifying key is the top-level
-  // `publicKeyMultibase` (§3.3). The receiver is a did:web identity whose DID
-  // document (`/.well-known/did.json`) anchors exactly this key, so the signed
-  // card roots under §4.2. Sign the schema-parsed object so the bytes the
-  // verifier reconstructs from the served body match byte-for-byte.
+  // cold verifier can establish key authority from the card itself. Without an
+  // encryption identity this is a legacy single-key card (no `keys.signing`),
+  // so the signer keyId is the literal `bootstrap` and the verifying key is the
+  // top-level `publicKeyMultibase` (§3.3). With the `keys` block present the
+  // signer keyId MUST name the active signing entry and equal
+  // `currentSigningKeyId` (§3.3) — `bootstrap` on a key-set card is a verifier
+  // reject (`signer_absent_from_signing`), which would make the advertised
+  // X25519 key unusable for exactly the strict senders it exists for. The
+  // receiver is a did:web identity whose DID document (`/.well-known/did.json`)
+  // anchors this key, so the signed card roots under §4.2. Sign the
+  // schema-parsed object so the bytes the verifier reconstructs from the
+  // served body match byte-for-byte.
   const signature = await signAgentCard(
     parsed.data as unknown as Record<string, unknown>,
     cfg.identity.privateKey,
   );
-  return { ...parsed.data, cardSignature: { keyId: "bootstrap", signature } };
+  const signerKeyId = cfg.encryption ? "receiver-signing-1" : "bootstrap";
+  return { ...parsed.data, cardSignature: { keyId: signerKeyId, signature } };
 }

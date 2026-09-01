@@ -4,6 +4,8 @@ import {
   decodeEncryptionKeyMultibase,
   decodePublicKeyMultibase,
   encodePublicKeyMultibase,
+  verifyAgentCardSignature,
+  type AgentCard,
 } from "@adastracomputing/ink";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { buildAgentCard } from "../src/agent-card.js";
@@ -67,6 +69,31 @@ describe("agent card encryption advertisement", () => {
     // wrong codec in either slot now rejects, so this is the regression guard.
     const parsed = AgentCardSchema.safeParse(await card(env({ INK_RECEIVER_ENCRYPTION_SEED: ENC_SEED })));
     expect(parsed.success).toBe(true);
+  });
+
+  it("signs the key-set card with the named signing key and verifies", async () => {
+    // §3.3: once `keys.signing` exists, `cardSignature.keyId` must name the
+    // active signing entry and equal `currentSigningKeyId`. `bootstrap` on a
+    // key-set card is a verifier reject (`signer_absent_from_signing`), which
+    // would make the advertised X25519 key unusable for exactly the strict
+    // senders that check the card proof before sealing to it.
+    const c = await card(env({ INK_RECEIVER_ENCRYPTION_SEED: ENC_SEED }));
+    expect(c.cardSignature?.keyId).toBe("receiver-signing-1");
+    const result = await verifyAgentCardSignature(c as AgentCard, "did:web:echo.example", {
+      profile: "pre-1.0",
+      didVerificationKeys: [SIGN_PUB_MULTIBASE],
+    });
+    expect(result.authenticated).toBe(true);
+  });
+
+  it("keeps the bootstrap signer on the legacy single-key card", async () => {
+    const c = await card(env());
+    expect(c.cardSignature?.keyId).toBe("bootstrap");
+    const result = await verifyAgentCardSignature(c as AgentCard, "did:web:echo.example", {
+      profile: "pre-1.0",
+      didVerificationKeys: [SIGN_PUB_MULTIBASE],
+    });
+    expect(result.authenticated).toBe(true);
   });
 
   it("omits the keys block entirely when no encryption seed is set", async () => {

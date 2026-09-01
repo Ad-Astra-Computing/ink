@@ -60,6 +60,7 @@ async function sealedPing(opts: {
   to?: string;
   intent?: string;
   payload?: Record<string, unknown>;
+  messageNonce?: string;
 }) {
   const createdAt = new Date().toISOString();
   const inner = {
@@ -80,7 +81,7 @@ async function sealedPing(opts: {
     opts.sender.did,
     opts.recipientKeyHex,
     createdAt,
-    `mn-${crypto.randomUUID()}`,
+    opts.messageNonce ?? `mn-${crypto.randomUUID()}`,
     { messageType: opts.messageType ?? "network.tulpa.encrypted" },
   );
   return { inner: signed, outer: envelope as unknown as Record<string, unknown> };
@@ -164,6 +165,38 @@ describe("encrypted inbound (§3.4)", () => {
     expect(first.kind).toBe("ok");
     const second = await run(cfg, outer, auth);
     expect(second.kind).toBe("rejected");
+  });
+
+  it("rejects a reused messageNonce even under a fresh seal", async () => {
+    // The §3.5 replay nonce for an encrypted envelope is `messageNonce`; the
+    // outer `nonce` is the AES-GCM IV and changes on every seal. Recording the
+    // IV instead would let an authenticated sender replay one messageNonce
+    // under fresh IVs indefinitely.
+    const cfg = await makeReceiver();
+    const sender = await makeSender();
+    const mn = `mn-${crypto.randomUUID()}`;
+    const keyHex = bytesToHex(cfg.encryption!.publicKey);
+    const first = await sealedPing({ sender, recipientKeyHex: keyHex, messageNonce: mn });
+    const second = await sealedPing({ sender, recipientKeyHex: keyHex, messageNonce: mn });
+    expect(first.outer.nonce).not.toBe(second.outer.nonce);
+    const ok = await run(cfg, first.outer, await transportAuth(first.outer, sender.kp));
+    expect(ok.kind).toBe("ok");
+    const replay = await run(cfg, second.outer, await transportAuth(second.outer, sender.kp));
+    expect(replay.kind).toBe("rejected");
+    if (replay.kind === "rejected") expect(replay.errorCode).toBe("auth:nonce_replay");
+  });
+
+  it("rejects a messageNonce outside the replay-nonce grammar before auth", async () => {
+    const cfg = await makeReceiver();
+    const sender = await makeSender();
+    const { outer } = await sealedPing({
+      sender,
+      recipientKeyHex: bytesToHex(cfg.encryption!.publicKey),
+      messageNonce: "too-short", // valid charset, below the 16-char floor
+    });
+    const out = await run(cfg, outer, await transportAuth(outer, sender.kp));
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") expect(out.errorCode).toBe("outer_message_nonce_invalid");
   });
 
   it("rejects tampered ciphertext", async () => {

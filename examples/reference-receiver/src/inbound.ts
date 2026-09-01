@@ -101,7 +101,12 @@ export interface InboundConfig {
    * provide an in-memory ring buffer at the worker level. Production
    * adopters should swap in a KV-backed store.
    */
-  nonceStore: { has(n: string): boolean | Promise<boolean>; add(n: string): void | Promise<void> };
+  nonceStore: {
+    has(n: string): boolean | Promise<boolean>;
+    add(n: string): void | Promise<void>;
+    /** Atomic check-and-record; preferred when present (see the OSS NonceStore). */
+    addIfAbsent?(n: string): boolean | Promise<boolean>;
+  };
 }
 
 export type InboundOutcome =
@@ -448,7 +453,12 @@ function encryptedOuterShapeError(outer: Record<string, unknown>): string | null
     typeof v === "string" && v.length > 0 && v.length <= max;
   if (!s(outer.from, 512)) return "outer_from_invalid";
   if (!s(outer.timestamp, 64)) return "outer_timestamp_invalid";
-  if (!s(outer.messageNonce, 256)) return "outer_message_nonce_invalid";
+  // messageNonce is the §3.5 replay nonce for an encrypted envelope (the outer
+  // `nonce` is the AES-GCM IV), so it must meet the replay-nonce grammar, not
+  // just the AAD length cap.
+  if (typeof outer.messageNonce !== "string" || !/^[A-Za-z0-9_-]{16,256}$/.test(outer.messageNonce)) {
+    return "outer_message_nonce_invalid";
+  }
   if (!s(outer.ephemeralKey, 64)) return "outer_ephemeral_key_invalid";
   if (!s(outer.nonce, 32)) return "outer_nonce_invalid";
   if (!s(outer.ciphertext, 1_400_000)) return "outer_ciphertext_invalid";
@@ -500,7 +510,11 @@ export async function processEncryptedInbound(
   }
   // Transport auth over the OUTER body: the sender §3.3-signs exactly what it
   // POSTs, so the ciphertext and every AAD-bound outer field are covered. The
-  // outer `nonce` (the AES-GCM nonce, fresh per seal) is the replay nonce.
+  // §3.5 replay nonce for an encrypted envelope is `messageNonce`, but the
+  // middleware reads `body.nonce` — which here is the AES-GCM IV. Recording
+  // the IV would let an authenticated sender replay one `messageNonce` under
+  // fresh IVs, so nonce handling is deferred to the explicit messageNonce
+  // check after verification.
   const authResult = await verifyInkAuth({
     authHeader,
     method: "POST",
@@ -508,7 +522,7 @@ export async function processEncryptedInbound(
     recipientAgentId: cfg.receiverDid,
     body: outer,
     resolveKeySet: (agentId) => (agentId === senderDid ? resolution.keys : null),
-    nonceStore: cfg.nonceStore,
+    nonceStore: "deferred",
   });
   if (!authResult.valid) {
     return {
@@ -521,6 +535,25 @@ export async function processEncryptedInbound(
   }
   if (authResult.senderAgentId !== senderDid) {
     return { kind: "rejected", verdict: "signature", sender, intent: "", errorCode: "from_field_mismatch" };
+  }
+  // Single-use check on `messageNonce`, AFTER signature verification (so a
+  // forged request never pollutes the store, matching the middleware's own
+  // ordering) and BEFORE decryption. Prefer the atomic form when the store
+  // has one; store errors fail closed.
+  const messageNonce = outer.messageNonce as string;
+  try {
+    let fresh: boolean;
+    if (typeof cfg.nonceStore.addIfAbsent === "function") {
+      fresh = await Promise.resolve(cfg.nonceStore.addIfAbsent(messageNonce));
+    } else {
+      fresh = !(await Promise.resolve(cfg.nonceStore.has(messageNonce)));
+      if (fresh) await Promise.resolve(cfg.nonceStore.add(messageNonce));
+    }
+    if (!fresh) {
+      return { kind: "rejected", verdict: "signature", sender, intent: "", errorCode: "auth:nonce_replay" };
+    }
+  } catch {
+    return { kind: "rejected", verdict: "signature", sender, intent: "", errorCode: "auth:nonce_store_error" };
   }
   // Decrypt AFTER auth. decryptInkPayload rebuilds the AAD (binding the type
   // as received, the outer scalars, and our own static key), enforces
