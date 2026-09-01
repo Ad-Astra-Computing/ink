@@ -41,3 +41,15 @@ jobs:
 
       - name: Analyze workflows
         run: nix develop --command zizmor --offline .github/workflows/
+
+      - name: Workflow trust checks
+        # Two things zizmor does not cover, each added because a real bug got
+        # past review: a credentialed job installing without --ignore-scripts
+        # (the Shai-Hulud vector), and a pinned action SHA that is not a real
+        # commit upstream. zizmor returned clean on both. GITHUB_TOKEN is
+        # read-only here and is used solely to resolve action SHAs against the
+        # public API; without it the pin check reports SKIPPED rather than
+        # passing silently.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: nix develop --command npm run check:workflows

@@ -180,7 +180,11 @@ jobs:
       # re-verify from scratch on a schedule. Restoring a warm store would let a
       # stale artifact stand in for the thing being verified.
       - name: Install npm deps
-        run: nix develop --command npm ci
+        # --ignore-scripts: dependency install hooks are third-party code and
+        # nothing here needs them. Same reasoning as the publish workflow;
+        # this job only holds contents: read, so the blast radius is smaller,
+        # but the hooks buy us nothing either way.
+        run: nix develop --command npm ci --ignore-scripts
 
       - name: Reference conformance and manifest integrity
         run: nix develop --command npm test
@@ -280,7 +284,11 @@ jobs:
             experimental-features = nix-command flakes
 
       - name: Install npm deps
-        run: nix develop --command npm ci
+        # --ignore-scripts: dependency install hooks are third-party code and
+        # nothing here needs them. Same reasoning as the publish workflow;
+        # this job only holds contents: read, so the blast radius is smaller,
+        # but the hooks buy us nothing either way.
+        run: nix develop --command npm ci --ignore-scripts
 
       - name: Go witness issues, TypeScript reference verifies
         run: nix develop --command npx vitest run test/go-witness-interop.test.ts
