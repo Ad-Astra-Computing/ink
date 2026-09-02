@@ -5,7 +5,7 @@ on:
     tags:
       # `v*` cuts a normal release to the `next` dist-tag. `latest-v*` re-cuts
       # an already-soaked version and stamps it adopter-grade on `latest`. The
-      # two patterns are disjoint, and each is handled by its own job.
+      # two patterns are disjoint, and each is handled by its own publish job.
       - "v*"
       - "latest-v*"
   # No workflow_dispatch trigger, and no dist-tag job. Moving a dist-tag on an
@@ -30,18 +30,19 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  publish:
-    # Normal releases only, and only ever from a tag push. A `latest-v*` tag is
-    # handled by publish-latest; dist-tag moves are owner-attended (see the
-    # trigger comment above). No workflow_dispatch arm: npm's trusted publisher
-    # authenticates the repo and workflow identity, not the ref, so a
-    # dispatch-triggered publish would run OIDC-authenticated `npm publish`
-    # from whatever ref was selected.
-    if: github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v')
+  gauntlet:
+    # Builds and fully tests the release WITHOUT any publishing credential.
+    # Everything that executes third-party code — the nix toolchain, npm
+    # dependencies, the test and lint stack — runs here, where the only
+    # permission is reading the repo. The tarball this job produces is the
+    # exact artifact the publish jobs ship, pinned by SHA-256 across the job
+    # boundary, so nothing that runs alongside a credential ever builds code.
     runs-on: ubuntu-latest
     permissions:
-      contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
-      id-token: write   # required for npm provenance (sigstore OIDC).
+      contents: read
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,17 +54,16 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      # No build cache on the publish path: a poisoned cross-workflow cache could
-      # influence the artifact this job publishes. Publishing is infrequent, so
-      # the cold nix build is an acceptable cost for removing that vector.
+      # No build cache on the release path: a poisoned cross-workflow cache
+      # could influence the artifact this workflow publishes. Publishing is
+      # infrequent, so the cold nix build is an acceptable cost for removing
+      # that vector.
 
       - name: Install npm deps
         # --ignore-scripts: `npm ci` runs dependency preinstall/install/postinstall
-        # hooks by default, and this job holds `id-token: write` for npm
-        # provenance. That combination is the Shai-Hulud vector: a compromised
-        # transitive dependency's install hook would execute here with the
-        # trusted-publisher OIDC capability in reach. Nothing in this tree needs
-        # install hooks to build or test, so refuse to run them at all.
+        # hooks by default. Nothing in this tree needs install hooks to build
+        # or test, so refuse to run them at all — even in this uncredentialed
+        # job, a hook has no business executing here.
         run: nix develop --command npm ci --ignore-scripts
 
       - name: Tests
@@ -86,16 +86,32 @@ jobs:
         run: nix develop --command npm run check:surface
 
       - name: Pack-and-import smoke
-        # Builds the tarball with the same hooks publish uses, installs
-        # it into a clean directory, and imports the entry point. Catches
+        # Builds a tarball the same way the release-tarball step below
+        # does (`npm pack` runs prepack), installs it into a clean
+        # directory, and imports the entry point. Catches
         # any release that would ship a broken package (missing dist/,
         # wrong main, unresolvable re-exports, raw TS sneaking back in).
         run: nix develop --command npm run check:pack
 
       - name: Verify version matches tag
         run: |
+          set -euo pipefail
           PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          case "$GITHUB_REF_NAME" in
+            latest-v*)
+              TAG_VERSION="${GITHUB_REF_NAME#latest-v}"
+              # A promotion always names a bare release version. Rejecting
+              # anything else keeps a prerelease or build-metadata version off
+              # `latest`.
+              if ! [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "promotion tag must be latest-v<major>.<minor>.<patch> (got: ${GITHUB_REF_NAME})"
+                exit 1
+              fi
+              ;;
+            *)
+              TAG_VERSION="${GITHUB_REF_NAME#v}"
+              ;;
+          esac
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
             echo "package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
             exit 1
@@ -107,9 +123,68 @@ jobs:
         # registry moves past it. Checking it here, before the publish, keeps
         # that failure at release time instead of landing on `main` afterwards,
         # and makes the pin bump part of the release commit as GOVERNANCE.md
-        # requires. Runs after the gauntlet and before `npm publish`, so a
-        # missing pin bump costs a re-cut and never a published release.
-        run: nix develop --command npm run check:release-pin -- --tag next --version "${GITHUB_REF_NAME#v}" --match-package-version
+        # requires. Runs after the gauntlet and before anything reaches the
+        # registry, so a missing pin bump costs a re-cut and never a published
+        # release.
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF_NAME" == latest-v* ]]; then
+            nix develop --command npm run check:release-pin -- --tag latest --version "${GITHUB_REF_NAME#latest-v}" --match-package-version
+          else
+            nix develop --command npm run check:release-pin -- --tag next --version "${GITHUB_REF_NAME#v}" --match-package-version
+          fi
+
+      - name: Build the release tarball
+        # `npm pack` runs prepack (the build) under the pinned nix toolchain
+        # and produces the exact bytes the publish jobs ship. The SHA-256
+        # crosses the job boundary as an output, so the publish jobs can prove
+        # the artifact they downloaded is the one this gauntlet passed.
+        id: pack
+        run: |
+          set -euo pipefail
+          tarball="$(nix develop --command npm pack | tail -1)"
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$tarball" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-tarball
+          path: ${{ steps.pack.outputs.tarball }}
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    # The ONLY job on the normal release path that holds `id-token: write`,
+    # and it executes no third-party tooling: no checkout, no nix, no npm ci,
+    # no test stack. It downloads the tarball the gauntlet built, verifies its
+    # SHA-256 against the gauntlet's output and publishes it. Publishing a
+    # prebuilt tarball also skips every npm lifecycle script, so no code from
+    # this repository or its dependencies runs while the trusted-publisher
+    # OIDC capability is in reach — that combination is the Shai-Hulud vector
+    # this split exists to close.
+    #
+    # A `latest-v*` tag is handled by publish-latest; dist-tag moves are
+    # owner-attended (see the trigger comment above). No workflow_dispatch
+    # arm: npm's trusted publisher authenticates the repo and workflow
+    # identity, not the ref, so a dispatch-triggered publish would run
+    # OIDC-authenticated `npm publish` from whatever ref was selected.
+    if: github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v')
+    needs: [gauntlet]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write   # required for npm provenance (sigstore OIDC).
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-tarball
+
+      - name: Verify the tarball is the one the gauntlet built
+        env:
+          EXPECTED_SHA: ${{ needs.gauntlet.outputs.sha256 }}
+          TARBALL: ${{ needs.gauntlet.outputs.tarball }}
+        run: |
+          set -euo pipefail
+          echo "${EXPECTED_SHA}  ${TARBALL}" | sha256sum -c -
 
       # No `cache:` input, so setup-node does not actually cache anything here —
       # the heuristic flag is a false positive on the publish path.
@@ -129,43 +204,22 @@ jobs:
         # Either way, bare `npm install @adastracomputing/ink` only picks
         # up versions a maintainer has stamped adopter-grade. Adopters who
         # want the bleeding edge use `npm install @adastracomputing/ink@next`.
-        run: npm publish --access public --provenance --tag next
-
-      - name: Create GitHub Release from CHANGELOG
-        # The release body is the matching CHANGELOG section, extracted by
-        # scripts/changelog-section.sh so both publish paths read it the same
-        # way. Reading from the file lives in-repo so future contributors
-        # don't need a maintainer's machine to backfill or re-cut a release.
-        # No external action, so no third-party SHA to keep updated, and no
-        # privileged token beyond the default GITHUB_TOKEN which can only act
-        # on this repo.
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          version="${tag#v}"
-          body_file="$(mktemp)"
-          ./scripts/changelog-section.sh "$version" > "$body_file"
-          # All pre-1.0 releases are pre-release. Once a 1.0.0 lands
-          # this should switch to a semver-based check on the tag.
-          gh release create "$tag" \
-            --title "$tag" \
-            --notes-file "$body_file" \
-            --prerelease
+          TARBALL: ${{ needs.gauntlet.outputs.tarball }}
+        run: npm publish "$TARBALL" --access public --provenance --tag next
 
   publish-latest:
     # Emergency-only path to `latest`. The NORMAL promote is the owner-attended
     # dist-tag move described in the trigger comment: it advances `latest` onto
-    # the exact version string that soaked. This job instead re-cuts the soaked
-    # version as a patch and stamps the re-cut on `latest` (npm trusted
-    # publishing authenticates `npm publish` over OIDC but not `npm dist-tag`,
-    # npm/cli#8547), which ships adopters a version string that never soaked —
+    # the exact version string that soaked. This job instead ships the re-cut
+    # the gauntlet built and stamps it on `latest` (npm trusted publishing
+    # authenticates `npm publish` over OIDC but not `npm dist-tag`,
+    # npm/cli#8547), which hands adopters a version string that never soaked —
     # rejected for routine promotion, kept for the case where no owner can run
-    # the manual move and `latest` must change anyway. This job runs the same
-    # gauntlet as the publish job and needs no stored npm credential. It
-    # carries the npm-release environment so environment protection rules
-    # still gate every move of `latest`.
+    # the manual move and `latest` must change anyway. Like the publish job it
+    # executes no third-party tooling while holding the OIDC capability, and it
+    # needs no stored npm credential. It carries the npm-release environment so
+    # environment protection rules still gate every move of `latest`.
     #
     # The real authorization boundary is who can push a tag, not this `if:`.
     # npm's trusted publisher is scoped to this repository and this workflow
@@ -174,77 +228,23 @@ jobs:
     # environment setting must stay unset, or the publish job (which has no
     # environment) would stop authenticating.
     if: github.event_name == 'push' && startsWith(github.ref_name, 'latest-v')
+    needs: [gauntlet]
     runs-on: ubuntu-latest
     environment: npm-release
     permissions:
-      contents: write   # required for `gh release create` to publish the GitHub Release after npm publish.
       id-token: write   # required for npm provenance (sigstore OIDC).
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          persist-credentials: false
+          name: release-tarball
 
-      - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
-        with:
-          extra-conf: |
-            experimental-features = nix-command flakes
-
-      # No build cache on the publish path, for the same reason as the publish
-      # job above: a poisoned cross-workflow cache could influence the artifact.
-
-      - name: Install npm deps
-        # --ignore-scripts: `npm ci` runs dependency preinstall/install/postinstall
-        # hooks by default, and this job holds `id-token: write` for npm
-        # provenance. That combination is the Shai-Hulud vector: a compromised
-        # transitive dependency's install hook would execute here with the
-        # trusted-publisher OIDC capability in reach. Nothing in this tree needs
-        # install hooks to build or test, so refuse to run them at all.
-        run: nix develop --command npm ci --ignore-scripts
-
-      - name: Tests
-        run: nix develop --command npm test
-
-      # The soak anchoring condition requires a green mutation run AT the
-      # release commit (governance/releases/1.0-readiness-evidence.md §1); the
-      # weekly cadence re-earns the claim between cuts but a release may sit
-      # days past the last weekly run on a different tree.
-      - name: Oracle mutation check
-        run: nix develop --command npm run check:mutants
-
-      - name: Typecheck
-        run: nix develop --command npm run typecheck
-
-      - name: Lint
-        run: nix develop --command npm run lint
-
-      - name: Public-surface drift check
-        run: nix develop --command npm run check:surface
-
-      - name: Pack-and-import smoke
-        run: nix develop --command npm run check:pack
-
-      - name: Verify version matches tag
+      - name: Verify the tarball is the one the gauntlet built
+        env:
+          EXPECTED_SHA: ${{ needs.gauntlet.outputs.sha256 }}
+          TARBALL: ${{ needs.gauntlet.outputs.tarball }}
         run: |
           set -euo pipefail
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${GITHUB_REF_NAME#latest-v}"
-          # A promotion always names a bare release version. Rejecting anything
-          # else keeps a prerelease or build-metadata version off `latest`.
-          if ! [[ "$TAG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "promotion tag must be latest-v<major>.<minor>.<patch> (got: ${GITHUB_REF_NAME})"
-            exit 1
-          fi
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
-            exit 1
-          fi
-
-      - name: Verify the dist-tag pin describes this promotion
-        # Same gate as the publish job, on the tag this path moves. A promotion
-        # re-cut advances `latest`, so the pin's `latest` entry must already
-        # name this version before the registry does.
-        run: nix develop --command npm run check:release-pin -- --tag latest --version "${GITHUB_REF_NAME#latest-v}" --match-package-version
+          echo "${EXPECTED_SHA}  ${TARBALL}" | sha256sum -c -
 
       # No `cache:` input, so setup-node does not actually cache anything here.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
@@ -257,23 +257,53 @@ jobs:
         # publishing identity as a normal release. This version is also on
         # `next` only if it was published there first; a promotion re-cut is a
         # new patch, so it lands on `latest` alone until the next `v*` release.
-        run: npm publish --access public --provenance --tag latest
+        env:
+          TARBALL: ${{ needs.gauntlet.outputs.tarball }}
+        run: npm publish "$TARBALL" --access public --provenance --tag latest
+
+  github-release:
+    # Creating the GitHub Release is its own job so `contents: write` never
+    # coexists with `id-token: write`. It runs only in-repo scripts and the
+    # default GITHUB_TOKEN, which can only act on this repository, after the
+    # npm publish has succeeded on whichever path ran.
+    needs: [publish, publish-latest]
+    if: always() && (needs.publish.result == 'success' || needs.publish-latest.result == 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # required for `gh release create`.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Create GitHub Release from CHANGELOG
-        # Titled with the normalized version even though the git tag carries
-        # the `latest-` prefix, and not marked prerelease: this release is the
-        # adopter-grade stamp.
+        # The release body is the matching CHANGELOG section, extracted by
+        # scripts/changelog-section.sh so both publish paths read it the same
+        # way. Reading from the file lives in-repo so future contributors
+        # don't need a maintainer's machine to backfill or re-cut a release.
+        # A `latest-v*` release is titled with the normalized version and not
+        # marked prerelease: it is the adopter-grade stamp. All pre-1.0 `v*`
+        # releases are pre-release; once a 1.0.0 lands that should switch to
+        # a semver-based check on the tag.
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          version="${tag#latest-v}"
-          body_file="$(mktemp)"
-          ./scripts/changelog-section.sh "$version" > "$body_file"
-          gh release create "$tag" \
-            --title "v${version}" \
-            --notes-file "$body_file"
+          if [[ "$tag" == latest-v* ]]; then
+            version="${tag#latest-v}"
+            ./scripts/changelog-section.sh "$version" > release-body.md
+            gh release create "$tag" \
+              --title "v${version}" \
+              --notes-file release-body.md
+          else
+            version="${tag#v}"
+            ./scripts/changelog-section.sh "$version" > release-body.md
+            gh release create "$tag" \
+              --title "$tag" \
+              --notes-file release-body.md \
+              --prerelease
+          fi
 
   verify-published:
     # Post-hoc wire verification of the tarball that was just published.
