@@ -8,21 +8,16 @@ on:
       # two patterns are disjoint, and each is handled by its own job.
       - "v*"
       - "latest-v*"
-  workflow_dispatch:
-    inputs:
-      promote_version:
-        description: "Fallback only: move a dist-tag onto this already-published version"
-        required: false
-        default: ""
-        type: string
-      promote_tag:
-        description: "dist-tag to move when promoting"
-        required: false
-        default: latest
-        type: choice
-        options:
-          - latest
-          - next
+  # No workflow_dispatch trigger, and no dist-tag job. Moving a dist-tag on an
+  # already-published version is OWNER-ATTENDED: npm trusted publishing cannot
+  # authenticate `npm dist-tag` (npm/cli#8547), and the bypass-2FA automation
+  # tokens that could are being phased out (no direct publish from January
+  # 2027). The promote runbook is: verify the pin on main names the
+  # destination (`node scripts/check-release-pin.ts --tag <tag> --version
+  # <ver>`), confirm the release gate is green, then run
+  # `npm dist-tag add @adastracomputing/ink@<ver> <tag> --otp=<code>`
+  # locally. If npm ever ships dist-tag support for trusted publishing,
+  # reintroduce a tokenless job here and retire the manual command.
 
 # Deny by default at the workflow level; each job grants exactly what it needs.
 permissions: {}
@@ -37,10 +32,11 @@ env:
 jobs:
   publish:
     # Normal releases only, and only ever from a tag push. A `latest-v*` tag is
-    # handled by publish-latest, and a promotion dispatch is handled by promote.
-    # No workflow_dispatch arm: npm's trusted publisher authenticates the repo
-    # and workflow identity, not the ref, so a dispatch-triggered publish would
-    # run OIDC-authenticated `npm publish` from whatever ref was selected.
+    # handled by publish-latest; dist-tag moves are owner-attended (see the
+    # trigger comment above). No workflow_dispatch arm: npm's trusted publisher
+    # authenticates the repo and workflow identity, not the ref, so a
+    # dispatch-triggered publish would run OIDC-authenticated `npm publish`
+    # from whatever ref was selected.
     if: github.event_name == 'push' && !startsWith(github.ref_name, 'latest-v')
     runs-on: ubuntu-latest
     permissions:
@@ -158,13 +154,17 @@ jobs:
             --prerelease
 
   publish-latest:
-    # Tokenless promotion to the `latest` dist-tag. npm trusted publishing
-    # authenticates `npm publish` over OIDC but not `npm dist-tag`
-    # (npm/cli#8547), so a promotion is expressed as a publish: re-cut the
-    # soaked version as a patch, then push a `latest-v<ver>` tag. This job
-    # runs the same gauntlet as the publish job and needs no stored npm
-    # credential. It carries the npm-release environment so environment
-    # protection rules still gate every move of `latest`.
+    # Emergency-only path to `latest`. The NORMAL promote is the owner-attended
+    # dist-tag move described in the trigger comment: it advances `latest` onto
+    # the exact version string that soaked. This job instead re-cuts the soaked
+    # version as a patch and stamps the re-cut on `latest` (npm trusted
+    # publishing authenticates `npm publish` over OIDC but not `npm dist-tag`,
+    # npm/cli#8547), which ships adopters a version string that never soaked —
+    # rejected for routine promotion, kept for the case where no owner can run
+    # the manual move and `latest` must change anyway. This job runs the same
+    # gauntlet as the publish job and needs no stored npm credential. It
+    # carries the npm-release environment so environment protection rules
+    # still gate every move of `latest`.
     #
     # The real authorization boundary is who can push a tag, not this `if:`.
     # npm's trusted publisher is scoped to this repository and this workflow
@@ -274,77 +274,6 @@ jobs:
             --title "v${version}" \
             --notes-file "$body_file"
 
-  promote:
-    # Fallback path. The preferred way to move `latest` is the tokenless
-    # `latest-v*` re-cut handled by publish-latest above, which authenticates
-    # over OIDC and needs no stored credential. This job moves the dist-tag on
-    # an already-published version instead, which npm trusted publishing cannot
-    # authenticate (npm/cli#8547), so it needs a real automation token in
-    # NPM_TOKEN: a granular read-write token for @adastracomputing/ink on the
-    # npm-promote environment, which only deployments from main can reach. No such token is kept long-term, so using this
-    # path means minting a fresh one first and revoking it afterwards. Use it
-    # only when a re-cut is not viable, for example rolling `latest` back to an
-    # earlier version. Runs only on a manual dispatch that supplies
-    # promote_version.
-    if: github.event_name == 'workflow_dispatch' && inputs.promote_version != ''
-    runs-on: ubuntu-latest
-    environment: npm-promote
-    permissions:
-      contents: read   # required to read the committed dist-tag pin before moving a tag.
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          # The pin's authority is the protected default branch: the runbook
-          # requires `main` to name the destination before a tag moves. Pinning
-          # the checkout also keeps dispatch-selected refs from running code in
-          # this credentialed job.
-          ref: main
-          persist-credentials: false
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
-        with:
-          node-version: 24.x
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Verify the dist-tag pin describes this move
-        # This path moves a dist-tag on an already-published version, so it is
-        # the one place where the registry can advance without a publish. The
-        # pin has to name the destination before the move, or `main` goes red
-        # afterwards. Run under bare node (no `npm ci`, no Nix) so this
-        # credentialed job installs nothing before it moves the tag.
-        env:
-          PROMOTE_VERSION: ${{ inputs.promote_version }}
-          PROMOTE_TAG: ${{ inputs.promote_tag }}
-        run: node scripts/check-release-pin.ts --tag "$PROMOTE_TAG" --version "$PROMOTE_VERSION"
-
-      - name: Promote dist-tag
-        env:
-          PROMOTE_VERSION: ${{ inputs.promote_version }}
-          PROMOTE_TAG: ${{ inputs.promote_tag }}
-          PKG: "@adastracomputing/ink"
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          set -euo pipefail
-          if ! [[ "$PROMOTE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "promote_version must be a bare semver (got: $PROMOTE_VERSION)"
-            exit 1
-          fi
-          case "$PROMOTE_TAG" in
-            latest|next) ;;
-            *) echo "promote_tag must be latest or next (got: $PROMOTE_TAG)"; exit 1 ;;
-          esac
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "NPM_TOKEN is not set on the npm-release environment. Add a granular"
-            echo "read-write npm token for @adastracomputing/ink and re-run; trusted-"
-            echo "publishing OIDC cannot move dist-tags (npm/cli#8547)."
-            exit 1
-          fi
-          echo "Before:"
-          npm dist-tag ls "$PKG"
-          npm dist-tag add "${PKG}@${PROMOTE_VERSION}" "$PROMOTE_TAG"
-          echo "After:"
-          npm dist-tag ls "$PKG"
-
   verify-published:
     # Post-hoc wire verification of the tarball that was just published.
     #
@@ -365,10 +294,11 @@ jobs:
     # previous good version. Treat it as the signal that the artifact adopters
     # install does not interoperate, not as a safety net that prevented it.
     #
-    # The `promote` job is deliberately not covered. Moving a dist-tag ships no
-    # new bytes: the tarball it points at was already verified here when it was
-    # published, so re-running against the same artifact would prove nothing
-    # new. Verification tracks artifacts, not tags.
+    # An owner-attended dist-tag move is deliberately not covered. Moving a
+    # dist-tag ships no new bytes: the tarball it points at was already
+    # verified here when it was published, so re-running against the same
+    # artifact would prove nothing new. Verification tracks artifacts, not
+    # tags.
     needs: [publish, publish-latest]
     if: always() && (needs.publish.result == 'success' || needs.publish-latest.result == 'success')
     runs-on: ubuntu-latest
