@@ -86,8 +86,9 @@ jobs:
         run: nix develop --command npm run check:surface
 
       - name: Pack-and-import smoke
-        # Builds the tarball with the same hooks publish uses, installs
-        # it into a clean directory, and imports the entry point. Catches
+        # Builds a tarball the same way the release-tarball step below
+        # does (`npm pack` runs prepack), installs it into a clean
+        # directory, and imports the entry point. Catches
         # any release that would ship a broken package (missing dist/,
         # wrong main, unresolvable re-exports, raw TS sneaking back in).
         run: nix develop --command npm run check:pack
