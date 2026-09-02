@@ -122,11 +122,12 @@ jobs:
         # Pre-1.0 releases publish under the `next` dist-tag, NOT
         # `latest`. The 0.1.x line is wire-compatible across patches
         # (`ink/0.1` is frozen) but the API surface and trust semantics
-        # remain alpha-quality — see docs/maturity.md. `latest` only
-        # advances when a soaked version is re-cut as a patch and tagged
-        # `latest-v<ver>`, which the publish-latest job below stamps, so
-        # bare `npm install @adastracomputing/ink` only picks up
-        # versions a maintainer has stamped adopter-grade. Adopters who
+        # remain alpha-quality — see docs/maturity.md. `latest` normally
+        # advances by the owner-attended dist-tag move described in the
+        # trigger comment, onto the exact version that soaked; the
+        # emergency `latest-v<ver>` re-cut below is the only other path.
+        # Either way, bare `npm install @adastracomputing/ink` only picks
+        # up versions a maintainer has stamped adopter-grade. Adopters who
         # want the bleeding edge use `npm install @adastracomputing/ink@next`.
         run: npm publish --access public --provenance --tag next
 
