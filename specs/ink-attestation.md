@@ -220,6 +220,19 @@ deliberate: because the proof covers them, an intermediary that strips
 `attestations` from a signed card breaks the proof rather than silently
 downgrading the sender's evidence.
 
+**Rollout order, receiver-first.** At the time of this draft the TypeScript
+reference's own fetch path has the defect this section describes: it validates
+the card schema first and verifies the proof over the schema's output, so an
+unknown member is stripped before the proof is recomputed and a signed card
+carrying one reads `invalid_signature`. Implementations MUST verify the proof
+over the fetched document before any schema-driven stripping; the reference
+fix, the schema's bounded `attestations` and `evidencePolicy` members and the
+conformance vectors that pin both land together in the implementing change.
+Until consumers with the fix are deployed, a producer that publishes
+`attestations` in a signed card will be rejected by consumers with the defect,
+so producers ship after receivers — the same receiver-first order every other
+INK transition has used.
+
 ## Sybil resistance, stated plainly
 
 Minting is free, so an attacker can present a fresh `agentId` per message, and
