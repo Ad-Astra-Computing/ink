@@ -24,7 +24,7 @@ import (
 
 // Version is the binary's reported version. It tracks the protocol/library
 // version the verifiers are built against.
-const Version = "0.18.0"
+const Version = "0.19.0"
 
 // maxInputBytes caps how much a single invocation reads from a file or stdin.
 // An Agent Card or a Merkle proof is kilobytes; the cap is generous but bounds

@@ -2,8 +2,8 @@
   "package": "@adastracomputing/ink",
   "distTags": {
     "latest": "0.18.0",
-    "next": "0.18.0"
+    "next": "0.19.0"
   },
-  "verifiedAt": "2026-08-26",
+  "verifiedAt": "2026-09-03",
   "updatedBy": "The release commit that cuts the version, before the tag is pushed. The publish workflow refuses to publish while this file disagrees with the version and dist-tag it is about to move (`npm run check:release-pin`), so a release cannot advance a dist-tag past this pin. Every document that quotes a dist-tag is checked against this file by `npm run check:facts`, which also verifies the file against the registry whenever npm is reachable."
 }
