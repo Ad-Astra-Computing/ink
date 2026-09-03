@@ -92,8 +92,8 @@ field is required.
 An attestation is a signed body. A verifier MUST apply the raw-body gate and
 enforcement order of [`ink-signed-string-safety.md`](ink-signed-string-safety.md)
 — the size cap, raw UTF-8 validity, the lone-surrogate escape scan, the
-escaped-member-name scan and the out-of-range number-literal scan, all on the
-bytes, before parsing. The size cap is 65536 bytes. Verification takes the raw
+out-of-range number-literal scan and the escaped-member-name scan, in that
+specification's enforcement order, all on the bytes, before parsing. The size cap is 65536 bytes. Verification takes the raw
 bytes, never a value someone else parsed; the accept-versus-reject splits that
 motivate this are the same as for grants and are not restated here.
 
@@ -149,7 +149,12 @@ the reason is evidence, the refusal is structured:
 
 - error code `policy:evidence_required`, HTTP 403;
 - a `requiredClaimTypes` member: an array of 1 to 32 claim-type strings under
-  the `claimType` grammar, naming what the receiver would need to see.
+  the `claimType` grammar. The semantics are conjunctive and residual: the
+  array names the claim types still missing after the receiver evaluated
+  whatever evidence was presented, and all of them are required. Disjunctive
+  policy ("any one of these") is not expressible in this shape and is deferred
+  with the rest of policy vocabulary; a receiver holding an OR policy
+  advertises the branch it prefers.
 
 The refusal names types, never issuers: which issuers a receiver believes is
 policy it is free to keep private, and naming them would invite issuer
@@ -180,6 +185,17 @@ Attestations MUST NOT be carried inside message envelopes; a per-message
 evidence channel invites per-message identity churn, and the card carrier makes
 evidence a property of the identity instead.
 
+**Subject binding.** A presented attestation satisfies evidence for a sender
+only when its `subject` and the authenticated sender's `agentId` (equivalently,
+the `agentId` of the card carrying it) are equal under the canonical principal
+equality of [`ink-identity-model.md`](ink-identity-model.md) §3. A receiver
+MUST enforce this before treating an attestation as evidence: base
+verification proves the issuer signed a claim about `subject` and nothing about
+who presents it, so without the binding any card could carry a valid
+attestation copied from someone else's. An attestation whose subject is a
+different principal is not malformed and not a protocol error; it is simply
+not evidence for this sender.
+
 A receiver advertises its expectations in its own card, in a second optional
 member:
 
@@ -192,9 +208,17 @@ member:
   statement, and the refusal code remains the authoritative signal.
 
 Both members are additive optional card members under the compatibility
-policy: a card without them is exactly as valid as today, an implementation
-that does not understand them ignores them, and the card signature covers them
-when present like any other member.
+policy: a card without them is exactly as valid as today, and an
+implementation that does not understand them ignores them for interpretation.
+Signed cards stay compatible because of how
+[`ink-agent-card-signature.md`](ink-agent-card-signature.md) defines the proof:
+the signature is computed over the fetched document with `cardSignature`
+removed **and nothing else removed**, so a verifier operates on the document as
+served, unknown members included, and a consumer that strips unknown members
+before verifying was already nonconformant under that rule. The consequence is
+deliberate: because the proof covers them, an intermediary that strips
+`attestations` from a signed card breaks the proof rather than silently
+downgrading the sender's evidence.
 
 ## Sybil resistance, stated plainly
 

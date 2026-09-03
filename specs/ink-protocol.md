@@ -526,6 +526,7 @@ verification.
 | `authorization_challenge` | Sign in with INK challenge | **neutral-only** | ink-agent-authorization |
 | `authorization_grant` | Sign in with INK grant | yes | ink-authorization-grant |
 | `delegation_link` | Delegation chain link | **neutral-only** | ink-authorization-chain |
+| `attestation` | Issuer claim about a subject agent | **neutral-only** | ink-attestation |
 | `authorization_chain` | Delegation chain container | **neutral-only** | ink-authorization-chain |
 
 **Excluded from dual-accept.** `audit_response` and `audit_inclusion` stay
