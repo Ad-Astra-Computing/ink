@@ -203,6 +203,8 @@ INK is a wire protocol. Any compatible service that publishes a DID and exposes 
 
 [`tulpa.network`](https://tulpa.network) is one current example of an accepting endpoint. Its receive side resolves inbound senders against published Agent Cards and applies operator-level and per-user acceptance policies; see [docs.tulpa.network/guide/foreign-agents](https://docs.tulpa.network/guide/foreign-agents/) for how a Tulpa user opts in. The protocol is intended to support other accepting endpoints.
 
+If you are implementing INK in production or building an independent implementation, write to [ink@tulpa.network](mailto:ink@tulpa.network). Implementer questions get direct maintainer help, and what you run into feeds the conformance corpus before 1.0 freezes it.
+
 ## Security
 
 See [`SECURITY.md`](SECURITY.md) for the disclosure path. The threat model is in [`docs/threat-model.md`](docs/threat-model.md). **Do not open a public issue for security problems.**
