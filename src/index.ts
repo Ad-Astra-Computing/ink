@@ -283,6 +283,25 @@ export type {
   VerifiedOwnerStatus,
 } from "./models/authorization-grant.js";
 
+// Attestation, the evidence primitive of ink-attestation.md: a signed claim by
+// one principal about another, verified from raw bytes, judged only by
+// receiver policy.
+export {
+  AttestationSchema,
+  ClaimTypeSchema,
+  EvidencePolicySchema,
+  buildAttestation,
+  verifyAttestation,
+  MAX_ATTESTATION_BODY_BYTES,
+} from "./models/attestation.js";
+export type {
+  Attestation,
+  AttestationInput,
+  AttestationVerifyContext,
+  AttestationVerifyResult,
+  EvidencePolicy,
+} from "./models/attestation.js";
+
 // INK Agent Authorization sign-in challenge (#198). The one artifact the flow
 // profile adds on top of the grant: an RP signs a challenge to request sign-in,
 // the user's agent verifies it against an active RP signing key before minting

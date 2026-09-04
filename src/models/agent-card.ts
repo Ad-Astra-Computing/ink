@@ -6,6 +6,7 @@ import { KeyEntrySchema, KeyStatusSchema } from "./key-entry.js";
 import { InkTransportSchema, AgentCardVisibilitySchema, type AgentCardVisibility } from "./ink-handshake.js";
 import { isInkEndpointUrl } from "./endpoint-url.js";
 import { isInkTimestamp } from "../crypto/timestamp.js";
+import { AttestationSchema, EvidencePolicySchema } from "./attestation.js";
 import { decodePublicKeyMultibase, decodeEncryptionKeyMultibase } from "../crypto/keys.js";
 
 // Identity model §4.1: the key roles are disjoint and the multicodec enforces
@@ -234,7 +235,15 @@ export const AgentCardSchema = z.object({
     .string()
     .refine(isInkTimestamp, { message: "must be a strict RFC 3339 timestamp" })
     .optional(),
-}).superRefine((card, ctx) => {
+  // Evidence carrier (ink-attestation.md, Presentation). Each entry is an
+  // independently verifiable attestation; whether any of them counts is the
+  // receiver's policy, applied after the subject binding.
+  attestations: z.array(AttestationSchema).min(1).max(16).optional(),
+  // The receiver's advance statement of the claim types it requires or
+  // prefers. The arrays are sets; unknown members pass through so the card
+  // proof covers them.
+  evidencePolicy: EvidencePolicySchema.optional(),
+}).passthrough().superRefine((card, ctx) => {
   // v0.1.1: when both endpoint and inboxEndpoint are present they
   // MUST refer to the same URL. The spec rationale is that the alias
   // exists for forward compat, not as a way to publish two distinct
