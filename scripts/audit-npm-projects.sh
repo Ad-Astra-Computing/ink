@@ -24,6 +24,31 @@ projects=(
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0
 
+# Run one project's audit with a bounded retry on registry outages. npm exits
+# nonzero both for real advisories and for a 5xx from the advisory endpoint;
+# only the latter is retried, and only twice, so a registry blip does not
+# redden the gate while a real advisory still fails on the first attempt and
+# an extended outage still fails closed.
+audit_project() {
+  local dir="$1" attempt out
+  for attempt in 1 2 3; do
+    if out="$( cd "${dir}" && npm audit --audit-level=high 2>&1 )"; then
+      printf '%s\n' "${out}"
+      return 0
+    fi
+    printf '%s\n' "${out}"
+    if grep -q "audit endpoint returned an error" <<<"${out}"; then
+      if [[ "${attempt}" -lt 3 ]]; then
+        echo "audit: registry advisory endpoint unavailable, retrying in $((attempt * 30))s (${attempt} of 2)" >&2
+        sleep $((attempt * 30))
+        continue
+      fi
+      echo "audit: registry advisory endpoint still unavailable after 3 attempts — failing closed" >&2
+    fi
+    return 1
+  done
+}
+
 for project in "${projects[@]}"; do
   dir="${repo_root}/${project}"
   if [[ ! -f "${dir}/package.json" ]]; then
@@ -37,7 +62,7 @@ for project in "${projects[@]}"; do
     continue
   fi
   echo "audit: ${project}"
-  if ! ( cd "${dir}" && npm audit --audit-level=high ); then
+  if ! audit_project "${dir}"; then
     fail=1
   fi
 done
