@@ -590,6 +590,11 @@ func acceptWindowField(entry map[string]interface{}, key string) (OptionalTimest
 //   - keys.signing: [k..]  -> parse each entry independently; malformed
 //     entries are skipped so a single bad entry cannot collapse the whole
 //     set to "legacy" and let a rotated-away bootstrap key pass.
+//
+// Unlike the reference, which is typed over an already validated card, this
+// function accepts the raw decoded map, so each entry must also satisfy the
+// key-entry schema (keyId, algorithm Ed25519, status, strict validFrom) to be
+// returned.
 func ExtractCandidateKeys(card map[string]interface{}) []CandidateKey {
 	out := []CandidateKey{}
 	if card == nil {
@@ -623,6 +628,15 @@ func ExtractCandidateKeys(card map[string]interface{}) []CandidateKey {
 		for _, rawEntry := range limited {
 			entry, ok := rawEntry.(map[string]interface{})
 			if !ok {
+				continue
+			}
+			// The reference extractor receives a card that already passed
+			// AgentCardSchema, so every entry it sees satisfies KeyEntrySchema.
+			// This function takes the raw decoded map, so it applies the same
+			// entry schema itself: an entry missing a required field (for
+			// example validFrom, which would otherwise read as an unbounded
+			// window) is skipped, never admitted.
+			if !validateKeyEntry(entry, "signing") {
 				continue
 			}
 			keyID, ok := entry["keyId"].(string)

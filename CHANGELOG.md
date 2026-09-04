@@ -48,7 +48,9 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   (`VerifyDetachedSignatureWithKeys` in Go), which the transport-auth
   verifier delegates to as well. The single-key verifiers are unchanged.
   Go also gains `ExtractCandidateKeys`, the card-to-key-set reader the
-  reference already had.
+  reference already had; because it reads the raw decoded card, it applies
+  the key-entry schema to each entry itself and skips any entry that fails
+  it.
 
 ## 0.19.0, a key must fit its role
 

@@ -141,6 +141,7 @@ func VerifyDetachedSignatureWithKeys(verifyWithKey func(pub []byte) bool, keys [
 	if len(keys) > maxCandidateKeys {
 		keys = keys[:maxCandidateKeys]
 	}
+	verifyWithKey = recoverFalse(verifyWithKey)
 
 	if hintKeyID != "" {
 		for _, k := range keys {
@@ -168,6 +169,20 @@ func VerifyDetachedSignatureWithKeys(verifyWithKey func(pub []byte) bool, keys [
 		}
 	}
 	return MultiKeyResult{}
+}
+
+// recoverFalse wraps a caller-supplied key check so a panic inside it counts
+// as a failed check for that key rather than escaping the verifier, matching
+// the reference primitive, which catches a throwing callback per key.
+func recoverFalse(verifyWithKey func(pub []byte) bool) func(pub []byte) bool {
+	return func(pub []byte) (ok bool) {
+		defer func() {
+			if r := recover(); r != nil {
+				ok = false
+			}
+		}()
+		return verifyWithKey(pub)
+	}
 }
 
 // signerStrategy decides which key or keys an artifact verifier core tries
