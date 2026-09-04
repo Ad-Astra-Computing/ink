@@ -29,7 +29,8 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 **Vectors column** names the `conformance/v1` categories, by manifest id,
 whose vectors pin the row for every implementation; the empty marker `,`
-means no vector pins the row and its evidence is the Tests column alone.
+means no vector pins the row, so whatever evidence it has is in the Tests
+column.
 `npm run check:facts` rejects an id the manifest does not have and renders
 §16 from this column. **Tests column** names the reference test files that
 exercise the row.
@@ -44,7 +45,7 @@ exercise the row.
 | D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
 | D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
 | D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
-| D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
+| D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 |, | `test/ink-key-rotation.test.ts` |
 | D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D7 | Agent Card includes receipt capability advertisement | MAY | Optional | Auditability §1 |, | `test/ink-discovery-gating.test.ts` |
 | D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/ink-discovery-gating.test.ts` |
@@ -159,7 +160,7 @@ exercise the row.
 | W3 | Access control: requester must be event agent or counterparty | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 | `merkle-inclusion`, `merkle-consistency` | `witness/witness/test/merkle.test.ts (witness repo)` |
 | W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 | `inclusion-receipt` | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W6 | Checkpoint: C2SP tlog-checkpoint format at `GET /ink/v1/checkpoint` | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W6 | Checkpoint body is the C2SP tlog-checkpoint format; the witness serves it at `GET /ink/v1/checkpoint` (the endpoint itself is covered by the witness repo tests, the format by the vectors) | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | `test/ink-key-rotation.test.ts` |
 | W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
@@ -303,7 +304,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | Category | Profile | Cases | Rows citing it |
 |----------|---------|------:|----------------|
 | `agent-authorization` | `authorization` | 68 | none |
-| `agent-card` | `base` | 53 | D2, D3, D4, D5, D6, K2 |
+| `agent-card` | `base` | 53 | D2, D3, D4, D6, K2 |
 | `agent-card-evidence` | `evidence` | 19 | none |
 | `agent-card-fetch` | `base` | 34 | none |
 | `agent-card-signature` | `base` | 50 | none |
@@ -335,7 +336,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 17 | none |
 
-46 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 894 cases.
+45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 894 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---
