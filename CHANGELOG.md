@@ -51,6 +51,19 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   reference already had; because it reads the raw decoded card, it applies
   the key-entry schema to each entry itself and skips any entry that fails
   it.
+- Go gains the assembled transport-auth receiver, `VerifyInkAuth`, the
+  counterpart of the reference `verifyInkAuth`. Go already had every
+  primitive (header parse, strict timestamps, single-key and multi-key
+  verification, the replay window) but not the order a receiver runs them
+  in, so a Go receiver had to reassemble Protocol §3.3 and §3.5 by hand.
+  `VerifyInkAuth` runs the stages in the reference order with the same error
+  code at each: the fail-closed nonce policy (`nonce_handling_required`,
+  `missing_nonce`), key resolution with a published key set authoritative
+  and never falling back to a stored or bootstrap key, the
+  `retired_key_for_live_auth` refusal, and nonce recording only after the
+  signature verifies, through a pluggable `NonceStore` that prefers an atomic
+  `AddIfAbsent`. `MemoryNonceStore` is the bounded in-process store for a
+  single-process receiver.
 
 ## 0.19.0, a key must fit its role
 

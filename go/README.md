@@ -31,6 +31,15 @@ shared vectors:
   `VerifyInkBody` is exported and the artifact verifiers move onto it.
 - **Replay and freshness** (`replay.go`) — the timestamp freshness window and
   nonce de-duplication.
+- **Transport-auth receiver** (`inkauth.go`, `noncestore.go`) — the assembled
+  §3.3 verifier a receiver calls per request: header parse, sender and
+  timestamp shape, the §3.5 freshness window and fail-closed nonce policy, key
+  resolution in spec order (published key set first and authoritative, then a
+  stored key, then the key embedded in the agentId), the retired-key refusal
+  for live auth, and post-verify nonce recording through a pluggable
+  `NonceStore` (atomic `AddIfAbsent` preferred), each stage returning the
+  reference's error code. `MemoryNonceStore` is the bounded in-process store
+  for a single-process receiver.
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
   active, then retired; revoked and out-of-window keys skipped).
 - **Merkle inclusion** (`merkle.go`) — the RFC 6962 inclusion-proof walk that a
