@@ -295,10 +295,17 @@ rotation grace window. Full rules:
 Confidential intents are delivered inside an encrypted envelope. This is
 capability-gated: it is required only when an implementation sends or accepts
 encrypted payloads (see the `encryption` profile in
-[`ink-conformance-profile.md`](ink-conformance-profile.md)). Intents the
-protocol marks confidential (for example `schedule_meeting` and `context_share`)
-MUST be sent encrypted, and a receiver MUST reject them in plaintext with
-`encryption_required`.
+[`ink-conformance-profile.md`](ink-conformance-profile.md)). The intents the
+protocol marks confidential are `schedule_meeting`, `context_share` and
+`multi_party_sync`.[^ck] A sender MUST send them encrypted, and a receiver
+MUST reject them in plaintext with `encryption_required`, before any other
+judgement about the intent: a receiver that does not support the intent still
+answers `encryption_required` to its plaintext form, since the sender's error
+is the plaintext, and the intent allowlist applies to what it decrypts. The
+reference exports the set as `CONFIDENTIAL_INTENTS` and the gate as
+`checkEncryptionRequired` (`ConfidentialIntents` and `CheckEncryptionRequired`
+in Go); a receiver MAY widen the set with intents of its own and MUST NOT
+narrow it.
 
 **Scheme.** ECIES with:
 
@@ -678,3 +685,5 @@ corpus. Every rule above traces to:
 literal `Z`. This is intentional today and both are pinned by vectors; a 1.0
 decision to unify them would be a separate change pinned by new vectors. Noted
 so an implementer does not assume one grammar covers both surfaces.
+
+[^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.

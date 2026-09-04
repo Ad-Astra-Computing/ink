@@ -40,6 +40,10 @@ shared vectors:
   `NonceStore` (atomic `AddIfAbsent` preferred), each stage returning the
   reference's error code. `MemoryNonceStore` is the bounded in-process store
   for a single-process receiver.
+- **Encryption requirement** (`encryptionpolicy.go`) — the §3.4 gate that
+  refuses a plaintext envelope carrying a confidential intent
+  (`ConfidentialIntents`) with `encryption_required`, ahead of any intent
+  allowlist.
 - **Key rotation** (`multikey.go`) — the multi-key authority rule (hint, then
   active, then retired; revoked and out-of-window keys skipped).
 - **Merkle inclusion** (`merkle.go`) — the RFC 6962 inclusion-proof walk that a

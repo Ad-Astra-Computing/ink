@@ -99,6 +99,18 @@ export {
 // Optional containment / governance primitives
 export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
 
+// Protocol §3.4 encryption requirement gate for plaintext intents
+export {
+  CONFIDENTIAL_INTENTS,
+  intentRequiresEncryption,
+  checkEncryptionRequired,
+} from "./ink/encryption-policy.js";
+export type {
+  ConfidentialIntent,
+  EncryptionRequirementResult,
+  EncryptionRequirementOptions,
+} from "./ink/encryption-policy.js";
+
 // Receipts: build, verify, and send INK delivery receipts
 export {
   buildReceipt,
