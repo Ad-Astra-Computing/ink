@@ -76,7 +76,11 @@ field is required.
   matching the nonce grammar `[A-Za-z0-9_-]+`. It is the deduplication and
   revocation key: an issuer that wants to withdraw a claim publishes the id
   through whatever channel it maintains, and a receiver that caches
-  attestations keys the cache on `(issuer, attestationId)`.
+  attestations keys the cache on the pair of the issuer's **canonical
+  principal** ([`ink-identity-model.md`](ink-identity-model.md) §3.1) and
+  `attestationId`. The signature is always over the raw `issuer` spelling as
+  signed; the canonical form is only the state key, so an alias spelling of
+  the same key-derived issuer cannot split cache or revocation state.
 - `issuedAt`: a strict INK timestamp ([`ink-timestamp-grammar.md`](ink-timestamp-grammar.md)).
   The attestation is not valid before this instant.
 - `expiresAt`: a strict INK timestamp, strictly after `issuedAt`. The
@@ -224,6 +228,14 @@ member:
   preferred; an absent `evidencePolicy` means the receiver makes no advance
   statement, and the refusal code remains the authoritative signal.
 
+Every claim-type array in this specification — `requiredClaimTypes`,
+`evidencePolicy.required` and `evidencePolicy.preferred` — is a set: entries
+MUST be distinct, a duplicate makes the carrying document malformed, and a
+listed type is satisfied by one credited attestation of that type, never by a
+count. Unknown members inside `evidencePolicy` follow the card's own
+unknown-member rule: ignored for interpretation, covered by the card proof
+when present.
+
 Both members are additive optional card members under the compatibility
 policy: a card without them is exactly as valid as today, and an
 implementation that does not understand them ignores them for interpretation.
@@ -237,18 +249,22 @@ deliberate: because the proof covers them, an intermediary that strips
 `attestations` from a signed card breaks the proof rather than silently
 downgrading the sender's evidence.
 
-**Rollout order, receiver-first.** At the time of this draft the TypeScript
-reference's own fetch path has the defect this section describes: it validates
-the card schema first and verifies the proof over the schema's output, so an
-unknown member is stripped before the proof is recomputed and a signed card
-carrying one reads `invalid_signature`. Implementations MUST verify the proof
-over the fetched document before any schema-driven stripping; the reference
-fix, the schema's bounded `attestations` and `evidencePolicy` members and the
-conformance vectors that pin both land together in the implementing change.
-Until consumers with the fix are deployed, a producer that publishes
-`attestations` in a signed card will be rejected by consumers with the defect,
-so producers ship after receivers — the same receiver-first order every other
-INK transition has used.
+**Activation and rollout, receiver-first.** This section is
+**specified-inactive**: it takes effect only when the implementing change
+lands, and until then no producer may publish either member in a signed card.
+The implementing change is one release and carries, together: the Agent Card
+spec and schema additions for bounded `attestations` and `evidencePolicy`
+members, the fetch-path fix below, the conformance vectors that pin both and
+the conformance-profile anchoring described under *Conformance*. The reason
+for the gate is a defect this draft records: at the time of writing the
+TypeScript reference's fetch path validates the card schema first and
+verifies the proof over the schema's output, so an unknown member is stripped
+before the proof is recomputed and a signed card carrying one reads
+`invalid_signature`. Implementations MUST verify the proof over the fetched
+document before any schema-driven stripping. Until consumers with the fix are
+deployed, a producer publishing `attestations` in a signed card would be
+rejected by consumers with the defect, so producers ship after receivers —
+the same receiver-first order every other INK transition has used.
 
 ## Sybil resistance, stated plainly
 
@@ -284,10 +300,15 @@ requires evidence; that is the honest shape of the guarantee.
 
 ## Conformance
 
-The `attestation` conformance category pins the accept and reject decisions of
-this specification: shape bounds, grammar, raw-body gate placement, signature,
-window edges and the single-spelling wire type. The category is
+This section reserves names; it anchors nothing by itself. The `attestation`
+conformance category pins the accept and reject decisions of this
+specification — shape bounds, grammar, raw-body gate placement, signature,
+window edges and the single-spelling wire type — and the
+`policy:evidence_required` refusal shape is pinned alongside it. Both are
 capability-gated: an implementation that neither produces nor consumes
-attestations does not advertise the capability and is not bound by the
-category. The `policy:evidence_required` refusal shape is pinned alongside it
-for implementations that advertise `evidencePolicy`.
+attestations does not advertise the capability and is not bound by either.
+The category, the capability name and its Agent Card advertisement are
+anchored in [`ink-conformance-profile.md`](ink-conformance-profile.md) by the
+implementing change named under *Activation and rollout*; until that change
+lands, no implementation is bound by this section and no receiver may
+advertise `evidencePolicy` while claiming conformance.
