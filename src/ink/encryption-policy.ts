@@ -31,11 +31,12 @@ export type EncryptionRequirementResult =
 
 export interface EncryptionRequirementOptions {
   /**
-   * The intents to refuse in plaintext. Defaults to `CONFIDENTIAL_INTENTS`.
-   * A receiver may widen the set with intents of its own; narrowing it below
-   * the protocol set makes the receiver non-conforming.
+   * Intents of the receiver's own to refuse in plaintext, in addition to
+   * `CONFIDENTIAL_INTENTS`. The protocol set always applies; there is no
+   * option to narrow it, since a receiver that accepted a confidential intent
+   * in plaintext would be non-conforming.
    */
-  confidentialIntents?: readonly string[];
+  extraConfidentialIntents?: readonly string[];
 }
 
 /**
@@ -53,8 +54,7 @@ export function checkEncryptionRequired(
   if (typeof intent !== "string") {
     return { allowed: true };
   }
-  const set = opts.confidentialIntents ?? CONFIDENTIAL_INTENTS;
-  if (set.includes(intent)) {
+  if (intentRequiresEncryption(intent) || (opts.extraConfidentialIntents ?? []).includes(intent)) {
     return { allowed: false, reason: "encryption_required", intent };
   }
   return { allowed: true };

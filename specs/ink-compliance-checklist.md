@@ -56,7 +56,7 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs.json` | `test/security-fixes.test.ts` |
 | S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
 | S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S9 | Transport auth returns the canonical principal alongside the raw `from`; every per-sender control (authorization, block lists, rate limits, per-sender nonce scope) keys on the principal, never the raw spelling | MUST | Required | Protocol §4, §7 | `principal-normalization` | `test/canonical-principal.test.ts` |
+| S9 | Transport auth returns the canonical, prefix-independent principal alongside the raw `from`, so a receiver can key its per-sender controls on it as Protocol §4 requires; the two spellings of one key map to one principal | MUST | Required | Protocol §4, §7 |, | `test/canonical-principal.test.ts` |
 
 ---
 
@@ -216,7 +216,7 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
 | ER7 | `unsupported_intent`, unknown intent type | MUST | Required | Protocol §3.1 |, | `test/ink-handshake-schemas.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | ER8 | `encryption_required`, plaintext where encrypted required, ahead of the intent allowlist | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
-| ER9 | `rate_limited`, request rate exceeded. The library registers the code; the limiter itself is receiver policy | SHOULD | Required | Protocol §4 |, | `test/ink-handshake-schemas.test.ts` |
+| ER9 | `rate_limited`, request rate exceeded. The library registers the code as a rejection reason; the limiter itself is receiver policy and has no library test | SHOULD | Required | Protocol §4 |, | receiver-side, none in the library |
 | ER10 | `handshake_budget_exhausted`, per-correlation budget hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | ER11 | `sender_rate_limited`, per-sender rate limit hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | ER12 | `counterparty_cooldown`, recipient broadly rate-limiting | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |

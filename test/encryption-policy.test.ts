@@ -52,12 +52,24 @@ describe("checkEncryptionRequired", () => {
   });
 
   it("lets a receiver widen the set with intents of its own", () => {
-    const opts = { confidentialIntents: [...CONFIDENTIAL_INTENTS, "opportunity"] };
+    const opts = { extraConfidentialIntents: ["opportunity"] };
     expect(checkEncryptionRequired({ intent: "opportunity" }, opts)).toEqual({
       allowed: false,
       reason: "encryption_required",
       intent: "opportunity",
     });
     expect(checkEncryptionRequired({ intent: "ping" }, opts)).toEqual({ allowed: true });
+  });
+
+  it("never lets a receiver narrow the protocol set", () => {
+    const opts = { extraConfidentialIntents: ["opportunity"] };
+    for (const intent of CONFIDENTIAL_INTENTS) {
+      expect(checkEncryptionRequired({ intent }, opts)).toEqual({ allowed: false, reason: "encryption_required", intent });
+      expect(checkEncryptionRequired({ intent }, { extraConfidentialIntents: [] })).toEqual({
+        allowed: false,
+        reason: "encryption_required",
+        intent,
+      });
+    }
   });
 });
