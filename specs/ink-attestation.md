@@ -129,8 +129,8 @@ Verification takes the raw bytes, the resolved issuer public key and a context
 That is the whole base verification. Deliberately absent: audience (an
 attestation is a public statement, not a capability, and binds no presenter),
 scope, replay (presenting the same true claim twice is not an attack; caching
-dedupes on `(issuer, attestationId)`), and any judgment about the issuer or the
-claim. A verified attestation means one thing: this issuer's key signed this
+dedupes on the canonical-issuer state key defined at `attestationId`), and any
+judgment about the issuer or the claim. A verified attestation means one thing: this issuer's key signed this
 claim about this subject for this window. Whether that means anything is the
 receiver's decision, made after verification, never during it.
 
