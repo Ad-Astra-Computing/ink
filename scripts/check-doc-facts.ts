@@ -397,7 +397,13 @@ const checklistRows: ChecklistRow[] = [];
       if (!row) return;
       // Split on unescaped pipes only; a `\|` inside a code span is content.
       const cells = line.split(/(?<!\\)\|/);
-      if (cells.length !== 9) return;
+      if (cells.length !== 9) {
+        errors.push(
+          `${CHECKLIST}:${i + 1}: row ${row[1]} has ${cells.length - 2} cells; a requirement row has exactly seven ` +
+            "(id, requirement, level, status, spec, vectors, tests), so it can be checked and counted.",
+        );
+        return;
+      }
       const cell = (cells[6] ?? "").trim();
       const cited = cell === "," || cell === "" ? [] : cell.split(",").map((s) => s.trim());
       const ids: string[] = [];

@@ -41,8 +41,8 @@ exercise the row.
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | D1 | Agent Card served at the discovery path | MUST | Required | Discovery Fetch, Discovery path |, | `test/ink-discovery-gating.test.ts` |
-| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
-| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
+| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
+| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
 | D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `agent-card` | `test/ink-key-rotation.test.ts` |
@@ -59,7 +59,7 @@ exercise the row.
 | S2 | Ed25519 signature over UTF-8 encoded signature base | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
 | S3 | Auth header: `INK-Ed25519 <base64url(sig)>` | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
 | S4 | Auth header extended: `INK-Ed25519 <sig> keyId=<keyId>` (optional) | SHOULD | Required | Key Rotation §13 | `authorization-header`, `key-rotation` | `test/ink-auth-header.test.ts` |
-| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
 | S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs-number`, `jcs-string-safety` | `test/security-fixes.test.ts` |
 | S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
 | S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
@@ -163,13 +163,13 @@ exercise the row.
 | W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | `test/ink-key-rotation.test.ts` |
 | W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
-| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | `merkle-leaf` | `ink-merkle-leaf.md` | `merkle-leaf` | `test/merkle-leaf-hash.test.ts` |
-| W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 |, | `test/verify-audit-query-response.test.ts` |
+| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | `ink-merkle-leaf.md` | `merkle-leaf` | `test/merkle-leaf-hash.test.ts` |
+| W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
 | W12 | Deterministic result-set ordering so signed bytes are reproducible | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W13 | Fail-closed on truncation: refuse to sign a partial result; return unsigned 413 | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W14 | Fail-closed on storage integrity (event_hash mismatch, missing Merkle node, column-vs-event_json drift): HTTP 500, no signed response | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
-| W15 | Empty-log response: `treeSize == 0` MUST have empty `events`, empty `proofs` and canonical empty-tree `rootHash` | MUST | Optional | Auditability §7.3 |, | `test/verify-audit-query-response.test.ts` |
-| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance) | MUST | Optional | Auditability §7.3, §7.5 |, | `test/verify-audit-query-response.test.ts` |
+| W15 | Empty-log response: `treeSize == 0` MUST have empty `events`, empty `proofs` and canonical empty-tree `rootHash` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
+| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance) | MUST | Optional | Auditability §7.3, §7.5 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
 
 ---
 
@@ -178,17 +178,17 @@ exercise the row.
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | K1 | `agentId` stable across key rotation | MUST | Required | Key Rotation §4 |, | `test/ink-key-rotation-e2e.test.ts` |
-| K2 | Agent Card key-set: `keys.signing[]` with `keyId`, `algorithm`, `publicKeyMultibase`, `status`, `validFrom` | MUST | Required | Key Rotation §5 | `agent-card`, `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K2 | Agent Card key-set: `keys.signing[]` with `keyId`, `algorithm`, `publicKeyMultibase`, `status`, `validFrom` | MUST | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | K3 | Key statuses: `active`, `retired`, `revoked` | MUST | Required | Key Rotation §5.3 | `key-rotation` | `test/ink-key-rotation.test.ts` |
 | K4 | Verification order: hinted key → active → retired → skip revoked | MUST | Required | Key Rotation §6.4 | `key-rotation` | `test/ink-key-rotation.test.ts` |
 | K5 | Retired keys valid for historical verification | MUST | Required | Key Rotation §6.2 | `key-rotation` | `test/ink-key-rotation.test.ts` |
 | K6 | Revoked keys rejected for signatures after `revokedAt` | MUST | Required | Key Rotation §6.3 | `key-rotation` | `test/ink-key-rotation.test.ts` |
-| K7 | Cache refresh on verification miss (max 1 retry) | SHOULD | Required | Key Rotation §9.2 | `key-rotation` | `test/ink-key-rotation-e2e.test.ts` |
-| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | `key-rotation` | `test/ink-auth-header.test.ts` |
-| K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K7 | Cache refresh on verification miss (max 1 retry) | SHOULD | Required | Key Rotation §9.2 | , | `test/ink-key-rotation-e2e.test.ts` |
+| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` |
+| K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | , | `test/ink-key-rotation.test.ts` |
 | K10 | Historical keys retained minimum 90 days | SHOULD | Required | Key Rotation §11.2 |, |, |
 | K11 | `keySetVersion` monotonically incremented on rotation/revocation | MUST | Required | Key Rotation §5 |, | `test/ink-key-rotation-e2e.test.ts` |
-| K12 | Rotation audit events: `key.rotated`, `key.revoked` | SHOULD | Required | Audit Bridge | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K12 | Rotation audit events: `key.rotated`, `key.revoked` | SHOULD | Required | Audit Bridge | , | `test/ink-key-rotation.test.ts` |
 | K13 | Retired-key verification result includes `keyStatus` | SHOULD | Required | Multi-Key Verify |, | `test/ink-key-rotation.test.ts` |
 
 ---
@@ -303,16 +303,16 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | Category | Profile | Cases | Rows citing it |
 |----------|---------|------:|----------------|
 | `agent-authorization` | `authorization` | 68 | none |
-| `agent-card` | `base` | 53 | D4, D5, D6, K2 |
+| `agent-card` | `base` | 53 | D2, D3, D4, D5, D6, K2 |
 | `agent-card-evidence` | `evidence` | 19 | none |
 | `agent-card-fetch` | `base` | 34 | none |
 | `agent-card-signature` | `base` | 50 | none |
 | `agent-card-signature-phase-c` | `staged` | 10 | none |
 | `attestation` | `evidence` | 34 | none |
-| `audit-query-response` | `audit` | 27 | W9 |
+| `audit-query-response` | `audit` | 27 | W9, W11, W15, W16 |
 | `authorization-chain` | `delegation` | 56 | none |
 | `authorization-grant` | `authorization` | 55 | none |
-| `authorization-header` | `base` | 23 | S3, S4, ER1, ER2 |
+| `authorization-header` | `base` | 23 | S3, S4, S5, ER1, ER2 |
 | `connection-payload` | `base` | 22 | none |
 | `discovery-query-envelope` | `discovery` | 33 | none |
 | `evidence-refusal` | `evidence` | 13 | none |
@@ -321,7 +321,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `inclusion-receipt` | `audit` | 39 | W5 |
 | `jcs-number` | `base` | 16 | S6 |
 | `jcs-string-safety` | `base` | 10 | S6 |
-| `key-rotation` | `base` | 32 | S4, K2, K3, K4, K5, K6, K7, K8, K9, K12 |
+| `key-rotation` | `base` | 32 | S4, K3, K4, K5, K6 |
 | `merkle-checkpoint` | `witness` | 21 | W6 |
 | `merkle-consistency` | `witness` | 19 | W4 |
 | `merkle-inclusion` | `witness` | 14 | W4 |
@@ -330,12 +330,12 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `principal-normalization` | `base` | 10 | S9 |
 | `private-hostname` | `base` | 58 | none |
 | `replay-freshness` | `base` | 10 | R1, R2, R3, R4, ER4, ER5, ER6e |
-| `signature-base` | `base` | 15 | S1, S2, S5, S7, S8, ER3 |
+| `signature-base` | `base` | 15 | S1, S2, S7, S8, ER3 |
 | `signed-body-member-name` | `base` | 18 | none |
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 17 | none |
 
-45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 894 cases.
+46 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 894 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---
