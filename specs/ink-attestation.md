@@ -254,7 +254,7 @@ downgrading the sender's evidence.
 lands, and until then no producer may publish either member in a signed card.
 The implementing change is one release and carries, together: the Agent Card
 spec and schema additions for bounded `attestations` and `evidencePolicy`
-members, the fetch-path fix below, the conformance vectors that pin both and
+members, the fetch-path fix this paragraph describes, the conformance vectors that pin both and
 the conformance-profile anchoring described under *Conformance*. The reason
 for the gate is a defect this draft records: at the time of writing the
 TypeScript reference's fetch path validates the card schema first and
