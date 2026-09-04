@@ -56,6 +56,7 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs.json` | `test/security-fixes.test.ts` |
 | S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
 | S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
+| S9 | Transport auth returns the canonical, prefix-independent principal alongside the raw `from`, so a receiver can key its per-sender controls on it as Protocol §4 requires; the two spellings of one key map to one principal | MUST | Required | Protocol §4, §7 |, | `test/canonical-principal.test.ts` |
 
 ---
 
@@ -81,7 +82,7 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
 | E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
 | E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
-| E5 | `schedule_meeting` and `context_share` require encryption | MUST | Required | Protocol §3.4 |, | `test/security-fixes.test.ts` |
+| E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 |, | `test/security-fixes.test.ts` |
 
 ---
@@ -213,9 +214,9 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | ER6c | `nonce_replay`, `nonceStore.has(nonce)` returned true after successful signature verify | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-round25.test.ts` |
 | ER6d | `nonce_store_error`, `nonceStore.has` or `.add` threw (fail-closed) | MUST | Required | Protocol §3.5 |, | `test/security-round25.test.ts` |
 | ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
-| ER7 | `unsupported_intent`, unknown intent type | MUST | Required | Protocol §3.1 |, | `test/security-fixes.test.ts` |
-| ER8 | `encryption_required`, plaintext where encrypted required | MUST | Required | Protocol §3.4 |, | `test/security-fixes.test.ts` |
-| ER9 | `rate_limited`, request rate exceeded | SHOULD | Required | Protocol §4 |, | `test/security-fixes.test.ts` |
+| ER7 | `unsupported_intent`, unknown intent type | MUST | Required | Protocol §3.1 |, | `test/ink-handshake-schemas.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
+| ER8 | `encryption_required`, plaintext where encrypted required, ahead of the intent allowlist | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
+| ER9 | `rate_limited`, request rate exceeded. The library registers the code as a rejection reason; the limiter itself is receiver policy and has no library test | SHOULD | Required | Protocol §4 |, | receiver-side, none in the library |
 | ER10 | `handshake_budget_exhausted`, per-correlation budget hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | ER11 | `sender_rate_limited`, per-sender rate limit hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | ER12 | `counterparty_cooldown`, recipient broadly rate-limiting | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
@@ -308,7 +309,7 @@ Full peer requirements plus section 13 (CT1–CT16). Adds transport scoping, dis
 | Area | Required | Implemented | Tested | Vectors |
 |------|----------|------------|--------|---------|
 | Discovery | 8 | 8 | 8 | 3 |
-| Transport Signing | 8 | 8 | 8 | 3 |
+| Transport Signing | 9 | 9 | 9 | 3 |
 | Replay Protection | 5 | 5 | 5 | 6 |
 | Encryption | 6 | 6 | 6 | 2 |
 | Message Envelope | 4 | 4 | 4 | 3 |
@@ -320,9 +321,11 @@ Full peer requirements plus section 13 (CT1–CT16). Adds transport scoping, dis
 | Auth Chains | 7 | 6 | 6 | 0 |
 | Error Semantics | 14 | 14 | 14 |, |
 | Containment | 16 | 16 | 15 | 0 |
-| **Total** | **108** | **107** | **105** | **67** |
+| **Total** | **109** | **108** | **106** | **67** |
 
 **Notes:**
 - AC3 (multi-hop chains) is designed but not fully implemented, extension status
 - K10 (90-day retention) is enforced by design (keys never deleted) but not explicitly tested with time simulation
 - CT15 (governance block) is schema-defined but not yet tested with governance-specific assertions
+
+[^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.

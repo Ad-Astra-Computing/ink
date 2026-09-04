@@ -52,7 +52,7 @@ import {
   type MessageEnvelope,
 } from "@adastracomputing/ink";
 import type { ReceiverIdentity, ReceiverEncryptionIdentity } from "./keys.js";
-import { SUPPORTED_INTENTS } from "./agent-card.js";
+import { SUPPORTED_INTENTS, CONFIDENTIAL_INTENTS } from "./agent-card.js";
 import {
   resolveAgentCardForDidWebDetailed,
   CARD_RESOLUTION_HINTS,
@@ -347,6 +347,19 @@ export async function processInbound(
     const sender = safeReadString(raw, "from");
     const intent = safeReadString(raw, "intent");
     return { kind: "rejected", verdict: "schema", sender, intent, errorCode: `schema:${code}` };
+  }
+  // Protocol §3.4: a confidential intent in plaintext is refused for being
+  // plaintext, ahead of the allowlist, so the sender is told the actual
+  // problem. The encrypted path applies the allowlist to what it decrypts.
+  if (CONFIDENTIAL_INTENTS.includes(envelope.intent as typeof CONFIDENTIAL_INTENTS[number])) {
+    return {
+      kind: "rejected",
+      verdict: "encryption",
+      sender: envelope.from,
+      intent: envelope.intent,
+      errorCode: "encryption_required",
+      hint: `Intent ${envelope.intent} must be sent inside an encrypted envelope (Protocol §3.4).`,
+    };
   }
   // Intent allowlist BEFORE we go fetch the sender's card. Saves a
   // network round-trip on unsupported intents.
