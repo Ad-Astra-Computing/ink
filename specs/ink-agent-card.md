@@ -132,3 +132,9 @@ endpoint URL grammar (the schemes and forms a permissive validator would accept)
 an `inboxEndpoint` that differs from `endpoint`, a bad `publicKeyMultibase`, an
 unknown or over-cap enum array, a bad third-party-audit endpoint, a key entry
 with a bad timestamp, algorithm, or empty id, and a non-positive numeric field.
+
+The `attestations` and `evidencePolicy` members are pinned by the
+capability-gated `agent-card-evidence` category: shape-only validation of
+carried attestations without a clock, the claim-type set bounds and
+distinctness, and card-proof coverage of both members alongside unknown
+top-level extensions.

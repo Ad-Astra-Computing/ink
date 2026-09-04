@@ -1,0 +1,289 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "evidence-refusal",
+  "cases": [
+    {
+      "caseId": "minimal-refusal-accepts",
+      "description": "The minimal refusal body: protocol, error, the pinned code and one required claim type.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.owner.verified_human"
+          ]
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "refusal-with-message-accepts",
+      "description": "A human-readable message within the 500-code-unit bound is accepted.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.owner.verified_human"
+          ],
+          "message": "present example.owner.verified_human evidence"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "unknown-member-accepts",
+      "description": "An unknown member is tolerated for forward compatibility; the sender ignores what it does not model.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.owner.verified_human"
+          ],
+          "retryHint": "after-evidence"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "thirty-two-types-accepts",
+      "description": "Thirty-two types sit exactly at the set cap.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.claim.t0",
+            "example.claim.t1",
+            "example.claim.t2",
+            "example.claim.t3",
+            "example.claim.t4",
+            "example.claim.t5",
+            "example.claim.t6",
+            "example.claim.t7",
+            "example.claim.t8",
+            "example.claim.t9",
+            "example.claim.t10",
+            "example.claim.t11",
+            "example.claim.t12",
+            "example.claim.t13",
+            "example.claim.t14",
+            "example.claim.t15",
+            "example.claim.t16",
+            "example.claim.t17",
+            "example.claim.t18",
+            "example.claim.t19",
+            "example.claim.t20",
+            "example.claim.t21",
+            "example.claim.t22",
+            "example.claim.t23",
+            "example.claim.t24",
+            "example.claim.t25",
+            "example.claim.t26",
+            "example.claim.t27",
+            "example.claim.t28",
+            "example.claim.t29",
+            "example.claim.t30",
+            "example.claim.t31"
+          ]
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "wrong-code-rejects",
+      "description": "Any code other than policy:evidence_required is not this refusal.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy_violation",
+          "requiredClaimTypes": [
+            "example.owner.verified_human"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "error-false-rejects",
+      "description": "The error member must be the literal true.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": false,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.owner.verified_human"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "missing-required-claim-types-rejects",
+      "description": "A refusal without requiredClaimTypes names nothing the sender can act on.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-type-set-rejects",
+      "description": "An empty set is out of profile; a receiver missing nothing does not refuse for evidence.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "thirty-three-types-rejects",
+      "description": "Thirty-three types exceed the set cap.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.claim.t0",
+            "example.claim.t1",
+            "example.claim.t2",
+            "example.claim.t3",
+            "example.claim.t4",
+            "example.claim.t5",
+            "example.claim.t6",
+            "example.claim.t7",
+            "example.claim.t8",
+            "example.claim.t9",
+            "example.claim.t10",
+            "example.claim.t11",
+            "example.claim.t12",
+            "example.claim.t13",
+            "example.claim.t14",
+            "example.claim.t15",
+            "example.claim.t16",
+            "example.claim.t17",
+            "example.claim.t18",
+            "example.claim.t19",
+            "example.claim.t20",
+            "example.claim.t21",
+            "example.claim.t22",
+            "example.claim.t23",
+            "example.claim.t24",
+            "example.claim.t25",
+            "example.claim.t26",
+            "example.claim.t27",
+            "example.claim.t28",
+            "example.claim.t29",
+            "example.claim.t30",
+            "example.claim.t31",
+            "example.claim.t32"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "duplicate-types-rejects",
+      "description": "A repeated claim type rejects; the set is distinct and satisfied by type, never by count.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.a.b",
+            "example.a.b"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "type-grammar-rejects",
+      "description": "A type outside the lowercase dotted grammar rejects.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "NoDots"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "non-string-type-rejects",
+      "description": "A non-string entry rejects.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            1
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "over-length-message-rejects",
+      "description": "A message longer than 500 code units is out of profile.",
+      "input": {
+        "refusal": {
+          "protocol": "ink/0.1",
+          "error": true,
+          "code": "policy:evidence_required",
+          "requiredClaimTypes": [
+            "example.owner.verified_human"
+          ],
+          "message": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

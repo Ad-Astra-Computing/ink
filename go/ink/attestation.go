@@ -115,6 +115,101 @@ func VerifyAttestation(raw []byte, issuerPublicKey []byte, now string) (bool, At
 	return true, AttestationReasonNone
 }
 
+// validateClaimTypeSet enforces the claim-type set shape shared by the
+// evidence policy and the structured refusal: an array of 1 to 32 distinct
+// strings under the claim-type grammar and bounds.
+func validateClaimTypeSet(v interface{}) bool {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) < 1 || len(arr) > 32 {
+		return false
+	}
+	seen := make(map[string]bool, len(arr))
+	for _, e := range arr {
+		s, ok := e.(string)
+		if !ok || utf16Len(s) < claimTypeMin || utf16Len(s) > claimTypeMax || !claimTypeRe.MatchString(s) {
+			return false
+		}
+		if seen[s] {
+			return false
+		}
+		seen[s] = true
+	}
+	return true
+}
+
+// validateCardAttestations enforces the Agent Card attestations member: an
+// array of 1 to 16 entries, each a well-formed attestation by shape and
+// signature grammar. Signature verification and the validity window against a
+// clock are verify-time decisions, not card validation: a card carrying a
+// stale but well-formed attestation stays valid.
+func validateCardAttestations(v interface{}) bool {
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) < 1 || len(arr) > 16 {
+		return false
+	}
+	for _, e := range arr {
+		obj, ok := e.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		sig, ok := validateAttestation(obj)
+		if !ok || !signatureRe.MatchString(sig) {
+			return false
+		}
+	}
+	return true
+}
+
+// validateEvidencePolicy enforces the Agent Card evidencePolicy member: an
+// object whose optional required and preferred members are claim-type sets.
+// Unknown members inside it are ignored for interpretation, matching the
+// reference schema's passthrough.
+func validateEvidencePolicy(v interface{}) bool {
+	p, ok := v.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	for _, k := range []string{"required", "preferred"} {
+		if pv, present := p[k]; present {
+			if !validateClaimTypeSet(pv) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// ValidateEvidenceRefusal validates the structured policy:evidence_required
+// refusal body of specs/ink-attestation.md, mirroring the reference
+// parseEvidenceRefusal: the standard endpoint error members are pinned, the
+// claim-type set is bounded and distinct, and unknown members are tolerated
+// for forward compatibility.
+func ValidateEvidenceRefusal(m map[string]interface{}) bool {
+	if m == nil {
+		return false
+	}
+	if s, _ := m["protocol"].(string); s != "ink/0.1" {
+		return false
+	}
+	if b, ok := m["error"].(bool); !ok || !b {
+		return false
+	}
+	if s, _ := m["code"].(string); s != "policy:evidence_required" {
+		return false
+	}
+	v, present := m["requiredClaimTypes"]
+	if !present || !validateClaimTypeSet(v) {
+		return false
+	}
+	if mv, present := m["message"]; present {
+		s, ok := mv.(string)
+		if !ok || utf16Len(s) > 500 {
+			return false
+		}
+	}
+	return true
+}
+
 // validateAttestation enforces the strict shape: exactly the ten members, the
 // single vendor-neutral wire spelling, the claim-type and attestation-id
 // grammars, the id bounds and a strictly positive validity window. It returns

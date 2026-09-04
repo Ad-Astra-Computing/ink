@@ -18,6 +18,7 @@
       "enum": [
         "agent-authorization",
         "agent-card",
+        "agent-card-evidence",
         "agent-card-fetch",
         "agent-card-signature",
         "agent-card-signature-phase-c",
@@ -28,6 +29,7 @@
         "authorization-header",
         "connection-payload",
         "discovery-query-envelope",
+        "evidence-refusal",
         "first-contact-transcript",
         "handshake-message",
         "inclusion-receipt",

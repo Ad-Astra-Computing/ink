@@ -21,6 +21,15 @@
       "sha256": "4a8828e4ffaca4ae3dcfe5b1f45415bcd7c175ce17e32a966ae32c59e79c2e57"
     },
     {
+      "id": "agent-card-evidence",
+      "vector": "vectors/agent-card-evidence.json",
+      "profile": "evidence",
+      "spec": "specs/ink-agent-card.md",
+      "summary": "The Agent Card evidence members: attestations (1 to 16 well-formed entries, shape-only, no clock) and evidencePolicy (bounded distinct claim-type sets, unknown members tolerated), plus card-proof coverage of both so mutating carried evidence breaks the signature.",
+      "caseCount": 19,
+      "sha256": "c8a886319fdb94d9805721b93013491b07acdba430f92adde76061310de219e1"
+    },
+    {
       "id": "agent-card-fetch",
       "vector": "vectors/agent-card-fetch.json",
       "profile": "base",
@@ -109,6 +118,15 @@
       "summary": "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay.",
       "caseCount": 33,
       "sha256": "2181af8610c66c38738c6f4108ca67e5df8f6de2bf8b50159ff473602d5a7c8f"
+    },
+    {
+      "id": "evidence-refusal",
+      "vector": "vectors/evidence-refusal.json",
+      "profile": "evidence",
+      "spec": "specs/ink-attestation.md",
+      "summary": "The policy:evidence_required structured refusal body: the standard endpoint error members, a bounded distinct requiredClaimTypes set under the claim-type grammar, and forward-compatible tolerance of unknown members.",
+      "caseCount": 13,
+      "sha256": "9b2dcae8877e6ca167f96c42446823222d1b60df95803dcd9380cfaf6ecda05b"
     },
     {
       "id": "first-contact-transcript",

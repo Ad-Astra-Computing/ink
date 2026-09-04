@@ -100,12 +100,16 @@ capability it does not fully implement.[^ck]
   revocation and owner-verification checks. It is distinct from the `authorization`
   capability so a frozen surface stays frozen. An implementation that does not
   advertise delegation is not expected to accept chains.
-- **evidence** (`attestation`): required when the implementation produces or
+- **evidence** (`attestation`, `agent-card-evidence`, `evidence-refusal`):
+  required when the implementation produces or
   consumes attestations under [`ink-attestation.md`](ink-attestation.md): the
   signed issuer-claim shape, its grammar and bounds, the raw-body gate, the
   single vendor-neutral wire spelling and the inclusive-start exclusive-end
-  validity window. A receiver that advertises `evidencePolicy` on its card
-  holds this capability and returns the `policy:evidence_required` structured
+  validity window, plus the Agent Card carriage of `attestations` and
+  `evidencePolicy` with card-proof coverage of both, and the
+  `policy:evidence_required` structured refusal body. A receiver that
+  advertises `evidencePolicy` on its card
+  holds this capability and returns that
   refusal when required evidence is missing; a producer that carries
   `attestations` on its card holds it too. Base verification passes no
   judgment on issuers or claims; which evidence counts is receiver policy and

@@ -290,8 +290,10 @@ export {
   AttestationSchema,
   ClaimTypeSchema,
   EvidencePolicySchema,
+  EvidenceRefusalSchema,
   buildAttestation,
   verifyAttestation,
+  parseEvidenceRefusal,
   MAX_ATTESTATION_BODY_BYTES,
 } from "./models/attestation.js";
 export type {
@@ -300,6 +302,8 @@ export type {
   AttestationVerifyContext,
   AttestationVerifyResult,
   EvidencePolicy,
+  EvidenceRefusal,
+  EvidenceRefusalParseResult,
 } from "./models/attestation.js";
 
 // INK Agent Authorization sign-in challenge (#198). The one artifact the flow

@@ -93,6 +93,8 @@ const CATEGORY_META = {
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
   "agent-authorization": { profile: "authorization", spec: "specs/ink-agent-authorization.md", summary: "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId." },
   "attestation": { profile: "evidence", spec: "specs/ink-attestation.md", summary: "Signed issuer claim about a subject agent: schema bounds, claim-type and attestation-id grammar, the raw-body gate, the single vendor-neutral wire spelling, issuer-key signature, and the inclusive-start exclusive-end validity window. No audience, no replay, no judgment of issuer or claim." },
+  "agent-card-evidence": { profile: "evidence", spec: "specs/ink-agent-card.md", summary: "The Agent Card evidence members: attestations (1 to 16 well-formed entries, shape-only, no clock) and evidencePolicy (bounded distinct claim-type sets, unknown members tolerated), plus card-proof coverage of both so mutating carried evidence breaks the signature." },
+  "evidence-refusal": { profile: "evidence", spec: "specs/ink-attestation.md", summary: "The policy:evidence_required structured refusal body: the standard endpoint error members, a bounded distinct requiredClaimTypes set under the claim-type grammar, and forward-compatible tolerance of unknown members." },
   "authorization-chain": { profile: "delegation", spec: "specs/ink-authorization-chain.md", summary: "Linear delegation chain of 2 to 4 grant-shaped links: parent-hash and issuer-subject continuity, monotonic scope and window attenuation with the delegation.extend gate, per-position lifetime ceilings, active-key-only per-link signatures, and the audience, presenter, window, replay, revocation and owner-verification context checks." },
 };
 
@@ -4530,6 +4532,120 @@ vectorFile("authorization-header", [
     rej("shadowed-number-literal-rejects", "An out-of-range number literal shadowed by a later duplicate member rejects at the raw gate; the parsed value never sees it and the signature still verifies, so only a byte gate refuses it.", { attestationRaw: atShadowedNumber, ...ctx }, "schema"),
     acc("shadowed-underflow-accepts", "A shadowed underflowing exponent decodes to 0 in every IEEE-754 parser, so it is in range and not gated.", { attestationRaw: atShadowedUnderflow, ...ctx }),
     rej("raw-lone-surrogate-escape-rejects", "A lone UTF-16 surrogate escape in the raw text rejects structurally before the signature.", { attestationRaw: atLoneSurrogate, ...ctx }, "schema"),
+  ]);
+}
+
+// ── agent-card-evidence ─────────────────────────────────────────────────────
+// The Agent Card carrying evidence (ink-agent-card.md, ink-attestation.md):
+// shape-only validation of the attestations and evidencePolicy members, and
+// card-proof coverage of both. A case with an agentId runs the card-signature
+// verifier; a case without one runs schema validation alone. Card validation
+// carries no clock, so a stale but well-formed attestation stays card-valid.
+{
+  const evPriv = new Uint8Array(32).fill(21);
+  const evPub = await ed.getPublicKeyAsync(evPriv);
+  const evMb = encodePublicKeyMultibase(evPub);
+  const evAgentId = deriveAgentId(evPub);
+
+  const att = await buildAttestation({
+    issuer: `ink:${mb}`,
+    subject: evAgentId,
+    claimType: "example.owner.verified_human",
+    claim: { method: "in_person" },
+    attestationId: "conformance-card-att-00001",
+    issuedAt: "2026-08-01T00:00:00.000Z",
+    expiresAt: "2027-08-01T00:00:00.000Z",
+  }, seed);
+  const expiredAtt = await buildAttestation({
+    issuer: `ink:${mb}`,
+    subject: evAgentId,
+    claimType: "example.history.clean",
+    claim: {},
+    attestationId: "conformance-card-att-00002",
+    issuedAt: "2024-01-01T00:00:00.000Z",
+    expiresAt: "2025-01-01T00:00:00.000Z",
+  }, seed);
+
+  const evBaseCard = {
+    protocol: "ink/0.1",
+    agentId: evAgentId,
+    handle: "evidence-agent",
+    displayName: "Evidence Agent",
+    endpoint: "https://example.com/ink",
+    publicKeyMultibase: evMb,
+    capabilities: { intentsAccepted: [], intentsSent: [] },
+    availability: { timezone: "UTC" },
+  };
+  const policy = { required: ["example.owner.verified_human"], preferred: ["example.history.clean"] };
+
+  // A signed key-derived no-chain card carrying evidence plus an unknown
+  // top-level member: the proof covers the whole document minus cardSignature,
+  // which is what makes stripping-before-verify a rejection of authentic cards.
+  const evSignedBase = {
+    ...evBaseCard,
+    keys: { signing: [{ keyId: "g1", algorithm: "Ed25519", publicKeyMultibase: evMb, status: "active", validFrom: "2026-01-01T00:00:00Z" }], encryption: [] },
+    currentSigningKeyId: "g1",
+    keySetVersion: 1,
+    attestations: [att],
+    evidencePolicy: policy,
+    extUnknown: "kept",
+  };
+  const evSigned = { ...evSignedBase, cardSignature: { keyId: "g1", signature: await signAgentCard(evSignedBase, evPriv) } };
+  const evSignedMutated = { ...evSigned, attestations: [{ ...att, claim: { method: "forged" } }] };
+
+  const cardAcc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
+  const cardRej = (caseId, description, input) => ({ caseId, description, input, expect: { result: "reject" } });
+
+  vectorFile("agent-card-evidence", [
+    cardAcc("card-with-attestation-accepts", "A card carrying one well-formed attestation validates.", { card: { ...evBaseCard, attestations: [att] } }),
+    cardAcc("card-with-evidence-policy-accepts", "A card carrying required and preferred claim-type sets validates.", { card: { ...evBaseCard, evidencePolicy: policy } }),
+    cardAcc("expired-attestation-on-card-accepts", "A card carrying a stale but well-formed attestation validates: card validation has no clock, and expiry is a verify-time decision against the presented window.", { card: { ...evBaseCard, attestations: [expiredAtt] } }),
+    cardAcc("evidence-policy-unknown-member-accepts", "An unknown member inside evidencePolicy is tolerated; it carries no meaning but is preserved to the card proof.", { card: { ...evBaseCard, evidencePolicy: { ...policy, futureBranch: ["x"] } } }),
+    cardAcc("sixteen-attestations-accepts", "Sixteen entries sit exactly at the array cap.", { card: { ...evBaseCard, attestations: Array.from({ length: 16 }, () => att) } }),
+    cardRej("empty-attestations-array-rejects", "An attestations member with zero entries is out of profile; absence is expressed by omitting the member.", { card: { ...evBaseCard, attestations: [] } }),
+    cardRej("seventeen-attestations-rejects", "Seventeen entries exceed the array cap.", { card: { ...evBaseCard, attestations: Array.from({ length: 17 }, () => att) } }),
+    cardRej("attestations-not-array-rejects", "An attestations member that is not an array rejects.", { card: { ...evBaseCard, attestations: att } }),
+    cardRej("legacy-spelling-entry-rejects", "An entry typed network.tulpa.attestation rejects; the attestation is single-spelling by design.", { card: { ...evBaseCard, attestations: [{ ...att, type: "network.tulpa.attestation" }] } }),
+    cardRej("inverted-window-entry-rejects", "An entry whose expiresAt is not strictly after issuedAt is malformed even on a card.", { card: { ...evBaseCard, attestations: [{ ...att, expiresAt: att.issuedAt }] } }),
+    cardRej("malformed-signature-entry-rejects", "An entry whose signature is not 86 base64url characters rejects structurally.", { card: { ...evBaseCard, attestations: [{ ...att, signature: att.signature.slice(0, 85) + "+" }] } }),
+    cardRej("unknown-member-entry-rejects", "An entry carrying an unknown member rejects; the attestation object is strict everywhere it appears.", { card: { ...evBaseCard, attestations: [{ ...att, extra: 1 }] } }),
+    cardRej("duplicate-required-claim-types-rejects", "A required set repeating a claim type rejects; the set is distinct by shape.", { card: { ...evBaseCard, evidencePolicy: { required: ["example.a.b", "example.a.b"] } } }),
+    cardRej("policy-claim-type-grammar-rejects", "A preferred entry outside the lowercase dotted grammar rejects.", { card: { ...evBaseCard, evidencePolicy: { preferred: ["NoDots"] } } }),
+    cardRej("empty-required-set-rejects", "An empty required set is out of profile; a receiver with no requirements omits the member.", { card: { ...evBaseCard, evidencePolicy: { required: [] } } }),
+    cardRej("thirty-three-required-types-rejects", "Thirty-three required types exceed the set cap.", { card: { ...evBaseCard, evidencePolicy: { required: Array.from({ length: 33 }, (_, i) => `example.claim.t${i}`) } } }),
+    cardRej("evidence-policy-non-object-rejects", "An evidencePolicy that is not an object rejects.", { card: { ...evBaseCard, evidencePolicy: ["example.a.b"] } }),
+    { caseId: "signed-evidence-card-accepts", description: "A signed card carrying attestations, an evidencePolicy and an unknown top-level member authenticates: the proof is computed over the whole fetched document minus cardSignature, so a validator that strips any of them before recomputing rejects this authentic card.", input: { card: evSigned, agentId: evAgentId, options: { profile: "1.0" } }, expect: { result: "accept", reason: "signed_authenticated" } },
+    { caseId: "signed-evidence-card-mutated-rejects", description: "The same signed card with one carried attestation's claim payload mutated after signing no longer verifies: carried evidence is inside the card proof, not alongside it.", input: { card: evSignedMutated, agentId: evAgentId, options: { profile: "1.0" } }, expect: { result: "reject", reason: "invalid_signature" } },
+  ]);
+
+  // ── evidence-refusal ──────────────────────────────────────────────────────
+  // The policy:evidence_required structured refusal (ink-attestation.md): the
+  // standard endpoint error body carrying the conjunctive residual set of
+  // missing claim types. Senders parse it from arbitrary receivers, so unknown
+  // members are tolerated while the code, grammar and bounds are pinned.
+  const refusal = {
+    protocol: "ink/0.1",
+    error: true,
+    code: "policy:evidence_required",
+    requiredClaimTypes: ["example.owner.verified_human"],
+  };
+  const refAcc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
+  const refRej = (caseId, description, input) => ({ caseId, description, input, expect: { result: "reject" } });
+
+  vectorFile("evidence-refusal", [
+    refAcc("minimal-refusal-accepts", "The minimal refusal body: protocol, error, the pinned code and one required claim type.", { refusal }),
+    refAcc("refusal-with-message-accepts", "A human-readable message within the 500-code-unit bound is accepted.", { refusal: { ...refusal, message: "present example.owner.verified_human evidence" } }),
+    refAcc("unknown-member-accepts", "An unknown member is tolerated for forward compatibility; the sender ignores what it does not model.", { refusal: { ...refusal, retryHint: "after-evidence" } }),
+    refAcc("thirty-two-types-accepts", "Thirty-two types sit exactly at the set cap.", { refusal: { ...refusal, requiredClaimTypes: Array.from({ length: 32 }, (_, i) => `example.claim.t${i}`) } }),
+    refRej("wrong-code-rejects", "Any code other than policy:evidence_required is not this refusal.", { refusal: { ...refusal, code: "policy_violation" } }),
+    refRej("error-false-rejects", "The error member must be the literal true.", { refusal: { ...refusal, error: false } }),
+    refRej("missing-required-claim-types-rejects", "A refusal without requiredClaimTypes names nothing the sender can act on.", { refusal: (() => { const { requiredClaimTypes, ...rest } = refusal; return rest; })() }),
+    refRej("empty-type-set-rejects", "An empty set is out of profile; a receiver missing nothing does not refuse for evidence.", { refusal: { ...refusal, requiredClaimTypes: [] } }),
+    refRej("thirty-three-types-rejects", "Thirty-three types exceed the set cap.", { refusal: { ...refusal, requiredClaimTypes: Array.from({ length: 33 }, (_, i) => `example.claim.t${i}`) } }),
+    refRej("duplicate-types-rejects", "A repeated claim type rejects; the set is distinct and satisfied by type, never by count.", { refusal: { ...refusal, requiredClaimTypes: ["example.a.b", "example.a.b"] } }),
+    refRej("type-grammar-rejects", "A type outside the lowercase dotted grammar rejects.", { refusal: { ...refusal, requiredClaimTypes: ["NoDots"] } }),
+    refRej("non-string-type-rejects", "A non-string entry rejects.", { refusal: { ...refusal, requiredClaimTypes: [1] } }),
+    refRej("over-length-message-rejects", "A message longer than 500 code units is out of profile.", { refusal: { ...refusal, message: "m".repeat(501) } }),
   ]);
 }
 

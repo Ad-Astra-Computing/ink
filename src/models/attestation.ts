@@ -110,6 +110,32 @@ export const EvidencePolicySchema = z
 
 export type EvidencePolicy = z.infer<typeof EvidencePolicySchema>;
 
+// The structured refusal a receiver returns when required evidence is missing:
+// the standard endpoint error body carrying the policy:evidence_required code
+// and the conjunctive residual set of missing claim types. A sender parses it
+// from an arbitrary receiver, so unknown members pass through.
+export const EvidenceRefusalSchema = z
+  .object({
+    protocol: z.literal("ink/0.1"),
+    error: z.literal(true),
+    code: z.literal("policy:evidence_required"),
+    requiredClaimTypes: ClaimTypeSetSchema,
+    message: z.string().max(500).optional(),
+  })
+  .passthrough();
+
+export type EvidenceRefusal = z.infer<typeof EvidenceRefusalSchema>;
+
+export type EvidenceRefusalParseResult =
+  | { ok: true; refusal: EvidenceRefusal }
+  | { ok: false };
+
+/** Parse a candidate evidence refusal body. Never throws. */
+export function parseEvidenceRefusal(value: unknown): EvidenceRefusalParseResult {
+  const parsed = EvidenceRefusalSchema.safeParse(value);
+  return parsed.success ? { ok: true, refusal: parsed.data } : { ok: false };
+}
+
 export interface AttestationInput {
   issuer: string;
   subject: string;
