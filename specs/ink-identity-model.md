@@ -44,6 +44,17 @@ An INK **principal** is the value that appears as an `agentId`, as a message
 is pinned by [`ink-protocol.md`](ink-protocol.md) §7 and is not restated here.
 This section says what each admissible form IDENTIFIES.
 
+Before the taxonomy, the boundary that governs all of it. **An `agentId`
+authenticates possession of a private key at the moment of signing and
+continuity of that key across interactions. Nothing more.** It does not
+authenticate a human, an organization, a legal entity, a handle, a domain or
+any form of accountability, and no INK verification step may be read as
+establishing any of those. Minting an identity is permissionless by design. A
+service that needs more than key possession and continuity asks for evidence —
+the attestation shape of [`ink-attestation.md`](ink-attestation.md) — and
+decides for itself which issuers' evidence it believes; that decision is
+receiver policy, outside this document and outside the wire contract.
+
 ### 2.1 Key-derived principals
 
 A key-derived principal is `tulpa:<multibase>` or `ink:<multibase>`, where the
