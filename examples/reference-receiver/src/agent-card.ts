@@ -101,6 +101,13 @@ export const CARD_KEYS_VALID_FROM = "2026-08-26T00:00:00Z";
 
 export const SUPPORTED_INTENTS = ["ping", "ask", "connection_request", "intro_request"] as const;
 
+// The intents Protocol §3.4 requires to be sent encrypted. A plaintext one is
+// refused with encryption_required before the allowlist above is consulted,
+// so a sender learns it sent plaintext rather than that this receiver does not
+// handle the intent. The set is the protocol's, the same one the library
+// exports as CONFIDENTIAL_INTENTS.
+export const CONFIDENTIAL_INTENTS = ["schedule_meeting", "context_share", "multi_party_sync"] as const;
+
 export async function buildAgentCard(cfg: AgentCardConfig): Promise<unknown> {
   const endpoint = `https://${cfg.host}/ink/v1/inbound`;
   const card = {

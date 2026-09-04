@@ -18,11 +18,14 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CONFIDENTIAL_INTENTS } from "../src/ink/encryption-policy.js";
 
 const repoRoot = fileURLToPath(new URL("../", import.meta.url).href);
 const write = process.argv.includes("--write");
 
 const READINESS = "governance/releases/1.0-readiness-evidence.md";
+const PROTOCOL_SPEC = "specs/ink-protocol.md";
+const CHECKLIST = "specs/ink-compliance-checklist.md";
 const PROFILE_SPEC = "specs/ink-conformance-profile.md";
 const CARD_SIG_SPEC = "specs/ink-agent-card-signature.md";
 const DIST_TAG_PIN = "governance/releases/npm-dist-tags.json";
@@ -142,9 +145,32 @@ interface Claim {
 
 const identifiers = (s: string): string =>
   (s.match(/`[a-z0-9-]+`/g) ?? []).map((x) => x.replace(/`/g, "")).sort().join(", ");
+const intentNames = (s: string): string =>
+  (s.match(/`[a-z0-9_]+`/g) ?? []).map((x) => x.replace(/`/g, "")).sort().join(", ");
 const plain = (s: string): string => s.replace(/`/g, "");
 
+// The confidential-intent set is a protocol fact the code owns; the spec and
+// the checklist restate it and must not drift from the exported constant.
+const CONFIDENTIAL_INTENT_SOURCE = "src/ink/encryption-policy.ts (CONFIDENTIAL_INTENTS)";
+const confidentialIntents = [...CONFIDENTIAL_INTENTS].sort().join(", ");
+
 const claims: Claim[] = [
+  {
+    id: "encryption.confidential-intents",
+    file: PROTOCOL_SPEC,
+    pattern: /protocol marks confidential are ([\s\S]*?)\.\[\^ck\]/,
+    expected: confidentialIntents,
+    source: CONFIDENTIAL_INTENT_SOURCE,
+    normalize: intentNames,
+  },
+  {
+    id: "checklist.confidential-intents",
+    file: CHECKLIST,
+    pattern: /\| E5 \| (.*?) require encryption\[\^ck\] \|/,
+    expected: confidentialIntents,
+    source: CONFIDENTIAL_INTENT_SOURCE,
+    normalize: intentNames,
+  },
   {
     id: "release.version",
     file: READINESS,

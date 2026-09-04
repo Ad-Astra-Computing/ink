@@ -328,6 +328,28 @@ describe("processInbound", () => {
     if (out.kind === "rejected") expect(out.verdict).toBe("unsupported_intent");
   });
 
+  it("refuses a confidential intent in plaintext with encryption_required, ahead of the allowlist", async () => {
+    const { id, did } = await makeReceiver();
+    // context_share is schema-valid here and is NOT in SUPPORTED_INTENTS, so
+    // the only way this comes back as encryption_required rather than
+    // unsupported_intent is the §3.4 gate running first.
+    const base = buildPingEnvelope({ from: SENDER_DID, to: did });
+    const envelope = {
+      ...base,
+      intent: "context_share" as const,
+      payload: { context: "quarterly numbers", category: "general" },
+    };
+    const out = await processInbound(enc(JSON.stringify(envelope)), "ignored", {
+      identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore(),
+    });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") {
+      expect(out.verdict).toBe("encryption");
+      expect(out.errorCode).toBe("encryption_required");
+      expect(out.intent).toBe("context_share");
+    }
+  });
+
   it("rejects when the sender card cannot be resolved", async () => {
     const { id, did } = await makeReceiver();
     const envelope = buildPingEnvelope({ from: SENDER_DID, to: did });

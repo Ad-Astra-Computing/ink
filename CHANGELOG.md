@@ -64,6 +64,20 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   signature verifies, through a pluggable `NonceStore` that prefers an atomic
   `AddIfAbsent`. `MemoryNonceStore` is the bounded in-process store for a
   single-process receiver.
+- The Protocol §3.4 encryption requirement is now a gate both implementations
+  ship rather than a sentence each receiver reimplements. `CONFIDENTIAL_INTENTS`
+  names the set the protocol requires to be sent encrypted, `schedule_meeting`,
+  `context_share` and `multi_party_sync`, and `checkEncryptionRequired`
+  (`ConfidentialIntents` and `CheckEncryptionRequired` in Go) refuses a
+  plaintext envelope carrying one with `encryption_required`. The spec text,
+  which had listed two of the three as examples, now names all three and is
+  machine-checked against the constant, and it pins the order: the plaintext
+  refusal runs ahead of the intent allowlist, so a sender is told about the
+  plaintext rather than about the receiver's intent support. The reference
+  receiver example applies the gate. The compliance checklist rows for
+  `unsupported_intent`, `encryption_required` and `rate_limited` now cite the
+  tests that exercise them, and a new row records that transport auth returns
+  the canonical principal every per-sender control keys on.
 
 ## 0.19.0, a key must fit its role
 
