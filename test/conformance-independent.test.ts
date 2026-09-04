@@ -431,6 +431,14 @@ describe("non-base profiles", () => {
       "discovery envelopes",
       (c) => ({ obj: c.input?.envelope, keyHex: c.input?.publicKeyHex }),
     ],
+    [
+      "attestation",
+      "attestations",
+      (c) => ({
+        obj: c.input?.attestation,
+        keyHex: c.input?.issuerPublicKeyHex,
+      }),
+    ],
   ];
 
   for (const [category, label, pick] of bodySigned) {

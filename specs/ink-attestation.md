@@ -160,6 +160,14 @@ the reason is evidence, the refusal is structured:
   with the rest of policy vocabulary; a receiver holding an OR policy
   advertises the branch it prefers.
 
+The refusal body is the standard structured endpoint error extended with the
+claim-type set: an object carrying `protocol` (the literal `"ink/0.1"`),
+`error` (the literal `true`), `code` (the literal `"policy:evidence_required"`),
+`requiredClaimTypes` as above, and an optional `message` of at most 500 UTF-16
+code units. A sender parses the refusal from an arbitrary receiver, so it MUST
+ignore unknown members; the `evidence-refusal` conformance category pins the
+shape.
+
 The refusal names types, never issuers: which issuers a receiver believes is
 policy it is free to keep private, and naming them would invite issuer
 enumeration. That privacy has a cost the sender must be able to terminate on:
@@ -304,10 +312,12 @@ This section reserves names; it anchors nothing by itself. The `attestation`
 conformance category pins the accept and reject decisions of this
 specification — shape bounds, grammar, raw-body gate placement, signature,
 window edges and the single-spelling wire type — and the
-`policy:evidence_required` refusal shape is pinned alongside it. Both are
+`policy:evidence_required` refusal shape is pinned alongside it by the
+`evidence-refusal` category, with the Agent Card carriage of the presentation
+and advertisement members pinned by `agent-card-evidence`. All are
 capability-gated: an implementation that neither produces nor consumes
-attestations does not advertise the capability and is not bound by either.
-The category, the capability name and its Agent Card advertisement are
+attestations does not advertise the capability and is not bound by any of
+them. The categories, the capability name and its Agent Card advertisement are
 anchored in [`ink-conformance-profile.md`](ink-conformance-profile.md) by the
 implementing change named under *Activation and rollout*; until that change
 lands, no implementation is bound by this section and no receiver may

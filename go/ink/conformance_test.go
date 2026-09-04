@@ -885,6 +885,106 @@ func TestAuthorizationGrant(t *testing.T) {
 	}
 }
 
+func TestAttestation(t *testing.T) {
+	vf := loadVectors(t, "attestation")
+	for _, c := range vf.Cases {
+		var pubHex, now string
+		if err := json.Unmarshal(c.Input["issuerPublicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad issuerPublicKeyHex: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: issuerPublicKeyHex not hex: %v", c.CaseID, err)
+		}
+		var body []byte
+		if raw, present := c.Input["attestationRaw"]; present {
+			var text string
+			if err := json.Unmarshal(raw, &text); err != nil {
+				t.Fatalf("%s: bad attestationRaw: %v", c.CaseID, err)
+			}
+			body = []byte(text)
+		} else {
+			body = c.Input["attestation"]
+		}
+		ok, reason := VerifyAttestation(body, pub, now)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
+		}
+	}
+}
+
+// TestAgentCardEvidence drives the Agent Card evidence members. A case with an
+// agentId exercises card-proof coverage of the members through the
+// card-signature verifier; a case without one pins clockless shape validation
+// of attestations and evidencePolicy, mirroring the TS runner branch for
+// branch.
+func TestAgentCardEvidence(t *testing.T) {
+	vf := loadVectors(t, "agent-card-evidence")
+	for _, c := range vf.Cases {
+		var card map[string]interface{}
+		if err := json.Unmarshal(c.Input["card"], &card); err != nil {
+			t.Fatalf("%s: bad card: %v", c.CaseID, err)
+		}
+		if raw, present := c.Input["agentId"]; present {
+			var agentID string
+			if err := json.Unmarshal(raw, &agentID); err != nil {
+				t.Fatalf("%s: bad agentId: %v", c.CaseID, err)
+			}
+			var opts struct {
+				Profile string `json:"profile"`
+			}
+			if err := json.Unmarshal(c.Input["options"], &opts); err != nil {
+				t.Fatalf("%s: bad options: %v", c.CaseID, err)
+			}
+			res := VerifyAgentCardSignature(card, agentID, CardVerifyOptions{Profile: opts.Profile})
+			got := "accept"
+			if res.Rejected {
+				got = "reject"
+			}
+			if got != c.Expect.Result {
+				t.Errorf("%s: result = %s, want %s (reason %s)", c.CaseID, got, c.Expect.Result, res.Reason)
+			}
+			if c.Expect.Reason != "" && string(res.Reason) != c.Expect.Reason {
+				t.Errorf("%s: reason = %q, want %q", c.CaseID, res.Reason, c.Expect.Reason)
+			}
+			continue
+		}
+		got := "accept"
+		if !ValidateAgentCard(card) {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: ValidateAgentCard = %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
+// TestEvidenceRefusal drives the policy:evidence_required structured refusal
+// body against ValidateEvidenceRefusal.
+func TestEvidenceRefusal(t *testing.T) {
+	vf := loadVectors(t, "evidence-refusal")
+	for _, c := range vf.Cases {
+		var refusal map[string]interface{}
+		if err := json.Unmarshal(c.Input["refusal"], &refusal); err != nil {
+			t.Fatalf("%s: bad refusal: %v", c.CaseID, err)
+		}
+		got := "accept"
+		if !ValidateEvidenceRefusal(refusal) {
+			got = "reject"
+		}
+		if got != c.Expect.Result {
+			t.Errorf("%s: ValidateEvidenceRefusal = %s, want %s", c.CaseID, got, c.Expect.Result)
+		}
+	}
+}
+
 func TestAuthorizationChain(t *testing.T) {
 	vf := loadVectors(t, "authorization-chain")
 	for _, c := range vf.Cases {

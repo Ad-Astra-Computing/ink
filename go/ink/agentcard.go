@@ -536,5 +536,18 @@ func ValidateAgentCard(m map[string]interface{}) bool {
 			return false
 		}
 	}
+	// Evidence members (ink-attestation.md, activated with the evidence
+	// capability). Both OPTIONAL and backward-compatible; validation is
+	// shape-only, and a stale but well-formed attestation stays card-valid.
+	if v, present := m["attestations"]; present {
+		if !validateCardAttestations(v) {
+			return false
+		}
+	}
+	if v, present := m["evidencePolicy"]; present {
+		if !validateEvidencePolicy(v) {
+			return false
+		}
+	}
 	return true
 }

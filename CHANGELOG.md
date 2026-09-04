@@ -4,6 +4,37 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Changes
+
+- The attestation evidence surface of `specs/ink-attestation.md` activates:
+  `buildAttestation` and `verifyAttestation` land in both implementations
+  (`VerifyAttestation` in Go), the Agent Card gains the optional bounded
+  `attestations` and `evidencePolicy` members, and the capability-gated
+  `attestation` conformance category (34 vectors, new `evidence` profile) pins
+  the accept and reject decisions across both, including the raw-body gate and
+  the single vendor-neutral wire spelling.
+- Agent Card validation now preserves unknown and unmodeled top-level members
+  instead of stripping them. The card spec always said consumers ignore
+  unknown members; the reference deleted them, which broke the card proof for
+  any signed card carrying one, since the proof covers the fetched document
+  with only `cardSignature` removed. Ignoring is not deleting, and the fix is
+  what lets the evidence members ship receiver-first: a consumer on this
+  release verifies a signed evidence-carrying card correctly before any
+  producer emits one.
+- The Go implementation validates the new card members too: `ValidateAgentCard`
+  checks `attestations` and `evidencePolicy` exactly as the reference schema
+  does, and the new capability-gated `agent-card-evidence` category (19
+  vectors) pins the card-level decisions in both implementations, including
+  card-proof coverage of carried evidence and the clockless acceptance of a
+  stale but well-formed attestation.
+- The `policy:evidence_required` structured refusal body the attestation spec
+  promises is now a real surface: `parseEvidenceRefusal` in TypeScript,
+  `ValidateEvidenceRefusal` in Go, and the `evidence-refusal` category (13
+  vectors) pinning the code, the bounded distinct `requiredClaimTypes` set and
+  forward-compatible tolerance of unknown members.
+
 ## 0.19.0, a key must fit its role
 
 ### Breaking

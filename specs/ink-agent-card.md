@@ -79,11 +79,28 @@ The card is an object (unknown keys are ignored) with:
 - `updatedAt`: optional. An informational strict RFC 3339 timestamp (see
   [`ink-timestamp-grammar`](ink-timestamp-grammar.md)); it carries no comparison
   rule.
+- `attestations`: optional. An array of 1 to 16 attestation objects under
+  [`ink-attestation`](ink-attestation.md), each independently verifiable, all
+  sharing the card's single fetch byte budget. Whether any presented
+  attestation counts as evidence is receiver policy, applied after the subject
+  binding that spec pins.
+- `evidencePolicy`: optional. The receiver's advance evidence statement: an
+  object with optional `required` and `preferred` members, each a set of 1 to
+  32 distinct claim-type strings under the `ink-attestation` grammar. Unknown
+  members inside it are ignored for interpretation and covered by the card
+  proof when present.
 
-The `cardSignature`, `rotationChain`, and `updatedAt` members are all optional
+The `cardSignature`, `rotationChain`, `updatedAt`, `attestations` and
+`evidencePolicy` members are all optional
 and backward-compatible: a card without them validates exactly as before, and a
-consumer that predates the signature spec ignores them as unknown top-level
-fields. A receiver that enforces the signature spec verifies a present proof and
+consumer that predates the relevant spec ignores them as unknown top-level
+fields. Ignoring is not deleting: validation MUST preserve unknown and
+unmodeled members through to proof verification, because the card proof is
+computed over the fetched document with only `cardSignature` removed
+([`ink-agent-card-signature`](ink-agent-card-signature.md) §3.2), and a
+validator that strips members before the proof recomputes rejects every signed
+card that carries one. A receiver that enforces the signature spec verifies a
+present proof and
 roots it per [`ink-agent-card-signature`](ink-agent-card-signature.md) §5.
 
 String length bounds are measured in UTF-16 code units, matching the reference
@@ -115,3 +132,9 @@ endpoint URL grammar (the schemes and forms a permissive validator would accept)
 an `inboxEndpoint` that differs from `endpoint`, a bad `publicKeyMultibase`, an
 unknown or over-cap enum array, a bad third-party-audit endpoint, a key entry
 with a bad timestamp, algorithm, or empty id, and a non-positive numeric field.
+
+The `attestations` and `evidencePolicy` members are pinned by the
+capability-gated `agent-card-evidence` category: shape-only validation of
+carried attestations without a clock, the claim-type set bounds and
+distinctness, and card-proof coverage of both members alongside unknown
+top-level extensions.

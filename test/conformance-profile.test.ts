@@ -54,6 +54,9 @@ const FROZEN_PROFILES = {
   delegation: ["authorization-chain"],
   discovery: ["discovery-query-envelope"],
   encryption: ["payload-encryption"],
+  // Capability-gated evidence primitive (specs/ink-attestation.md), admitted
+  // with the implementing change its Activation section names.
+  evidence: ["agent-card-evidence", "attestation", "evidence-refusal"],
   // Staged: anchored and agreed now, required on a scheduled date. A staged
   // category is NOT a conformance obligation, and it is NOT in `base`, so the
   // frozen base set above is untouched by its presence. The flip moves its id

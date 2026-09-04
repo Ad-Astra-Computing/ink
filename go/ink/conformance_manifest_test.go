@@ -67,6 +67,7 @@ var goProfileCategories = map[string][]string{
 	"discovery":     {"discovery-query-envelope"},
 	"authorization": {"agent-authorization", "authorization-grant"},
 	"delegation":    {"authorization-chain"},
+	"evidence":      {"agent-card-evidence", "attestation", "evidence-refusal"},
 }
 
 type conformanceManifest struct {
@@ -84,15 +85,18 @@ type conformanceManifest struct {
 var goVerifiedCategories = []string{
 	"agent-authorization",
 	"agent-card",
+	"agent-card-evidence",
 	"agent-card-fetch",
 	"agent-card-signature",
 	"agent-card-signature-phase-c",
 	"audit-query-response",
 	"authorization-chain",
+	"attestation",
 	"authorization-grant",
 	"authorization-header",
 	"connection-payload",
 	"discovery-query-envelope",
+	"evidence-refusal",
 	"first-contact-transcript",
 	"handshake-message",
 	"inclusion-receipt",

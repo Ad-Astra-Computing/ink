@@ -32,6 +32,8 @@ import {
   hexToBytes,
   verifyDiscoveryQueryEnvelope,
   verifyAuthorizationGrant,
+  verifyAttestation,
+  parseEvidenceRefusal,
   verifyAuthorizationChain,
   verifyAuthorizationChallenge,
   deriveChallengeGrantId,
@@ -178,6 +180,33 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         maxLifetimeMs,
       });
       return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
+    }
+    case "attestation": {
+      const { attestation, attestationRaw, issuerPublicKeyHex, now } = input as {
+        attestation?: unknown;
+        attestationRaw?: string;
+        issuerPublicKeyHex: string;
+        now: string;
+      };
+      // Raw bytes in, same as the grant: raw-gate cases carry the exact wire
+      // text, every other case serializes the value the way a presenter would.
+      const attBody = new TextEncoder().encode(attestationRaw ?? JSON.stringify(attestation));
+      const result = await verifyAttestation(attBody, hexToBytes(issuerPublicKeyHex), { now });
+      return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
+    }
+    case "agent-card-evidence": {
+      // A case with an agentId exercises card-proof coverage of the evidence
+      // members through the card-signature verifier; a case without one pins
+      // clockless shape validation of attestations and evidencePolicy.
+      if (input.agentId !== undefined) {
+        const { card, agentId, options } = input as { card: AgentCard; agentId: string; options: AgentCardVerifyOptions };
+        const r = await verifyAgentCardSignature(card, agentId, options);
+        return { result: r.rejected ? "reject" : "accept", reason: r.reason };
+      }
+      return { result: AgentCardSchema.safeParse(input.card).success ? "accept" : "reject" };
+    }
+    case "evidence-refusal": {
+      return { result: parseEvidenceRefusal(input.refusal).ok ? "accept" : "reject" };
     }
     case "authorization-chain": {
       const {

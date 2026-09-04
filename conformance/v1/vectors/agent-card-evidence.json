@@ -1,0 +1,1207 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "agent-card-evidence",
+  "cases": [
+    {
+      "caseId": "card-with-attestation-accepts",
+      "description": "A card carrying one well-formed attestation validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "card-with-evidence-policy-accepts",
+      "description": "A card carrying required and preferred claim-type sets validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": {
+            "required": [
+              "example.owner.verified_human"
+            ],
+            "preferred": [
+              "example.history.clean"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "expired-attestation-on-card-accepts",
+      "description": "A card carrying a stale but well-formed attestation validates: card validation has no clock, and expiry is a verify-time decision against the presented window.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.history.clean",
+              "claim": {},
+              "attestationId": "conformance-card-att-00002",
+              "issuedAt": "2024-01-01T00:00:00.000Z",
+              "expiresAt": "2025-01-01T00:00:00.000Z",
+              "signature": "FQ1VQoTzN794b5StDeXiaijlR5lT1V8AoLHLH9EDJAACyeKyiByuuf86_KxAp2-0K5yuklGJT1VjqkjBFopsDg"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "evidence-policy-unknown-member-accepts",
+      "description": "An unknown member inside evidencePolicy is tolerated; it carries no meaning but is preserved to the card proof.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": {
+            "required": [
+              "example.owner.verified_human"
+            ],
+            "preferred": [
+              "example.history.clean"
+            ],
+            "futureBranch": [
+              "x"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "sixteen-attestations-accepts",
+      "description": "Sixteen entries sit exactly at the array cap.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "empty-attestations-array-rejects",
+      "description": "An attestations member with zero entries is out of profile; absence is expressed by omitting the member.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "seventeen-attestations-rejects",
+      "description": "Seventeen entries exceed the array cap.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            },
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "attestations-not-array-rejects",
+      "description": "An attestations member that is not an array rejects.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": {
+            "protocol": "ink/0.1",
+            "type": "network.ink.attestation",
+            "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+            "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+            "claimType": "example.owner.verified_human",
+            "claim": {
+              "method": "in_person"
+            },
+            "attestationId": "conformance-card-att-00001",
+            "issuedAt": "2026-08-01T00:00:00.000Z",
+            "expiresAt": "2027-08-01T00:00:00.000Z",
+            "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "legacy-spelling-entry-rejects",
+      "description": "An entry typed network.tulpa.attestation rejects; the attestation is single-spelling by design.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.tulpa.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "inverted-window-entry-rejects",
+      "description": "An entry whose expiresAt is not strictly after issuedAt is malformed even on a card.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2026-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "malformed-signature-entry-rejects",
+      "description": "An entry whose signature is not 86 base64url characters rejects structurally.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PC+"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "unknown-member-entry-rejects",
+      "description": "An entry carrying an unknown member rejects; the attestation object is strict everywhere it appears.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ",
+              "extra": 1
+            }
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "duplicate-required-claim-types-rejects",
+      "description": "A required set repeating a claim type rejects; the set is distinct by shape.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": {
+            "required": [
+              "example.a.b",
+              "example.a.b"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "policy-claim-type-grammar-rejects",
+      "description": "A preferred entry outside the lowercase dotted grammar rejects.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": {
+            "preferred": [
+              "NoDots"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "empty-required-set-rejects",
+      "description": "An empty required set is out of profile; a receiver with no requirements omits the member.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": {
+            "required": []
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "thirty-three-required-types-rejects",
+      "description": "Thirty-three required types exceed the set cap.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": {
+            "required": [
+              "example.claim.t0",
+              "example.claim.t1",
+              "example.claim.t2",
+              "example.claim.t3",
+              "example.claim.t4",
+              "example.claim.t5",
+              "example.claim.t6",
+              "example.claim.t7",
+              "example.claim.t8",
+              "example.claim.t9",
+              "example.claim.t10",
+              "example.claim.t11",
+              "example.claim.t12",
+              "example.claim.t13",
+              "example.claim.t14",
+              "example.claim.t15",
+              "example.claim.t16",
+              "example.claim.t17",
+              "example.claim.t18",
+              "example.claim.t19",
+              "example.claim.t20",
+              "example.claim.t21",
+              "example.claim.t22",
+              "example.claim.t23",
+              "example.claim.t24",
+              "example.claim.t25",
+              "example.claim.t26",
+              "example.claim.t27",
+              "example.claim.t28",
+              "example.claim.t29",
+              "example.claim.t30",
+              "example.claim.t31",
+              "example.claim.t32"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "evidence-policy-non-object-rejects",
+      "description": "An evidencePolicy that is not an object rejects.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "evidencePolicy": [
+            "example.a.b"
+          ]
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "signed-evidence-card-accepts",
+      "description": "A signed card carrying attestations, an evidencePolicy and an unknown top-level member authenticates: the proof is computed over the whole fetched document minus cardSignature, so a validator that strips any of them before recomputing rejects this authentic card.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "in_person"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ],
+          "evidencePolicy": {
+            "required": [
+              "example.owner.verified_human"
+            ],
+            "preferred": [
+              "example.history.clean"
+            ]
+          },
+          "extUnknown": "kept",
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "W_lyOjBcGO7k_0QTTAWjUO1LE3SzvNL-jdB7ju7OSOQzk_b8nvwgTsRHOAiLfPOP4SI2yLTmeceueE84oGBcAQ"
+          }
+        },
+        "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "accept",
+        "reason": "signed_authenticated"
+      }
+    },
+    {
+      "caseId": "signed-evidence-card-mutated-rejects",
+      "description": "The same signed card with one carried attestation's claim payload mutated after signing no longer verifies: carried evidence is inside the card proof, not alongside it.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "handle": "evidence-agent",
+          "displayName": "Evidence Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "attestations": [
+            {
+              "protocol": "ink/0.1",
+              "type": "network.ink.attestation",
+              "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+              "subject": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+              "claimType": "example.owner.verified_human",
+              "claim": {
+                "method": "forged"
+              },
+              "attestationId": "conformance-card-att-00001",
+              "issuedAt": "2026-08-01T00:00:00.000Z",
+              "expiresAt": "2027-08-01T00:00:00.000Z",
+              "signature": "iiKovn2BWkTwF51HImV78CI4YJiSNnG1qTPstzG2iYZsd5MVle65DkonKhKwFu4Lh045cJC9xBAfBd85fK7PCQ"
+            }
+          ],
+          "evidencePolicy": {
+            "required": [
+              "example.owner.verified_human"
+            ],
+            "preferred": [
+              "example.history.clean"
+            ]
+          },
+          "extUnknown": "kept",
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "W_lyOjBcGO7k_0QTTAWjUO1LE3SzvNL-jdB7ju7OSOQzk_b8nvwgTsRHOAiLfPOP4SI2yLTmeceueE84oGBcAQ"
+          }
+        },
+        "agentId": "tulpa:z6MktojHN9D8obak7C9wjpTzCRrdE5zC6cxt5ANUFnQskgbs",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_signature"
+      }
+    }
+  ]
+}
