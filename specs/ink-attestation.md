@@ -158,8 +158,17 @@ the reason is evidence, the refusal is structured:
 
 The refusal names types, never issuers: which issuers a receiver believes is
 policy it is free to keep private, and naming them would invite issuer
-enumeration. A sender that can obtain a named attestation retries with it; how
-attestations travel with a message is the presentation binding below.
+enumeration. That privacy has a cost the sender must be able to terminate on:
+a presented attestation of a listed type that the receiver does not credit —
+untrusted issuer, discounted window, unconvincing claim payload — leaves the
+type in `requiredClaimTypes`, and the refusal is indistinguishable from the
+type never having been presented. So the termination rule is the sender's: a
+sender that receives the same claim type in `requiredClaimTypes` after
+presenting a verified attestation of that type MUST conclude that its evidence
+was not credited, MUST NOT retry with the same attestation, and either obtains
+the type from a different issuer or stops. A sender that can obtain a named
+attestation retries with it; how attestations travel with a message is the
+presentation binding below.
 
 Receivers SHOULD prefer sandboxing to refusal where their product allows it:
 accept the message, hold it out of privileged flows and say so. The early
@@ -175,6 +184,14 @@ optional top-level member:
 
 - `attestations`: an array of 1 to 16 attestation objects, each independently
   verifiable under this specification.
+
+The standalone 65536-byte attestation cap does not compose across the array:
+the card itself is fetched under the 65536-byte body cap of
+[`ink-agent-card-discovery-fetch.md`](ink-agent-card-discovery-fetch.md), so
+every carried attestation shares that one budget with the rest of the card.
+The practical consequence is intended: card-carried attestations are small,
+and a claim whose payload wants serious size belongs in an out-of-band
+artifact the claim payload references, not inline.
 
 The card is the right carrier because it is already the sender's public,
 signed, cacheable self-description, and because attestations are statements
