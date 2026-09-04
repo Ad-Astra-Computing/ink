@@ -12,9 +12,43 @@ import (
 // witness response verifier runs on every event, because Merkle inclusion alone
 // does not prove an agent produced the event (INK Auditability §7.5).
 func VerifyAuditEventSignature(event map[string]interface{}, publicKey []byte) bool {
+	return verifyAuditEventSignatureWith(event, fixedKey(publicKey)).Verified
+}
+
+// VerifyAuditEventSignatureWithKeys verifies an audit event's agentSignature
+// against a rotation-aware candidate key set (spec §6.2/§12.1: historical
+// audit events verify against a retired key still inside its validity
+// window; a revoked key never verifies, even for events predating its
+// revocation).
+//
+// The artifact clock is the event's own "timestamp" field, parsed with the
+// shared strict RFC 3339 grammar; a missing, non-string, or unparseable
+// timestamp fails closed. When hintKeyID is empty, the event's own
+// "signingKeyId" (when present and a string) is used as the hint.
+func VerifyAuditEventSignatureWithKeys(event map[string]interface{}, keys []CandidateKey, hintKeyID string) MultiKeyResult {
+	if hintKeyID == "" {
+		if sk, ok := event["signingKeyId"].(string); ok {
+			hintKeyID = sk
+		}
+	}
+	return verifyAuditEventSignatureWith(event, candidateKeys(keys, hintKeyID))
+}
+
+func verifyAuditEventSignatureWith(event map[string]interface{}, s signerStrategy) MultiKeyResult {
 	sig, ok := event["agentSignature"].(string)
 	if !ok || !signatureRe.MatchString(sig) {
-		return false
+		return MultiKeyResult{}
+	}
+	var artifactMs int64
+	if s.needsClock {
+		ts, ok := event["timestamp"].(string)
+		if !ok {
+			return MultiKeyResult{}
+		}
+		artifactMs, ok = ParseInkTimestampMs(ts)
+		if !ok {
+			return MultiKeyResult{}
+		}
 	}
 	filtered := make(map[string]interface{}, len(event))
 	for k, v := range event {
@@ -24,22 +58,21 @@ func VerifyAuditEventSignature(event map[string]interface{}, publicKey []byte) b
 		filtered[k] = v
 	}
 	if !isWithinCanonicalizeBounds(filtered) {
-		return false
+		return MultiKeyResult{}
 	}
 	canonical, err := canonicalizeJSON(filtered)
 	if err != nil {
-		return false
+		return MultiKeyResult{}
 	}
 	prefixed := "ink/audit-event\n" + canonical
 	if len(prefixed) > maxCanonicalBodyBytes {
-		return false
+		return MultiKeyResult{}
 	}
 	sigBytes, err := base64.RawURLEncoding.DecodeString(sig)
 	if err != nil {
-		return false
+		return MultiKeyResult{}
 	}
-	if len(publicKey) != ed25519.PublicKeySize || !isStrongEd25519PublicKey(publicKey) {
-		return false
-	}
-	return ed25519.Verify(ed25519.PublicKey(publicKey), []byte(prefixed), sigBytes)
+	return s.verify(func(pub []byte) bool {
+		return ed25519.Verify(ed25519.PublicKey(pub), []byte(prefixed), sigBytes)
+	}, artifactMs)
 }

@@ -551,3 +551,146 @@ func ValidateAgentCard(m map[string]interface{}) bool {
 	}
 	return true
 }
+
+// maxParseKeys caps the number of signing-key entries ExtractCandidateKeys
+// decodes from an Agent Card, mirroring the reference MAX_PARSE_KEYS. Base58
+// decode on a poisoned card with thousands of entries would otherwise burn
+// CPU even though only the first maxCandidateKeys are ever tried at
+// verification time.
+const maxParseKeys = 20
+
+// acceptWindowField mirrors the reference extractCandidateKeys `accept`
+// closure: an absent field is fine (returns the zero OptionalTimestamp and
+// ok=true); a present field that is not a well-formed strict RFC 3339
+// timestamp string is suspicious enough that the WHOLE entry is skipped
+// (ok=false), not just the field, so a card can't "blank out" an expiry.
+func acceptWindowField(entry map[string]interface{}, key string) (OptionalTimestamp, bool) {
+	v, present := entry[key]
+	if !present {
+		return OptionalTimestamp{}, true
+	}
+	s, ok := v.(string)
+	if !ok || !isStrictInkTimestamp(s) {
+		return OptionalTimestamp{}, false
+	}
+	return Timestamp(s), true
+}
+
+// ExtractCandidateKeys extracts candidate signing keys from an Agent Card,
+// mirroring the reference extractCandidateKeys (src/discovery/agent-card.ts)
+// exactly.
+//
+// Authority rule: presence of keys.signing (even when empty) is
+// authoritative. Callers MUST treat the returned set as the complete list of
+// acceptable signers, including the empty set, which means "key set
+// published, no usable keys" and forbids any legacy bootstrap fallback.
+//
+//   - keys.signing absent  -> fall back to legacy publicKeyMultibase
+//   - keys.signing: []     -> return [] (authoritative empty)
+//   - keys.signing: [k..]  -> parse each entry independently; malformed
+//     entries are skipped so a single bad entry cannot collapse the whole
+//     set to "legacy" and let a rotated-away bootstrap key pass.
+//
+// Unlike the reference, which is typed over an already validated card, this
+// function accepts the raw decoded map, so each entry must also satisfy the
+// key-entry schema (keyId, algorithm Ed25519, status, strict validFrom) to be
+// returned.
+func ExtractCandidateKeys(card map[string]interface{}) []CandidateKey {
+	out := []CandidateKey{}
+	if card == nil {
+		return out
+	}
+
+	// card.keys?.signing: a missing `keys` object, or a `keys` that is not
+	// an object, or an object with no `signing` member all read as "signing
+	// absent" (undefined), matching the reference's optional-chaining
+	// semantics, which never throws on a non-object intermediate.
+	var signingVal interface{}
+	signingPresent := false
+	if keysVal, ok := card["keys"]; ok {
+		if keysObj, ok := keysVal.(map[string]interface{}); ok {
+			signingVal, signingPresent = keysObj["signing"]
+		}
+	}
+
+	if signingPresent {
+		// Runtime type guard: a malformed card where `signing` is an
+		// object/string would otherwise be untyped in Go too: present but
+		// not a JSON array reads as authoritative empty.
+		arr, ok := signingVal.([]interface{})
+		if !ok {
+			return out
+		}
+		limited := arr
+		if len(limited) > maxParseKeys {
+			limited = limited[:maxParseKeys]
+		}
+		for _, rawEntry := range limited {
+			entry, ok := rawEntry.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			// The reference extractor receives a card that already passed
+			// AgentCardSchema, so every entry it sees satisfies KeyEntrySchema.
+			// This function takes the raw decoded map, so it applies the same
+			// entry schema itself: an entry missing a required field (for
+			// example validFrom, which would otherwise read as an unbounded
+			// window) is skipped, never admitted.
+			if !validateKeyEntry(entry, "signing") {
+				continue
+			}
+			keyID, ok := entry["keyId"].(string)
+			if !ok {
+				continue
+			}
+			pkmb, ok := entry["publicKeyMultibase"].(string)
+			if !ok {
+				continue
+			}
+			status, ok := entry["status"].(string)
+			if !ok || !inEnum(status, "active", "retired", "revoked") {
+				continue
+			}
+			validFrom, ok := acceptWindowField(entry, "validFrom")
+			if !ok {
+				continue
+			}
+			validUntil, ok := acceptWindowField(entry, "validUntil")
+			if !ok {
+				continue
+			}
+			revokedAt, ok := acceptWindowField(entry, "revokedAt")
+			if !ok {
+				continue
+			}
+			pub, err := DecodePublicKeyMultibase(pkmb)
+			if err != nil {
+				// Skip malformed entry; do not collapse the whole set to legacy.
+				continue
+			}
+			out = append(out, CandidateKey{
+				KeyID:      keyID,
+				PublicKey:  pub,
+				Status:     status,
+				ValidFrom:  validFrom,
+				ValidUntil: validUntil,
+				RevokedAt:  revokedAt,
+			})
+		}
+		return out
+	}
+
+	// Legacy card (no keys.signing block at all): single key. A malformed
+	// legacy publicKeyMultibase returns [] rather than a decode error,
+	// because the card itself was observed and [] is the correct "no usable
+	// keys" signal; callers must not fall back to bootstrap.
+	pkmb, ok := card["publicKeyMultibase"].(string)
+	if !ok {
+		return out
+	}
+	pub, err := DecodePublicKeyMultibase(pkmb)
+	if err != nil {
+		return out
+	}
+	return append(out, CandidateKey{KeyID: "legacy", PublicKey: pub, Status: "active"})
+}

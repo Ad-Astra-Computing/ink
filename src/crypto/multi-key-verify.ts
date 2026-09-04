@@ -37,7 +37,7 @@ const MAX_CANDIDATE_KEYS = 20;
  *   - Window strings that are not strict RFC 3339 timestamps (parseInkTimestampMs
  *     returns null) also fail closed for the same reason.
  */
-function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
+export function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
   // Any field that is PRESENT but not a non-empty parseable datetime
   // string is treated as malformed and fails closed. "Present" means
   // !== undefined, so a `null`, number, object, or empty string here
@@ -68,7 +68,11 @@ function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
 }
 
 /**
- * Verify an INK signature against a set of candidate keys.
+ * Verify a detached signature against a set of candidate keys. This is the
+ * artifact-agnostic policy primitive behind every `...WithKeys` verifier in
+ * this package: it knows nothing about the artifact's shape, only the
+ * rotation rules that govern which key is allowed to have produced the
+ * signature over it.
  *
  * Verification order per spec §6.4:
  *   1. Hinted key (if provided and found) — optimization for keyId header
@@ -77,36 +81,26 @@ function isKeyValidAtTime(key: CandidateKey, messageMs: number): boolean {
  *   4. Revoked keys are always skipped
  *
  * In all three cases the key's `[validFrom, validUntil]` window MUST
- * contain the message timestamp. A key that has expired (validUntil in
+ * contain the artifact timestamp. A key that has expired (validUntil in
  * the past) or is not yet valid (validFrom in the future) is skipped
  * even if its status would otherwise admit it. This closes the window
- * where an attacker who steals an expired key — even one still listed
- * as "retired" for historical verification — could sign fresh messages.
+ * where an attacker who steals an expired key, even one still listed
+ * as "retired" for historical verification, could sign fresh artifacts.
  *
- * Returns the matching keyId and keyStatus on success.
+ * `verifyWithKey` is supplied by the caller and closes over the specific
+ * artifact and signature; it need only answer "does this raw public key
+ * verify the artifact". Returns the matching keyId and keyStatus on success.
  */
-export async function verifyInkSignatureWithKeys(
-  input: InkSignInput,
-  signature: string,
+export async function verifyDetachedSignatureWithKeys(
+  verifyWithKey: (publicKey: Uint8Array) => Promise<boolean>,
   keys: CandidateKey[],
+  artifactMs: number,
   hintKeyId?: string,
 ): Promise<MultiKeyVerifyResult> {
-  if (input === null || typeof input !== "object" || Array.isArray(input)) {
-    return { verified: false };
-  }
   if (!Array.isArray(keys) || keys.length === 0) {
     return { verified: false };
   }
-  if (typeof signature !== "string") {
-    return { verified: false };
-  }
-
-  // Parse the message timestamp once so window checks are O(1) per key.
-  // parseInkTimestampMs caps length and applies the strict RFC 3339 grammar, so
-  // a non-string, empty, oversized, or non-conforming timestamp all fail closed
-  // here even though verifyInkAuth already guards upstream.
-  const messageMs = parseInkTimestampMs(input.timestamp);
-  if (messageMs === null) {
+  if (typeof artifactMs !== "number" || !Number.isFinite(artifactMs)) {
     return { verified: false };
   }
 
@@ -123,9 +117,9 @@ export async function verifyInkSignatureWithKeys(
     const hinted = bounded.find(
       (k) => k.keyId === hintKeyId && (k.status === "active" || k.status === "retired"),
     );
-    if (hinted && isKeyValidAtTime(hinted, messageMs)) {
+    if (hinted && isKeyValidAtTime(hinted, artifactMs)) {
       try {
-        const valid = await verifyInkSignature(input, signature, hinted.publicKey);
+        const valid = await verifyWithKey(hinted.publicKey);
         if (valid) return { verified: true, keyId: hinted.keyId, keyStatus: hinted.status, usedRetiredKey: hinted.status === "retired" };
       } catch {
         // Fall through to normal iteration
@@ -135,16 +129,16 @@ export async function verifyInkSignatureWithKeys(
 
   // Partition by status: active first, then retired. Skip revoked.
   // Drop any candidate whose validity window doesn't contain the
-  // message timestamp before reaching the verify loop.
-  const active = bounded.filter((k) => k.status === "active" && isKeyValidAtTime(k, messageMs));
-  const retired = bounded.filter((k) => k.status === "retired" && isKeyValidAtTime(k, messageMs));
+  // artifact timestamp before reaching the verify loop.
+  const active = bounded.filter((k) => k.status === "active" && isKeyValidAtTime(k, artifactMs));
+  const retired = bounded.filter((k) => k.status === "retired" && isKeyValidAtTime(k, artifactMs));
 
   // Try active keys first
   for (const key of active) {
     // Skip if already tried as hint
     if (hintKeyId && key.keyId === hintKeyId) continue;
     try {
-      const valid = await verifyInkSignature(input, signature, key.publicKey);
+      const valid = await verifyWithKey(key.publicKey);
       if (valid) return { verified: true, keyId: key.keyId, keyStatus: key.status, usedRetiredKey: false };
     } catch {
       // Key failed verification, try next
@@ -155,7 +149,7 @@ export async function verifyInkSignatureWithKeys(
   for (const key of retired) {
     if (hintKeyId && key.keyId === hintKeyId) continue;
     try {
-      const valid = await verifyInkSignature(input, signature, key.publicKey);
+      const valid = await verifyWithKey(key.publicKey);
       if (valid) return { verified: true, keyId: key.keyId, keyStatus: key.status, usedRetiredKey: true };
     } catch {
       // Key failed verification, try next
@@ -163,4 +157,42 @@ export async function verifyInkSignatureWithKeys(
   }
 
   return { verified: false };
+}
+
+/**
+ * Verify an INK signature against a set of candidate keys. Thin wrapper
+ * over `verifyDetachedSignatureWithKeys`: parses `input.timestamp` into
+ * the artifact clock and closes over `verifyInkSignature` for the actual
+ * cryptographic check. The rotation policy itself lives in exactly one
+ * place, `verifyDetachedSignatureWithKeys`, so this function must not
+ * grow its own copy of the ordering/window logic.
+ */
+export async function verifyInkSignatureWithKeys(
+  input: InkSignInput,
+  signature: string,
+  keys: CandidateKey[],
+  hintKeyId?: string,
+): Promise<MultiKeyVerifyResult> {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
+    return { verified: false };
+  }
+  if (typeof signature !== "string") {
+    return { verified: false };
+  }
+
+  // Parse the message timestamp once so window checks are O(1) per key.
+  // parseInkTimestampMs caps length and applies the strict RFC 3339 grammar, so
+  // a non-string, empty, oversized, or non-conforming timestamp all fail closed
+  // here even though verifyInkAuth already guards upstream.
+  const messageMs = parseInkTimestampMs(input.timestamp);
+  if (messageMs === null) {
+    return { verified: false };
+  }
+
+  return verifyDetachedSignatureWithKeys(
+    (publicKey) => verifyInkSignature(input, signature, publicKey),
+    keys,
+    messageMs,
+    hintKeyId,
+  );
 }

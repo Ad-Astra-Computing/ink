@@ -5,6 +5,8 @@ import { isJcsSafeNumber } from "./sign.js";
 import { parseInkTimestampMs } from "./timestamp.js";
 import { hasUnpairedSurrogate } from "./surrogate.js";
 import { hasUnsafeObjectKey } from "./member-name.js";
+import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "./multi-key-verify.js";
+import type { CandidateKey } from "../models/key-entry.js";
 
 // ── Encoding helpers ──
 
@@ -861,6 +863,41 @@ export async function verifyAuditEventSignature(
 }
 
 /**
+ * Verify an INK audit event signature against a rotation-aware candidate key
+ * set (spec §6.2/§12.1: historical audit events verify against a retired key
+ * still inside its validity window; a revoked key never verifies, even for
+ * events predating its revocation).
+ *
+ * The artifact clock is the event's own `timestamp` field, parsed with the
+ * shared strict RFC 3339 grammar; a missing, non-string, or unparseable
+ * timestamp fails closed. When `opts.hintKeyId` is not given, the event's own
+ * `signingKeyId` (when present) is used as the hint: the event already
+ * carries the keyId the signer used, so trying it first avoids an O(n)
+ * trial-verify across the candidate set.
+ */
+export async function verifyAuditEventSignatureWithKeys(
+  event: Record<string, unknown>,
+  keys: CandidateKey[],
+  opts?: { hintKeyId?: string },
+): Promise<MultiKeyVerifyResult> {
+  if (event === null || typeof event !== "object" || Array.isArray(event)) {
+    return { verified: false };
+  }
+  const artifactMs = parseInkTimestampMs(event.timestamp);
+  if (artifactMs === null) {
+    return { verified: false };
+  }
+  const hintKeyId =
+    opts?.hintKeyId ?? (typeof event.signingKeyId === "string" ? event.signingKeyId : undefined);
+  return verifyDetachedSignatureWithKeys(
+    (publicKey) => verifyAuditEventSignature(event, publicKey),
+    keys,
+    artifactMs,
+    hintKeyId,
+  );
+}
+
+/**
  * Compute the RFC 6962 Merkle leaf hash for an INK audit event:
  *
  *   SHA-256(0x00 || JCS(event-without-agentSignature))
@@ -973,6 +1010,32 @@ export async function verifyAuditResponseSignature(
   } catch {
     return false;
   }
+}
+
+/**
+ * Verify an INK audit response signature against a rotation-aware candidate
+ * key set (spec §6.2/§12.1). Unlike a single audit event, the `events` array
+ * carries no intrinsic timestamp of its own: the response is a bundle over
+ * events that may span an arbitrary time range, so the caller MUST supply
+ * `artifactMs` explicitly (the response's own send/receive time, or the
+ * caller's best evidence of when the response was produced). A non-finite
+ * `artifactMs` fails closed.
+ */
+export async function verifyAuditResponseSignatureWithKeys(
+  events: unknown[],
+  signature: string,
+  keys: CandidateKey[],
+  artifactMs: number,
+  opts?: { hintKeyId?: string },
+): Promise<MultiKeyVerifyResult> {
+  if (!Array.isArray(events)) return { verified: false };
+  if (typeof signature !== "string") return { verified: false };
+  return verifyDetachedSignatureWithKeys(
+    (publicKey) => verifyAuditResponseSignature(events, signature, publicKey),
+    keys,
+    artifactMs,
+    opts?.hintKeyId,
+  );
 }
 
 /**
@@ -1145,6 +1208,45 @@ export async function verifyAuditQueryResponseSignature(
   } catch {
     return false;
   }
+}
+
+/**
+ * Verify the Ed25519 signature on an audit-query response against a
+ * rotation-aware candidate key set (spec §6.2/§12.2: witness query
+ * verification MUST use the same rotation-aware signing-key lookup rules as
+ * other INK transport verification).
+ *
+ * The envelope's own `timestamp` field is the artifact clock: a witness
+ * query response is a single signed snapshot, not a bundle spanning
+ * multiple events, so unlike `verifyAuditResponseSignatureWithKeys`,
+ * it carries an intrinsic strict timestamp the caller need not supply.
+ * A missing, non-string, or unparseable `timestamp` fails closed.
+ *
+ * This is the LOW-LEVEL primitive; see `verifyAuditQueryResponse` (from
+ * `src/audit/inclusion-receipt.ts`) for the full §7.3 envelope verification.
+ */
+export async function verifyAuditQueryResponseSignatureWithKeys(
+  responseWithoutSignature: Record<string, unknown>,
+  signature: string,
+  keys: CandidateKey[],
+  opts?: { hintKeyId?: string },
+): Promise<MultiKeyVerifyResult> {
+  if (
+    responseWithoutSignature === null ||
+    typeof responseWithoutSignature !== "object" ||
+    Array.isArray(responseWithoutSignature)
+  ) {
+    return { verified: false };
+  }
+  if (typeof signature !== "string") return { verified: false };
+  const artifactMs = parseInkTimestampMs(responseWithoutSignature.timestamp);
+  if (artifactMs === null) return { verified: false };
+  return verifyDetachedSignatureWithKeys(
+    (publicKey) => verifyAuditQueryResponseSignature(responseWithoutSignature, signature, publicKey),
+    keys,
+    artifactMs,
+    opts?.hintKeyId,
+  );
 }
 
 // Re-export encoding helpers for test use

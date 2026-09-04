@@ -1,7 +1,10 @@
 import { computeMessageHash, signInkMessage, buildAuthHeader } from "../crypto/ink.js";
 import { signMessage, verifyMessage } from "../crypto/sign.js";
+import { parseInkTimestampMs } from "../crypto/timestamp.js";
+import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "../crypto/multi-key-verify.js";
 import { isPrivateHostname } from "../discovery/agent-card.js";
 import { InkReceiptSchema, type InkReceipt } from "../models/ink-audit.js";
+import type { CandidateKey } from "../models/key-entry.js";
 import { wireTypeAliases } from "../models/wire-type.js";
 
 export interface BuildReceiptInput {
@@ -52,6 +55,59 @@ export interface VerifyReceiptResult {
 }
 
 /**
+ * Shared bindings check for an INK receipt: schema parse, `from`/`to`/
+ * `messageId`/disposition, and the `messageHash` recomputation, followed by
+ * a signature step delegated to `verifySignature`. `verifyReceipt` and
+ * `verifyReceiptWithKeys` differ only in how that signature is checked (and,
+ * for `verifyReceipt`, one extra public-key shape guard run via
+ * `postParseGuard`), so both delegate here.
+ */
+async function verifyReceiptCore(
+  receipt: unknown,
+  expected: {
+    from: string;
+    to: string;
+    messageId: string;
+    messageBody: Record<string, unknown>;
+    disposition?: InkReceipt["disposition"];
+  },
+  verifySignature: (
+    parsedReceipt: InkReceipt,
+  ) => Promise<MultiKeyVerifyResult & { reason?: string }>,
+  postParseGuard?: () => string | null,
+): Promise<VerifyReceiptWithKeysResult> {
+  const parsed = InkReceiptSchema.safeParse(receipt);
+  if (!parsed.success) return { valid: false, reason: "malformed_receipt" };
+  const parsedReceipt = parsed.data;
+
+  if (postParseGuard) {
+    const reason = postParseGuard();
+    if (reason !== null) return { valid: false, reason };
+  }
+
+  if (parsedReceipt.from !== expected.from) return { valid: false, reason: "from_mismatch" };
+  if (parsedReceipt.to !== expected.to) return { valid: false, reason: "to_mismatch" };
+  if (parsedReceipt.messageId !== expected.messageId) return { valid: false, reason: "message_id_mismatch" };
+  if (expected.disposition !== undefined && parsedReceipt.disposition !== expected.disposition) {
+    return { valid: false, reason: "disposition_mismatch" };
+  }
+  let expectedHash: string;
+  try {
+    expectedHash = await computeMessageHash(expected.messageBody);
+  } catch {
+    return { valid: false, reason: "message_hash_error" };
+  }
+  if (parsedReceipt.messageHash !== expectedHash) return { valid: false, reason: "message_hash_mismatch" };
+
+  const result = await verifySignature(parsedReceipt);
+  if (!result.verified) return { valid: false, reason: result.reason ?? "invalid_signature" };
+
+  return result.keyId !== undefined
+    ? { valid: true, keyId: result.keyId, keyStatus: result.keyStatus, usedRetiredKey: result.usedRetiredKey }
+    : { valid: true };
+}
+
+/**
  * Verify an INK receipt against the message it claims to acknowledge.
  *
  * Checks all the bindings a hand-rolled verifier commonly forgets: the
@@ -78,29 +134,61 @@ export async function verifyReceipt(opts: {
     disposition?: InkReceipt["disposition"];
   };
 }): Promise<VerifyReceiptResult> {
-  const parsed = InkReceiptSchema.safeParse(opts.receipt);
-  if (!parsed.success) return { valid: false, reason: "malformed_receipt" };
-  const receipt = parsed.data;
-  const { senderPublicKey, expected } = opts;
-  if (!(senderPublicKey instanceof Uint8Array) || senderPublicKey.length !== 32) {
-    return { valid: false, reason: "invalid_public_key" };
-  }
-  if (receipt.from !== expected.from) return { valid: false, reason: "from_mismatch" };
-  if (receipt.to !== expected.to) return { valid: false, reason: "to_mismatch" };
-  if (receipt.messageId !== expected.messageId) return { valid: false, reason: "message_id_mismatch" };
-  if (expected.disposition !== undefined && receipt.disposition !== expected.disposition) {
-    return { valid: false, reason: "disposition_mismatch" };
-  }
-  let expectedHash: string;
-  try {
-    expectedHash = await computeMessageHash(expected.messageBody);
-  } catch {
-    return { valid: false, reason: "message_hash_error" };
-  }
-  if (receipt.messageHash !== expectedHash) return { valid: false, reason: "message_hash_mismatch" };
-  const sigOk = await verifyMessage(receipt as unknown as Record<string, unknown>, senderPublicKey);
-  if (!sigOk) return { valid: false, reason: "invalid_signature" };
-  return { valid: true };
+  const { receipt, senderPublicKey, expected } = opts;
+  return verifyReceiptCore(
+    receipt,
+    expected,
+    async (parsedReceipt) => ({
+      verified: await verifyMessage(parsedReceipt as unknown as Record<string, unknown>, senderPublicKey),
+    }),
+    () =>
+      !(senderPublicKey instanceof Uint8Array) || senderPublicKey.length !== 32
+        ? "invalid_public_key"
+        : null,
+  );
+}
+
+export type VerifyReceiptWithKeysResult = VerifyReceiptResult & Partial<MultiKeyVerifyResult>;
+
+/**
+ * Verify an INK receipt against a rotation-aware candidate issuer key set
+ * (spec §6.2/§12.1: receipts verify against retired keys still inside their
+ * validity window; a revoked key never verifies, even for receipts
+ * predating its revocation).
+ *
+ * Checks every binding `verifyReceipt` checks, using the receipt's own
+ * `timestamp` field as the artifact clock for the rotation-aware key
+ * lookup. A missing, non-string, or unparseable timestamp fails closed
+ * before any candidate key is tried (the schema on `InkReceiptSchema`
+ * already requires a well-formed ISO 8601 string, but the check here does
+ * not assume that and re-parses independently). On success the result
+ * additionally carries `keyId`, `keyStatus`, and `usedRetiredKey`.
+ */
+export async function verifyReceiptWithKeys(opts: {
+  receipt: unknown;
+  /** Candidate signing keys for the receipt issuer (`from`). */
+  keys: CandidateKey[];
+  /** Optional keyId hint, e.g. from a signature header. */
+  hintKeyId?: string;
+  expected: {
+    from: string;
+    to: string;
+    messageId: string;
+    messageBody: Record<string, unknown>;
+    disposition?: InkReceipt["disposition"];
+  };
+}): Promise<VerifyReceiptWithKeysResult> {
+  const { receipt, keys, hintKeyId, expected } = opts;
+  return verifyReceiptCore(receipt, expected, async (parsedReceipt) => {
+    const artifactMs = parseInkTimestampMs(parsedReceipt.timestamp);
+    if (artifactMs === null) return { verified: false, reason: "invalid_timestamp" };
+    return verifyDetachedSignatureWithKeys(
+      (publicKey) => verifyMessage(parsedReceipt as unknown as Record<string, unknown>, publicKey),
+      keys,
+      artifactMs,
+      hintKeyId,
+    );
+  });
 }
 
 /** Loop prevention: don't send receipts for receipts or audit messages.

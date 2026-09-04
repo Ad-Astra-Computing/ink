@@ -241,6 +241,14 @@ func checkReceiptShape(r InclusionReceipt) bool {
 // timestamp}). The key must pass the same strong-key check the reference's
 // zip215:false verification applies.
 func verifyReceiptSignature(r InclusionReceipt, witnessPublicKey []byte) bool {
+	return verifyReceiptSignatureWith(r, fixedKey(witnessPublicKey), 0).Verified
+}
+
+// verifyReceiptSignatureWith builds the receipt's signed payload and
+// canonical bytes once and hands the signature check to the strategy.
+// artifactMs is the receipt's own clock, already parsed by the caller when
+// the strategy needs one.
+func verifyReceiptSignatureWith(r InclusionReceipt, s signerStrategy, artifactMs int64) MultiKeyResult {
 	payload := map[string]interface{}{
 		"eventId":   r.EventID,
 		"leafIndex": float64(r.LeafIndex),
@@ -250,7 +258,7 @@ func verifyReceiptSignature(r InclusionReceipt, witnessPublicKey []byte) bool {
 	}
 	canonical, err := canonicalizeJSON(payload)
 	if err != nil {
-		return false
+		return MultiKeyResult{}
 	}
 	// Post-canonicalize output cap, mirroring the reference verify path in
 	// src/audit/inclusion-receipt.ts: it builds the signature base with
@@ -265,20 +273,16 @@ func verifyReceiptSignature(r InclusionReceipt, witnessPublicKey []byte) bool {
 	// treated identically by both sides. Checked over the canonical output, not
 	// the version prefix, matching where the reference caps.
 	if utf16Len(canonical) > maxCanonicalBodyBytes {
-		return false
+		return MultiKeyResult{}
 	}
 	sigBase := "ink/audit-inclusion/v1\n" + canonical
 	sig, err := base64.RawURLEncoding.DecodeString(r.ServiceSignature)
 	if err != nil {
-		return false
+		return MultiKeyResult{}
 	}
-	if len(witnessPublicKey) != ed25519.PublicKeySize {
-		return false
-	}
-	if !isStrongEd25519PublicKey(witnessPublicKey) {
-		return false
-	}
-	return ed25519.Verify(ed25519.PublicKey(witnessPublicKey), []byte(sigBase), sig)
+	return s.verify(func(pub []byte) bool {
+		return ed25519.Verify(ed25519.PublicKey(pub), []byte(sigBase), sig)
+	}, artifactMs)
 }
 
 // VerifyInclusionReceipt verifies an INK inclusion receipt (INK Auditability §7).
@@ -287,11 +291,45 @@ func verifyReceiptSignature(r InclusionReceipt, witnessPublicKey []byte) bool {
 // cross-checks a later checkpoint (when LaterCheckpoint is given). It returns
 // false, never panics, on any failed step.
 func VerifyInclusionReceipt(receipt InclusionReceipt, witnessPublicKey []byte, opts ReceiptVerifyOptions) bool {
+	return verifyInclusionReceiptWith(receipt, fixedKey(witnessPublicKey), opts).Verified
+}
+
+// VerifyInclusionReceiptWithKeys verifies an INK inclusion receipt (INK
+// Auditability §7) against a rotation-aware candidate witness key set (spec
+// §6.2/§12.1/§12.3: a witness service MUST be able to verify submissions,
+// and by the same rule the receipts it issues for them, against a retired
+// key still inside its validity window; a revoked key never verifies, even
+// for a receipt predating its revocation).
+//
+// The artifact clock is the receipt's own Timestamp field (the moment the
+// witness committed the leaf), parsed with the shared strict RFC 3339
+// grammar; a missing or unparseable timestamp fails closed before any
+// candidate key is tried. Structure, the optional proof walk, and the
+// optional later-checkpoint cross-check are the same code path as
+// VerifyInclusionReceipt; only the signature step is rotation-aware. The
+// returned MultiKeyResult.Verified is the overall verdict: a false result
+// from any step (not just the signature) yields the zero MultiKeyResult,
+// matching the "no key attribution for a rejection" rule
+// VerifyInkSignatureForLiveAuth documents elsewhere in this package.
+func VerifyInclusionReceiptWithKeys(receipt InclusionReceipt, keys []CandidateKey, hintKeyID string, opts ReceiptVerifyOptions) MultiKeyResult {
+	return verifyInclusionReceiptWith(receipt, candidateKeys(keys, hintKeyID), opts)
+}
+
+func verifyInclusionReceiptWith(receipt InclusionReceipt, s signerStrategy, opts ReceiptVerifyOptions) MultiKeyResult {
 	if !checkReceiptShape(receipt) {
-		return false
+		return MultiKeyResult{}
 	}
-	if !verifyReceiptSignature(receipt, witnessPublicKey) {
-		return false
+	var artifactMs int64
+	if s.needsClock {
+		ms, ok := ParseInkTimestampMs(receipt.Timestamp)
+		if !ok {
+			return MultiKeyResult{}
+		}
+		artifactMs = ms
+	}
+	result := verifyReceiptSignatureWith(receipt, s, artifactMs)
+	if !result.Verified {
+		return MultiKeyResult{}
 	}
 
 	var leafHash string
@@ -299,33 +337,33 @@ func VerifyInclusionReceipt(receipt InclusionReceipt, witnessPublicKey []byte, o
 	if opts.Event != nil {
 		id, ok := opts.Event["id"].(string)
 		if !ok || id != receipt.EventID {
-			return false
+			return MultiKeyResult{}
 		}
 		h, ok := ComputeAuditMerkleLeafHash(opts.Event)
 		if !ok {
-			return false
+			return MultiKeyResult{}
 		}
 		leafHash, hasLeaf = h, true
 	} else if opts.EventHash != "" {
 		if !isMerkleHashHex(opts.EventHash) {
-			return false
+			return MultiKeyResult{}
 		}
 		leafHash, hasLeaf = opts.EventHash, true
 	}
 	if hasLeaf && !VerifyInclusionProof(leafHash, receipt.InclusionProof, receipt.LeafIndex, receipt.TreeSize, receipt.RootHash) {
-		return false
+		return MultiKeyResult{}
 	}
 
 	if cp := opts.LaterCheckpoint; cp != nil {
 		if cp.TreeSize < 0 || !isMerkleHashHex(cp.RootHash) {
-			return false
+			return MultiKeyResult{}
 		}
 		if cp.TreeSize < receipt.TreeSize {
-			return false
+			return MultiKeyResult{}
 		}
 		if cp.TreeSize == receipt.TreeSize && cp.RootHash != receipt.RootHash {
-			return false
+			return MultiKeyResult{}
 		}
 	}
-	return true
+	return result
 }
