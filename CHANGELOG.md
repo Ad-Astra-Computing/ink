@@ -34,6 +34,23 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   `ValidateEvidenceRefusal` in Go, and the `evidence-refusal` category (13
   vectors) pinning the code, the bounded distinct `requiredClaimTypes` set and
   forward-compatible tolerance of unknown members.
+- Historical artifacts verify under the key rotation rules of
+  `specs/ink-key-rotation-spec.md` §6.2 and §12, not only live transport
+  auth. Every detached-signature verifier gains a `...WithKeys` sibling that
+  takes the peer's candidate key set: audit events, audit responses,
+  audit-query responses, inclusion receipts, checkpoints, message receipts
+  and attestations in TypeScript, and the same surface minus message
+  receipts in Go. A retired key inside its validity window verifies an
+  artifact stamped in that window, a revoked key never verifies anything,
+  including artifacts that predate `revokedAt`, and a missing or malformed
+  artifact timestamp fails closed before any key is tried. The ordering and
+  window policy now lives in one place, `verifyDetachedSignatureWithKeys`
+  (`VerifyDetachedSignatureWithKeys` in Go), which the transport-auth
+  verifier delegates to as well. The single-key verifiers are unchanged.
+  Go also gains `ExtractCandidateKeys`, the card-to-key-set reader the
+  reference already had; because it reads the raw decoded card, it applies
+  the key-entry schema to each entry itself and skips any entry that fails
+  it.
 
 ## 0.19.0, a key must fit its role
 

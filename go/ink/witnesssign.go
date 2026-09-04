@@ -139,33 +139,56 @@ const (
 // and non-canonically encoded keys rejected). It returns ok=false, never panics,
 // on any malformed input or failed check.
 func VerifyCheckpoint(signed string, witnessPublicKey []byte, expectedOrigin string) (CheckpointData, bool) {
+	data, result := verifyCheckpointWith(signed, fixedKey(witnessPublicKey), expectedOrigin, 0)
+	return data, result.Verified
+}
+
+// VerifyCheckpointWithKeys verifies a signed checkpoint note against a
+// rotation-aware candidate witness key set (spec §6.2/§12.1/§12.3) and
+// returns its parsed body plus the key that verified it. A checkpoint note
+// carries no intrinsic timestamp of its own, since it commits only to
+// (origin, treeSize, rootHash), so the caller MUST supply artifactMs
+// explicitly: typically the time the checkpoint was fetched, or a timestamp
+// pinned out of band.
+//
+// Every other behavior is the same code path as VerifyCheckpoint, including
+// the origin-matching rule: the checkpoint body's own origin, and the origin
+// on the one signature line tried, must both equal expectedOrigin. Only that
+// origin-matching signature line's candidates are tried; a matching-origin
+// line that no candidate key verifies is fatal, with no fallback to a later
+// line.
+func VerifyCheckpointWithKeys(signed string, keys []CandidateKey, expectedOrigin string, artifactMs int64, hintKeyID string) (CheckpointData, MultiKeyResult) {
+	return verifyCheckpointWith(signed, candidateKeys(keys, hintKeyID), expectedOrigin, artifactMs)
+}
+
+func verifyCheckpointWith(signed string, s signerStrategy, expectedOrigin string, artifactMs int64) (CheckpointData, MultiKeyResult) {
 	// Reject invalid UTF-8 up front: a TS caller receives the checkpoint as a
 	// decoded string, so bytes a decoder would rewrite never reach its verifier.
 	// The size bound counts UTF-16 code units to match the reference (String
 	// length), not bytes.
 	if !utf8.Valid([]byte(signed)) {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	if n := utf16Len(signed); n == 0 || n > maxSignedCheckpointBody {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
-	if len(witnessPublicKey) != ed25519.PublicKeySize || !isStrongEd25519PublicKey(witnessPublicKey) {
-		return CheckpointData{}, false
+	if !s.keyOK() {
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	if expectedOrigin == "" || utf16Len(expectedOrigin) > maxCheckpointLine {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	idx := strings.Index(signed, checkpointSep)
 	if idx == -1 {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	body := signed[:idx]
 	data, ok := ParseCheckpoint(body + "\n")
 	if !ok {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	if data.Origin != expectedOrigin {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	// The signature block starts at the "-- " that began the separator.
 	sigBlock := signed[idx+2:]
@@ -176,17 +199,17 @@ func VerifyCheckpoint(signed string, witnessPublicKey []byte, expectedOrigin str
 		}
 	}
 	if len(sigLines) == 0 || len(sigLines) > maxCheckpointSignatures {
-		return CheckpointData{}, false
+		return CheckpointData{}, MultiKeyResult{}
 	}
 	bodyBytes := []byte(body)
 	for _, line := range sigLines {
 		if !strings.HasPrefix(line, "-- ") {
-			return CheckpointData{}, false
+			return CheckpointData{}, MultiKeyResult{}
 		}
 		rest := line[3:]
 		sp := strings.IndexByte(rest, ' ')
 		if sp == -1 {
-			return CheckpointData{}, false
+			return CheckpointData{}, MultiKeyResult{}
 		}
 		lineOrigin := rest[:sp]
 		sigB64 := rest[sp+1:]
@@ -195,12 +218,16 @@ func VerifyCheckpoint(signed string, witnessPublicKey []byte, expectedOrigin str
 		}
 		sig, err := base64.RawURLEncoding.DecodeString(sigB64)
 		if err != nil || len(sig) != ed25519.SignatureSize {
-			return CheckpointData{}, false
+			return CheckpointData{}, MultiKeyResult{}
 		}
-		if ed25519.Verify(ed25519.PublicKey(witnessPublicKey), bodyBytes, sig) {
-			return data, true
+		result := s.verify(func(pub []byte) bool {
+			return ed25519.Verify(ed25519.PublicKey(pub), bodyBytes, sig)
+		}, artifactMs)
+		if !result.Verified {
+			// A matching-origin signature that no key verifies is fatal.
+			return CheckpointData{}, MultiKeyResult{}
 		}
-		return CheckpointData{}, false
+		return data, result
 	}
-	return CheckpointData{}, false
+	return CheckpointData{}, MultiKeyResult{}
 }

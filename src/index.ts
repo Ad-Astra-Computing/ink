@@ -12,11 +12,14 @@ export {
   computeAuditMerkleLeafHash,
   signAuditEvent,
   verifyAuditEventSignature,
+  verifyAuditEventSignatureWithKeys,
   signAuditResponse,
   verifyAuditResponseSignature,
+  verifyAuditResponseSignatureWithKeys,
   verifyAuditEventChain,
   signAuditQueryResponse,
   verifyAuditQueryResponseSignature,
+  verifyAuditQueryResponseSignatureWithKeys,
   encryptInkPayload,
   decryptInkPayload,
   checkReplay,
@@ -40,7 +43,12 @@ export {
   ParseSignedBodyError,
 } from "./crypto/parse-signed-body.js";
 export type { ParseSignedBodyReason } from "./crypto/parse-signed-body.js";
-export { verifyInkSignatureWithKeys } from "./crypto/multi-key-verify.js";
+export {
+  verifyInkSignatureWithKeys,
+  verifyDetachedSignatureWithKeys,
+  isKeyValidAtTime,
+  type MultiKeyVerifyResult,
+} from "./crypto/multi-key-verify.js";
 export {
   generateKeypair,
   generateEncryptionKeypair,
@@ -76,11 +84,13 @@ export {
 // Audit: inclusion-receipt + audit-query-response verification
 export {
   verifyInclusionReceipt,
+  verifyInclusionReceiptWithKeys,
   verifyInclusionProof,
   verifyConsistencyProof,
   verifyAuditQueryResponse,
   type InclusionReceipt,
   type InclusionReceiptVerifyResult,
+  type InclusionReceiptVerifyWithKeysResult,
   type AuditQueryResponse,
   type AuditQueryResponseVerifyResult,
   type VerifyStep,
@@ -93,8 +103,10 @@ export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
 export {
   buildReceipt,
   verifyReceipt,
+  verifyReceiptWithKeys,
   shouldSendReceipt,
   sendReceiptFireAndForget,
+  type VerifyReceiptWithKeysResult,
 } from "./ink/receipts.js";
 
 // Transport-auth: token-level transport allowlist for extension tokens
@@ -115,8 +127,9 @@ export {
   parseCheckpoint,
   formatCheckpoint,
   verifyCheckpoint,
+  verifyCheckpointWithKeys,
 } from "./ink/checkpoint.js";
-export type { CheckpointData } from "./ink/checkpoint.js";
+export type { CheckpointData, CheckpointVerifyWithKeysResult } from "./ink/checkpoint.js";
 
 // Audit event schemas + types for receipts, query, inclusion proofs
 export {
@@ -293,6 +306,7 @@ export {
   EvidenceRefusalSchema,
   buildAttestation,
   verifyAttestation,
+  verifyAttestationWithKeys,
   parseEvidenceRefusal,
   MAX_ATTESTATION_BODY_BYTES,
 } from "./models/attestation.js";
@@ -301,6 +315,7 @@ export type {
   AttestationInput,
   AttestationVerifyContext,
   AttestationVerifyResult,
+  AttestationVerifyWithKeysResult,
   EvidencePolicy,
   EvidenceRefusal,
   EvidenceRefusalParseResult,

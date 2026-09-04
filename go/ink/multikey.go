@@ -1,6 +1,9 @@
 package ink
 
-import "encoding/json"
+import (
+	"crypto/ed25519"
+	"encoding/json"
+)
 
 const maxCandidateKeys = 20
 
@@ -121,28 +124,31 @@ func windowBoundMs(o OptionalTimestamp) (int64, bool) {
 	return ParseInkTimestampMs(o.Value)
 }
 
-// VerifyInkSignatureWithKeys verifies a signature against a candidate key set
-// under the rotation authority rule: a keyId hint is tried first if it names an
-// in-window active or retired key, then active keys, then retired; revoked keys
-// and keys outside their validity window are always skipped.
-func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []CandidateKey, hintKeyID string) MultiKeyResult {
-	if len(keys) == 0 || !signatureRe.MatchString(signature) {
-		return MultiKeyResult{}
-	}
-	msgMs, ok := ParseInkTimestampMs(in.Timestamp)
-	if !ok {
+// VerifyDetachedSignatureWithKeys verifies a detached artifact signature
+// against a candidate key set under the rotation authority rule: a keyId
+// hint is tried first if it names an in-window active or retired key, then
+// active keys, then retired; revoked keys and keys outside their validity
+// window are always skipped. This is the artifact-agnostic policy primitive
+// behind every per-artifact WithKeys verifier in this package: verifyWithKey
+// closes over the specific artifact and signature and answers only "does
+// this raw public key verify it". VerifyInkSignatureWithKeys and every
+// per-artifact WithKeys verifier delegate here so the ordering/window policy
+// lives in exactly one place.
+func VerifyDetachedSignatureWithKeys(verifyWithKey func(pub []byte) bool, keys []CandidateKey, artifactMs int64, hintKeyID string) MultiKeyResult {
+	if len(keys) == 0 {
 		return MultiKeyResult{}
 	}
 	if len(keys) > maxCandidateKeys {
 		keys = keys[:maxCandidateKeys]
 	}
+	verifyWithKey = recoverFalse(verifyWithKey)
 
 	if hintKeyID != "" {
 		for _, k := range keys {
 			if k.KeyID != hintKeyID || (k.Status != "active" && k.Status != "retired") {
 				continue
 			}
-			if keyValidAtTime(k, msgMs) && VerifyInkSignature(in, signature, k.PublicKey) {
+			if keyValidAtTime(k, artifactMs) && verifyWithKey(k.PublicKey) {
 				return MultiKeyResult{Verified: true, KeyID: k.KeyID, KeyStatus: k.Status}
 			}
 			break
@@ -151,18 +157,109 @@ func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []Candid
 
 	for _, status := range []string{"active", "retired"} {
 		for _, k := range keys {
-			if k.Status != status || !keyValidAtTime(k, msgMs) {
+			if k.Status != status || !keyValidAtTime(k, artifactMs) {
 				continue
 			}
 			if hintKeyID != "" && k.KeyID == hintKeyID {
 				continue
 			}
-			if VerifyInkSignature(in, signature, k.PublicKey) {
+			if verifyWithKey(k.PublicKey) {
 				return MultiKeyResult{Verified: true, KeyID: k.KeyID, KeyStatus: k.Status}
 			}
 		}
 	}
 	return MultiKeyResult{}
+}
+
+// recoverFalse wraps a caller-supplied key check so a panic inside it counts
+// as a failed check for that key rather than escaping the verifier, matching
+// the reference primitive, which catches a throwing callback per key.
+func recoverFalse(verifyWithKey func(pub []byte) bool) func(pub []byte) bool {
+	return func(pub []byte) (ok bool) {
+		defer func() {
+			if r := recover(); r != nil {
+				ok = false
+			}
+		}()
+		return verifyWithKey(pub)
+	}
+}
+
+// signerStrategy decides which key or keys an artifact verifier core tries
+// once it has assembled the signed bytes and decoded the signature. The
+// single-key verifiers and their WithKeys siblings share one core per
+// artifact and differ only in the strategy, so the structural checks cannot
+// drift between the two paths.
+type signerStrategy struct {
+	// needsClock is true for the rotation-aware strategy, which cannot judge
+	// a key's validity window without the artifact's own clock and must fail
+	// closed when the artifact carries none.
+	needsClock bool
+	// keyOK reports whether the fixed key is usable at all. The single-key
+	// verifiers check this before the signature stage; the rotation-aware
+	// strategy checks each candidate as it is tried and always reports true.
+	keyOK func() bool
+	// verify runs the signature check. verifyWithKey checks the signature
+	// under one raw public key; artifactMs is the artifact clock, meaningful
+	// only when the core established one.
+	verify func(verifyWithKey func(pub []byte) bool, artifactMs int64) MultiKeyResult
+}
+
+func strongEd25519Key(pub []byte) bool {
+	return len(pub) == ed25519.PublicKeySize && isStrongEd25519PublicKey(pub)
+}
+
+// fixedKey is the single-key strategy: one caller-supplied public key, no
+// rotation policy, no key attribution in the result.
+func fixedKey(pub []byte) signerStrategy {
+	return signerStrategy{
+		keyOK: func() bool { return strongEd25519Key(pub) },
+		verify: func(verifyWithKey func([]byte) bool, _ int64) MultiKeyResult {
+			if !strongEd25519Key(pub) {
+				return MultiKeyResult{}
+			}
+			return MultiKeyResult{Verified: verifyWithKey(pub)}
+		},
+	}
+}
+
+// candidateKeys is the rotation-aware strategy over
+// VerifyDetachedSignatureWithKeys.
+func candidateKeys(keys []CandidateKey, hintKeyID string) signerStrategy {
+	return signerStrategy{
+		needsClock: true,
+		keyOK:      func() bool { return true },
+		verify: func(verifyWithKey func([]byte) bool, artifactMs int64) MultiKeyResult {
+			return VerifyDetachedSignatureWithKeys(
+				func(pub []byte) bool { return strongEd25519Key(pub) && verifyWithKey(pub) },
+				keys,
+				artifactMs,
+				hintKeyID,
+			)
+		},
+	}
+}
+
+// VerifyInkSignatureWithKeys verifies a signature against a candidate key set
+// under the rotation authority rule: a keyId hint is tried first if it names an
+// in-window active or retired key, then active keys, then retired; revoked keys
+// and keys outside their validity window are always skipped. Thin wrapper over
+// VerifyDetachedSignatureWithKeys: parses in.Timestamp into the artifact clock
+// and closes over VerifyInkSignature for the cryptographic check.
+func VerifyInkSignatureWithKeys(in InkSignInput, signature string, keys []CandidateKey, hintKeyID string) MultiKeyResult {
+	if !signatureRe.MatchString(signature) {
+		return MultiKeyResult{}
+	}
+	msgMs, ok := ParseInkTimestampMs(in.Timestamp)
+	if !ok {
+		return MultiKeyResult{}
+	}
+	return VerifyDetachedSignatureWithKeys(
+		func(pub []byte) bool { return VerifyInkSignature(in, signature, pub) },
+		keys,
+		msgMs,
+		hintKeyID,
+	)
 }
 
 // LiveAuthResult reports a live transport authentication decision, with the

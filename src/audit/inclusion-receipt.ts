@@ -29,6 +29,9 @@ import {
   computeAuditMerkleLeafHash,
   verifyAuditQueryResponseSignature,
 } from "../crypto/ink.js";
+import { parseInkTimestampMs } from "../crypto/timestamp.js";
+import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "../crypto/multi-key-verify.js";
+import type { CandidateKey } from "../models/key-entry.js";
 
 export interface InclusionReceipt {
   eventId: string;
@@ -53,43 +56,26 @@ export interface InclusionReceiptVerifyResult {
   steps: VerifyStep[];
 }
 
+export type InclusionReceiptVerifyWithKeysResult = InclusionReceiptVerifyResult & Partial<MultiKeyVerifyResult>;
+
 /**
- * Verify an INK inclusion receipt.
- *
- * Always performs:
- *  - Structural validation of the receipt object
- *  - Service signature verification against `witnessPublicKey`
- *
- * Optionally performs (when the corresponding input is provided):
- *  - Leaf-to-root proof walk: pass `event` (recommended — recomputes the leaf
- *    hash and binds it to `receipt.eventId`) or `eventHash` (legacy, unbound)
- *  - Cross-check against a later signed checkpoint (`laterCheckpoint`)
+ * Shared verification steps for an inclusion receipt: structure, the
+ * signature step (delegated to `verifySignature`), the optional
+ * inclusion-proof walk, and the optional later-checkpoint cross-check.
+ * `verifyInclusionReceipt` and `verifyInclusionReceiptWithKeys` differ only
+ * in how they perform the signature step, so both delegate here.
  */
-export async function verifyInclusionReceipt(opts: {
-  receipt: InclusionReceipt;
-  /** Raw 32-byte Ed25519 public key of the witness service. */
-  witnessPublicKey: Uint8Array;
-  /** Optional audit event the receipt claims inclusion for. This is the
-   *  RECOMMENDED way to verify the proof: the leaf hash is recomputed from the
-   *  event with `computeAuditMerkleLeafHash`, and `event.id` is bound to
-   *  `receipt.eventId`, so the proof attests that the event named by the
-   *  receipt is in the tree — not merely that some caller-chosen hash is. */
-  event?: Record<string, unknown>;
-  /** Optional pre-computed RFC 6962 leaf hash (hex). LEGACY / lower-assurance:
-   *  unlike `event`, a bare hash is NOT bound to `receipt.eventId`, so the proof
-   *  only attests "this hash is in the tree", not "the event the receipt names
-   *  is in the tree". Prefer `event`. Ignored when `event` is provided. */
-  eventHash?: string;
-  /** Optional later checkpoint to cross-check the receipt against. This MUST be
-   *  the parsed body of a checkpoint whose Ed25519 signature and origin the
-   *  caller has already verified with `verifyCheckpoint` against the witness
-   *  key. Passing an unverified (merely parsed) checkpoint gives the
-   *  anti-rollback / fork cross-check no security, because the treeSize and
-   *  rootHash would then be attacker-controllable. */
-  laterCheckpoint?: { treeSize: number; rootHash: string };
-}): Promise<InclusionReceiptVerifyResult> {
+async function verifyInclusionReceiptCore(
+  opts: {
+    receipt: InclusionReceipt;
+    event?: Record<string, unknown>;
+    eventHash?: string;
+    laterCheckpoint?: { treeSize: number; rootHash: string };
+  },
+  verifySignature: () => Promise<MultiKeyVerifyResult>,
+): Promise<InclusionReceiptVerifyWithKeysResult> {
   const steps: VerifyStep[] = [];
-  const { receipt, witnessPublicKey, event, eventHash, laterCheckpoint } = opts;
+  const { receipt, event, eventHash, laterCheckpoint } = opts;
 
   // ── Step 1: structural validation ──
   const structuralProblem = checkReceiptShape(receipt);
@@ -100,21 +86,9 @@ export async function verifyInclusionReceipt(opts: {
   steps.push({ name: "structure", pass: true });
 
   // ── Step 2: signature ──
-  const signedPayload = {
-    eventId: receipt.eventId,
-    leafIndex: receipt.leafIndex,
-    treeSize: receipt.treeSize,
-    rootHash: receipt.rootHash,
-    timestamp: receipt.timestamp,
-  };
-  let sigValid = false;
+  let sigResult: MultiKeyVerifyResult;
   try {
-    // jcsCanonicalize is inside the try: it throws on a signed field carrying a
-    // lone UTF-16 surrogate, and a malformed receipt must fail closed as an
-    // invalid signature, not throw out of the verifier.
-    const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
-    const sig = base64urlDecode(receipt.serviceSignature);
-    sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
+    sigResult = await verifySignature();
   } catch (e) {
     steps.push({
       name: "signature",
@@ -123,7 +97,7 @@ export async function verifyInclusionReceipt(opts: {
     });
     return { valid: false, steps };
   }
-  if (!sigValid) {
+  if (!sigResult.verified) {
     steps.push({ name: "signature", pass: false, detail: "Ed25519 verification failed" });
     return { valid: false, steps };
   }
@@ -196,7 +170,137 @@ export async function verifyInclusionReceipt(opts: {
     steps.push({ name: "checkpoint", pass: true });
   }
 
-  return { valid: true, steps };
+  return sigResult.keyId !== undefined
+    ? {
+        valid: true,
+        steps,
+        keyId: sigResult.keyId,
+        keyStatus: sigResult.keyStatus,
+        usedRetiredKey: sigResult.usedRetiredKey,
+      }
+    : { valid: true, steps };
+}
+
+/**
+ * Verify an INK inclusion receipt.
+ *
+ * Always performs:
+ *  - Structural validation of the receipt object
+ *  - Service signature verification against `witnessPublicKey`
+ *
+ * Optionally performs (when the corresponding input is provided):
+ *  - Leaf-to-root proof walk: pass `event` (recommended, recomputes the leaf
+ *    hash and binds it to `receipt.eventId`) or `eventHash` (legacy, unbound)
+ *  - Cross-check against a later signed checkpoint (`laterCheckpoint`)
+ */
+export async function verifyInclusionReceipt(opts: {
+  receipt: InclusionReceipt;
+  /** Raw 32-byte Ed25519 public key of the witness service. */
+  witnessPublicKey: Uint8Array;
+  /** Optional audit event the receipt claims inclusion for. This is the
+   *  RECOMMENDED way to verify the proof: the leaf hash is recomputed from the
+   *  event with `computeAuditMerkleLeafHash`, and `event.id` is bound to
+   *  `receipt.eventId`, so the proof attests that the event named by the
+   *  receipt is in the tree, not merely that some caller-chosen hash is. */
+  event?: Record<string, unknown>;
+  /** Optional pre-computed RFC 6962 leaf hash (hex). LEGACY / lower-assurance:
+   *  unlike `event`, a bare hash is NOT bound to `receipt.eventId`, so the proof
+   *  only attests "this hash is in the tree", not "the event the receipt names
+   *  is in the tree". Prefer `event`. Ignored when `event` is provided. */
+  eventHash?: string;
+  /** Optional later checkpoint to cross-check the receipt against. This MUST be
+   *  the parsed body of a checkpoint whose Ed25519 signature and origin the
+   *  caller has already verified with `verifyCheckpoint` against the witness
+   *  key. Passing an unverified (merely parsed) checkpoint gives the
+   *  anti-rollback / fork cross-check no security, because the treeSize and
+   *  rootHash would then be attacker-controllable. */
+  laterCheckpoint?: { treeSize: number; rootHash: string };
+}): Promise<InclusionReceiptVerifyResult> {
+  const { receipt, witnessPublicKey, event, eventHash, laterCheckpoint } = opts;
+  return verifyInclusionReceiptCore({ receipt, event, eventHash, laterCheckpoint }, async () => {
+    // jcsCanonicalize is inside the try (implicitly, via the caller's catch):
+    // it throws on a signed field carrying a lone UTF-16 surrogate, and a
+    // malformed receipt must fail closed as an invalid signature, not throw
+    // out of the verifier.
+    const signedPayload = {
+      eventId: receipt.eventId,
+      leafIndex: receipt.leafIndex,
+      treeSize: receipt.treeSize,
+      rootHash: receipt.rootHash,
+      timestamp: receipt.timestamp,
+    };
+    const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
+    const sig = base64urlDecode(receipt.serviceSignature);
+    const verified = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
+    return { verified };
+  });
+}
+
+/**
+ * Verify an INK inclusion receipt against a rotation-aware candidate witness
+ * key set (spec §6.2/§12.1/§12.3: witness services MUST be able to verify
+ * audit submissions, and by the same rule, the receipts they issue for
+ * them, against retired keys when validating older events).
+ *
+ * The artifact clock is the receipt's own `timestamp` field (the moment the
+ * witness committed the leaf), parsed with the shared strict RFC 3339
+ * grammar; a missing, non-string, or unparseable timestamp fails closed
+ * before any candidate key is tried. All other behavior, the structural
+ * check, the optional proof walk, and the optional later-checkpoint
+ * cross-check, mirrors `verifyInclusionReceipt` exactly; only the
+ * signature step is rotation-aware. On success the result additionally
+ * carries `keyId`, `keyStatus`, and `usedRetiredKey` so callers can observe
+ * which witness key verified the receipt.
+ */
+export async function verifyInclusionReceiptWithKeys(opts: {
+  receipt: InclusionReceipt;
+  /** Candidate witness signing keys (spec §6.2 rotation-aware lookup). */
+  keys: CandidateKey[];
+  /** Optional keyId hint, e.g. from a signature header. */
+  hintKeyId?: string;
+  event?: Record<string, unknown>;
+  eventHash?: string;
+  laterCheckpoint?: { treeSize: number; rootHash: string };
+}): Promise<InclusionReceiptVerifyWithKeysResult> {
+  const { receipt, keys, hintKeyId, event, eventHash, laterCheckpoint } = opts;
+
+  const structuralProblem = checkReceiptShape(receipt);
+  if (structuralProblem) {
+    return { valid: false, steps: [{ name: "structure", pass: false, detail: structuralProblem }] };
+  }
+
+  // The receipt's own timestamp is the artifact clock for rotation-aware
+  // window checks. Fail closed before trying any candidate key.
+  const artifactMs = parseInkTimestampMs(receipt.timestamp);
+  if (artifactMs === null) {
+    return {
+      valid: false,
+      steps: [
+        { name: "structure", pass: true },
+        { name: "signature", pass: false, detail: "receipt.timestamp is missing or unparseable" },
+      ],
+    };
+  }
+
+  return verifyInclusionReceiptCore({ receipt, event, eventHash, laterCheckpoint }, () =>
+    verifyDetachedSignatureWithKeys(
+      async (publicKey) => {
+        const signedPayload = {
+          eventId: receipt.eventId,
+          leafIndex: receipt.leafIndex,
+          treeSize: receipt.treeSize,
+          rootHash: receipt.rootHash,
+          timestamp: receipt.timestamp,
+        };
+        const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
+        const sig = base64urlDecode(receipt.serviceSignature);
+        return ed.verifyAsync(sig, new TextEncoder().encode(sigBase), publicKey, { zip215: false });
+      },
+      keys,
+      artifactMs,
+      hintKeyId,
+    ),
+  );
 }
 
 // ── Audit-query response verification (INK Auditability §7.3) ──
