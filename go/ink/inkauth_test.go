@@ -200,6 +200,51 @@ func TestVerifyInkAuthHeaderAndBodyShapeErrors(t *testing.T) {
 	}
 }
 
+// The length caps on from and nonce are judged in UTF-16 code units like the
+// reference, but a value far past the cap is rejected from its byte length
+// alone, without transcoding an attacker-sized string first.
+func TestUTF16LenExceedsBoundsWorkByByteLength(t *testing.T) {
+	cases := []struct {
+		name string
+		s    string
+		max  int
+		want bool
+	}{
+		{"ascii at cap", strings.Repeat("a", 256), 256, false},
+		{"ascii past cap", strings.Repeat("a", 257), 256, true},
+		{"three-byte runes at cap", strings.Repeat("€", 256), 256, false},
+		{"three-byte runes past cap", strings.Repeat("€", 257), 256, true},
+		{"surrogate pairs at cap", strings.Repeat("\U0001F600", 128), 256, false},
+		{"surrogate pairs past cap", strings.Repeat("\U0001F600", 129), 256, true},
+		{"megabyte value", strings.Repeat("a", 1<<20), 256, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := utf16LenExceeds(tc.s, tc.max); got != tc.want {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestVerifyInkAuthRejectsOversizedFromAndNonceEarly(t *testing.T) {
+	k := fixedKeypair(t, 0x56)
+	huge := strings.Repeat("\U0001F600", 1<<18)
+	in := signedAuthRequest(t, deriveAgentID(k), k, "", nil)
+	in.Body["from"] = huge
+	expectAuthError(t, VerifyInkAuth(in), "invalid_from_field")
+
+	store := newFakeNonceStore()
+	in = signedAuthRequest(t, deriveAgentID(k), k, "", nil)
+	in.Body["nonce"] = huge
+	in.DeferNonceHandling = false
+	in.NonceStore = store
+	expectAuthError(t, VerifyInkAuth(in), "missing_nonce")
+	if store.hasCalls != 0 || store.addCalls != 0 {
+		t.Fatal("store touched on an oversized nonce")
+	}
+}
+
 // The shape checks run before any signature work, so the same codes come back
 // for a request that was never signed at all.
 func TestVerifyInkAuthShapeErrorsPrecedeSignatureWork(t *testing.T) {

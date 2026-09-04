@@ -133,6 +133,14 @@ func authReject(code string) InkAuthResult { return InkAuthResult{Error: code} }
 //
 // The body is signed as delivered (§3.3 strips nothing before canonicalizing),
 // so Body must be the decoded request exactly as received.
+//
+// The nonce store is the one caller-supplied seam whose failure is contained:
+// a backend error or panic there is an operational condition and fails the
+// request closed. A panic in ResolvePublicKey or ResolveKeySet propagates to
+// the caller, exactly as a throw from the reference's resolvers does; a
+// resolver that cannot answer returns nil or published=false, and a resolver
+// that panics is a bug the receiver should see, not a rejection it should
+// mistake for the sender's fault.
 func VerifyInkAuth(in InkAuthInput) InkAuthResult {
 	if in.AuthHeader == "" {
 		return authReject("missing_authorization")
@@ -154,8 +162,9 @@ func VerifyInkAuth(in InkAuthInput) InkAuthResult {
 		return authReject("missing_sender")
 	}
 	// Cap the sender id before it reaches a resolver or the multibase
-	// decoder, in the reference's UTF-16 units.
-	if utf16Len(senderID) > 256 {
+	// decoder, in the reference's UTF-16 units, judged without transcoding
+	// an oversized value.
+	if utf16LenExceeds(senderID, 256) {
 		return authReject("invalid_from_field")
 	}
 
@@ -185,7 +194,7 @@ func VerifyInkAuth(in InkAuthInput) InkAuthResult {
 	var bodyNonce string
 	if in.NonceStore != nil {
 		candidate, _ := in.Body["nonce"].(string)
-		if n := utf16Len(candidate); n < 16 || n > 256 || !nonceRe.MatchString(candidate) {
+		if utf16LenExceeds(candidate, 256) || utf16Len(candidate) < 16 || !nonceRe.MatchString(candidate) {
 			return authReject("missing_nonce")
 		}
 		bodyNonce = candidate

@@ -17,7 +17,7 @@ var nonceRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 // [receiverClock - 5m, receiverClock + 30s], its nonce must be 16-256 chars of
 // [A-Za-z0-9_-], and a nonce already in previouslySeenNonces is a replay.
 func CheckReplay(messageTimestamp, receiverClock, nonce string, previouslySeenNonces []string) bool {
-	if n := utf16Len(nonce); n < 16 || n > 256 || !nonceRe.MatchString(nonce) {
+	if utf16LenExceeds(nonce, 256) || utf16Len(nonce) < 16 || !nonceRe.MatchString(nonce) {
 		return false
 	}
 	if len(previouslySeenNonces) > 10000 {
