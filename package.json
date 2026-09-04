@@ -81,10 +81,14 @@
   },
   "keywords": [
     "ink",
+    "ink-protocol",
+    "inter-agent-networking-kernel",
     "agent-protocol",
+    "agent-messaging",
+    "agent-identity",
+    "agent-to-agent",
     "ed25519",
     "atproto",
-    "agent-to-agent",
     "transparency-log"
   ]
 }
