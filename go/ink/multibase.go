@@ -19,6 +19,20 @@ func utf16Len(s string) int {
 	return len(utf16.Encode([]rune(s)))
 }
 
+// utf16LenExceeds reports whether s is longer than max UTF-16 code units,
+// deciding from the byte length alone when that settles it. A code point is
+// at most three UTF-8 bytes per UTF-16 unit (four bytes for a surrogate
+// pair), so a string longer than 3*max bytes exceeds the cap without being
+// transcoded. The caps this guards are on caller-supplied fields read before
+// any signature work, where the reference's O(1) length check must not turn
+// into a linear transcode of an attacker-sized value here.
+func utf16LenExceeds(s string, max int) bool {
+	if len(s) > 3*max {
+		return true
+	}
+	return utf16Len(s) > max
+}
+
 const base58Alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
 // ed25519Multicodec is the multicodec prefix for an Ed25519 public key (0xed 0x01).
