@@ -29,9 +29,6 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
-
       - name: Cache npm
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -122,9 +119,6 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
-
       - name: Python interop tests, lint and types
         working-directory: examples/interop-cli
         run: nix develop --command bash -c "pytest -q && ruff check src tests && mypy src"
@@ -155,9 +149,6 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes
-
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
 
       - name: Install, test and typecheck
         working-directory: examples/${{ matrix.example }}
@@ -206,9 +197,6 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
-
       - name: Cache npm
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -253,9 +241,6 @@ jobs:
         with:
           extra-conf: |
             experimental-features = nix-command flakes
-
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
 
       - name: Cache npm
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

@@ -30,8 +30,5 @@ jobs:
           extra-conf: |
             experimental-features = nix-command flakes
 
-      - name: Cache Nix store
-        uses: DeterminateSystems/magic-nix-cache-action@908b263ff629f4cc17666315b7fd3ec127c6244d # v14
-
       - name: Run gitleaks
         run: nix develop --command gitleaks detect --source . --config .gitleaks.toml --redact
