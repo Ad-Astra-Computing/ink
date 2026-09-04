@@ -161,6 +161,18 @@ This package targets 64-bit platforms: it uses native `int` for `treeSize`,
 bound that does not fit a 32-bit `int`, so the safe-integer edge is deterministic
 only where `int` is 64 bits wide.
 
+## Using the module
+
+The module path is `github.com/Ad-Astra-Computing/ink/go`. Because it lives in
+a subdirectory, Go versions it by tags of the form `go/v<version>`, not the
+`v<version>` tags that publish the npm package. Every release cut pushes both
+tags on the same commit, so the Go module and the npm package with the same
+version number are built from the same tree:
+
+```sh
+go get github.com/Ad-Astra-Computing/ink/go@v0.19.0
+```
+
 ## Running the conformance suite
 
 ```sh

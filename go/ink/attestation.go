@@ -57,25 +57,68 @@ const (
 // validity window with an inclusive lower and exclusive upper bound. It fails
 // closed with a typed reason on the first failure.
 func VerifyAttestation(raw []byte, issuerPublicKey []byte, now string) (bool, AttestationReason) {
+	reason, _ := verifyAttestationWith(raw, fixedKey(issuerPublicKey), now)
+	return reason == AttestationReasonNone, reason
+}
+
+// AttestationKeyResult is the result of VerifyAttestationWithKeys: whether
+// the attestation verified, the typed rejection reason on failure, and the
+// candidate key that verified it on success.
+type AttestationKeyResult struct {
+	OK     bool
+	Reason AttestationReason
+	Key    MultiKeyResult
+}
+
+// VerifyAttestationWithKeys verifies an attestation from its raw bytes
+// against a rotation-aware candidate issuer key set. Security
+// considerations §"Issuer key rotation" (ink-attestation.md): an
+// attestation verifies under the same rotation rules as any other signed
+// body. A retired issuer key still verifies an attestation issued inside
+// that key's validity window, and a revoked issuer key never verifies,
+// even for an attestation whose issuedAt predates the revocation.
+//
+// The artifact clock is issuedAt, the moment the issuer signed the claim,
+// not now (the verifier's clock, used only to judge freshness against
+// expiresAt). Same code path as VerifyAttestation; only the signature step
+// is rotation-aware.
+func VerifyAttestationWithKeys(raw []byte, keys []CandidateKey, now string, hintKeyID string) AttestationKeyResult {
+	reason, key := verifyAttestationWith(raw, candidateKeys(keys, hintKeyID), now)
+	if reason != AttestationReasonNone {
+		return AttestationKeyResult{Reason: reason}
+	}
+	return AttestationKeyResult{OK: true, Reason: reason, Key: key}
+}
+
+func verifyAttestationWith(raw []byte, s signerStrategy, now string) (AttestationReason, MultiKeyResult) {
 	if len(raw) > MaxAttestationBodyBytes {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	obj, okParse := ParseSignedObject(raw)
 	if !okParse {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	if !withinBodyBounds(obj) {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	signature, ok := validateAttestation(obj)
 	if !ok {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	if !signatureRe.MatchString(signature) {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
-	if len(issuerPublicKey) != ed25519.PublicKeySize || !isStrongEd25519PublicKey(issuerPublicKey) {
-		return false, AttestationReasonSignature
+	if !s.keyOK() {
+		return AttestationReasonSignature, MultiKeyResult{}
+	}
+	var artifactMs int64
+	if s.needsClock {
+		issuedAt, _ := obj["issuedAt"].(string)
+		ms, ok := ParseInkTimestampMs(issuedAt)
+		if !ok {
+			return AttestationReasonSchema, MultiKeyResult{}
+		}
+		artifactMs = ms
 	}
 	unsigned := make(map[string]interface{}, len(obj))
 	for k, v := range obj {
@@ -85,14 +128,17 @@ func VerifyAttestation(raw []byte, issuerPublicKey []byte, now string) (bool, At
 	}
 	canonical, err := canonicalizeJSON(unsigned)
 	if err != nil {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	sig, err := base64.RawURLEncoding.DecodeString(signature)
 	if err != nil || len(sig) != ed25519.SignatureSize {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
-	if !ed25519.Verify(ed25519.PublicKey(issuerPublicKey), []byte("tulpa/sign\n"+canonical), sig) {
-		return false, AttestationReasonSignature
+	result := s.verify(func(pub []byte) bool {
+		return ed25519.Verify(ed25519.PublicKey(pub), []byte("tulpa/sign\n"+canonical), sig)
+	}, artifactMs)
+	if !result.Verified {
+		return AttestationReasonSignature, MultiKeyResult{}
 	}
 
 	issuedAt, _ := obj["issuedAt"].(string)
@@ -100,19 +146,19 @@ func VerifyAttestation(raw []byte, issuerPublicKey []byte, now string) (bool, At
 	start, okStart := ParseInkTimestampMs(issuedAt)
 	end, okEnd := ParseInkTimestampMs(expiresAt)
 	if !okStart || !okEnd {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	nowMs, okNow := ParseInkTimestampMs(now)
 	if !okNow {
-		return false, AttestationReasonSchema
+		return AttestationReasonSchema, MultiKeyResult{}
 	}
 	if nowMs < start {
-		return false, AttestationReasonNotYetValid
+		return AttestationReasonNotYetValid, MultiKeyResult{}
 	}
 	if nowMs >= end {
-		return false, AttestationReasonExpired
+		return AttestationReasonExpired, MultiKeyResult{}
 	}
-	return true, AttestationReasonNone
+	return AttestationReasonNone, result
 }
 
 // validateClaimTypeSet enforces the claim-type set shape shared by the

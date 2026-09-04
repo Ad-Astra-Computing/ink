@@ -116,9 +116,40 @@ func checkAuditQueryResponseShape(r map[string]interface{}) bool {
 // verifyAuditQueryResponseSignature checks the witness Ed25519 signature over
 // "ink/audit-query-response/v1\n" + JCS(response without serviceSignature).
 func verifyAuditQueryResponseSignature(response map[string]interface{}, witnessPublicKey []byte) bool {
+	return verifyAuditQueryResponseSignatureWith(response, fixedKey(witnessPublicKey)).Verified
+}
+
+// VerifyAuditQueryResponseSignatureWithKeys checks the witness Ed25519
+// signature over "ink/audit-query-response/v1\n" + JCS(response without
+// serviceSignature) against a rotation-aware candidate witness key set
+// (spec §6.2/§12.2: witness query verification MUST use the same
+// rotation-aware signing-key lookup rules as other INK transport
+// verification).
+//
+// The envelope's own "timestamp" field is the artifact clock; a missing,
+// non-string, or unparseable timestamp fails closed before any candidate
+// key is tried. This is the LOW-LEVEL primitive; see
+// VerifyInkAuditQueryResponseWithKeys for the full §7.3 envelope
+// verification.
+func VerifyAuditQueryResponseSignatureWithKeys(response map[string]interface{}, keys []CandidateKey, hintKeyID string) MultiKeyResult {
+	return verifyAuditQueryResponseSignatureWith(response, candidateKeys(keys, hintKeyID))
+}
+
+func verifyAuditQueryResponseSignatureWith(response map[string]interface{}, s signerStrategy) MultiKeyResult {
 	sig, ok := asString(response, "serviceSignature")
 	if !ok || !signatureRe.MatchString(sig) {
-		return false
+		return MultiKeyResult{}
+	}
+	var artifactMs int64
+	if s.needsClock {
+		ts, ok := asString(response, "timestamp")
+		if !ok {
+			return MultiKeyResult{}
+		}
+		artifactMs, ok = ParseInkTimestampMs(ts)
+		if !ok {
+			return MultiKeyResult{}
+		}
 	}
 	payload := make(map[string]interface{}, len(response))
 	for k, v := range response {
@@ -128,24 +159,23 @@ func verifyAuditQueryResponseSignature(response map[string]interface{}, witnessP
 		payload[k] = v
 	}
 	if !isWithinCanonicalizeBounds(payload) {
-		return false
+		return MultiKeyResult{}
 	}
 	canonical, err := canonicalizeJSON(payload)
 	if err != nil {
-		return false
+		return MultiKeyResult{}
 	}
 	prefixed := "ink/audit-query-response/v1\n" + canonical
 	if len(prefixed) > maxCanonicalBodyBytes {
-		return false
+		return MultiKeyResult{}
 	}
 	sigBytes, err := base64.RawURLEncoding.DecodeString(sig)
 	if err != nil {
-		return false
+		return MultiKeyResult{}
 	}
-	if len(witnessPublicKey) != ed25519.PublicKeySize || !isStrongEd25519PublicKey(witnessPublicKey) {
-		return false
-	}
-	return ed25519.Verify(ed25519.PublicKey(witnessPublicKey), []byte(prefixed), sigBytes)
+	return s.verify(func(pub []byte) bool {
+		return ed25519.Verify(ed25519.PublicKey(pub), []byte(prefixed), sigBytes)
+	}, artifactMs)
 }
 
 // AuditQueryVerifyOptions carries the verifier inputs the caller supplies out of
@@ -183,26 +213,42 @@ func safeVerifyEventSignature(cb func(map[string]interface{}) bool, event map[st
 // signature, and an optional later-checkpoint cross-check. It returns false,
 // never panics, on any failed step.
 func VerifyInkAuditQueryResponse(response map[string]interface{}, witnessPublicKey []byte, opts AuditQueryVerifyOptions) bool {
+	return verifyInkAuditQueryResponseWith(response, fixedKey(witnessPublicKey), opts).Verified
+}
+
+// VerifyInkAuditQueryResponseWithKeys verifies a witness audit-query
+// response end to end (INK Auditability §7.3), exactly as
+// VerifyInkAuditQueryResponse, except the witness envelope signature is
+// checked against a rotation-aware candidate key set (spec §6.2/§12.2)
+// instead of one fixed key. Returns the zero MultiKeyResult on any failed
+// step; a Verified result additionally reports which candidate key
+// verified the envelope signature.
+func VerifyInkAuditQueryResponseWithKeys(response map[string]interface{}, keys []CandidateKey, hintKeyID string, opts AuditQueryVerifyOptions) MultiKeyResult {
+	return verifyInkAuditQueryResponseWith(response, candidateKeys(keys, hintKeyID), opts)
+}
+
+func verifyInkAuditQueryResponseWith(response map[string]interface{}, s signerStrategy, opts AuditQueryVerifyOptions) MultiKeyResult {
 	if !checkAuditQueryResponseShape(response) {
-		return false
+		return MultiKeyResult{}
 	}
 
 	// binding
 	if mid, _ := asString(response, "messageId"); mid != opts.ExpectedMessageID {
-		return false
+		return MultiKeyResult{}
 	}
 	if req, _ := asString(response, "requester"); req != opts.ExpectedRequester {
-		return false
+		return MultiKeyResult{}
 	}
 	if opts.ExpectedServiceDid != "" {
 		if sd, _ := asString(response, "serviceDid"); sd != opts.ExpectedServiceDid {
-			return false
+			return MultiKeyResult{}
 		}
 	}
 
 	// signature
-	if !verifyAuditQueryResponseSignature(response, witnessPublicKey) {
-		return false
+	sigResult := verifyAuditQueryResponseSignatureWith(response, s)
+	if !sigResult.Verified {
+		return MultiKeyResult{}
 	}
 
 	events, _ := response["events"].([]interface{})
@@ -216,24 +262,24 @@ func VerifyInkAuditQueryResponse(response map[string]interface{}, witnessPublicK
 	for _, e := range events {
 		ev := e.(map[string]interface{})
 		if mid, ok := asString(ev, "messageId"); !ok || mid != envMessageID {
-			return false
+			return MultiKeyResult{}
 		}
 		agentID, _ := asString(ev, "agentId")
 		counterpartyID, _ := asString(ev, "counterpartyId")
 		if agentID != opts.ExpectedRequester && counterpartyID != opts.ExpectedRequester {
-			return false
+			return MultiKeyResult{}
 		}
 	}
 
 	// events <-> proofs strict one-to-one by eventId
 	if len(events) != len(proofs) {
-		return false
+		return MultiKeyResult{}
 	}
 	eventIDs := make(map[string]bool, len(events))
 	for _, e := range events {
 		id, _ := asString(e.(map[string]interface{}), "id")
 		if eventIDs[id] {
-			return false
+			return MultiKeyResult{}
 		}
 		eventIDs[id] = true
 	}
@@ -242,16 +288,16 @@ func VerifyInkAuditQueryResponse(response map[string]interface{}, witnessPublicK
 		pr := p.(map[string]interface{})
 		eid, _ := asString(pr, "eventId")
 		if _, dup := proofByID[eid]; dup {
-			return false
+			return MultiKeyResult{}
 		}
 		if !eventIDs[eid] {
-			return false
+			return MultiKeyResult{}
 		}
 		proofByID[eid] = pr
 	}
 	for id := range eventIDs {
 		if _, ok := proofByID[id]; !ok {
-			return false
+			return MultiKeyResult{}
 		}
 	}
 
@@ -262,12 +308,12 @@ func VerifyInkAuditQueryResponse(response map[string]interface{}, witnessPublicK
 		pr := proofByID[id]
 		leafHash, ok := ComputeAuditMerkleLeafHash(ev)
 		if !ok {
-			return false
+			return MultiKeyResult{}
 		}
 		liF, _ := pr["leafIndex"].(float64)
 		leafIndex, ok := safeIntFromFloat(liF, 0)
 		if !ok {
-			return false
+			return MultiKeyResult{}
 		}
 		proof := make([]string, 0)
 		ipRaw, _ := pr["inclusionProof"].([]interface{})
@@ -275,31 +321,31 @@ func VerifyInkAuditQueryResponse(response map[string]interface{}, witnessPublicK
 			proof = append(proof, h.(string))
 		}
 		if !VerifyInclusionProof(leafHash, proof, leafIndex, treeSize, rootHash) {
-			return false
+			return MultiKeyResult{}
 		}
 	}
 
 	// required per-event agent signature
 	if opts.VerifyEventSignature == nil {
-		return false
+		return MultiKeyResult{}
 	}
 	for _, e := range events {
 		if !safeVerifyEventSignature(opts.VerifyEventSignature, e.(map[string]interface{})) {
-			return false
+			return MultiKeyResult{}
 		}
 	}
 
 	// optional later-checkpoint cross-check
 	if cp := opts.LaterCheckpoint; cp != nil {
 		if cp.TreeSize < 0 || !isMerkleHashHex(cp.RootHash) {
-			return false
+			return MultiKeyResult{}
 		}
 		if cp.TreeSize < treeSize {
-			return false
+			return MultiKeyResult{}
 		}
 		if cp.TreeSize == treeSize && cp.RootHash != rootHash {
-			return false
+			return MultiKeyResult{}
 		}
 	}
-	return true
+	return sigResult
 }

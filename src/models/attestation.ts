@@ -3,6 +3,8 @@ import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
 import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
 import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
+import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "../crypto/multi-key-verify.js";
+import type { CandidateKey } from "./key-entry.js";
 
 // A signed claim by one principal about another, the evidence primitive of
 // specs/ink-attestation.md. It is not a capability: it binds no audience, no
@@ -183,20 +185,24 @@ export async function buildAttestation(
   return { ...unsigned, signature };
 }
 
+export type AttestationVerifyWithKeysResult = AttestationVerifyResult & Partial<MultiKeyVerifyResult>;
+
 /**
- * Verify an attestation from its raw bytes against the resolved issuer key.
- * The input is the raw body, never a parsed value: the raw-body gate of
- * ink-signed-string-safety.md runs on bytes that no longer exist after
- * parsing. Check order per the spec, first failure wins: raw gate and parse,
- * structural bounds and grammar, signature, validity window (lower bound
- * inclusive, upper bound exclusive). Deliberately absent: audience, replay
- * and any judgment about the issuer or the claim. Never throws.
+ * Shared raw-bytes gate, schema parse, surrogate scan, signature step
+ * (delegated to `verifySignature`), and validity-window check for an
+ * attestation. `beforeSignature`, when given, runs after the surrogate scan
+ * and before the signature step; returning a non-null reason fails closed
+ * without trying the signature. `verifyAttestation` and
+ * `verifyAttestationWithKeys` differ only in how the signature is checked
+ * (and, for the WithKeys path, the extra `beforeSignature` artifact-clock
+ * gate), so both delegate here.
  */
-export async function verifyAttestation(
+async function verifyAttestationCore(
   raw: Uint8Array,
-  issuerPublicKey: Uint8Array,
   context: AttestationVerifyContext,
-): Promise<AttestationVerifyResult> {
+  verifySignature: (attestation: Attestation) => Promise<MultiKeyVerifyResult>,
+  beforeSignature?: (attestation: Attestation) => "schema" | null,
+): Promise<AttestationVerifyWithKeysResult> {
   try {
     if (!ArrayBuffer.isView(raw) || !(raw instanceof Uint8Array)) {
       return { ok: false, reason: "schema" };
@@ -221,7 +227,14 @@ export async function verifyAttestation(
     if (hasUnpairedSurrogate(attestation)) {
       return { ok: false, reason: "schema" };
     }
-    if (!(await verifyMessage(attestation, issuerPublicKey))) {
+    if (beforeSignature) {
+      const problem = beforeSignature(attestation);
+      if (problem !== null) {
+        return { ok: false, reason: problem };
+      }
+    }
+    const result = await verifySignature(attestation);
+    if (!result.verified) {
       return { ok: false, reason: "signature" };
     }
     const start = parseInkTimestampMs(attestation.issuedAt);
@@ -239,8 +252,73 @@ export async function verifyAttestation(
     if (nowMs >= end) {
       return { ok: false, reason: "expired" };
     }
-    return { ok: true, attestation };
+    return result.keyId !== undefined
+      ? {
+          ok: true,
+          attestation,
+          keyId: result.keyId,
+          keyStatus: result.keyStatus,
+          usedRetiredKey: result.usedRetiredKey,
+        }
+      : { ok: true, attestation };
   } catch {
     return { ok: false, reason: "schema" };
   }
+}
+
+/**
+ * Verify an attestation from its raw bytes against the resolved issuer key.
+ * The input is the raw body, never a parsed value: the raw-body gate of
+ * ink-signed-string-safety.md runs on bytes that no longer exist after
+ * parsing. Check order per the spec, first failure wins: raw gate and parse,
+ * structural bounds and grammar, signature, validity window (lower bound
+ * inclusive, upper bound exclusive). Deliberately absent: audience, replay
+ * and any judgment about the issuer or the claim. Never throws.
+ */
+export async function verifyAttestation(
+  raw: Uint8Array,
+  issuerPublicKey: Uint8Array,
+  context: AttestationVerifyContext,
+): Promise<AttestationVerifyResult> {
+  return verifyAttestationCore(raw, context, async (attestation) => ({
+    verified: await verifyMessage(attestation, issuerPublicKey),
+  }));
+}
+
+/**
+ * Verify an attestation from its raw bytes against a rotation-aware
+ * candidate issuer key set. Security considerations §"Issuer key rotation"
+ * (ink-attestation.md): an attestation verifies under the same rotation
+ * rules as any other signed body, a retired issuer key still verifies an
+ * attestation issued inside that key's validity window, and a revoked
+ * issuer key never verifies, even for an attestation whose `issuedAt`
+ * predates the revocation.
+ *
+ * The artifact clock is `issuedAt`, the moment the issuer signed the
+ * claim, i.e. the same field the validity-window check below uses as its
+ * lower bound, not `context.now` (the verifier's clock, used only to
+ * judge freshness against `expiresAt`). Mirrors `verifyAttestation` byte
+ * for byte otherwise; only the signature step is rotation-aware.
+ */
+export async function verifyAttestationWithKeys(
+  raw: Uint8Array,
+  keys: CandidateKey[],
+  context: AttestationVerifyContext,
+  opts?: { hintKeyId?: string },
+): Promise<AttestationVerifyWithKeysResult> {
+  return verifyAttestationCore(
+    raw,
+    context,
+    (attestation) => {
+      // Non-null: `beforeSignature` below already rejected a null parse.
+      const artifactMs = parseInkTimestampMs(attestation.issuedAt)!;
+      return verifyDetachedSignatureWithKeys(
+        (publicKey) => verifyMessage(attestation, publicKey),
+        keys,
+        artifactMs,
+        opts?.hintKeyId,
+      );
+    },
+    (attestation) => (parseInkTimestampMs(attestation.issuedAt) === null ? "schema" : null),
+  );
 }
