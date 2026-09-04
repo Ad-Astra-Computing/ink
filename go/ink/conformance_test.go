@@ -885,6 +885,41 @@ func TestAuthorizationGrant(t *testing.T) {
 	}
 }
 
+func TestAttestation(t *testing.T) {
+	vf := loadVectors(t, "attestation")
+	for _, c := range vf.Cases {
+		var pubHex, now string
+		if err := json.Unmarshal(c.Input["issuerPublicKeyHex"], &pubHex); err != nil {
+			t.Fatalf("%s: bad issuerPublicKeyHex: %v", c.CaseID, err)
+		}
+		if err := json.Unmarshal(c.Input["now"], &now); err != nil {
+			t.Fatalf("%s: bad now: %v", c.CaseID, err)
+		}
+		pub, err := hex.DecodeString(pubHex)
+		if err != nil {
+			t.Fatalf("%s: issuerPublicKeyHex not hex: %v", c.CaseID, err)
+		}
+		var body []byte
+		if raw, present := c.Input["attestationRaw"]; present {
+			var text string
+			if err := json.Unmarshal(raw, &text); err != nil {
+				t.Fatalf("%s: bad attestationRaw: %v", c.CaseID, err)
+			}
+			body = []byte(text)
+		} else {
+			body = c.Input["attestation"]
+		}
+		ok, reason := VerifyAttestation(body, pub, now)
+		want := c.Expect.Result == "accept"
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+		if !ok && c.Expect.Reason != "" && string(reason) != c.Expect.Reason {
+			t.Errorf("%s: reason = %q, want %q", c.CaseID, reason, c.Expect.Reason)
+		}
+	}
+}
+
 func TestAuthorizationChain(t *testing.T) {
 	vf := loadVectors(t, "authorization-chain")
 	for _, c := range vf.Cases {

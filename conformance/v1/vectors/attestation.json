@@ -1,0 +1,827 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "attestation",
+  "cases": [
+    {
+      "caseId": "valid-attestation-accepts",
+      "description": "An attestation verified against the issuer key inside its window verifies.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "issued-at-lower-bound-accepts",
+      "description": "An attestation checked at exactly issuedAt is inside the window (inclusive lower bound).",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-08-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "empty-claim-accepts",
+      "description": "An empty claim object is a well-formed claim; its meaning is the claim type's business.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {},
+          "attestationId": "conformance-att-000000003",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "g1HfGnHyfOlXIenN6izCDn-0_D1zlWO3mFcqVA6RLguoDCwdDvBmEVdT7Mg9cUtp0Ya5kiZNgP9cHRB1tIlmAA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "self-attestation-accepts",
+      "description": "An attestation whose subject is its issuer is well-formed; what it is worth is receiver policy, not verification.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000002",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "WzYPNbnMEoc4fnleHKIz1An9SUgrfzyDCsm76utAVSV5VmiU2hAAWu2M3i70sxzxTFUYJzu580UotDB0ApxGCA"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "multi-year-window-accepts",
+      "description": "A multi-year window verifies: unlike a grant, no maximum lifetime applies, and receivers discount long windows as policy.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000004",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2031-08-01T00:00:00.000Z",
+          "signature": "WwMozEB72BJCe_tboXz0UyG77kMQ7bpwrgcENrB7gxQRgYi41jG--MSUdU5vE33Nsj6WdWxyksowewR_yQtfAQ"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "wrong-issuer-key-rejects",
+      "description": "Verifying against a different public key fails the signature check.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "fd1724385aa0c75b64fb78cd602fa1d991fdebf76b13c58ed702eac835e9f618",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "tampered-subject-rejects",
+      "description": "Changing the subject after signing invalidates the signature; evidence cannot be re-pointed at another agent.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:attacker.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "tampered-claim-rejects",
+      "description": "Changing the claim payload after signing invalidates the signature; the payload is opaque to verification but fully covered by it.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "forged"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "bad-signature-with-expired-rejects-signature",
+      "description": "A tampered attestation presented after expiry still rejects on the signature, pinning signature-before-window ordering.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:attacker.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2028-01-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "signature"
+      }
+    },
+    {
+      "caseId": "legacy-spelling-rejects",
+      "description": "network.tulpa.attestation is not a wire type: the attestation postdates the namespace migration and is single-spelling by design, unlike the dual-accept object types.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "unknown-type-rejects",
+      "description": "Any type other than network.ink.attestation rejects.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.other",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "unknown-top-level-key-rejects",
+      "description": "An unknown top-level member is rejected by the strict schema.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw",
+          "extra": 1
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "short-attestation-id-rejects",
+      "description": "An attestationId shorter than 16 code units is out of profile.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "short",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "over-length-attestation-id-rejects",
+      "description": "An attestationId longer than 256 code units is out of profile.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "attestation-id-grammar-rejects",
+      "description": "An attestationId outside the [A-Za-z0-9_-] nonce grammar rejects.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "bad!chars#in.this.id",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "undotted-claim-type-rejects",
+      "description": "A claimType with no dot is outside the reverse-DNS-style grammar.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "nodots",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "uppercase-claim-type-rejects",
+      "description": "A claimType with uppercase characters is outside the lowercase grammar.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "Example.Owner.Verified",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "over-length-claim-type-rejects",
+      "description": "A claimType longer than 128 code units is out of profile.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "non-object-claim-rejects",
+      "description": "A claim that is not a JSON object rejects; the payload slot is an object by shape.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": "string",
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "array-claim-rejects",
+      "description": "A claim that is a JSON array rejects; an array is not the object shape the slot pins.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": [
+            "x"
+          ],
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "over-length-issuer-rejects",
+      "description": "An issuer longer than 512 code units is out of profile.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "over-length-subject-rejects",
+      "description": "A subject longer than 512 code units is out of profile.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "inverted-window-rejects",
+      "description": "An attestation whose expiresAt is not strictly after issuedAt is malformed.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2026-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "invalid-issued-at-rejects",
+      "description": "An issuedAt that is not a strict INK timestamp rejects.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01 00:00",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "malformed-signature-rejects",
+      "description": "A signature that is not 86 base64url characters rejects structurally.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtC+"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "missing-signature-rejects",
+      "description": "An attestation with no signature member rejects.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "expiry-upper-bound-rejects",
+      "description": "An attestation checked at exactly expiresAt is rejected (exclusive upper bound).",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2027-08-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "expired-rejects",
+      "description": "An attestation checked after expiresAt is rejected as expired.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2028-01-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "expired"
+      }
+    },
+    {
+      "caseId": "not-yet-valid-rejects",
+      "description": "An attestation checked before issuedAt is rejected as not yet valid.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-07-31T23:59:59.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "not_yet_valid"
+      }
+    },
+    {
+      "caseId": "invalid-now-rejects",
+      "description": "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema.",
+      "input": {
+        "attestation": {
+          "protocol": "ink/0.1",
+          "type": "network.ink.attestation",
+          "issuer": "ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "subject": "did:web:subject.example",
+          "claimType": "example.owner.verified_human",
+          "claim": {
+            "method": "in_person"
+          },
+          "attestationId": "conformance-att-000000001",
+          "issuedAt": "2026-08-01T00:00:00.000Z",
+          "expiresAt": "2027-08-01T00:00:00.000Z",
+          "signature": "3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw"
+        },
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "not-a-timestamp"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "raw-padded-accepts",
+      "description": "The same signed attestation presented as raw wire text with token whitespace verifies; whitespace vanishes at canonicalization.",
+      "input": {
+        "attestationRaw": "{  \"protocol\":\"ink/0.1\",\"type\":\"network.ink.attestation\",\"issuer\":\"ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"subject\":\"did:web:subject.example\",\"claimType\":\"example.owner.verified_human\",\"claim\":{\"method\":\"in_person\"},\"attestationId\":\"conformance-att-000000001\",\"issuedAt\":\"2026-08-01T00:00:00.000Z\",\"expiresAt\":\"2027-08-01T00:00:00.000Z\",\"signature\":\"3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw\"}",
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "shadowed-number-literal-rejects",
+      "description": "An out-of-range number literal shadowed by a later duplicate member rejects at the raw gate; the parsed value never sees it and the signature still verifies, so only a byte gate refuses it.",
+      "input": {
+        "attestationRaw": "{\"protocol\":1e309,\"protocol\":\"ink/0.1\",\"type\":\"network.ink.attestation\",\"issuer\":\"ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"subject\":\"did:web:subject.example\",\"claimType\":\"example.owner.verified_human\",\"claim\":{\"method\":\"in_person\"},\"attestationId\":\"conformance-att-000000001\",\"issuedAt\":\"2026-08-01T00:00:00.000Z\",\"expiresAt\":\"2027-08-01T00:00:00.000Z\",\"signature\":\"3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw\"}",
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    },
+    {
+      "caseId": "shadowed-underflow-accepts",
+      "description": "A shadowed underflowing exponent decodes to 0 in every IEEE-754 parser, so it is in range and not gated.",
+      "input": {
+        "attestationRaw": "{\"protocol\":1e-400,\"protocol\":\"ink/0.1\",\"type\":\"network.ink.attestation\",\"issuer\":\"ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"subject\":\"did:web:subject.example\",\"claimType\":\"example.owner.verified_human\",\"claim\":{\"method\":\"in_person\"},\"attestationId\":\"conformance-att-000000001\",\"issuedAt\":\"2026-08-01T00:00:00.000Z\",\"expiresAt\":\"2027-08-01T00:00:00.000Z\",\"signature\":\"3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw\"}",
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "raw-lone-surrogate-escape-rejects",
+      "description": "A lone UTF-16 surrogate escape in the raw text rejects structurally before the signature.",
+      "input": {
+        "attestationRaw": "{\"protocol\":\"ink/0.1\",\"type\":\"network.ink.attestation\",\"issuer\":\"ink:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX\",\"subject\":\"\\ud800did:web:subject.example\",\"claimType\":\"example.owner.verified_human\",\"claim\":{\"method\":\"in_person\"},\"attestationId\":\"conformance-att-000000001\",\"issuedAt\":\"2026-08-01T00:00:00.000Z\",\"expiresAt\":\"2027-08-01T00:00:00.000Z\",\"signature\":\"3td2CZ3aTwBIeKzSMcsVW2_hZJPX9XH8WfIL-0jxnKJ9ARbXaZwhfN4lMbS0mHF-eStvyDm7uYoaLBRbF_JtCw\"}",
+        "issuerPublicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4",
+        "now": "2026-09-01T00:00:00.000Z"
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "schema"
+      }
+    }
+  ]
+}

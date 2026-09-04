@@ -36,6 +36,7 @@ import {
   deriveChallengeGrantId,
   buildDelegationLink,
   buildAuthorizationChain,
+  buildAttestation,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -61,7 +62,7 @@ const principal = canonicalAgentPrincipal(`tulpa:${mb}`);
 // retags one category rather than negotiating a fresh contract. The base set is
 // frozen by drift tripwires in test/conformance-profile.test.ts and
 // go/ink/conformance_manifest_test.go.
-const KNOWN_PROFILES = new Set(["base", "staged", "encryption", "audit", "witness", "containment", "discovery", "authorization", "delegation"]);
+const KNOWN_PROFILES = new Set(["base", "staged", "encryption", "audit", "witness", "containment", "discovery", "authorization", "delegation", "evidence"]);
 const CATEGORY_META = {
   "principal-normalization": { profile: "base", spec: "specs/ink-authorization-chain.md", summary: "Agent principal canonicalization (tulpa:/ink:/key: prefixes)." },
   "signature-base": { profile: "base", spec: "specs/ink-protocol.md", summary: "Ed25519 verification over the canonical signature base." },
@@ -91,6 +92,7 @@ const CATEGORY_META = {
   "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
   "agent-authorization": { profile: "authorization", spec: "specs/ink-agent-authorization.md", summary: "Sign-in challenge artifact: bare-host did:web rp, registry requestedScope, parser-independent redirectUri prefix rule, active-key-only RP signature at the verifier clock, validity window, and the challenge-derived grantId." },
+  "attestation": { profile: "evidence", spec: "specs/ink-attestation.md", summary: "Signed issuer claim about a subject agent: schema bounds, claim-type and attestation-id grammar, the raw-body gate, the single vendor-neutral wire spelling, issuer-key signature, and the inclusive-start exclusive-end validity window. No audience, no replay, no judgment of issuer or claim." },
   "authorization-chain": { profile: "delegation", spec: "specs/ink-authorization-chain.md", summary: "Linear delegation chain of 2 to 4 grant-shaped links: parent-hash and issuer-subject continuity, monotonic scope and window attenuation with the delegation.extend gate, per-position lifetime ceilings, active-key-only per-link signatures, and the audience, presenter, window, replay, revocation and owner-verification context checks." },
 };
 
@@ -4454,6 +4456,82 @@ vectorFile("authorization-header", [
     expect: { result: "reject", reason: "invalid_auth_scheme" },
   },
 ]);
+
+
+// ── attestation ─────────────────────────────────────────────────────────────
+// The evidence primitive (specs/ink-attestation.md): an issuer signs a typed,
+// bounded claim about a subject, valid for a window, verified from raw bytes.
+// Each vector carries the attestation (or its exact wire text for raw-gate
+// cases), the issuer public key hex, and the verifier clock. Base verification
+// makes no policy judgment: signature, shape and window are the whole
+// cross-implementation contract, and subject binding to a presenting card is a
+// receiver-side rule pinned by the spec, not by these vectors.
+{
+  const attBase = {
+    issuer: `ink:${mb}`,
+    subject: "did:web:subject.example",
+    claimType: "example.owner.verified_human",
+    claim: { method: "in_person" },
+    attestationId: "conformance-att-000000001",
+    issuedAt: "2026-08-01T00:00:00.000Z",
+    expiresAt: "2027-08-01T00:00:00.000Z",
+  };
+  const nowInWindow = "2026-09-01T00:00:00.000Z";
+  const attestation = await buildAttestation(attBase, seed);
+  const selfAtt = await buildAttestation({ ...attBase, subject: attBase.issuer, attestationId: "conformance-att-000000002" }, seed);
+  const emptyClaim = await buildAttestation({ ...attBase, claim: {}, attestationId: "conformance-att-000000003" }, seed);
+  const longWindow = await buildAttestation({ ...attBase, expiresAt: "2031-08-01T00:00:00.000Z", attestationId: "conformance-att-000000004" }, seed);
+  const otherPublicKeyHex = bytesToHex(await ed.getPublicKeyAsync(new Uint8Array(32).fill(9)));
+
+  const ctx = { issuerPublicKeyHex: publicKeyHex, now: nowInWindow };
+  const acc = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
+  const rej = (caseId, description, input, reason) => ({ caseId, description, input, expect: { result: "reject", reason } });
+
+  // Raw-text cases mirror the grant category: the raw-body gate rules are about
+  // bytes a parsed value has already lost, so these cases carry attestationRaw.
+  const attText = JSON.stringify(attestation);
+  const atShadowedNumber = `{"protocol":1e309,${attText.slice(1)}`;
+  const atShadowedUnderflow = `{"protocol":1e-400,${attText.slice(1)}`;
+  const atLoneSurrogate = attText.replace(`"subject":"${attBase.subject}"`, `"subject":"\\ud800${attBase.subject}"`);
+  const atPadded = `{  ${attText.slice(1)}`;
+
+  vectorFile("attestation", [
+    acc("valid-attestation-accepts", "An attestation verified against the issuer key inside its window verifies.", { attestation, ...ctx }),
+    acc("issued-at-lower-bound-accepts", "An attestation checked at exactly issuedAt is inside the window (inclusive lower bound).", { attestation, issuerPublicKeyHex: publicKeyHex, now: attBase.issuedAt }),
+    acc("empty-claim-accepts", "An empty claim object is a well-formed claim; its meaning is the claim type's business.", { attestation: emptyClaim, ...ctx }),
+    acc("self-attestation-accepts", "An attestation whose subject is its issuer is well-formed; what it is worth is receiver policy, not verification.", { attestation: selfAtt, ...ctx }),
+    acc("multi-year-window-accepts", "A multi-year window verifies: unlike a grant, no maximum lifetime applies, and receivers discount long windows as policy.", { attestation: longWindow, ...ctx }),
+    rej("wrong-issuer-key-rejects", "Verifying against a different public key fails the signature check.", { attestation, issuerPublicKeyHex: otherPublicKeyHex, now: nowInWindow }, "signature"),
+    rej("tampered-subject-rejects", "Changing the subject after signing invalidates the signature; evidence cannot be re-pointed at another agent.", { attestation: { ...attestation, subject: "did:web:attacker.example" }, ...ctx }, "signature"),
+    rej("tampered-claim-rejects", "Changing the claim payload after signing invalidates the signature; the payload is opaque to verification but fully covered by it.", { attestation: { ...attestation, claim: { method: "forged" } }, ...ctx }, "signature"),
+    rej("bad-signature-with-expired-rejects-signature", "A tampered attestation presented after expiry still rejects on the signature, pinning signature-before-window ordering.", { attestation: { ...attestation, subject: "did:web:attacker.example" }, issuerPublicKeyHex: publicKeyHex, now: "2028-01-01T00:00:00.000Z" }, "signature"),
+    rej("legacy-spelling-rejects", "network.tulpa.attestation is not a wire type: the attestation postdates the namespace migration and is single-spelling by design, unlike the dual-accept object types.", { attestation: { ...attestation, type: "network.tulpa.attestation" }, ...ctx }, "schema"),
+    rej("unknown-type-rejects", "Any type other than network.ink.attestation rejects.", { attestation: { ...attestation, type: "network.ink.other" }, ...ctx }, "schema"),
+    rej("unknown-top-level-key-rejects", "An unknown top-level member is rejected by the strict schema.", { attestation: { ...attestation, extra: 1 }, ...ctx }, "schema"),
+    rej("short-attestation-id-rejects", "An attestationId shorter than 16 code units is out of profile.", { attestation: { ...attestation, attestationId: "short" }, ...ctx }, "schema"),
+    rej("over-length-attestation-id-rejects", "An attestationId longer than 256 code units is out of profile.", { attestation: { ...attestation, attestationId: "a".repeat(257) }, ...ctx }, "schema"),
+    rej("attestation-id-grammar-rejects", "An attestationId outside the [A-Za-z0-9_-] nonce grammar rejects.", { attestation: { ...attestation, attestationId: "bad!chars#in.this.id" }, ...ctx }, "schema"),
+    rej("undotted-claim-type-rejects", "A claimType with no dot is outside the reverse-DNS-style grammar.", { attestation: { ...attestation, claimType: "nodots" }, ...ctx }, "schema"),
+    rej("uppercase-claim-type-rejects", "A claimType with uppercase characters is outside the lowercase grammar.", { attestation: { ...attestation, claimType: "Example.Owner.Verified" }, ...ctx }, "schema"),
+    rej("over-length-claim-type-rejects", "A claimType longer than 128 code units is out of profile.", { attestation: { ...attestation, claimType: "a." + "b".repeat(127) }, ...ctx }, "schema"),
+    rej("non-object-claim-rejects", "A claim that is not a JSON object rejects; the payload slot is an object by shape.", { attestation: { ...attestation, claim: "string" }, ...ctx }, "schema"),
+    rej("array-claim-rejects", "A claim that is a JSON array rejects; an array is not the object shape the slot pins.", { attestation: { ...attestation, claim: ["x"] }, ...ctx }, "schema"),
+    rej("over-length-issuer-rejects", "An issuer longer than 512 code units is out of profile.", { attestation: { ...attestation, issuer: "i".repeat(513) }, ...ctx }, "schema"),
+    rej("over-length-subject-rejects", "A subject longer than 512 code units is out of profile.", { attestation: { ...attestation, subject: "s".repeat(513) }, ...ctx }, "schema"),
+    rej("inverted-window-rejects", "An attestation whose expiresAt is not strictly after issuedAt is malformed.", { attestation: { ...attestation, expiresAt: attBase.issuedAt }, ...ctx }, "schema"),
+    rej("invalid-issued-at-rejects", "An issuedAt that is not a strict INK timestamp rejects.", { attestation: { ...attestation, issuedAt: "2026-08-01 00:00" }, ...ctx }, "schema"),
+    rej("malformed-signature-rejects", "A signature that is not 86 base64url characters rejects structurally.", { attestation: { ...attestation, signature: attestation.signature.slice(0, 85) + "+" }, ...ctx }, "schema"),
+    rej("missing-signature-rejects", "An attestation with no signature member rejects.", { attestation: (() => { const { signature, ...rest } = attestation; return rest; })(), ...ctx }, "schema"),
+    rej("expiry-upper-bound-rejects", "An attestation checked at exactly expiresAt is rejected (exclusive upper bound).", { attestation, issuerPublicKeyHex: publicKeyHex, now: attBase.expiresAt }, "expired"),
+    rej("expired-rejects", "An attestation checked after expiresAt is rejected as expired.", { attestation, issuerPublicKeyHex: publicKeyHex, now: "2028-01-01T00:00:00.000Z" }, "expired"),
+    rej("not-yet-valid-rejects", "An attestation checked before issuedAt is rejected as not yet valid.", { attestation, issuerPublicKeyHex: publicKeyHex, now: "2026-07-31T23:59:59.000Z" }, "not_yet_valid"),
+    rej("invalid-now-rejects", "A verifier clock that is not a strict INK timestamp is a verifier input error and fails closed as schema.", { attestation, issuerPublicKeyHex: publicKeyHex, now: "not-a-timestamp" }, "schema"),
+    acc("raw-padded-accepts", "The same signed attestation presented as raw wire text with token whitespace verifies; whitespace vanishes at canonicalization.", { attestationRaw: atPadded, ...ctx }),
+    rej("shadowed-number-literal-rejects", "An out-of-range number literal shadowed by a later duplicate member rejects at the raw gate; the parsed value never sees it and the signature still verifies, so only a byte gate refuses it.", { attestationRaw: atShadowedNumber, ...ctx }, "schema"),
+    acc("shadowed-underflow-accepts", "A shadowed underflowing exponent decodes to 0 in every IEEE-754 parser, so it is in range and not gated.", { attestationRaw: atShadowedUnderflow, ...ctx }),
+    rej("raw-lone-surrogate-escape-rejects", "A lone UTF-16 surrogate escape in the raw text rejects structurally before the signature.", { attestationRaw: atLoneSurrogate, ...ctx }, "schema"),
+  ]);
+}
 
 writeManifest();
 writeSchema();

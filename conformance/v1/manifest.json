@@ -48,6 +48,15 @@
       "sha256": "78149b8dddc30cb6db0d79b09ff330e0d3ad149e98226c0debc8646cc943af03"
     },
     {
+      "id": "attestation",
+      "vector": "vectors/attestation.json",
+      "profile": "evidence",
+      "spec": "specs/ink-attestation.md",
+      "summary": "Signed issuer claim about a subject agent: schema bounds, claim-type and attestation-id grammar, the raw-body gate, the single vendor-neutral wire spelling, issuer-key signature, and the inclusive-start exclusive-end validity window. No audience, no replay, no judgment of issuer or claim.",
+      "caseCount": 34,
+      "sha256": "bd2494b61c446021755d5936e79ac379897c904d1eb87c195f6f3dc21135a211"
+    },
+    {
       "id": "audit-query-response",
       "vector": "vectors/audit-query-response.json",
       "profile": "audit",

@@ -32,6 +32,7 @@ import {
   hexToBytes,
   verifyDiscoveryQueryEnvelope,
   verifyAuthorizationGrant,
+  verifyAttestation,
   verifyAuthorizationChain,
   verifyAuthorizationChallenge,
   deriveChallengeGrantId,
@@ -177,6 +178,19 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         verifiedOwner,
         maxLifetimeMs,
       });
+      return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
+    }
+    case "attestation": {
+      const { attestation, attestationRaw, issuerPublicKeyHex, now } = input as {
+        attestation?: unknown;
+        attestationRaw?: string;
+        issuerPublicKeyHex: string;
+        now: string;
+      };
+      // Raw bytes in, same as the grant: raw-gate cases carry the exact wire
+      // text, every other case serializes the value the way a presenter would.
+      const attBody = new TextEncoder().encode(attestationRaw ?? JSON.stringify(attestation));
+      const result = await verifyAttestation(attBody, hexToBytes(issuerPublicKeyHex), { now });
       return result.ok ? { result: "accept" } : { result: "reject", reason: result.reason };
     }
     case "authorization-chain": {
