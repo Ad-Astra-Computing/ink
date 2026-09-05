@@ -78,6 +78,15 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   `unsupported_intent`, `encryption_required` and `rate_limited` now cite the
   tests that exercise them, and a new row records that transport auth returns
   the canonical principal every per-sender control keys on.
+- The compliance checklist's Vectors column is gated. It had cited file names
+  from a pre-corpus scheme (`signing.json`, `replay.json` and so on) that no
+  longer exist, on most of its rows, so a reader could not tell which rows
+  the corpus pins. The column now names `conformance/v1` categories by
+  manifest id, `npm run check:facts` rejects an id the manifest does not
+  have, and the coverage matrix in §16 is rendered from the rows and the
+  manifest rather than transcribed. Rows whose old file name has no
+  successor category are marked as pinned by tests only, which is what was
+  true of them all along.
 
 ## 0.19.0, a key must fit its role
 

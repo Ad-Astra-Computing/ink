@@ -27,6 +27,14 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 - **Extension**, defined but not required for base interop
 - **Future**, specified for later versions
 
+**Vectors column** names the `conformance/v1` categories, by manifest id,
+whose vectors pin the row for every implementation; the empty marker `,`
+means no vector pins the row, so whatever evidence it has is in the Tests
+column.
+`npm run check:facts` rejects an id the manifest does not have and renders
+§16 from this column. **Tests column** names the reference test files that
+exercise the row.
+
 ---
 
 ## 1. Discovery
@@ -34,11 +42,11 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | D1 | Agent Card served at the discovery path | MUST | Required | Discovery Fetch, Discovery path |, | `test/ink-discovery-gating.test.ts` |
-| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
-| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 |, | `test/ink-discovery-gating.test.ts` |
-| D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
+| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
+| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
+| D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
+| D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 |, | `test/ink-key-rotation.test.ts` |
+| D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D7 | Agent Card includes receipt capability advertisement | MAY | Optional | Auditability §1 |, | `test/ink-discovery-gating.test.ts` |
 | D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/ink-discovery-gating.test.ts` |
 
@@ -48,15 +56,15 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| S1 | Signature base: `ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp` | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S2 | Ed25519 signature over UTF-8 encoded signature base | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S3 | Auth header: `INK-Ed25519 <base64url(sig)>` | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S4 | Auth header extended: `INK-Ed25519 <sig> keyId=<keyId>` (optional) | SHOULD | Required | Key Rotation §13 | `key-rotation.json` | `test/ink-auth-header.test.ts` |
-| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs.json` | `test/security-fixes.test.ts` |
-| S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| S9 | Transport auth returns the canonical, prefix-independent principal alongside the raw `from`, so a receiver can key its per-sender controls on it as Protocol §4 requires; the two spellings of one key map to one principal | MUST | Required | Protocol §4, §7 |, | `test/canonical-principal.test.ts` |
+| S1 | Signature base: `ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp` | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| S2 | Ed25519 signature over UTF-8 encoded signature base | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| S3 | Auth header: `INK-Ed25519 <base64url(sig)>` | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
+| S4 | Auth header extended: `INK-Ed25519 <sig> keyId=<keyId>` (optional) | SHOULD | Required | Key Rotation §13 | `authorization-header`, `key-rotation` | `test/ink-auth-header.test.ts` |
+| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
+| S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs-number`, `jcs-string-safety` | `test/security-fixes.test.ts` |
+| S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| S9 | Transport auth returns the canonical, prefix-independent principal alongside the raw `from`, so a receiver can key its per-sender controls on it as Protocol §4 requires; the two spellings of one key map to one principal | MUST | Required | Protocol §4, §7 | `principal-normalization` | `test/canonical-principal.test.ts` |
 
 ---
 
@@ -64,10 +72,10 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| R1 | Reject timestamps older than 5 minutes | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
-| R2 | Reject timestamps more than 30 seconds in the future | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
-| R3 | Reject duplicate nonces within the freshness window | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
-| R4 | Accept valid nonce + fresh timestamp | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
+| R1 | Reject timestamps older than 5 minutes | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| R2 | Reject timestamps more than 30 seconds in the future | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| R3 | Reject duplicate nonces within the freshness window | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| R4 | Accept valid nonce + fresh timestamp | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
 | R5 | Nonce recorded only after all rejection checks pass | SHOULD | Required | Auth Chain Audit |, | `test/security-fixes.test.ts` |
 
 ---
@@ -78,12 +86,12 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
-| E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
-| E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
-| E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `encryption.json` | `test/security-fixes.test.ts` |
+| E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
+| E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
+| E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
+| E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
 | E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
-| E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 |, | `test/security-fixes.test.ts` |
+| E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
 
 ---
 
@@ -91,10 +99,10 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| M1 | Intent envelope includes `protocol`, `id`, `correlationId`, `createdAt`, `from`, `to`, `intent`, `payload`, `signature`; `timestamp` and `nonce` are optional in the schema and required at receipt for the replay checks (§3.5). Intent messages carry `intent` and have no `type`; the reverse-domain `type` field is on protocol messages (encrypted, handshake, receipt, audit) in the `network.tulpa.*`/`network.ink.*` namespace (§6) | MUST | Required | Protocol §3.1, §6 | `signing.json` | `test/security-fixes.test.ts` |
-| M2 | `protocol` field is `"ink/0.1"` or `"ink/0.2"`; an unknown value is rejected, never inferred | MUST | Required | Protocol §3.1, §8 | `signing.json` | `test/security-fixes.test.ts` |
-| M3 | `signingKeyId` optional field for key rotation | SHOULD | Required | Key Rotation §13 | `key-rotation.json` | `test/ink-auth-header.test.ts` |
-| M4 | Unknown fields preserved during canonicalization | MUST | Required | Compat Policy §3.1 | `jcs.json` | `test/security-fixes.test.ts` |
+| M1 | Intent envelope includes `protocol`, `id`, `correlationId`, `createdAt`, `from`, `to`, `intent`, `payload`, `signature`; `timestamp` and `nonce` are optional in the schema and required at receipt for the replay checks (§3.5). Intent messages carry `intent` and have no `type`; the reverse-domain `type` field is on protocol messages (encrypted, handshake, receipt, audit) in the `network.tulpa.*`/`network.ink.*` namespace (§6) | MUST | Required | Protocol §3.1, §6 | , | `test/security-fixes.test.ts` |
+| M2 | `protocol` field is `"ink/0.1"` or `"ink/0.2"`; an unknown value is rejected, never inferred | MUST | Required | Protocol §3.1, §8 | , | `test/security-fixes.test.ts` |
+| M3 | `signingKeyId` optional field for key rotation | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` |
+| M4 | Unknown fields preserved during canonicalization | MUST | Required | Compat Policy §3.1 | , | `test/security-fixes.test.ts` |
 
 ---
 
@@ -104,12 +112,12 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| H1 | Challenge: `network.tulpa.challenge` with INK-Ed25519 auth | MUST | Required | Protocol §5 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
-| H2 | Rejection: `network.tulpa.rejection` with reason code | MUST | Required | Protocol §5 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
-| H3 | Resolution: `network.tulpa.resolution` with outcome | MUST | Required | Protocol §5 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
-| H4 | Resolution outcome: `accepted`, `declined`, `escalated_to_human`, `expired` | MUST | Required | Protocol §5 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
-| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
-| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
+| H1 | Challenge: `network.tulpa.challenge` with INK-Ed25519 auth | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
+| H2 | Rejection: `network.tulpa.rejection` with reason code | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
+| H3 | Resolution: `network.tulpa.resolution` with outcome | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
+| H4 | Resolution outcome: `accepted`, `declined`, `escalated_to_human`, `expired` | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
+| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | , | `test/ink-handshake-schemas.test.ts` |
+| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | , | `test/ink-handshake-schemas.test.ts` |
 
 ---
 
@@ -117,12 +125,12 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| RC1 | Receipt type: `network.tulpa.receipt` | MUST (if receipts supported) | Optional | Auditability §1 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
-| RC2 | Dispositions: `received`, `delivered`, `acted`, `rejected`, `expired` | MUST | Optional | Auditability §1 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
-| RC3 | `messageHash`: SHA-256 of JCS-canonicalized original message (hex) | MUST | Optional | Auditability §1 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
-| RC4 | Receipts are Ed25519 signed | MUST | Optional | Auditability §1 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
+| RC1 | Receipt type: `network.tulpa.receipt` | MUST (if receipts supported) | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
+| RC2 | Dispositions: `received`, `delivered`, `acted`, `rejected`, `expired` | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
+| RC3 | `messageHash`: SHA-256 of JCS-canonicalized original message (hex) | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
+| RC4 | Receipts are Ed25519 signed | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
 | RC5 | No receipt sent for receipts (loop prevention) | MUST | Optional | Auditability §1 |, | `test/ink-receipt-generation.test.ts` |
-| RC6 | Receipt transport uses INK-Ed25519 auth header | MUST | Optional | Auditability §1 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
+| RC6 | Receipt transport uses INK-Ed25519 auth header | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
 
 ---
 
@@ -130,15 +138,15 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| A1 | Audit events: hash-chained with `previousEventHash` (SHA-256 hex) | MUST (if audit supported) | Optional | Auditability §2 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
-| A2 | Audit events: signed with `agentSignature` (Ed25519) | MUST | Optional | Auditability §2 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
-| A3 | Monotonic `sequence` per agent | MUST | Optional | Auditability §2 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
-| A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | `receipts-and-audit.json` | `test/ink-receipt-generation.test.ts` |
+| A1 | Audit events: hash-chained with `previousEventHash` (SHA-256 hex) | MUST (if audit supported) | Optional | Auditability §2 | , | `test/ink-receipt-generation.test.ts` |
+| A2 | Audit events: signed with `agentSignature` (Ed25519) | MUST | Optional | Auditability §2 | , | `test/ink-receipt-generation.test.ts` |
+| A3 | Monotonic `sequence` per agent | MUST | Optional | Auditability §2 | , | `test/ink-receipt-generation.test.ts` |
+| A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | , | `test/ink-receipt-generation.test.ts` |
 | A5 | Audit response: filtered to sender/recipient only | MUST | Optional | Auditability §3 |, | `test/ink-receipt-generation.test.ts` |
-| A6 | Fork detection: same sequence + different hash = tampered | MUST | Optional | Auditability §2 | `receipts-and-audit.json` | `test/security-round25.test.ts` |
-| A7 | `signingKeyId` recorded as top-level `InkAuditEvent.signingKeyId` field | SHOULD | Required | Key Rotation Phase 3 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| A8 | Response slices have strictly +1 sequence continuity (no gaps within a slice) | MUST | Required | Auditability §3 | `receipts-and-audit.json` | `test/security-round25.test.ts` |
-| A9 | `previousEventHash` MUST equal SHA-256(JCS(prior event without `agentSignature`)) for every event after the first in a slice | MUST | Required | Auditability §2 | `receipts-and-audit.json` | `test/security-round25.test.ts` |
+| A6 | Fork detection: same sequence + different hash = tampered | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
+| A7 | `signingKeyId` recorded as top-level `InkAuditEvent.signingKeyId` field | SHOULD | Required | Key Rotation Phase 3 | , | `test/ink-key-rotation.test.ts` |
+| A8 | Response slices have strictly +1 sequence continuity (no gaps within a slice) | MUST | Required | Auditability §3 | , | `test/security-round25.test.ts` |
+| A9 | `previousEventHash` MUST equal SHA-256(JCS(prior event without `agentSignature`)) for every event after the first in a slice | MUST | Required | Auditability §2 | , | `test/security-round25.test.ts` |
 | A10 | Consumers run both `verifyAuditResponseSignature` and `verifyAuditEventChain` before treating events as authoritative | MUST | Required | Auditability §3 |, | `test/security-round25.test.ts` |
 
 ---
@@ -147,22 +155,22 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| W1 | Submit: `POST /ink/v1/audit/submit` with INK-Ed25519 + embedded event signature | MUST (if witness supported) | Optional | Auditability §7 | `witness.json` | `test/security-fixes.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W2 | Query: `POST /ink/v1/audit/query` with INK-Ed25519 | MUST | Optional | Auditability §7 | `witness.json` | `test/security-fixes.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W3 | Access control: requester must be event agent or counterparty | MUST | Optional | Auditability §7 | `witness.json` | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 |, | `witness/witness/test/merkle.test.ts (witness repo)` |
-| W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 |, | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W6 | Checkpoint: C2SP tlog-checkpoint format at `GET /ink/v1/checkpoint` | SHOULD | Optional | Auditability §7 |, | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | `witness.json` | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W1 | Submit: `POST /ink/v1/audit/submit` with INK-Ed25519 + embedded event signature | MUST (if witness supported) | Optional | Auditability §7 | , | `test/security-fixes.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W2 | Query: `POST /ink/v1/audit/query` with INK-Ed25519 | MUST | Optional | Auditability §7 | , | `test/security-fixes.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W3 | Access control: requester must be event agent or counterparty | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 | `merkle-inclusion`, `merkle-consistency` | `witness/witness/test/merkle.test.ts (witness repo)` |
+| W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 | `inclusion-receipt` | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W6 | Checkpoint body is the C2SP tlog-checkpoint format; the witness serves it at `GET /ink/v1/checkpoint` (the endpoint itself is covered by the witness repo tests, the format by the vectors) | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | `test/ink-key-rotation.test.ts` |
-| W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `witness.json` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
-| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | `ink-merkle-leaf.md` | `witness.json` | `test/merkle-leaf-hash.test.ts` |
-| W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 |, | `test/verify-audit-query-response.test.ts` |
+| W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
+| W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | `ink-merkle-leaf.md` | `merkle-leaf` | `test/merkle-leaf-hash.test.ts` |
+| W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
 | W12 | Deterministic result-set ordering so signed bytes are reproducible | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W13 | Fail-closed on truncation: refuse to sign a partial result; return unsigned 413 | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W14 | Fail-closed on storage integrity (event_hash mismatch, missing Merkle node, column-vs-event_json drift): HTTP 500, no signed response | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
-| W15 | Empty-log response: `treeSize == 0` MUST have empty `events`, empty `proofs` and canonical empty-tree `rootHash` | MUST | Optional | Auditability §7.3 |, | `test/verify-audit-query-response.test.ts` |
-| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance) | MUST | Optional | Auditability §7.3, §7.5 |, | `test/verify-audit-query-response.test.ts` |
+| W15 | Empty-log response: `treeSize == 0` MUST have empty `events`, empty `proofs` and canonical empty-tree `rootHash` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
+| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance). The vectors pin the provenance check against a wrong or unresolvable key; the missing-signature case is a library test | MUST | Optional | Auditability §7.3, §7.5 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
 
 ---
 
@@ -171,17 +179,17 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | K1 | `agentId` stable across key rotation | MUST | Required | Key Rotation §4 |, | `test/ink-key-rotation-e2e.test.ts` |
-| K2 | Agent Card key-set: `keys.signing[]` with `keyId`, `algorithm`, `publicKeyMultibase`, `status`, `validFrom` | MUST | Required | Key Rotation §5 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| K3 | Key statuses: `active`, `retired`, `revoked` | MUST | Required | Key Rotation §5.3 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| K4 | Verification order: hinted key → active → retired → skip revoked | MUST | Required | Key Rotation §6.4 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| K5 | Retired keys valid for historical verification | MUST | Required | Key Rotation §6.2 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| K6 | Revoked keys rejected for signatures after `revokedAt` | MUST | Required | Key Rotation §6.3 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
-| K7 | Cache refresh on verification miss (max 1 retry) | SHOULD | Required | Key Rotation §9.2 | `key-rotation.json` | `test/ink-key-rotation-e2e.test.ts` |
-| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | `key-rotation.json` | `test/ink-auth-header.test.ts` |
-| K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
+| K2 | Agent Card key-set: `keys.signing[]` with `keyId`, `algorithm`, `publicKeyMultibase`, `status`, `validFrom` | MUST | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
+| K3 | Key statuses: `active`, `retired`, `revoked` | MUST | Required | Key Rotation §5.3 | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K4 | Verification order: hinted key → active → retired → skip revoked | MUST | Required | Key Rotation §6.4 | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K5 | Retired keys valid for historical verification | MUST | Required | Key Rotation §6.2 | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K6 | Revoked keys rejected for signatures after `revokedAt` | MUST | Required | Key Rotation §6.3 | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K7 | Cache refresh on verification miss (max 1 retry) | SHOULD | Required | Key Rotation §9.2 | , | `test/ink-key-rotation-e2e.test.ts` |
+| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` |
+| K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | , | `test/ink-key-rotation.test.ts` |
 | K10 | Historical keys retained minimum 90 days | SHOULD | Required | Key Rotation §11.2 |, |, |
 | K11 | `keySetVersion` monotonically incremented on rotation/revocation | MUST | Required | Key Rotation §5 |, | `test/ink-key-rotation-e2e.test.ts` |
-| K12 | Rotation audit events: `key.rotated`, `key.revoked` | SHOULD | Required | Audit Bridge | `key-rotation.json` | `test/ink-key-rotation.test.ts` |
+| K12 | Rotation audit events: `key.rotated`, `key.revoked` | SHOULD | Required | Audit Bridge | , | `test/ink-key-rotation.test.ts` |
 | K13 | Retired-key verification result includes `keyStatus` | SHOULD | Required | Multi-Key Verify |, | `test/ink-key-rotation.test.ts` |
 
 ---
@@ -204,16 +212,16 @@ For the normative cross-implementation floor keyed to the `conformance/v1` corpu
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| ER1 | `missing_authorization`, no auth header | MUST | Required | Protocol §3.3 | `handshake.json` | `test/ink-handshake-schemas.test.ts` |
-| ER2 | `invalid_auth_scheme`, wrong auth scheme | MUST | Required | Protocol §3.3 |, | `test/security-fixes.test.ts` |
-| ER3 | `invalid_signature`, signature does not verify | MUST | Required | Protocol §3.3 | `signing.json` | `test/security-fixes.test.ts` |
-| ER4 | `timestamp_expired`, older than 5 minutes | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
-| ER5 | `timestamp_too_far_future`, more than 30s ahead | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
-| ER6a | `nonce_handling_required`, `verifyInkAuth` invoked without a `nonceStore` (fail-closed default) | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-round25.test.ts` |
-| ER6b | `missing_nonce`, body.nonce missing or out of `[16,256]` charset bounds when `nonceStore` is supplied | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-round25.test.ts` |
-| ER6c | `nonce_replay`, `nonceStore.has(nonce)` returned true after successful signature verify | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-round25.test.ts` |
+| ER1 | `missing_authorization`, no auth header | MUST | Required | Protocol §3.3 | `authorization-header` | `test/ink-handshake-schemas.test.ts` |
+| ER2 | `invalid_auth_scheme`, wrong auth scheme | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
+| ER3 | `invalid_signature`, signature does not verify | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| ER4 | `timestamp_expired`, older than 5 minutes | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| ER5 | `timestamp_too_far_future`, more than 30s ahead | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| ER6a | `nonce_handling_required`, `verifyInkAuth` invoked without a `nonceStore` (fail-closed default) | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
+| ER6b | `missing_nonce`, body.nonce missing or out of `[16,256]` charset bounds when `nonceStore` is supplied | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
+| ER6c | `nonce_replay`, `nonceStore.has(nonce)` returned true after successful signature verify | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
 | ER6d | `nonce_store_error`, `nonceStore.has` or `.add` threw (fail-closed) | MUST | Required | Protocol §3.5 |, | `test/security-round25.test.ts` |
-| ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay.json` | `test/security-fixes.test.ts` |
+| ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
 | ER7 | `unsupported_intent`, unknown intent type | MUST | Required | Protocol §3.1 |, | `test/ink-handshake-schemas.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | ER8 | `encryption_required`, plaintext where encrypted required, ahead of the intent allowlist | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | ER9 | `rate_limited`, request rate exceeded. The library registers the code as a rejection reason; the limiter itself is receiver policy and has no library test | SHOULD | Required | Protocol §4 |, | receiver-side, none in the library |
@@ -286,42 +294,71 @@ Full peer requirements plus section 13 (CT1–CT16). Adds transport scoping, dis
 
 ---
 
-## 16. Test Vector Coverage Matrix
+## 16. Conformance Vector Coverage
 
-| Vector File | Sections Covered | Vector Count |
-|-------------|-----------------|--------------|
-| `keys.json` | Fixed key material for all vectors |, |
-| `signing.json` | S1–S8 | 3 |
-| `encryption.json` | E1–E6 | 2 |
-| `jcs.json` | S6, M4 | 4 |
-| `replay.json` | R1–R4 | 6 |
-| `receipts-and-audit.json` | RC1–RC6, A1–A6 | 4 |
-| `handshake.json` | H1–H6, ER1, ER4–ER6 | 22 |
-| `witness.json` | W1–W3, W7, S1–S8 | 15 |
-| `key-rotation.json` | K1–K9, K12 | 8 |
+The Vectors column of every row above names the `conformance/v1` categories whose vectors pin that row, by manifest id. A row with no category is pinned by tests only. `npm run check:facts` rejects a category id that is not in `conformance/v1/manifest.json`, and it regenerates this matrix, so the column and the matrix cannot drift from the corpus.
 
-**Total deterministic vectors:** 64
+<!-- BEGIN GENERATED checklist-vector-matrix -->
+*Generated from `conformance/v1/manifest.json` and the Vectors column of the rows above. Regenerate with `npm run check:facts -- --write`.*
+
+| Category | Profile | Cases | Rows citing it |
+|----------|---------|------:|----------------|
+| `agent-authorization` | `authorization` | 68 | none |
+| `agent-card` | `base` | 53 | D2, D3, D4, D6, K2 |
+| `agent-card-evidence` | `evidence` | 19 | none |
+| `agent-card-fetch` | `base` | 34 | none |
+| `agent-card-signature` | `base` | 50 | none |
+| `agent-card-signature-phase-c` | `staged` | 10 | none |
+| `attestation` | `evidence` | 34 | none |
+| `audit-query-response` | `audit` | 27 | W9, W11, W15, W16 |
+| `authorization-chain` | `delegation` | 56 | none |
+| `authorization-grant` | `authorization` | 55 | none |
+| `authorization-header` | `base` | 23 | S3, S4, S5, ER1, ER2 |
+| `connection-payload` | `base` | 22 | none |
+| `discovery-query-envelope` | `discovery` | 33 | none |
+| `evidence-refusal` | `evidence` | 13 | none |
+| `first-contact-transcript` | `base` | 28 | none |
+| `handshake-message` | `containment` | 32 | H1, H2, H3, H4 |
+| `inclusion-receipt` | `audit` | 39 | W5 |
+| `jcs-number` | `base` | 16 | S6 |
+| `jcs-string-safety` | `base` | 10 | S6 |
+| `key-rotation` | `base` | 32 | S4, K3, K4, K5, K6 |
+| `merkle-checkpoint` | `witness` | 21 | W6 |
+| `merkle-consistency` | `witness` | 19 | W4 |
+| `merkle-inclusion` | `witness` | 14 | W4 |
+| `merkle-leaf` | `audit` | 15 | W10 |
+| `payload-encryption` | `encryption` | 22 | E1, E2, E3, E4, E6 |
+| `principal-normalization` | `base` | 10 | S9 |
+| `private-hostname` | `base` | 58 | none |
+| `replay-freshness` | `base` | 10 | R1, R2, R3, R4, ER4, ER5, ER6e |
+| `signature-base` | `base` | 15 | S1, S2, S7, S8, ER3 |
+| `signed-body-member-name` | `base` | 18 | none |
+| `signed-body-utf8` | `base` | 21 | none |
+| `timestamp-validity` | `base` | 17 | none |
+
+45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 894 cases.
+<!-- END GENERATED checklist-vector-matrix -->
 
 ---
 
 ## 17. Implementation Status Summary
 
-| Area | Required | Implemented | Tested | Vectors |
-|------|----------|------------|--------|---------|
-| Discovery | 8 | 8 | 8 | 3 |
-| Transport Signing | 9 | 9 | 9 | 3 |
-| Replay Protection | 5 | 5 | 5 | 6 |
-| Encryption | 6 | 6 | 6 | 2 |
-| Message Envelope | 4 | 4 | 4 | 3 |
-| Handshake | 6 | 6 | 6 | 22 |
-| Receipts | 6 | 6 | 6 | 4 |
-| Bilateral Audit | 7 | 7 | 7 | 4 |
-| Witness | 8 | 8 | 8 | 15 |
-| Key Rotation | 13 | 13 | 12 | 8 |
-| Auth Chains | 7 | 6 | 6 | 0 |
-| Error Semantics | 14 | 14 | 14 |, |
-| Containment | 16 | 16 | 15 | 0 |
-| **Total** | **109** | **108** | **106** | **67** |
+| Area | Required | Implemented | Tested |
+|------|----------|------------|--------|
+| Discovery | 8 | 8 | 8 |
+| Transport Signing | 9 | 9 | 9 |
+| Replay Protection | 5 | 5 | 5 |
+| Encryption | 6 | 6 | 6 |
+| Message Envelope | 4 | 4 | 4 |
+| Handshake | 6 | 6 | 6 |
+| Receipts | 6 | 6 | 6 |
+| Bilateral Audit | 7 | 7 | 7 |
+| Witness | 8 | 8 | 8 |
+| Key Rotation | 13 | 13 | 12 |
+| Auth Chains | 7 | 6 | 6 |
+| Error Semantics | 14 | 14 | 14 |
+| Containment | 16 | 16 | 15 |
+| **Total** | **109** | **108** | **106** |
 
 **Notes:**
 - AC3 (multi-hop chains) is designed but not fully implemented, extension status
