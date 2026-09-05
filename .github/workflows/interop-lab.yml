@@ -39,9 +39,13 @@ on:
 
 permissions: {}
 
+# Superseding a pull-request run is free: only the head commit matters there.
+# Superseding a run on `main` is not: the readiness evidence claims the lab was
+# green on every commit that reached `main` during a soak window, and a
+# cancelled run leaves a commit with no verdict at all.
 concurrency:
   group: interop-lab-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

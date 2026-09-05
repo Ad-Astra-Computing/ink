@@ -163,6 +163,32 @@ const differentialBudget = (() => {
   return group(match, 1);
 })();
 
+// Two workflow shapes the readiness record depends on for criterion 4. Neither
+// is a value quoted in prose, so they are structural checks rather than claims:
+// if the release leg or the main-run cancellation guard is dropped, the nights
+// §2.6(a) counts stop being attributable to the release, and the lab stops
+// having a verdict for every commit that reached `main`.
+const differentialWorkflow = read(DIFFERENTIAL_WORKFLOW);
+if (!/matrix:\s*\n\s*leg: .*fromJSON\('\["main","release"\]'\)/.test(differentialWorkflow)) {
+  errors.push(
+    `${DIFFERENTIAL_WORKFLOW}: the scheduled run must keep its main and release legs. ` +
+      "Readiness §2.6(a) counts a night only when the release leg ran.",
+  );
+}
+if (!/distTags\.next/.test(differentialWorkflow)) {
+  errors.push(
+    `${DIFFERENTIAL_WORKFLOW}: the release leg must resolve its tag from the dist-tag pin, ` +
+      `so the release under evaluation has one source.`,
+  );
+}
+const INTEROP_WORKFLOW = ".github/workflows/interop-lab.yml";
+if (!/cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/.test(read(INTEROP_WORKFLOW))) {
+  errors.push(
+    `${INTEROP_WORKFLOW}: runs on main must not be cancelled by a later push. ` +
+      "Readiness §2.6(b) requires a verdict for every commit that reached main.",
+  );
+}
+
 const claims: Claim[] = [
   {
     id: "soak.differential-budget",

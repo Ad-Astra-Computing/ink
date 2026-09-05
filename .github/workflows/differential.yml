@@ -39,10 +39,29 @@ concurrency:
 jobs:
   differential:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      # A scheduled night is evidence for one release, and `main` moves off
+      # that release the moment the next change merges. The release leg runs
+      # the same budget against the tree the dist-tag pin names, so a night
+      # recorded as evidence for the release was run on the release. A pull
+      # request only needs the main leg: it is testing its own head.
+      matrix:
+        leg: ${{ github.event_name == 'pull_request' && fromJSON('["main"]') || fromJSON('["main","release"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: ${{ matrix.leg == 'release' && 0 || 1 }}
+
+      - name: check out the release under evaluation
+        if: matrix.leg == 'release'
+        run: |
+          set -euo pipefail
+          version=$(node -p 'require("./governance/releases/npm-dist-tags.json").distTags.next')
+          case "$version" in ''|*[!0-9.]*) echo "unexpected pinned version: $version"; exit 1 ;; esac
+          git checkout "v$version"
+          echo "release leg at v$version, commit $(git rev-parse HEAD)"
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
