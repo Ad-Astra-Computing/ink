@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -400,6 +401,91 @@ func TestCardVerify_MalformedKeysMemberDoesNotDemoteToLegacy(t *testing.T) {
 		card["keySetVersion"] = 1
 		card["keys"] = keys
 		signed := attachCardSignature(t, card, legacyBootstrapKeyID, g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+// The same collapse one level down, inside a rotation link's committed set.
+func TestCardVerify_ChainEntryWrongTypedKeyIDIsInvalid(t *testing.T) {
+	for _, keyID := range []interface{}{float64(7), nil, []interface{}{}, false} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		good := signingEntry("g1", g, "active")
+		bad := map[string]interface{}{}
+		for k, v := range good {
+			bad[k] = v
+		}
+		bad["keyId"] = keyID
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{good}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		card["rotationChain"] = []interface{}{map[string]interface{}{
+			"keySetVersion": 1, "signing": []interface{}{bad}, "prevKeyId": "g1",
+			"signature": strings.Repeat("A", 86),
+		}}
+		signed := attachCardSignature(t, card, "g1", g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+// Spec 3.4 makes keyId and signature a MUST. An absent keyId collapsed to the
+// empty string here and matched an entry whose own id was empty.
+func TestCardVerify_CardSignatureMembersAreRequired(t *testing.T) {
+	for _, missing := range []string{"keyId", "signature"} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{signingEntry("g1", g, "active")}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		signed := attachCardSignature(t, card, "g1", g.priv)
+		wire := mustWire(t, signed)
+		sig, _ := wire["cardSignature"].(map[string]interface{})
+		delete(sig, missing)
+
+		res := VerifyAgentCardSignature(wire, agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+// A type assertion collapses every non-string to the empty string, so two
+// wrong-typed entry ids looked like duplicates here and distinct in the
+// reference, which accepted the card.
+func TestCardVerify_WrongTypedEntryKeyIDIsInvalid(t *testing.T) {
+	for _, keyID := range []interface{}{float64(7), nil, []interface{}{}, map[string]interface{}{}, false} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		good := signingEntry("g1", g, "active")
+		bad := map[string]interface{}{}
+		for k, v := range good {
+			bad[k] = v
+		}
+		bad["keyId"] = keyID
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{good, bad}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		signed := attachCardSignature(t, card, "g1", g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+func TestCardVerify_WrongTypedStringMemberIsInvalid(t *testing.T) {
+	for _, value := range []interface{}{nil, float64(7), []interface{}{}, map[string]interface{}{}, false} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{signingEntry("g1", g, "active")}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = value
+		card["keySetVersion"] = 1
+		signed := attachCardSignature(t, card, "g1", g.priv)
 
 		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
 		expectReject(t, res, ReasonInvalidCard)

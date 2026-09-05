@@ -193,7 +193,7 @@ function spawnSyncish(cmd, args, opts) {
  * makes the payload byte-identical for both readers, so a case that fails on one
  * side fails because of the library rather than because of the pipe. */
 function jsonAscii(value) {
-  return JSON.stringify(value).replace(/[-￿]/g, (c) =>
+  return JSON.stringify(value).replace(/[\u0080-\uffff]/g, (c) =>
     "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"),
   );
 }
@@ -396,6 +396,7 @@ async function main() {
   let ran = 0;
   const findings = [];
   const seenFindings = new Set();
+  let unstable = 0;
   const shapeCounts = new Map();
 
   let batch = [];
@@ -431,21 +432,42 @@ async function main() {
         seenFindings.add(key);
         continue;
       }
-      const minimized = await minimize(surface, c.input, diff.kind, opts);
-      const check = await decideBoth([{ caseId: "min", surface: surface.id, input: minimized }]);
+      let minimizedInput = await minimize(surface, c.input, diff.kind, opts);
+      let minCheck = await decideBoth([{ caseId: "min", surface: surface.id, input: minimizedInput }]);
+      let minId = "min";
       // The shrinker matches on the kind, not the exact detail, so a minimized
       // case can carry a different reason than the case it came from. Record the
       // detail of what actually landed on disk.
-      const minDiff = compare(check.ts.get("min"), check.go.get("min")) ?? diff;
+      let minDiff = compare(minCheck.ts.get("min"), minCheck.go.get("min"));
+      if (!minDiff) {
+        // The minimized case does not reproduce. Re-decide the case it came
+        // from before recording anything: a finding whose artifact disagrees
+        // with its own claim sends a reader chasing a divergence that is not
+        // there, which is worse than no finding at all.
+        const again = await decideBoth([{ caseId: "orig", surface: surface.id, input: c.input }]);
+        const origDiff = compare(again.ts.get("orig"), again.go.get("orig"));
+        if (!origDiff) {
+          log(`  UNSTABLE ${c.surface} [${diff.kind}] ${diff.detail}`);
+          log(`    neither the minimized case nor the original reproduces; not recorded`);
+          unstable++;
+          continue;
+        }
+        // The minimized case is not a witness for what was observed, so the
+        // artifact carries the case that actually diverges.
+        minimizedInput = c.input;
+        minCheck = again;
+        minId = "orig";
+        minDiff = origDiff;
+      }
       const path = writeFinding(
-        surface, c, minDiff, minimized, tsD, goD,
-        check.ts.get("min"), check.go.get("min"), opts.seed,
+        surface, c, minDiff, minimizedInput, tsD, goD,
+        minCheck.ts.get(minId), minCheck.go.get(minId), opts.seed,
       );
-      findings.push({ surface: c.surface, kind: diff.kind, detail: minDiff.detail, path, minimized });
+      findings.push({ surface: c.surface, kind: diff.kind, detail: minDiff.detail, path, minimized: minimizedInput });
       if (!seenFindings.has(key)) {
         seenFindings.add(key);
         log(`  DIVERGENCE ${c.surface} [${diff.kind}] ${diff.detail}`);
-        log(`    minimized: ${JSON.stringify(minimized).slice(0, 400)}`);
+        log(`    minimized: ${JSON.stringify(minimizedInput).slice(0, 400)}`);
         log(`    written to ${path}`);
       }
     }
@@ -482,6 +504,12 @@ async function main() {
     return 0;
   }
   process.stdout.write(`differential: ${findings.length} divergent cases across ${seenFindings.size} shapes\n`);
+  if (unstable > 0) {
+    // Counted, never silent. A case that diverges once and not again is either
+    // a harness fault or a real nondeterminism in one implementation, and both
+    // are worth knowing about.
+    process.stdout.write(`differential: ${unstable} unstable observation(s) not recorded\n`);
+  }
   for (const key of seenFindings) process.stdout.write(`  ${key}\n`);
   return 1;
 }
