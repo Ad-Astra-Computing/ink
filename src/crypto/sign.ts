@@ -27,6 +27,52 @@ const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
  * sign. The profile is on the decoded value, not the JSON token, so `1e2` (which
  * decodes to `100`) is accepted and canonicalizes to `100`.
  */
+/**
+ * A JSON object a caller may sign or hash. Declared interfaces have no index
+ * signature, so `Record<string, unknown>` rejects this package's own message
+ * types and forces a double cast at every call site. Widening the parameter
+ * moves the check to where it belongs: `isSignableBody` below.
+ */
+export type SignableBody = object;
+
+/**
+ * True for a plain JSON object. Rejects null, arrays, and exotic objects such
+ * as Date, Map or a class instance, all of which canonicalize to `{}` and
+ * would otherwise be signed as an empty body.
+ */
+export function isSignableBody(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return isPlainObject(value);
+}
+
+/**
+ * Plain-object test that holds across realms. A `vm` context, an iframe or a
+ * worker has its own `Object.prototype`, so comparing against this module's
+ * would reject an ordinary object that merely crossed a boundary. What is
+ * actually being asked is whether the prototype chain ends immediately, which
+ * is true of an object literal and of parsed JSON in any realm, and false of a
+ * Date, a Map or a class instance, whose chain runs one link longer.
+ */
+function isPlainObject(value: object): boolean {
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === null || Object.getPrototypeOf(proto) === null;
+}
+
+/**
+ * True when some value nested in the tree is an object that JSON cannot carry:
+ * a Date, a Map, a Set, a class instance. `canonicalize` serializes those by
+ * their enumerable own keys, so most of them become `{}` and the signature
+ * covers bytes the caller never meant to sign. The top-level guard above does
+ * not see them, and the sign and hash paths run this after the bounds walk has
+ * already capped depth and node count, so the recursion here is bounded.
+ */
+export function hasNonJsonObject(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(hasNonJsonObject);
+  if (!isPlainObject(value)) return true;
+  return Object.values(value as Record<string, unknown>).some(hasNonJsonObject);
+}
+
 export function isJcsSafeNumber(n: number): boolean {
   return Number.isSafeInteger(n) && !Object.is(n, -0);
 }
@@ -108,11 +154,11 @@ function bodySignatureDomain(unsigned: Record<string, unknown>): string {
  * 4. Return base64url-encoded signature (no padding)
  */
 export async function signMessage(
-  message: Record<string, unknown>,
+  message: SignableBody,
   privateKey: Uint8Array,
 ): Promise<string> {
-  if (message === null || typeof message !== "object" || Array.isArray(message)) {
-    throw new Error("message must be a non-null object");
+  if (!isSignableBody(message)) {
+    throw new Error("message must be a plain JSON object");
   }
   if (!(privateKey instanceof Uint8Array) || privateKey.length !== 32) {
     throw new Error("privateKey must be a 32-byte Uint8Array");
@@ -123,6 +169,9 @@ export async function signMessage(
   // accept. Mirrors the matching guard in verifyMessage().
   if (!isWithinBounds(unsigned)) {
     throw new Error("Message exceeds maximum allowed complexity");
+  }
+  if (hasNonJsonObject(unsigned)) {
+    throw new Error("Message contains a value that is not JSON data");
   }
   // Refuse to sign over a lone UTF-16 surrogate: it would serialize as a
   // \uXXXX escape an independent verifier rejects (and which Go's JSON parser
@@ -161,10 +210,10 @@ export async function signMessage(
  * 3. Verify Ed25519 signature against canonical bytes
  */
 export async function verifyMessage(
-  message: Record<string, unknown>,
+  message: SignableBody,
   publicKey: Uint8Array,
 ): Promise<boolean> {
-  if (message === null || typeof message !== "object" || Array.isArray(message)) return false;
+  if (!isSignableBody(message)) return false;
   if (!(publicKey instanceof Uint8Array)) return false;
   const { signature, ...unsigned } = message;
   if (typeof signature !== "string") {
@@ -183,6 +232,7 @@ export async function verifyMessage(
   if (!isWithinBounds(unsigned)) {
     return false;
   }
+  if (hasNonJsonObject(unsigned)) return false;
   // Defense in depth alongside the receiver's raw-body scan: a parsed body
   // carrying a lone UTF-16 surrogate is not portable across implementations,
   // so it never verifies.

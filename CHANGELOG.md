@@ -8,6 +8,24 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- The signing and hashing entry points take `SignableBody` instead of
+  `Record<string, unknown>`, so a value of a declared interface type, including
+  the package's own message types, can be passed straight in. A declared
+  interface has no index signature, so callers previously had to write
+  `as unknown as Record<string, unknown>` at every call site, and a double cast
+  is exactly the construct that hides a wrong argument. `isSignableBody` is
+  exported alongside it and is enforced at each entry point: null, arrays and
+  exotic objects such as `Date`, `Map` and class instances are refused. Those
+  passed the old signature at runtime and canonicalize to `{}`, so a caller
+  handing one to `signMessage` signed an empty body and got a valid signature
+  back for it. The check reaches nested values too, so `{ when: new Date(0) }`
+  is refused rather than signed as `{"when":{}}`, and it tests the prototype
+  chain rather than one realm's `Object.prototype`, so an ordinary object that
+  crossed a `vm`, worker or iframe boundary still signs. A boxed primitive is
+  refused for the same reason: `new String("ink/0.2")` canonicalizes to the
+  string it wraps, so the signed bytes named a protocol version that
+  domain selection, which compares strictly, did not use.
+
 - The attestation evidence surface of `specs/ink-attestation.md` activates:
   `buildAttestation` and `verifyAttestation` land in both implementations
   (`VerifyAttestation` in Go), the Agent Card gains the optional bounded

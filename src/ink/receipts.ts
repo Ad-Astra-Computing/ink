@@ -43,7 +43,7 @@ export async function buildReceipt(input: BuildReceiptInput): Promise<InkReceipt
     ...(input.note ? { note: input.note } : {}),
   };
 
-  const signature = await signMessage(unsigned as unknown as Record<string, unknown>, input.privateKey);
+  const signature = await signMessage(unsigned, input.privateKey);
 
   return { ...unsigned, signature };
 }
@@ -139,7 +139,7 @@ export async function verifyReceipt(opts: {
     receipt,
     expected,
     async (parsedReceipt) => ({
-      verified: await verifyMessage(parsedReceipt as unknown as Record<string, unknown>, senderPublicKey),
+      verified: await verifyMessage(parsedReceipt, senderPublicKey),
     }),
     () =>
       !(senderPublicKey instanceof Uint8Array) || senderPublicKey.length !== 32
@@ -183,7 +183,7 @@ export async function verifyReceiptWithKeys(opts: {
     const artifactMs = parseInkTimestampMs(parsedReceipt.timestamp);
     if (artifactMs === null) return { verified: false, reason: "invalid_timestamp" };
     return verifyDetachedSignatureWithKeys(
-      (publicKey) => verifyMessage(parsedReceipt as unknown as Record<string, unknown>, publicKey),
+      (publicKey) => verifyMessage(parsedReceipt, publicKey),
       keys,
       artifactMs,
       hintKeyId,
@@ -244,7 +244,7 @@ export async function sendReceiptFireAndForget(
       method: "POST",
       path: url.pathname,
       recipientDid: receipt.to,
-      body: receipt as unknown as Record<string, unknown>,
+      body: receipt,
       timestamp: receipt.timestamp,
     }, privateKey);
 

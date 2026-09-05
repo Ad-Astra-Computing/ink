@@ -110,14 +110,15 @@ describe("version-keyed body signature domain", () => {
       expect(await verifyMessage({ ...body, signature }, k.publicKey)).toBe(true);
     });
 
-    it("a boxed String('ink/0.2') object does NOT select the v0.2 domain (strict ===)", async () => {
+    it("a boxed String('ink/0.2') object is refused outright", async () => {
       const k = await kp();
       const body: Record<string, unknown> = { ...baseBody(), protocol: new String("ink/0.2") };
-      const signature = await signMessage(body, k.privateKey);
-      // Signs + verifies under legacy; a true v0.2 signature would not verify.
-      expect(await verifyMessage({ ...body, signature }, k.publicKey)).toBe(true);
-      const v2sig = await signMessage({ ...body, protocol: "ink/0.2" }, k.privateKey);
-      expect(await verifyMessage({ ...body, signature: v2sig }, k.publicKey)).toBe(false);
+      // A boxed primitive canonicalizes to the string it wraps, so the signed
+      // bytes would say ink/0.2 while domain selection, which is strict ===,
+      // used the legacy domain. Refusing is the only reading with no gap
+      // between what was covered and which domain covered it.
+      await expect(signMessage(body, k.privateKey)).rejects.toThrow(/not JSON data/);
+      expect(await verifyMessage(body, k.publicKey)).toBe(false);
     });
   });
 });

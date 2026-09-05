@@ -1,4 +1,5 @@
 import { verifyInkSignature, type InkSignInput, MAX_TIMESTAMP_AGE_MS, MAX_FUTURE_TIMESTAMP_MS } from "../crypto/ink.js";
+import { isSignableBody, type SignableBody } from "../crypto/sign.js";
 import { parseInkTimestampMs } from "../crypto/timestamp.js";
 import { extractPublicKeyFromAgentId, canonicalAgentPrincipal } from "../crypto/keys.js";
 import { verifyInkSignatureWithKeys } from "../crypto/multi-key-verify.js";
@@ -106,7 +107,7 @@ export async function verifyInkAuth(opts: {
   method: string;
   path: string;
   recipientAgentId: string;
-  body: Record<string, unknown>;
+  body: SignableBody;
   resolvePublicKey?: (agentId: string) => Uint8Array | null;
   resolveKeySet?: (agentId: string) => CandidateKey[] | null;
   /**
@@ -147,9 +148,10 @@ export async function verifyInkAuth(opts: {
     return { valid: false, error: "missing_authorization" };
   }
 
-  if (opts.body === null || typeof opts.body !== "object" || Array.isArray(opts.body)) {
+  if (!isSignableBody(opts.body)) {
     return { valid: false, error: "missing_sender" };
   }
+  const body = opts.body;
 
   // Parse the header against the shared §3.3 grammar. The Ed25519 signature is
   // exactly 86 base64url chars, so a clearly-wrong length or alphabet is rejected
@@ -161,7 +163,7 @@ export async function verifyInkAuth(opts: {
   const signature = parsed.signature;
   const hintKeyId = parsed.keyId;
 
-  const senderDid = opts.body.from;
+  const senderDid = body.from;
   if (senderDid !== undefined && typeof senderDid !== "string") {
     return { valid: false, error: "invalid_from_field" };
   }
@@ -175,7 +177,7 @@ export async function verifyInkAuth(opts: {
     return { valid: false, error: "invalid_from_field" };
   }
 
-  const timestamp = opts.body.timestamp;
+  const timestamp = body.timestamp;
   if (typeof timestamp !== "string" || timestamp.length === 0) {
     return { valid: false, error: "missing_timestamp" };
   }
@@ -216,7 +218,7 @@ export async function verifyInkAuth(opts: {
   const usingNonceStore = storeIsObject;
   let bodyNonce: string | undefined;
   if (usingNonceStore) {
-    const candidate = opts.body.nonce;
+    const candidate = body.nonce;
     if (
       typeof candidate !== "string" ||
       candidate.length < 16 ||
