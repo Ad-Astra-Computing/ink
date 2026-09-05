@@ -405,7 +405,13 @@ const checklistRows: ChecklistRow[] = [];
         return;
       }
       const cell = (cells[6] ?? "").trim();
-      const cited = cell === "," || cell === "" ? [] : cell.split(",").map((s) => s.trim());
+      if (cell === "") {
+        errors.push(
+          `${CHECKLIST}:${i + 1}: row ${row[1]} has a blank Vectors cell; a row no vector pins carries the empty marker \`,\`.`,
+        );
+        return;
+      }
+      const cited = cell === "," ? [] : cell.split(",").map((s) => s.trim());
       const ids: string[] = [];
       for (const entry of cited) {
         const id = /^`([a-z0-9-]+)`$/.exec(entry);
