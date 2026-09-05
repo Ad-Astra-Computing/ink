@@ -64,7 +64,7 @@ deployment rather than the library.
 | S2 | Ed25519 signature over UTF-8 encoded signature base | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts`, `test/go-request-signing-interop.test.ts` |
 | S3 | Auth header: `INK-Ed25519 <base64url(sig)>` | MUST | Required | Protocol §3.3 | `authorization-header` | `test/ink-auth.test.ts`, `test/security-round8.test.ts`, `test/auth-header-separator.test.ts` |
 | S4 | Auth header extended: `INK-Ed25519 <sig> keyId=<keyId>` (optional) | SHOULD | Required | Key Rotation §13 | `authorization-header`, `key-rotation` | `test/ink-auth-header.test.ts` |
-| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-round9.test.ts`, `test/security-round23.test.ts` |
+| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `authorization-header` | `test/checklist-evidence.test.ts`, `test/security-round23.test.ts` |
 | S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs-number`, `jcs-string-safety` | `test/security-round23.test.ts`, `test/conformance-independent.test.ts`, `test/input-hardening.test.ts` |
 | S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts` |
 | S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts` |
@@ -145,7 +145,7 @@ deployment rather than the library.
 | A1 | Audit events: hash-chained with `previousEventHash` (SHA-256 hex) | MUST (if audit supported) | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
 | A2 | Audit events: signed with `agentSignature` (Ed25519) | MUST | Optional | Auditability §2 | , | `test/verify-audit-query-response.test.ts`, `test/conformance-independent.test.ts` |
 | A3 | Monotonic `sequence` per agent | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
-| A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | , | `test/wire-namespace-dual-accept.test.ts` |
+| A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | A5 | Audit response: filtered to sender/recipient only | MUST | Optional | Auditability §3 |, | `test/verify-audit-query-response.test.ts` |
 | A6 | Fork detection: same sequence + different hash = tampered | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
 | A7 | `signingKeyId` recorded as top-level `InkAuditEvent.signingKeyId` field | SHOULD | Required | Key Rotation Phase 3 | , | `test/rotation-aware-artifacts.test.ts` |
@@ -159,8 +159,8 @@ deployment rather than the library.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| W1 | Submit: `POST /ink/v1/audit/submit` with INK-Ed25519 + embedded event signature | MUST (if witness supported) | Optional | Auditability §7 | , | `test/security-round7.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W2 | Query: `POST /ink/v1/audit/query` with INK-Ed25519 | MUST | Optional | Auditability §7 | , | `test/wire-namespace-dual-accept.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W1 | Submit: `POST /ink/v1/audit/submit` with INK-Ed25519 + embedded event signature | MUST (if witness supported) | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W2 | Query: `POST /ink/v1/audit/query` with INK-Ed25519 | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W3 | Access control: requester must be event agent or counterparty | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 | `merkle-inclusion`, `merkle-consistency` | `test/inclusion-receipt-verify.test.ts`, `test/consistency-proof.test.ts`, `witness/witness/test/merkle.test.ts (witness repo)` |
 | W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 | `inclusion-receipt` | `test/inclusion-receipt-verify.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |

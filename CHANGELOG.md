@@ -94,10 +94,10 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   window, the envelope or the audit chain those rows describe. Each row now
   cites the tests that assert it, a new `test/checklist-evidence.test.ts`
   covers the rows nothing had covered (the standalone replay helper's
-  `duplicate_nonce`, handshake path binding, envelope provenance and required
-  members, canonicalization of unknown members, header `keyId` precedence
-  over body `signingKeyId`, the rotation and containment audit event types,
-  the receipt disposition set), and the rows that are receiver behaviour
+  `duplicate_nonce`, unpadded base64url in the auth header, handshake path
+  binding, envelope provenance and required members, canonicalization of
+  unknown members, header `keyId` precedence over body `signingKeyId`, the
+  rotation and containment audit event types, the receipt disposition set), and the rows that are receiver behaviour
   rather than library behaviour say "none in the library" instead of
   borrowing a file. A cited path inside the repository must now exist, which
   `npm run check:facts` enforces.

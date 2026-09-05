@@ -4,8 +4,8 @@
  * checklist's Tests column points at something a reader can open and see.
  */
 import { describe, it, expect } from "vitest";
-import { checkReplay, signInkMessage, buildAuthHeader } from "../src/crypto/ink.js";
-import { verifyInkAuth } from "../src/middleware/ink-auth.js";
+import { checkReplay, signInkMessage, buildAuthHeader, base64urlDecode } from "../src/crypto/ink.js";
+import { verifyInkAuth, parseInkAuthHeader } from "../src/middleware/ink-auth.js";
 import { generateKeypair, deriveAgentId } from "../src/crypto/keys.js";
 import { InkChallengeSchema } from "../src/models/ink-handshake.js";
 import { MessageEnvelopeSchema, MessageProvenanceSchema } from "../src/models/intent.js";
@@ -31,6 +31,28 @@ describe("checkReplay single-use nonce (R3, R4, ER6e)", () => {
   it("judges freshness before the seen set: a stale duplicate is expired_message", () => {
     const r = checkReplay({ messageTimestamp: "2026-06-10T23:00:00.000Z", receiverClock: clock, nonce: NONCE, previouslySeenNonces: [NONCE] });
     expect(r).toEqual({ accepted: false, errorCode: "expired_message" });
+  });
+});
+
+// S5: the transport signature is unpadded base64url end to end. The signer
+// emits exactly 86 characters from the base64url alphabet with no "=", the
+// header grammar refuses a padded value, and the decoder refuses padding.
+describe("auth header base64url without padding (S5)", () => {
+  it("signs to 86 unpadded base64url characters", async () => {
+    const kp = await generateKeypair();
+    const sig = await signInkMessage(
+      { method: "POST", path: "/ink/v1/x/intent", recipientDid: "tulpa:zRecipient", body: { from: "a" }, timestamp: new Date().toISOString() },
+      kp.privateKey,
+    );
+    expect(sig).toMatch(/^[A-Za-z0-9_-]{86}$/);
+    expect(sig).not.toContain("=");
+    expect(buildAuthHeader(sig)).not.toContain("=");
+  });
+  it("refuses a padded signature in the header and in the decoder", () => {
+    const padded = "A".repeat(85) + "=";
+    expect(parseInkAuthHeader(`INK-Ed25519 ${padded}`)).toEqual({ ok: false, reason: "invalid_auth_scheme" });
+    expect(() => base64urlDecode(padded)).toThrow(/invalid base64url character/i);
+    expect(() => base64urlDecode("A".repeat(86))).not.toThrow();
   });
 });
 
@@ -157,6 +179,10 @@ describe("intent envelope required members (M1)", () => {
       expect(MessageEnvelopeSchema.safeParse(rest).success, member).toBe(false);
     }
   });
+  it("rejects an intent envelope that carries a protocol-message type", () => {
+    expect(MessageEnvelopeSchema.safeParse({ ...full, type: "network.ink.encrypted" }).success).toBe(false);
+    expect(MessageEnvelopeSchema.safeParse({ ...full, type: "connection_request" }).success).toBe(false);
+  });
 });
 
 // M4: canonicalization carries every member through, so an unknown member is
@@ -168,24 +194,32 @@ describe("canonicalization preserves unknown members (M4)", () => {
 });
 
 // K9: when the Authorization header carries keyId and the body carries
-// signingKeyId, the header names the key tried first.
+// signingKeyId, the header names the key tried first. Both candidates hold
+// the same public key, so the signature verifies under either; only the
+// attribution tells the two apart. The body's key sits first in the
+// candidate list, so a verifier that ignored the header would attribute the
+// request to it.
 describe("header keyId takes precedence over body signingKeyId (K9)", () => {
-  it("attributes the verification to the header's key", async () => {
-    const k1 = await generateKeypair();
-    const k2 = await generateKeypair();
-    const from = deriveAgentId(k1.publicKey);
+  async function request() {
+    const kp = await generateKeypair();
+    const from = deriveAgentId(kp.publicKey);
     const to = "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX";
     const timestamp = new Date().toISOString();
-    const body = { protocol: "ink/0.1", intent: "ping", from, to, timestamp, nonce: NONCE, signingKeyId: "k2" };
+    const body = { protocol: "ink/0.1", intent: "ping", from, to, timestamp, nonce: NONCE, signingKeyId: "body-key" };
     const path = `/ink/v1/${to}/intent`;
-    const sig = await signInkMessage({ method: "POST", path, recipientDid: to, body, timestamp }, k1.privateKey);
+    const sig = await signInkMessage({ method: "POST", path, recipientDid: to, body, timestamp }, kp.privateKey);
     const keys: CandidateKey[] = [
-      { keyId: "k1", publicKey: k1.publicKey, status: "active" },
-      { keyId: "k2", publicKey: k2.publicKey, status: "active" },
+      { keyId: "body-key", publicKey: kp.publicKey, status: "active" },
+      { keyId: "header-key", publicKey: kp.publicKey, status: "active" },
     ];
+    return { sig, to, path, body, keys };
+  }
+
+  it("attributes the verification to the header's key", async () => {
+    const { sig, to, path, body, keys } = await request();
     const r = await verifyInkAuth({
       nonceStore: "deferred",
-      authHeader: buildAuthHeader(sig, "k1"),
+      authHeader: buildAuthHeader(sig, "header-key"),
       method: "POST",
       path,
       recipientAgentId: to,
@@ -193,7 +227,22 @@ describe("header keyId takes precedence over body signingKeyId (K9)", () => {
       resolveKeySet: () => keys,
     });
     expect(r.valid).toBe(true);
-    if (r.valid) expect(r.keyId).toBe("k1");
+    if (r.valid) expect(r.keyId).toBe("header-key");
+  });
+
+  it("falls back to candidate order, not the body, when the header names no key", async () => {
+    const { sig, to, path, body, keys } = await request();
+    const r = await verifyInkAuth({
+      nonceStore: "deferred",
+      authHeader: buildAuthHeader(sig),
+      method: "POST",
+      path,
+      recipientAgentId: to,
+      body,
+      resolveKeySet: () => keys,
+    });
+    expect(r.valid).toBe(true);
+    if (r.valid) expect(r.keyId).toBe("body-key");
   });
 });
 
