@@ -93,6 +93,9 @@ const CARD_STRUCTURAL_MEMBERS = [
   ["keys", "signing", 0, "publicKeyMultibase"], ["keys", "signing", 0, "status"],
   ["keys", "signing", 0, "validFrom"], ["keys", "signing", 1, "keyId"],
   ["rotationChain", 0], ["rotationChain", 0, "signing"],
+  ["rotationChain", 0, "signing", 0], ["rotationChain", 0, "signing", 0, "keyId"],
+  ["rotationChain", 0, "signing", 0, "status"],
+  ["rotationChain", 0, "signing", 0, "publicKeyMultibase"],
   ["rotationChain", 0, "keySetVersion"], ["rotationChain", 0, "prevKeyId"],
   ["rotationChain", 0, "signature"],
 ];

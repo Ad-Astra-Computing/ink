@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -400,6 +401,32 @@ func TestCardVerify_MalformedKeysMemberDoesNotDemoteToLegacy(t *testing.T) {
 		card["keySetVersion"] = 1
 		card["keys"] = keys
 		signed := attachCardSignature(t, card, legacyBootstrapKeyID, g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+// The same collapse one level down, inside a rotation link's committed set.
+func TestCardVerify_ChainEntryWrongTypedKeyIDIsInvalid(t *testing.T) {
+	for _, keyID := range []interface{}{float64(7), nil, []interface{}{}, false} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		good := signingEntry("g1", g, "active")
+		bad := map[string]interface{}{}
+		for k, v := range good {
+			bad[k] = v
+		}
+		bad["keyId"] = keyID
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{good}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		card["rotationChain"] = []interface{}{map[string]interface{}{
+			"keySetVersion": 1, "signing": []interface{}{bad}, "prevKeyId": "g1",
+			"signature": strings.Repeat("A", 86),
+		}}
+		signed := attachCardSignature(t, card, "g1", g.priv)
 
 		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
 		expectReject(t, res, ReasonInvalidCard)

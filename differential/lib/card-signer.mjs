@@ -98,9 +98,16 @@ export function buildSignedCard(rng, key = keyFromRng(rng)) {
   if (rng.bool(0.3)) {
     // An empty chain reaches only the no-chain branch. A one-link chain is what
     // reaches the per-link checks, and it does not need to verify to do that.
-    card.rotationChain = rng.bool(0.5)
+    // A chain link with a real entry, so the committed-set members are
+    // reachable. An empty signing array reaches nothing inside the loop.
+    card.rotationChain = rng.bool(0.4)
       ? []
-      : [{ keySetVersion: 1, signing: [], prevKeyId: "g1", signature: "A".repeat(86) }];
+      : [{
+          keySetVersion: 1,
+          signing: [{ keyId: "g1", algorithm: "Ed25519", publicKeyMultibase: key.multibase, status: "active", validFrom }],
+          prevKeyId: "g1",
+          signature: "A".repeat(86),
+        }];
   }
   return { card: { ...card, cardSignature: buildSignature(card, key) }, key };
 }

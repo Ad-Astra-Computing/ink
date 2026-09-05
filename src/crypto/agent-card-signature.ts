@@ -529,6 +529,12 @@ async function rootChained(
     }
 
     // Decode the complete committed signing set at this link.
+    // A committed entry whose keyId is not a string is a malformed card, the
+    // same collapse the proof step already refuses one level up.
+    for (const e of link.signing as unknown[]) {
+      if (e === null || typeof e !== "object" || Array.isArray(e)) continue;
+      if (typeof (e as { keyId?: unknown }).keyId !== "string") return rootReject("invalid_card");
+    }
     let committed: Array<{ keyId: string; key: Uint8Array; status: string }>;
     try {
       committed = link.signing.map((e) => ({

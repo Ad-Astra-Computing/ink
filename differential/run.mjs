@@ -432,12 +432,13 @@ async function main() {
         seenFindings.add(key);
         continue;
       }
-      const minimized = await minimize(surface, c.input, diff.kind, opts);
-      const check = await decideBoth([{ caseId: "min", surface: surface.id, input: minimized }]);
+      let minimizedInput = await minimize(surface, c.input, diff.kind, opts);
+      let minCheck = await decideBoth([{ caseId: "min", surface: surface.id, input: minimizedInput }]);
+      let minId = "min";
       // The shrinker matches on the kind, not the exact detail, so a minimized
       // case can carry a different reason than the case it came from. Record the
       // detail of what actually landed on disk.
-      let minDiff = compare(check.ts.get("min"), check.go.get("min"));
+      let minDiff = compare(minCheck.ts.get("min"), minCheck.go.get("min"));
       if (!minDiff) {
         // The minimized case does not reproduce. Re-decide the case it came
         // from before recording anything: a finding whose artifact disagrees
@@ -451,17 +452,22 @@ async function main() {
           unstable++;
           continue;
         }
+        // The minimized case is not a witness for what was observed, so the
+        // artifact carries the case that actually diverges.
+        minimizedInput = c.input;
+        minCheck = again;
+        minId = "orig";
         minDiff = origDiff;
       }
       const path = writeFinding(
-        surface, c, minDiff, minimized, tsD, goD,
-        check.ts.get("min"), check.go.get("min"), opts.seed,
+        surface, c, minDiff, minimizedInput, tsD, goD,
+        minCheck.ts.get(minId), minCheck.go.get(minId), opts.seed,
       );
-      findings.push({ surface: c.surface, kind: diff.kind, detail: minDiff.detail, path, minimized });
+      findings.push({ surface: c.surface, kind: diff.kind, detail: minDiff.detail, path, minimized: minimizedInput });
       if (!seenFindings.has(key)) {
         seenFindings.add(key);
         log(`  DIVERGENCE ${c.surface} [${diff.kind}] ${diff.detail}`);
-        log(`    minimized: ${JSON.stringify(minimized).slice(0, 400)}`);
+        log(`    minimized: ${JSON.stringify(minimizedInput).slice(0, 400)}`);
         log(`    written to ${path}`);
       }
     }

@@ -19,7 +19,8 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   `cardSignature.signature` are also required rather than merely type-checked:
   the spec makes both a MUST, and an absent `keyId` read as undefined in the
   reference and as the empty string in Go, where it matched an entry whose own
-  `keyId` was empty. All reject as an invalid card in both implementations.
+  `keyId` was empty. The same collapse inside a rotation link's committed set is
+  closed too. All reject as an invalid card in both implementations.
 - The card-signature differential surface mutates member types and emits the
   optional structural members, so it can generate the bug class it was built to
   find. It could not before: a non-array `rotationChain` appeared zero times in

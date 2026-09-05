@@ -391,6 +391,9 @@ func rootChainedCard(card map[string]interface{}, chain []interface{}, rootCandi
 		// Decode the complete committed signing set at this link.
 		committed, err := decodeCommittedSet(signingRaw)
 		if err != nil {
+			if errors.Is(err, errMalformedCommittedEntry) {
+				return rootCardReject(ReasonInvalidCard, nil)
+			}
 			return rootCardReject(ReasonInvalidKeyEncode, nil)
 		}
 		seen := make(map[string]bool, len(committed))
@@ -642,6 +645,11 @@ func findCommitted(set []committedKey, keyID string) *committedKey {
 // decodeCommittedSet decodes a link's committed signing set. A non-object entry
 // or a public key that is not a 0xed01 Ed25519 multibase yields an error, which
 // the caller maps to invalid_key_encoding, matching the reference decode-throw.
+// errMalformedCommittedEntry separates a malformed entry from a key that failed
+// to decode. Collapsing a non-string keyId to the empty string would call two
+// of them duplicates, where the reference keeps them distinct.
+var errMalformedCommittedEntry = errors.New("rotation link signing entry is malformed")
+
 func decodeCommittedSet(signing []interface{}) ([]committedKey, error) {
 	out := make([]committedKey, 0, len(signing))
 	for _, e := range signing {
@@ -649,12 +657,15 @@ func decodeCommittedSet(signing []interface{}) ([]committedKey, error) {
 		if !ok {
 			return nil, errors.New("rotation link signing entry is not an object")
 		}
+		kid, ok := em["keyId"].(string)
+		if !ok {
+			return nil, errMalformedCommittedEntry
+		}
 		mb, _ := em["publicKeyMultibase"].(string)
 		key, err := DecodePublicKeyMultibase(mb)
 		if err != nil {
 			return nil, err
 		}
-		kid, _ := em["keyId"].(string)
 		status, _ := em["status"].(string)
 		out = append(out, committedKey{keyID: kid, key: key, status: status})
 	}

@@ -274,6 +274,27 @@ describe("verifyAgentCardSignature — a malformed member never reads as absent"
     });
   }
 
+  // The same collapse one level down, inside a rotation link's committed set.
+  for (const keyId of [7, null, [], false]) {
+    it(`refuses a chain link entry whose keyId is ${JSON.stringify(keyId)}`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      const good = signingEntry("g1", G, "active");
+      card.keys = { signing: [good], encryption: [] };
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      card.rotationChain = [
+        { keySetVersion: 1, signing: [{ ...good, keyId }], prevKeyId: "g1", signature: "A".repeat(86) },
+      ] as unknown as typeof card.rotationChain;
+      const signed = await attachCardSignature(card, "g1", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
   // 3.4 makes keyId and signature a MUST. An absent keyId read as undefined
   // here and as the empty string in Go, where it matched an empty entry id.
   for (const missing of ["keyId", "signature"] as const) {
