@@ -406,6 +406,21 @@ func TestCardVerify_MalformedKeysMemberDoesNotDemoteToLegacy(t *testing.T) {
 	}
 }
 
+func TestCardVerify_WrongTypedStringMemberIsInvalid(t *testing.T) {
+	for _, value := range []interface{}{nil, float64(7), []interface{}{}, map[string]interface{}{}, false} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{signingEntry("g1", g, "active")}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = value
+		card["keySetVersion"] = 1
+		signed := attachCardSignature(t, card, "g1", g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
 // Spec 3.4: the only unsigned card carries no member at all, so a present
 // member that is not a signature must not reach the permissive unsigned path.
 func TestCardVerify_MalformedCardSignatureIsNotUnsigned(t *testing.T) {

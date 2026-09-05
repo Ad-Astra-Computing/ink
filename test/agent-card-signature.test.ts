@@ -239,6 +239,41 @@ describe("verifyAgentCardSignature — a malformed member never reads as absent"
     });
   }
 
+  for (const value of [null, 7, [], {}, false, ["g1"]]) {
+    it(`refuses currentSigningKeyId ${JSON.stringify(value)} rather than comparing it`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+      card.currentSigningKeyId = value as unknown as string;
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      const signed = await attachCardSignature(card, "g1", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
+  // A link that is not a link is a malformed card, not a key that failed to
+  // decode: reading it through to the decode step reports the wrong thing.
+  for (const link of [{}, null, "x", 7, [], { signing: "x" }]) {
+    it(`refuses a rotation chain link ${JSON.stringify(link)} as a malformed card`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      card.rotationChain = [link] as unknown as typeof card.rotationChain;
+      const signed = await attachCardSignature(card, "g1", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
   // 3.4: the only unsigned card carries no member at all, so a present member
   // that is not a signature must not reach the more permissive unsigned path.
   for (const sig of [null, false, 0, "", "x", []]) {

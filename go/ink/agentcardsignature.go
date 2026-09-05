@@ -86,6 +86,16 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 			return rejectCard(ReasonInvalidCard)
 		}
 	}
+	// A present member of the wrong type is never treated as absent or as a
+	// value. Without this the two implementations split on which reason they
+	// give, because one tests truthiness and the other asserts a type.
+	for _, name := range []string{"currentSigningKeyId", "publicKeyMultibase", "agentId"} {
+		if value, present := card[name]; present {
+			if _, isString := value.(string); !isString {
+				return rejectCard(ReasonInvalidCard)
+			}
+		}
+	}
 	// §5 step 1 backstop: identity binding.
 	if cid, ok := card["agentId"].(string); !ok || cid != agentID {
 		return rejectCard(ReasonIdentityMismatch)

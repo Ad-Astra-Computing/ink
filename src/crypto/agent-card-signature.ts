@@ -240,6 +240,13 @@ export async function verifyAgentCardSignature(
     }
     const chainMember: unknown = (card as { rotationChain?: unknown }).rotationChain;
     if (chainMember !== undefined && !Array.isArray(chainMember)) return reject("invalid_card");
+    // A present member of the wrong type is never treated as absent or as a
+    // value: a truthiness test here would pass an array through and report the
+    // signer as not current, where Go reports the id as missing.
+    for (const name of ["currentSigningKeyId", "publicKeyMultibase", "agentId"] as const) {
+      const value: unknown = (card as Record<string, unknown>)[name];
+      if (value !== undefined && typeof value !== "string") return reject("invalid_card");
+    }
 
     // §5 step 1 backstop: identity binding.
     if (card.agentId !== agentId) {
@@ -496,6 +503,17 @@ async function rootChained(
 
   for (let i = 0; i < chain.length; i++) {
     const link = chain[i]!;
+
+    // A link that is not a link is a malformed card, not a key that failed to
+    // decode. Reading it through to the decode step reports the wrong thing
+    // and disagrees with the second implementation, which rejects the shape.
+    const linkValue: unknown = link;
+    if (linkValue === null || typeof linkValue !== "object" || Array.isArray(linkValue)) {
+      return rootReject("invalid_card");
+    }
+    if (!Array.isArray((linkValue as { signing?: unknown }).signing)) {
+      return rootReject("invalid_card");
+    }
 
     // Decode the complete committed signing set at this link.
     let committed: Array<{ keyId: string; key: Uint8Array; status: string }>;

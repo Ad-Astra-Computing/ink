@@ -92,6 +92,10 @@ export function buildSignedCard(rng, key = keyFromRng(rng)) {
     keySetVersion: 1,
     updatedAt: new Date(Date.UTC(2026, 6, 1 + rng.between(0, 100))).toISOString(),
   };
+  // An optional member a mutation can never introduce is a member the surface
+  // cannot fuzz. Emitting it sometimes is what lets the wrong-type arm reach
+  // the branches that read it.
+  if (rng.bool(0.3)) card.rotationChain = [];
   return { card: { ...card, cardSignature: buildSignature(card, key) }, key };
 }
 
@@ -99,9 +103,19 @@ function buildSignature(card, key) {
   return { keyId: "g1", signature: signCard(card, key.secret) };
 }
 
-/** Re-sign a card after a mutation, so the mutation is what is under test. */
+/**
+ * Re-sign a card after a mutation, so the mutation is what is under test.
+ * Total by construction: a mutation can produce a card the canonicalizer
+ * refuses, a lone surrogate for one, and a generator that throws takes the run
+ * down with it. Such a card keeps the signature it had, which is a case worth
+ * deciding on anyway.
+ */
 export function resign(card, key) {
   const { cardSignature, ...rest } = card;
   if (!cardSignature || typeof cardSignature !== "object") return card;
-  return { ...card, cardSignature: { ...cardSignature, signature: signCard(rest, key.secret) } };
+  try {
+    return { ...card, cardSignature: { ...cardSignature, signature: signCard(rest, key.secret) } };
+  } catch {
+    return card;
+  }
 }

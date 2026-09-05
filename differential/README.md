@@ -86,6 +86,16 @@ proof, keeping it valid over a mutated card exercises everything past it. The
 signature base is built from the spec rather than imported from either side, so
 a base built wrong costs signal instead of manufacturing a disagreement.
 
+The generator emits the optional structural members and mutates member TYPES,
+not only member text. That distinction is the difference between a surface that
+finds this bug class and one that cannot: every instance of it is a member read
+as absent because it was present with the wrong type, and text mutation reaches
+that shape only by accident and can never introduce a member that is absent
+altogether. The first version of this surface found one instance and then
+generated a non-array `rotationChain` zero times in 363000 cases, because it
+never emitted the member at all. With the structural arm the same seed that
+produced no finding produced 291.
+
 The generated cards stay inside the region where the spec pins the decision.
 Two corpus cases mark a decision the spec leaves open, one a cold chain
 extension and one a did:web resolver that is unavailable, and both need a cached

@@ -8,6 +8,18 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- The card verifier rejects a present member of the wrong type wherever it
+  reads one, rather than at the top level only. A non-string
+  `currentSigningKeyId` was compared as a value by the reference and read as
+  missing by Go, and a rotation chain carrying something that is not a link was
+  reported as a key that failed to decode rather than as a malformed card. Both
+  now reject as an invalid card in both implementations.
+- The card-signature differential surface mutates member types and emits the
+  optional structural members, so it can generate the bug class it was built to
+  find. It could not before: a non-array `rotationChain` appeared zero times in
+  363000 cases because the generator never emitted the member. The generator is
+  also total now, where a card the canonicalizer refuses used to end the run.
+
 - The Go card verifier no longer demotes a card with a malformed key set to the
   legacy single-key path. `keys.signing` present but not an array failed a type
   assertion and was read as "no key set", so the card was verified against the

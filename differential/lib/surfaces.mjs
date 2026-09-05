@@ -74,7 +74,52 @@ const unhex = (text) => Uint8Array.from(Buffer.from(text, "hex"));
  * the signature is one case; keeping it valid over a mutated card is the other,
  * and only the second reaches the checks past the signature.
  */
+/**
+ * Members whose type decides which branch a verifier takes, and the values that
+ * are present but not the declared shape. Text mutation reaches these only by
+ * accident and cannot introduce a member that is absent, which is how a whole
+ * bug class stayed invisible: every one of its instances was a member read as
+ * absent because it was present with the wrong type.
+ */
+const CARD_STRUCTURAL_MEMBERS = [
+  ["keys"], ["keys", "signing"], ["keys", "encryption"], ["rotationChain"],
+  ["cardSignature"], ["cardSignature", "keyId"], ["cardSignature", "signature"],
+  ["currentSigningKeyId"], ["keySetVersion"], ["capabilities"], ["availability"],
+];
+
+const WRONG_TYPED = [
+  null, false, true, 0, 7, -1, "", "x", [], {}, { bad: true }, [1, 2], [{}],
+];
+
+/** Set a member to a value of the wrong type, adding it when it is absent. */
+function setWrongType(card, rng) {
+  const path = rng.pick(CARD_STRUCTURAL_MEMBERS);
+  const value = rng.pick(WRONG_TYPED);
+  let node = card;
+  for (const step of path.slice(0, -1)) {
+    if (!isObj(node[step])) {
+      if (rng.bool(0.5)) return; // leave the parent malformed and stop
+      node[step] = {};
+    }
+    node = node[step];
+  }
+  node[path[path.length - 1]] = value;
+}
+
 function mutateCardInput(input, rng) {
+  // A share of the arm goes to the structural mutation, and the rest stays on
+  // text mutation, which finds the encoding and canonicalization cases.
+  if (isObj(input.card) && rng.bool(0.35)) {
+    const card = structuredClone(input.card);
+    setWrongType(card, rng);
+    const next = { ...input, card };
+    if (input.signerSecretHex && rng.bool(0.5)) {
+      const key = keyFromRng({ between: () => 0 });
+      key.secret = unhex(input.signerSecretHex);
+      next.card = resign(card, key);
+    }
+    return next;
+  }
   let text = JSON.stringify(input.card);
   for (let i = 0, n = rng.between(1, 3); i < n; i++) text = mutateJsonText(text, rng);
   let card;
