@@ -27,6 +27,25 @@ const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
  * sign. The profile is on the decoded value, not the JSON token, so `1e2` (which
  * decodes to `100`) is accepted and canonicalizes to `100`.
  */
+/**
+ * A JSON object a caller may sign or hash. Declared interfaces have no index
+ * signature, so `Record<string, unknown>` rejects this package's own message
+ * types and forces a double cast at every call site. Widening the parameter
+ * moves the check to where it belongs: `isSignableBody` below.
+ */
+export type SignableBody = object;
+
+/**
+ * True for a plain JSON object. Rejects null, arrays, and exotic objects such
+ * as Date, Map or a class instance, all of which canonicalize to `{}` and
+ * would otherwise be signed as an empty body.
+ */
+export function isSignableBody(value: unknown): value is Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value) as object | null;
+  return proto === Object.prototype || proto === null;
+}
+
 export function isJcsSafeNumber(n: number): boolean {
   return Number.isSafeInteger(n) && !Object.is(n, -0);
 }
@@ -108,11 +127,11 @@ function bodySignatureDomain(unsigned: Record<string, unknown>): string {
  * 4. Return base64url-encoded signature (no padding)
  */
 export async function signMessage(
-  message: Record<string, unknown>,
+  message: SignableBody,
   privateKey: Uint8Array,
 ): Promise<string> {
-  if (message === null || typeof message !== "object" || Array.isArray(message)) {
-    throw new Error("message must be a non-null object");
+  if (!isSignableBody(message)) {
+    throw new Error("message must be a plain JSON object");
   }
   if (!(privateKey instanceof Uint8Array) || privateKey.length !== 32) {
     throw new Error("privateKey must be a 32-byte Uint8Array");
@@ -161,10 +180,10 @@ export async function signMessage(
  * 3. Verify Ed25519 signature against canonical bytes
  */
 export async function verifyMessage(
-  message: Record<string, unknown>,
+  message: SignableBody,
   publicKey: Uint8Array,
 ): Promise<boolean> {
-  if (message === null || typeof message !== "object" || Array.isArray(message)) return false;
+  if (!isSignableBody(message)) return false;
   if (!(publicKey instanceof Uint8Array)) return false;
   const { signature, ...unsigned } = message;
   if (typeof signature !== "string") {

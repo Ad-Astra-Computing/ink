@@ -1,7 +1,7 @@
 import * as ed from "@noble/ed25519";
 import { x25519 } from "@noble/curves/ed25519.js";
 import canonicalize from "canonicalize";
-import { isJcsSafeNumber } from "./sign.js";
+import { isJcsSafeNumber, isSignableBody, type SignableBody } from "./sign.js";
 import { parseInkTimestampMs } from "./timestamp.js";
 import { hasUnpairedSurrogate } from "./surrogate.js";
 import { hasUnsafeObjectKey } from "./member-name.js";
@@ -126,7 +126,7 @@ export interface InkSignInput {
   method: string;
   path: string;
   recipientDid: string;
-  body: Record<string, unknown>;
+  body: SignableBody;
   timestamp: string;
 }
 
@@ -248,6 +248,9 @@ export function buildSignatureBase(input: InkSignInput): string {
   // this, an attacker can submit a syntactically valid body that bloats
   // the recursive sort+serialize work inside jcsCanonicalize and then
   // gets rejected by the size cap below — burning CPU/memory pre-reject.
+  if (!isSignableBody(input.body)) {
+    throw new Error("Invalid signature-base body: expected a plain JSON object");
+  }
   if (!isWithinCanonicalizeBounds(input.body)) {
     throw new Error("Signature base body exceeds maximum allowed complexity");
   }
@@ -784,7 +787,10 @@ export function checkReplay(input: ReplayCheckInput): ReplayCheckResult {
  * Compute SHA-256 hash of JCS-canonicalized body. Returns hex string.
  * Used for messageHash in receipts and previousEventHash in audit chains.
  */
-export async function computeMessageHash(body: Record<string, unknown>): Promise<string> {
+export async function computeMessageHash(body: SignableBody): Promise<string> {
+  if (!isSignableBody(body)) {
+    throw new Error("Invalid message body: expected a plain JSON object");
+  }
   // Mirrors the sign/verify-side guards. messageHash is bound into
   // receipts; a poisoned receipt body would otherwise burn CPU inside
   // canonicalize before the receipt verifier ever rejects it.
@@ -909,9 +915,9 @@ export async function verifyAuditEventSignatureWithKeys(
  *
  * Returns the lowercase-hex digest.
  */
-export async function computeAuditMerkleLeafHash(event: Record<string, unknown>): Promise<string> {
-  if (event === null || typeof event !== "object" || Array.isArray(event)) {
-    throw new Error("event must be a non-null object");
+export async function computeAuditMerkleLeafHash(event: SignableBody): Promise<string> {
+  if (!isSignableBody(event)) {
+    throw new Error("event must be a plain JSON object");
   }
   const { agentSignature: _, ...eventWithoutSig } = event;
   if (!isWithinCanonicalizeBounds(eventWithoutSig)) {

@@ -31,7 +31,8 @@ export {
   MAX_TIMESTAMP_AGE_MS,
   MAX_FUTURE_TIMESTAMP_MS,
 } from "./crypto/ink.js";
-export { signMessage, verifyMessage } from "./crypto/sign.js";
+export { signMessage, verifyMessage, isSignableBody } from "./crypto/sign.js";
+export type { SignableBody } from "./crypto/sign.js";
 export { parseInkTimestampMs, isInkTimestamp, MAX_TIMESTAMP_LENGTH } from "./crypto/timestamp.js";
 export { containsLoneSurrogateEscape, hasUnpairedSurrogate } from "./crypto/surrogate.js";
 export { containsOutOfRangeNumberLiteral } from "./crypto/number-literal.js";

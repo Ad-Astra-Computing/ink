@@ -427,7 +427,7 @@ export async function verifyAuditQueryResponse(opts: {
   // ── Step 3: signature over canonical bytes ──
   const { serviceSignature, ...payload } = response;
   const sigValid = await verifyAuditQueryResponseSignature(
-    payload as unknown as Record<string, unknown>,
+    payload,
     serviceSignature,
     witnessPublicKey,
   );
@@ -507,7 +507,7 @@ export async function verifyAuditQueryResponse(opts: {
     const p = proofById.get(event.id)!;
     let leafHash: string;
     try {
-      leafHash = await computeAuditMerkleLeafHash(event as unknown as Record<string, unknown>);
+      leafHash = await computeAuditMerkleLeafHash(event);
     } catch (e) {
       steps.push({ name: "proof-walk", pass: false, detail: `event ${event.id}: leaf-hash computation failed: ${e instanceof Error ? e.message : String(e)}` });
       return { valid: false, steps };
@@ -537,7 +537,7 @@ export async function verifyAuditQueryResponse(opts: {
   for (const event of response.events) {
     let ok = false;
     try {
-      ok = await verifyEventSignature(event as unknown as Record<string, unknown>);
+      ok = await verifyEventSignature(event);
     } catch (e) {
       steps.push({ name: "agent-signature", pass: false, detail: `event ${event.id}: verifier threw: ${e instanceof Error ? e.message : String(e)}` });
       return { valid: false, steps };

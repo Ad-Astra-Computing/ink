@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
-import { isWithinBounds, signMessage, verifyMessage } from "../crypto/sign.js";
+import { isWithinBounds, isSignableBody, signMessage, verifyMessage, type SignableBody } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
 import { jcsCanonicalize, base64urlEncode } from "../crypto/ink.js";
 import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
@@ -226,7 +226,10 @@ export type AuthorizationChainVerifyResult =
  * present, `signature` included, because the child commits to the parent as it was
  * actually signed and presented.
  */
-export async function deriveDelegationParentHash(parentLink: Record<string, unknown>): Promise<string> {
+export async function deriveDelegationParentHash(parentLink: SignableBody): Promise<string> {
+  if (!isSignableBody(parentLink)) {
+    throw new Error("parentLink must be a plain JSON object");
+  }
   const canonical = jcsCanonicalize(parentLink);
   const bytes = new TextEncoder().encode(`${PARENT_HASH_DOMAIN}\n${canonical}`);
   const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -388,7 +391,7 @@ export async function verifyAuthorizationChain(
       if (child.issuer !== parent.subject) {
         return { ok: false, reason: "chain" };
       }
-      const expected = await deriveDelegationParentHash(parent as unknown as Record<string, unknown>);
+      const expected = await deriveDelegationParentHash(parent);
       if (child.parent !== expected) {
         return { ok: false, reason: "chain" };
       }
@@ -431,7 +434,7 @@ export async function verifyAuthorizationChain(
       if (key === undefined || key.status !== "active") {
         return { ok: false, reason: "signature" };
       }
-      if (!(await verifyMessage(links[i] as unknown as Record<string, unknown>, key.publicKey))) {
+      if (!(await verifyMessage(links[i]!, key.publicKey))) {
         return { ok: false, reason: "signature" };
       }
     }
