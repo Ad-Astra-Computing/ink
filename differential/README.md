@@ -68,6 +68,7 @@ a finding promotes into the corpus with no translation step.
 | 3 | `merkle-inclusion` | RFC 6962 inclusion walk |
 | 3 | `merkle-consistency` | RFC 6962 consistency walk |
 | 3 | `discovery-query-envelope` | schema, signature, audience, freshness, replay, in that order |
+| 3 | `agent-card-signature` | the card proof: admission, signer resolution, signature, identity binding |
 
 Tier 1 is the signature path. A disagreement there means a body one side refuses
 is accepted by the other, or that a message signed by one is unverifiable by the
@@ -75,6 +76,22 @@ other: the only class where a divergence is a security bug outright. Tier 2 is
 identity and freshness, where a divergence is attribution confusion or a widened
 replay window. Tier 3 is admission, where a divergence is an interop break and
 sometimes an SSRF or a forged-inclusion gap.
+
+`agent-card-signature` is the first surface whose generator holds a key. A
+composite verifier checks a signature before it checks anything else, so a
+generator that can only mutate bytes never reaches the second branch and every
+case rejects for the same reason. This one builds a card, signs it, and decides
+per case whether to re-sign after mutating: breaking the signature exercises the
+proof, keeping it valid over a mutated card exercises everything past it. The
+signature base is built from the spec rather than imported from either side, so
+a base built wrong costs signal instead of manufacturing a disagreement.
+
+The generated cards stay inside the region where the spec pins the decision.
+Two corpus cases mark a decision the spec leaves open, one a cold chain
+extension and one a did:web resolver that is unavailable, and both need a cached
+card or a did:web resolution to reach. The generator emits neither and the seed
+mapper drops any corpus case carrying them, because a fuzzer that wandered in
+would report a disagreement the spec permits.
 
 The Merkle surfaces earn tier 3 rather than lower because they are the sharpest
 JavaScript-versus-Go numeric boundary in the protocol: a tree size past the
@@ -91,13 +108,11 @@ safe-integer range is an exact int64 in Go and a lossy double in JavaScript.
   not belong in the first pass. Today the AAD binding is pinned case by case in
   the `payload-encryption` conformance category and exercised live, with real
   keys on both sides, in `interop-lab/`.
-- **The composite verifiers**: agent-card signature, authorization grant,
-  authorization chain, inclusion receipt, audit-query response, first-contact
-  transcript. Same reason: their inputs are multi-key signed contexts, so a
-  generator that reaches past the first signature check has to become a signer.
-  Every primitive they are built from (canonicalization, the signature base,
-  timestamps, principals, the Merkle walks) is covered here, which is where a
-  divergence in them would originate.
+- **The remaining composite verifiers**: authorization grant, authorization
+  chain, inclusion receipt, audit-query response, first-contact transcript.
+  Their inputs are multi-key signed contexts, so a generator that reaches past
+  the first signature check has to become a signer. The card-signature surface
+  below is the first one that does, and the others follow the same shape.
 - **`replay-freshness` and `key-rotation`** are compositions of timestamp
   parsing and set membership over the covered primitives.
 - **The request-side SSRF gate and card-content host checks** are out of scope

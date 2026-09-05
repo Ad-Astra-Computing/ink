@@ -8,6 +8,21 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- The Go card verifier no longer demotes a card with a malformed key set to the
+  legacy single-key path. `keys.signing` present but not an array failed a type
+  assertion and was read as "no key set", so the card was verified against the
+  top-level `publicKeyMultibase`: a card whose set retires or revokes that key
+  stopped being consulted, and one signed with the `bootstrap` keyId was
+  authenticated where the reference rejects it as an invalid card. A present
+  but unusable key set is now `invalid_card`, which is the decision the
+  reference reaches by entering the key-set branch and failing closed. Found by
+  the new card-signature differential surface on its first run.
+- The differential fuzzer covers its first composite verifier. The
+  `agent-card-signature` surface generates cards from a key it holds, so a
+  mutation can be re-signed and the checks past the signature are reachable;
+  every other surface can only mutate bytes, which is why the composite
+  verifiers were out of reach before.
+
 - The signing and hashing entry points take `SignableBody` instead of
   `Record<string, unknown>`, so a value of a declared interface type, including
   the package's own message types, can be passed straight in. A declared
