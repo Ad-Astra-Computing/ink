@@ -102,11 +102,11 @@ describe("handshake transport signing (H5, H6)", () => {
   });
 });
 
-// D8: an Agent Card may advertise third-party audit services, and a card that
+// D2, D3, D8: the Agent Card schema. A card may advertise third-party audit services, and a card that
 // does so validates with the advertisement intact. The rejection of a
 // non-https service endpoint is the bad-third-party-audit-endpoint-rejects
 // vector in the agent-card conformance category.
-describe("agent card third-party audit advertisement (D8)", () => {
+describe("agent card members and third-party audit advertisement (D2, D3, D8)", () => {
   const card = {
     protocol: "ink/0.1",
     agentId: "did:web:a.example",
@@ -128,6 +128,21 @@ describe("agent card third-party audit advertisement (D8)", () => {
   });
   it("accepts a card without the advertisement", () => {
     expect(AgentCardSchema.safeParse(card).success).toBe(true);
+  });
+
+  // D2, D3: the card's required members, and the two intent lists inside
+  // capabilities, are each required.
+  it("rejects a card missing protocol, agentId, publicKeyMultibase or endpoint (D2)", () => {
+    for (const member of ["protocol", "agentId", "publicKeyMultibase", "endpoint"]) {
+      const { [member]: _dropped, ...rest } = card as Record<string, unknown>;
+      expect(AgentCardSchema.safeParse(rest).success, member).toBe(false);
+    }
+  });
+  it("rejects a card whose capabilities lack intentsAccepted or intentsSent (D3)", () => {
+    const { intentsAccepted: _a, ...noAccepted } = card.capabilities;
+    const { intentsSent: _s, ...noSent } = card.capabilities;
+    expect(AgentCardSchema.safeParse({ ...card, capabilities: noAccepted }).success).toBe(false);
+    expect(AgentCardSchema.safeParse({ ...card, capabilities: noSent }).success).toBe(false);
   });
 });
 

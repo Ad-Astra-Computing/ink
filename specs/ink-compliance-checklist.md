@@ -46,10 +46,10 @@ deployment rather than the library.
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | D1 | Agent Card served at the discovery path | MUST | Required | Discovery Fetch, Discovery path |, | `examples/reference-receiver/test/discovery-roundtrip.test.ts` |
-| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/schema-bounds.test.ts`, `test/conformance.test.ts` |
-| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/schema-bounds.test.ts`, `test/conformance.test.ts` |
+| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/checklist-evidence.test.ts`, `test/conformance.test.ts` |
+| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/checklist-evidence.test.ts`, `test/conformance.test.ts` |
 | D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
-| D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 |, | `test/ink-key-rotation.test.ts`, `test/ink-key-rotation-e2e.test.ts` |
+| D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 |, | `test/ink-key-rotation.test.ts` |
 | D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D7 | Agent Card includes receipt capability advertisement | MAY | Optional | Auditability §1 |, | none in the library |
 | D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/checklist-evidence.test.ts` |
@@ -91,7 +91,7 @@ deployment rather than the library.
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
-| E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
+| E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
 | E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts` |
 | E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/wire-namespace-dual-accept.test.ts`, `test/security-round8.test.ts` |
 | E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
@@ -130,7 +130,7 @@ deployment rather than the library.
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
 | RC1 | Receipt type: `network.tulpa.receipt` | MUST (if receipts supported) | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts`, `test/verify-receipt.test.ts` |
-| RC2 | Dispositions: `received`, `delivered`, `acted`, `rejected`, `expired` | MUST | Optional | Auditability §1 | , | `test/checklist-evidence.test.ts`, `test/verify-receipt.test.ts` |
+| RC2 | Dispositions: `received`, `delivered`, `acted`, `rejected`, `expired` | MUST | Optional | Auditability §1 | , | `test/checklist-evidence.test.ts` |
 | RC3 | `messageHash`: SHA-256 of JCS-canonicalized original message (hex) | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
 | RC4 | Receipts are Ed25519 signed | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts`, `test/verify-receipt.test.ts` |
 | RC5 | No receipt sent for receipts (loop prevention) | MUST | Optional | Auditability §1 |, | `test/ink-receipt-generation.test.ts` |
@@ -189,7 +189,7 @@ deployment rather than the library.
 | K5 | Retired keys valid for historical verification | MUST | Required | Key Rotation §6.2 | `key-rotation` | `test/multi-key-verify.test.ts`, `test/rotation-aware-artifacts.test.ts` |
 | K6 | Revoked keys rejected for signatures after `revokedAt` | MUST | Required | Key Rotation §6.3 | `key-rotation` | `test/multi-key-verify.test.ts`, `test/rotation-aware-artifacts.test.ts` |
 | K7 | Cache refresh on verification miss (max 1 retry) | SHOULD | Required | Key Rotation §9.2 | , | `test/ink-key-rotation-e2e.test.ts` |
-| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts`, `test/ink-key-rotation-e2e.test.ts` |
+| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` for the header; envelope emission is sender behaviour, none in the library |
 | K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | , | `test/checklist-evidence.test.ts` |
 | K10 | Historical keys retained minimum 90 days | SHOULD | Required | Key Rotation §11.2 |, |, |
 | K11 | `keySetVersion` monotonically incremented on rotation/revocation | MUST | Required | Key Rotation §5 |, | `test/ink-key-rotation-e2e.test.ts` |
@@ -358,15 +358,16 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | Receipts | 6 | 6 | 6 |
 | Bilateral Audit | 7 | 7 | 7 |
 | Witness | 8 | 8 | 7 |
-| Key Rotation | 13 | 13 | 12 |
+| Key Rotation | 13 | 13 | 11 |
 | Auth Chains | 7 | 6 | 6 |
 | Error Semantics | 14 | 14 | 14 |
 | Containment | 16 | 16 | 14 |
-| **Total** | **109** | **108** | **103** |
+| **Total** | **109** | **108** | **102** |
 
 **Notes:**
 - AC3 (multi-hop chains) is designed but not fully implemented, extension status
 - K10 (90-day retention) is enforced by design (keys never deleted) but not explicitly tested with time simulation
+- K8 (`keyId` on outbound messages) has a library test for the auth header only; the library does not build outbound envelopes, so envelope emission is sender behaviour
 - CT15 (governance block) is schema-defined but not yet tested with governance-specific assertions
 - D7 (receipt capability advertisement), W8 (`signingKeyId` on witness submit) and CT6 (`private` visibility 404) have no library test; the first two are unexercised and the third is receiver behaviour
 
