@@ -30,6 +30,7 @@ import {
   randomJsonText, randomHex, randomString, orderingObjectText,
 } from "./mutators.mjs";
 import { jsonTextShrinkCandidates } from "./shrink.mjs";
+import { buildSignedCard, keyFromRng, resign } from "./card-signer.mjs";
 
 const isStr = (v) => typeof v === "string";
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -62,6 +63,33 @@ function stringSurface({ id, tier, why, field, bank, seedFrom, randomize }) {
       return { [field]: randomize ? randomize(rng) : randomString(rng) };
     },
   };
+}
+
+
+const hex = (bytes) => Buffer.from(bytes).toString("hex");
+const unhex = (text) => Uint8Array.from(Buffer.from(text, "hex"));
+
+/**
+ * Mutate the card, then decide whether the signature still covers it. Breaking
+ * the signature is one case; keeping it valid over a mutated card is the other,
+ * and only the second reaches the checks past the signature.
+ */
+function mutateCardInput(input, rng) {
+  let text = JSON.stringify(input.card);
+  for (let i = 0, n = rng.between(1, 3); i < n; i++) text = mutateJsonText(text, rng);
+  let card;
+  try {
+    card = JSON.parse(text);
+  } catch {
+    return { ...input, card: { broken: text } };
+  }
+  const next = { ...input, card, agentId: rng.bool(0.8) ? input.agentId : String(card.agentId ?? "") };
+  if (input.signerSecretHex && isObj(card) && rng.bool(0.5)) {
+    const key = keyFromRng({ between: () => 0 });
+    key.secret = unhex(input.signerSecretHex);
+    next.card = resign(card, key);
+  }
+  return next;
 }
 
 export const SURFACES = [
@@ -531,6 +559,52 @@ export const SURFACES = [
         audience: rng.pick(["did:web:directory.example", [], [""], "" ]),
         now: rng.pick(TIMESTAMP_EDGES),
       };
+    },
+  },
+  {
+    id: "agent-card-signature",
+    tier: 3,
+    why:
+      "The first composite verifier the harness can reach: a card is admitted, a " +
+      "signature is checked against a key the card itself declares, and the agent " +
+      "id is bound to that key. A disagreement is a card one side trusts and the " +
+      "other does not, which is an identity split rather than a parse difference.",
+    // The generator holds the key, so a mutation can be re-signed and the accept
+    // side stays reachable. `signerSecretHex` is harness state and neither
+    // decider reads it; a decision that depended on it would be a finding.
+    wellFormed: (input) => isObj(input) && isObj(input.card) && isStr(input.agentId),
+    valueFields: ["reason"],
+    seedFrom: [
+      {
+        category: "agent-card-signature",
+        map: (i) => {
+          // Two corpus cases pin a decision the spec leaves open, and both need
+          // a cached card or a did:web resolution to reach. Seeding from them
+          // would fuzz toward a disagreement the spec permits.
+          const options = i.options ?? {};
+          if (options.cachedCard || options.didVerificationKeys) return undefined;
+          return { card: i.card, agentId: i.agentId, options };
+        },
+      },
+    ],
+    random(rng) {
+      const { card, key } = buildSignedCard(rng);
+      const input = { card, agentId: card.agentId, options: { profile: "1.0" }, signerSecretHex: hex(key.secret) };
+      return rng.bool(0.5) ? input : mutateCardInput(input, rng);
+    },
+    mutate(input, rng) {
+      return mutateCardInput(input, rng);
+    },
+    shrink(input) {
+      return jsonTextShrinkCandidates(JSON.stringify(input.card))
+        .map((text) => {
+          try {
+            return { ...input, card: JSON.parse(text) };
+          } catch {
+            return undefined;
+          }
+        })
+        .filter((candidate) => candidate !== undefined);
     },
   },
 ];

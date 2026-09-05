@@ -602,15 +602,20 @@ func ExtractCandidateKeys(card map[string]interface{}) []CandidateKey {
 	}
 
 	// card.keys?.signing: a missing `keys` object, or a `keys` that is not
-	// an object, or an object with no `signing` member all read as "signing
-	// absent" (undefined), matching the reference's optional-chaining
-	// semantics, which never throws on a non-object intermediate.
+	// an object with no `signing` member reads as "signing absent", matching
+	// the reference. A `keys` member that is present but not an object is a
+	// malformed card, not a legacy one, and returns an authoritative empty set.
 	var signingVal interface{}
 	signingPresent := false
 	if keysVal, ok := card["keys"]; ok {
-		if keysObj, ok := keysVal.(map[string]interface{}); ok {
-			signingVal, signingPresent = keysObj["signing"]
+		keysObj, isObj := keysVal.(map[string]interface{})
+		if !isObj {
+			// Present but not an object is not absent. Falling through would
+			// treat the card as legacy and hand back the top-level key as
+			// active, ignoring what the set said about rotation or revocation.
+			return out
 		}
+		signingVal, signingPresent = keysObj["signing"]
 	}
 
 	if signingPresent {

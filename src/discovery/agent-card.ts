@@ -426,6 +426,13 @@ export function extractCandidateKeys(card: AgentCard): CandidateKey[] {
   if (card === null || typeof card !== "object" || Array.isArray(card)) {
     return [];
   }
+  // A `keys` member that is present but not an object is not an absent one.
+  // Falling through would treat the card as legacy and hand back the top-level
+  // key as active, ignoring whatever the set said about rotation or revocation.
+  const keysMember = (card as { keys?: unknown }).keys;
+  if (keysMember !== undefined) {
+    if (keysMember === null || typeof keysMember !== "object" || Array.isArray(keysMember)) return [];
+  }
   const signing = card.keys?.signing as unknown;
   if (signing !== undefined) {
     // Runtime type guard: a malformed card where `signing` is an object/

@@ -237,6 +237,43 @@ func decide(surface string, in map[string]json.RawMessage) decision {
 		}
 		return reject()
 
+	case "agent-card-signature":
+		// signerSecretHex is harness state and is deliberately not read here.
+		var card map[string]interface{}
+		if err := json.Unmarshal(in["card"], &card); err != nil {
+			return reject()
+		}
+		agentID, ok := str(in, "agentId")
+		if !ok {
+			return reject()
+		}
+		var opts struct {
+			CachedCard          map[string]interface{} `json:"cachedCard"`
+			DidVerificationKeys *struct {
+				Status           string   `json:"status"`
+				VerificationKeys []string `json:"verificationKeys"`
+			} `json:"didVerificationKeys"`
+			Profile       string `json:"profile"`
+			EnforcePhaseC *bool  `json:"enforcePhaseC"`
+		}
+		if raw, has := in["options"]; has {
+			if err := json.Unmarshal(raw, &opts); err != nil {
+				return reject()
+			}
+		}
+		cardOpts := ink.CardVerifyOptions{CachedCard: opts.CachedCard, Profile: opts.Profile, EnforcePhaseC: opts.EnforcePhaseC}
+		if opts.DidVerificationKeys != nil {
+			cardOpts.DidVerificationKeys = &ink.DidResolution{
+				Status:           opts.DidVerificationKeys.Status,
+				VerificationKeys: opts.DidVerificationKeys.VerificationKeys,
+			}
+		}
+		res := ink.VerifyAgentCardSignature(card, agentID, cardOpts)
+		if res.Rejected {
+			return decision{Result: "reject", Reason: string(res.Reason)}
+		}
+		return decision{Result: "accept", Reason: string(res.Reason)}
+
 	case "agent-card-fetch":
 		status, ok := asInt(in, "status")
 		if !ok {

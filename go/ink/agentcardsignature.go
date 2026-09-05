@@ -68,6 +68,24 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	if card == nil || agentID == "" {
 		return rejectCard(ReasonInvalidCard)
 	}
+	// A member present but not the shape the schema declares is not absent.
+	// Reading it as absent selects a weaker path, so fail closed here.
+	if keysVal, present := card["keys"]; present {
+		keys, ok := keysVal.(map[string]interface{})
+		if !ok {
+			return rejectCard(ReasonInvalidCard)
+		}
+		if signing, has := keys["signing"]; has {
+			if _, isArray := signing.([]interface{}); !isArray {
+				return rejectCard(ReasonInvalidCard)
+			}
+		}
+	}
+	if chain, present := card["rotationChain"]; present {
+		if _, isArray := chain.([]interface{}); !isArray {
+			return rejectCard(ReasonInvalidCard)
+		}
+	}
 	// §5 step 1 backstop: identity binding.
 	if cid, ok := card["agentId"].(string); !ok || cid != agentID {
 		return rejectCard(ReasonIdentityMismatch)
@@ -81,9 +99,11 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	// no `cardSignature` at all (§3.4). A present-but-null member is not a card
 	// signature; a present-but-malformed member fails closed rather than demoting.
 	rawSig, present := card["cardSignature"]
-	if !present || rawSig == nil {
+	if !present {
 		return verifyUnsignedCard(kind, cachedCard, phaseC)
 	}
+	// §3.4: the only unsigned card is one carrying no member at all, so a
+	// present null takes the reject path rather than the permissive one.
 	sigMap, ok := rawSig.(map[string]interface{})
 	if !ok {
 		return rejectCard(ReasonInvalidCard)
@@ -156,7 +176,10 @@ type cardProofResult struct {
 }
 
 func verifyCardProof(card map[string]interface{}, keyID, signature string) cardProofResult {
-	signing, hasSigning := cardSigningEntries(card)
+	signing, hasSigning, usable := cardSigningEntries(card)
+	if hasSigning && !usable {
+		return cardProofResult{reason: ReasonInvalidCard}
+	}
 	var signerKey []byte
 
 	if hasSigning {
@@ -394,7 +417,7 @@ func rootChainedCard(card map[string]interface{}, chain []interface{}, rootCandi
 	}
 	// (b) head signing set CORRESPONDS EXACTLY to the card's keys.signing, keyed
 	// by keyId, with byte-equal decoded keys (§3.5) and equal status.
-	cardSigning, _ := cardSigningEntries(card)
+	cardSigning, _, _ := cardSigningEntries(card)
 	if len(prevSet) != len(cardSigning) {
 		return rootCardReject(ReasonHeadSetMismatch, nil)
 	}
@@ -430,7 +453,7 @@ func checkCardContinuity(card, cachedCard map[string]interface{}, cardSignerKey 
 	// Reject a new card whose signing key is not reachable from the cached card's
 	// non-revoked signing set, directly OR through the rotation-chain links that
 	// connect the cached set to the new head (§6).
-	cachedSigning, _ := cardSigningEntries(cachedCard)
+	cachedSigning, _, _ := cardSigningEntries(cachedCard)
 	cachedNonRevoked := [][]byte{}
 	for _, e := range cachedSigning {
 		em, ok := e.(map[string]interface{})
@@ -525,16 +548,23 @@ func stripCardKey(card map[string]interface{}, key string) map[string]interface{
 // cardSigningEntries returns card.keys.signing as a raw slice, matching the
 // reference `card.keys?.signing`: a missing keys object or a non-array signing
 // member yields the legacy (no-signing-set) path.
-func cardSigningEntries(card map[string]interface{}) ([]interface{}, bool) {
+// cardSigningEntries reports the key set, whether one is present, and whether it
+// is usable. Present but unusable must not read as absent: that demotes the card
+// to the legacy single-key path and stops consulting the set that revoked a key.
+func cardSigningEntries(card map[string]interface{}) (entries []interface{}, present bool, usable bool) {
 	keys, ok := card["keys"].(map[string]interface{})
 	if !ok {
-		return nil, false
+		return nil, false, true
 	}
-	signing, ok := keys["signing"].([]interface{})
+	signingVal, ok := keys["signing"]
 	if !ok {
-		return nil, false
+		return nil, false, true
 	}
-	return signing, true
+	signing, ok := signingVal.([]interface{})
+	if !ok {
+		return nil, true, false
+	}
+	return signing, true, true
 }
 
 func rotationChainLinks(card map[string]interface{}) ([]interface{}, bool) {

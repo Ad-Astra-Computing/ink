@@ -24,6 +24,7 @@ import {
   verifyInkSignature,
   AgentCardSchema,
   evaluateAgentCardFetch,
+  verifyAgentCardSignature,
   isPrivateHostname,
   parseCheckpoint,
   formatCheckpoint,
@@ -112,6 +113,15 @@ async function decide(surface: string, input: Record<string, unknown>): Promise<
     }
     case "agent-card": {
       return { result: AgentCardSchema.safeParse(input.card).success ? "accept" : "reject" };
+    }
+    case "agent-card-signature": {
+      // signerSecretHex is harness state and is deliberately not read here.
+      const r = await verifyAgentCardSignature(
+        input.card as Parameters<typeof verifyAgentCardSignature>[0],
+        input.agentId as string,
+        (input.options ?? {}) as Parameters<typeof verifyAgentCardSignature>[2],
+      );
+      return { result: r.rejected ? "reject" : "accept", reason: r.reason };
     }
     case "agent-card-fetch": {
       const fetchInput: AgentCardFetchInput = {
