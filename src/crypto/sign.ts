@@ -42,8 +42,35 @@ export type SignableBody = object;
  */
 export function isSignableBody(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  return isPlainObject(value);
+}
+
+/**
+ * Plain-object test that holds across realms. A `vm` context, an iframe or a
+ * worker has its own `Object.prototype`, so comparing against this module's
+ * would reject an ordinary object that merely crossed a boundary. What is
+ * actually being asked is whether the prototype chain ends immediately, which
+ * is true of an object literal and of parsed JSON in any realm, and false of a
+ * Date, a Map or a class instance, whose chain runs one link longer.
+ */
+function isPlainObject(value: object): boolean {
   const proto = Object.getPrototypeOf(value) as object | null;
-  return proto === Object.prototype || proto === null;
+  return proto === null || Object.getPrototypeOf(proto) === null;
+}
+
+/**
+ * True when some value nested in the tree is an object that JSON cannot carry:
+ * a Date, a Map, a Set, a class instance. `canonicalize` serializes those by
+ * their enumerable own keys, so most of them become `{}` and the signature
+ * covers bytes the caller never meant to sign. The top-level guard above does
+ * not see them, and the sign and hash paths run this after the bounds walk has
+ * already capped depth and node count, so the recursion here is bounded.
+ */
+export function hasNonJsonObject(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  if (Array.isArray(value)) return value.some(hasNonJsonObject);
+  if (!isPlainObject(value)) return true;
+  return Object.values(value as Record<string, unknown>).some(hasNonJsonObject);
 }
 
 export function isJcsSafeNumber(n: number): boolean {
@@ -143,6 +170,9 @@ export async function signMessage(
   if (!isWithinBounds(unsigned)) {
     throw new Error("Message exceeds maximum allowed complexity");
   }
+  if (hasNonJsonObject(unsigned)) {
+    throw new Error("Message contains a value that is not JSON data");
+  }
   // Refuse to sign over a lone UTF-16 surrogate: it would serialize as a
   // \uXXXX escape an independent verifier rejects (and which Go's JSON parser
   // would silently rewrite to U+FFFD), so the signature would not be portable.
@@ -202,6 +232,7 @@ export async function verifyMessage(
   if (!isWithinBounds(unsigned)) {
     return false;
   }
+  if (hasNonJsonObject(unsigned)) return false;
   // Defense in depth alongside the receiver's raw-body scan: a parsed body
   // carrying a lone UTF-16 surrogate is not portable across implementations,
   // so it never verifies.

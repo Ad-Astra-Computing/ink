@@ -18,7 +18,13 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   exotic objects such as `Date`, `Map` and class instances are refused. Those
   passed the old signature at runtime and canonicalize to `{}`, so a caller
   handing one to `signMessage` signed an empty body and got a valid signature
-  back for it.
+  back for it. The check reaches nested values too, so `{ when: new Date(0) }`
+  is refused rather than signed as `{"when":{}}`, and it tests the prototype
+  chain rather than one realm's `Object.prototype`, so an ordinary object that
+  crossed a `vm`, worker or iframe boundary still signs. A boxed primitive is
+  refused for the same reason: `new String("ink/0.2")` canonicalizes to the
+  string it wraps, so the signed bytes named a protocol version that
+  domain selection, which compares strictly, did not use.
 
 - The attestation evidence surface of `specs/ink-attestation.md` activates:
   `buildAttestation` and `verifyAttestation` land in both implementations

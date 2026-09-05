@@ -1,7 +1,7 @@
 import * as ed from "@noble/ed25519";
 import { x25519 } from "@noble/curves/ed25519.js";
 import canonicalize from "canonicalize";
-import { isJcsSafeNumber, isSignableBody, type SignableBody } from "./sign.js";
+import { isJcsSafeNumber, isSignableBody, hasNonJsonObject, type SignableBody } from "./sign.js";
 import { parseInkTimestampMs } from "./timestamp.js";
 import { hasUnpairedSurrogate } from "./surrogate.js";
 import { hasUnsafeObjectKey } from "./member-name.js";
@@ -253,6 +253,9 @@ export function buildSignatureBase(input: InkSignInput): string {
   }
   if (!isWithinCanonicalizeBounds(input.body)) {
     throw new Error("Signature base body exceeds maximum allowed complexity");
+  }
+  if (hasNonJsonObject(input.body)) {
+    throw new Error("Invalid signature-base body: contains a value that is not JSON data");
   }
   const canonical = jcsCanonicalize(input.body);
   if (new TextEncoder().encode(canonical).length > MAX_SIGBASE_BODY_BYTES) {
@@ -797,6 +800,9 @@ export async function computeMessageHash(body: SignableBody): Promise<string> {
   if (!isWithinCanonicalizeBounds(body)) {
     throw new Error("Message body exceeds maximum allowed complexity");
   }
+  if (hasNonJsonObject(body)) {
+    throw new Error("Invalid message body: contains a value that is not JSON data");
+  }
   const canonical = jcsCanonicalize(body);
   const bytes = new TextEncoder().encode(canonical);
   if (bytes.length > MAX_SIGBASE_BODY_BYTES) {
@@ -922,6 +928,9 @@ export async function computeAuditMerkleLeafHash(event: SignableBody): Promise<s
   const { agentSignature: _, ...eventWithoutSig } = event;
   if (!isWithinCanonicalizeBounds(eventWithoutSig)) {
     throw new Error("Audit event exceeds maximum allowed complexity");
+  }
+  if (hasNonJsonObject(eventWithoutSig)) {
+    throw new Error("Audit event contains a value that is not JSON data");
   }
   const canonical = jcsCanonicalize(eventWithoutSig);
   const canonicalBytes = new TextEncoder().encode(canonical);

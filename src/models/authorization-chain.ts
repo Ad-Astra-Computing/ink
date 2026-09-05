@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { isInkTimestamp, parseInkTimestampMs } from "../crypto/timestamp.js";
-import { isWithinBounds, isSignableBody, signMessage, verifyMessage, type SignableBody } from "../crypto/sign.js";
+import { isWithinBounds, isSignableBody, hasNonJsonObject, signMessage, verifyMessage, type SignableBody } from "../crypto/sign.js";
 import { hasUnpairedSurrogate } from "../crypto/surrogate.js";
 import { jcsCanonicalize, base64urlEncode } from "../crypto/ink.js";
 import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
@@ -227,7 +227,7 @@ export type AuthorizationChainVerifyResult =
  * actually signed and presented.
  */
 export async function deriveDelegationParentHash(parentLink: SignableBody): Promise<string> {
-  if (!isSignableBody(parentLink)) {
+  if (!isSignableBody(parentLink) || hasNonJsonObject(parentLink)) {
     throw new Error("parentLink must be a plain JSON object");
   }
   const canonical = jcsCanonicalize(parentLink);
