@@ -224,6 +224,39 @@ describe("verifyAgentCardSignature — a malformed member never reads as absent"
     });
   }
 
+  for (const keys of [null, "x", 7, [], false]) {
+    it(`refuses keys ${JSON.stringify(keys)} rather than falling back to the legacy key`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = keys as unknown as typeof card.keys;
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      const signed = await attachCardSignature(card, "bootstrap", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
+  // 3.4: the only unsigned card carries no member at all, so a present member
+  // that is not a signature must not reach the more permissive unsigned path.
+  for (const sig of [null, false, 0, "", "x", []]) {
+    it(`refuses cardSignature ${JSON.stringify(sig)} rather than treating it as unsigned`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      const withSig = { ...card, cardSignature: sig } as unknown as Parameters<typeof verifyAgentCardSignature>[0];
+
+      const result = await verifyAgentCardSignature(withSig, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
   for (const chain of [{ bad: true }, null, false, 0, "", "x"]) {
     it(`refuses rotationChain ${JSON.stringify(chain)} rather than rooting at genesis`, async () => {
       const agentId = deriveAgentId(G.pub);

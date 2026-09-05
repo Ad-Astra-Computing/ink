@@ -392,6 +392,37 @@ func TestCardVerify_MalformedKeySetDoesNotDemoteToLegacy(t *testing.T) {
 	}
 }
 
+func TestCardVerify_MalformedKeysMemberDoesNotDemoteToLegacy(t *testing.T) {
+	for _, keys := range []interface{}{nil, "x", float64(7), []interface{}{}, false} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keySetVersion"] = 1
+		card["keys"] = keys
+		signed := attachCardSignature(t, card, legacyBootstrapKeyID, g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+// Spec 3.4: the only unsigned card carries no member at all, so a present
+// member that is not a signature must not reach the permissive unsigned path.
+func TestCardVerify_MalformedCardSignatureIsNotUnsigned(t *testing.T) {
+	for _, sig := range []interface{}{nil, false, float64(0), "", "x", []interface{}{}} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{signingEntry("g1", g, "active")}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		card["cardSignature"] = sig
+
+		res := VerifyAgentCardSignature(mustWire(t, card), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
 // A malformed rotationChain must not read as absent either: that roots the card
 // at genesis and skips the chain it declared.
 func TestCardVerify_MalformedRotationChainDoesNotRootAtGenesis(t *testing.T) {

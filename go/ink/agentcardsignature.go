@@ -70,8 +70,12 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	}
 	// A member present but not the shape the schema declares is not absent.
 	// Reading it as absent selects a weaker path, so fail closed here.
-	if keys, ok := card["keys"].(map[string]interface{}); ok {
-		if signing, present := keys["signing"]; present {
+	if keysVal, present := card["keys"]; present {
+		keys, ok := keysVal.(map[string]interface{})
+		if !ok {
+			return rejectCard(ReasonInvalidCard)
+		}
+		if signing, has := keys["signing"]; has {
 			if _, isArray := signing.([]interface{}); !isArray {
 				return rejectCard(ReasonInvalidCard)
 			}
@@ -95,9 +99,11 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	// no `cardSignature` at all (§3.4). A present-but-null member is not a card
 	// signature; a present-but-malformed member fails closed rather than demoting.
 	rawSig, present := card["cardSignature"]
-	if !present || rawSig == nil {
+	if !present {
 		return verifyUnsignedCard(kind, cachedCard, phaseC)
 	}
+	// §3.4: the only unsigned card is one carrying no member at all, so a
+	// present null takes the reject path rather than the permissive one.
 	sigMap, ok := rawSig.(map[string]interface{})
 	if !ok {
 		return rejectCard(ReasonInvalidCard)

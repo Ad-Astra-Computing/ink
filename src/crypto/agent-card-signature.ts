@@ -224,9 +224,19 @@ export async function verifyAgentCardSignature(
     // verifier is exported, so it fails closed on its own rather than trusting
     // that admission ran.
     const keysMember: unknown = (card as { keys?: unknown }).keys;
-    if (keysMember !== null && typeof keysMember === "object") {
+    if (keysMember !== undefined) {
+      if (keysMember === null || typeof keysMember !== "object" || Array.isArray(keysMember)) {
+        return reject("invalid_card");
+      }
       const signing: unknown = (keysMember as { signing?: unknown }).signing;
       if (signing !== undefined && !Array.isArray(signing)) return reject("invalid_card");
+    }
+    // §3.4: the only unsigned card is one carrying no `cardSignature` at all.
+    // A present member that is not a signature object must not take the
+    // unsigned path, which is the more permissive one on a cold first contact.
+    if ("cardSignature" in card) {
+      const sig: unknown = (card as { cardSignature?: unknown }).cardSignature;
+      if (sig === null || typeof sig !== "object" || Array.isArray(sig)) return reject("invalid_card");
     }
     const chainMember: unknown = (card as { rotationChain?: unknown }).rotationChain;
     if (chainMember !== undefined && !Array.isArray(chainMember)) return reject("invalid_card");
