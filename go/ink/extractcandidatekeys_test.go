@@ -8,6 +8,22 @@ import (
 // entry it returns must satisfy the key-entry schema on its own. An entry
 // that omits a schema-required field is skipped rather than admitted with an
 // open validity window.
+// A malformed keys member must not read as a legacy card: that hands back the
+// top-level key as active and ignores what the set said about rotation.
+func TestExtractCandidateKeysRefusesMalformedKeysMember(t *testing.T) {
+	k := fixedKeypair(t, 0x31)
+	for _, keys := range []interface{}{nil, "x", float64(7), []interface{}{}, false} {
+		card := map[string]interface{}{
+			"agentId":            "tulpa:z6Mk",
+			"publicKeyMultibase": k.multibase,
+			"keys":               keys,
+		}
+		if got := ExtractCandidateKeys(card); len(got) != 0 {
+			t.Errorf("keys %v: got %d candidate keys, want 0", keys, len(got))
+		}
+	}
+}
+
 func TestExtractCandidateKeysRequiresSchemaFields(t *testing.T) {
 	k := fixedKeypair(t, 0x31)
 	cases := []struct {

@@ -127,6 +127,21 @@ describe("INK Key Rotation — end-to-end test vectors", () => {
     expect(parsed.keySetVersion).toBe(2);
   });
 
+  // A malformed keys member must not read as a legacy card: that hands back
+  // the top-level key as active and ignores what the set said about rotation.
+  for (const keys of [null, "x", 7, [], false]) {
+    it(`extractCandidateKeys returns nothing for keys ${JSON.stringify(keys)}`, async () => {
+      const key = await makeKeypair();
+      const card = {
+        agentId: "tulpa:z6Mk",
+        publicKeyMultibase: encodePublicKeyMultibase(key.publicKey),
+        keys,
+      } as unknown as Parameters<typeof extractCandidateKeys>[0];
+
+      expect(extractCandidateKeys(card)).toEqual([]);
+    });
+  }
+
   it("extractCandidateKeys builds correct set from card with keys block", async () => {
     const keyA = await makeKeypair();
     const keyB = await makeKeypair();
