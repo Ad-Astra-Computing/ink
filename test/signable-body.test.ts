@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { runInNewContext } from "node:vm";
+import { deriveDelegationParentHash } from "../src/models/authorization-chain.js";
 import {
   buildSignatureBase,
   signInkMessage,
@@ -135,5 +136,23 @@ describe("an object from another realm is still a plain object", () => {
   it("still refuses a foreign Date", () => {
     const foreignDate = runInNewContext("({ when: new Date(0) })") as object;
     expect(() => buildSignatureBase({ ...base, body: foreignDate })).toThrow(/not JSON data/);
+  });
+});
+
+describe("the deep check never runs before the bounds walk", () => {
+  /** Deeper than any bounds cap, so an unbounded recursive walk overflows. */
+  function deepTree(depth: number): Record<string, unknown> {
+    let node: Record<string, unknown> = { end: true };
+    for (let i = 0; i < depth; i++) node = { next: node };
+    return node;
+  }
+
+  it("rejects a hostile depth as complexity, not with a stack overflow", async () => {
+    const deep = deepTree(50_000);
+    await expect(deriveDelegationParentHash(deep)).rejects.toThrow(/complexity/);
+    await expect(computeMessageHash(deep)).rejects.toThrow(/complexity/);
+    expect(() => buildSignatureBase({ ...base, body: deep })).toThrow(/complexity/);
+    const { privateKey } = await generateKeypair();
+    await expect(signMessage(deep, privateKey)).rejects.toThrow(/complexity/);
   });
 });

@@ -227,8 +227,16 @@ export type AuthorizationChainVerifyResult =
  * actually signed and presented.
  */
 export async function deriveDelegationParentHash(parentLink: SignableBody): Promise<string> {
-  if (!isSignableBody(parentLink) || hasNonJsonObject(parentLink)) {
+  if (!isSignableBody(parentLink)) {
     throw new Error("parentLink must be a plain JSON object");
+  }
+  // Bounds first: the walk caps depth and node count, so the deep JSON check
+  // below cannot recurse into a stack overflow on a hostile parent link.
+  if (!isWithinBounds(parentLink)) {
+    throw new Error("parentLink exceeds maximum allowed complexity");
+  }
+  if (hasNonJsonObject(parentLink)) {
+    throw new Error("parentLink contains a value that is not JSON data");
   }
   const canonical = jcsCanonicalize(parentLink);
   const bytes = new TextEncoder().encode(`${PARENT_HASH_DOMAIN}\n${canonical}`);
