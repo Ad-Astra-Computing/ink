@@ -193,7 +193,7 @@ function spawnSyncish(cmd, args, opts) {
  * makes the payload byte-identical for both readers, so a case that fails on one
  * side fails because of the library rather than because of the pipe. */
 function jsonAscii(value) {
-  return JSON.stringify(value).replace(/[-￿]/g, (c) =>
+  return JSON.stringify(value).replace(/[\u0080-\uffff]/g, (c) =>
     "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0"),
   );
 }
@@ -396,6 +396,7 @@ async function main() {
   let ran = 0;
   const findings = [];
   const seenFindings = new Set();
+  let unstable = 0;
   const shapeCounts = new Map();
 
   let batch = [];
@@ -436,7 +437,22 @@ async function main() {
       // The shrinker matches on the kind, not the exact detail, so a minimized
       // case can carry a different reason than the case it came from. Record the
       // detail of what actually landed on disk.
-      const minDiff = compare(check.ts.get("min"), check.go.get("min")) ?? diff;
+      let minDiff = compare(check.ts.get("min"), check.go.get("min"));
+      if (!minDiff) {
+        // The minimized case does not reproduce. Re-decide the case it came
+        // from before recording anything: a finding whose artifact disagrees
+        // with its own claim sends a reader chasing a divergence that is not
+        // there, which is worse than no finding at all.
+        const again = await decideBoth([{ caseId: "orig", surface: surface.id, input: c.input }]);
+        const origDiff = compare(again.ts.get("orig"), again.go.get("orig"));
+        if (!origDiff) {
+          log(`  UNSTABLE ${c.surface} [${diff.kind}] ${diff.detail}`);
+          log(`    neither the minimized case nor the original reproduces; not recorded`);
+          unstable++;
+          continue;
+        }
+        minDiff = origDiff;
+      }
       const path = writeFinding(
         surface, c, minDiff, minimized, tsD, goD,
         check.ts.get("min"), check.go.get("min"), opts.seed,
@@ -482,6 +498,12 @@ async function main() {
     return 0;
   }
   process.stdout.write(`differential: ${findings.length} divergent cases across ${seenFindings.size} shapes\n`);
+  if (unstable > 0) {
+    // Counted, never silent. A case that diverges once and not again is either
+    // a harness fault or a real nondeterminism in one implementation, and both
+    // are worth knowing about.
+    process.stdout.write(`differential: ${unstable} unstable observation(s) not recorded\n`);
+  }
   for (const key of seenFindings) process.stdout.write(`  ${key}\n`);
   return 1;
 }

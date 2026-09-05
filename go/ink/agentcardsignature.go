@@ -96,10 +96,6 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 			}
 		}
 	}
-	// §5 step 1 backstop: identity binding.
-	if cid, ok := card["agentId"].(string); !ok || cid != agentID {
-		return rejectCard(ReasonIdentityMismatch)
-	}
 
 	kind := cardPrincipalKindOf(agentID)
 	cachedCard := options.CachedCard
@@ -108,16 +104,45 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	// Unsigned path: the only cards this spec treats as unsigned are those with
 	// no `cardSignature` at all (§3.4). A present-but-null member is not a card
 	// signature; a present-but-malformed member fails closed rather than demoting.
-	rawSig, present := card["cardSignature"]
-	if !present {
+	// The order below mirrors the reference: the signature member's SHAPE is
+	// judged first, then identity, then whether the card is unsigned. A
+	// malformed member is a malformed card whatever the agent id says, and an
+	// unsigned card still has to be the card that was asked for.
+	rawSig, sigPresent := card["cardSignature"]
+	var sigMap map[string]interface{}
+	if sigPresent {
+		var ok bool
+		sigMap, ok = rawSig.(map[string]interface{})
+		if !ok {
+			return rejectCard(ReasonInvalidCard)
+		}
+		// A wrong-typed keyId or signature is malformed too, and collapsing it
+		// to the empty string would match an entry whose own keyId is missing.
+		// Spec 3.4 makes both members a MUST, so absent is malformed rather
+		// than a value to interpret. An absent keyId collapses to the empty
+		// string here and matches an entry whose own keyId is empty, while the
+		// reference sees undefined and matches nothing.
+		for _, name := range []string{"keyId", "signature"} {
+			value, present := sigMap[name]
+			if !present {
+				return rejectCard(ReasonInvalidCard)
+			}
+			if _, isString := value.(string); !isString {
+				return rejectCard(ReasonInvalidCard)
+			}
+		}
+	}
+
+	// §5 step 1 backstop: identity binding.
+	if cid, ok := card["agentId"].(string); !ok || cid != agentID {
+		return rejectCard(ReasonIdentityMismatch)
+	}
+
+	// §3.4: the only unsigned card is one carrying no member at all.
+	if !sigPresent {
 		return verifyUnsignedCard(kind, cachedCard, phaseC)
 	}
-	// §3.4: the only unsigned card is one carrying no member at all, so a
-	// present null takes the reject path rather than the permissive one.
-	sigMap, ok := rawSig.(map[string]interface{})
-	if !ok {
-		return rejectCard(ReasonInvalidCard)
-	}
+
 	keyID, _ := sigMap["keyId"].(string)
 	signature, _ := sigMap["signature"].(string)
 
@@ -197,8 +222,18 @@ func verifyCardProof(card map[string]interface{}, keyID, signature string) cardP
 		// resolution ambiguous (§4.1); reject them.
 		seen := make(map[string]bool, len(signing))
 		for _, e := range signing {
-			em, _ := e.(map[string]interface{})
-			kid, _ := em["keyId"].(string)
+			// A non-object entry, or a keyId that is not a string, is a
+			// malformed card. Collapsing either to the empty string here makes
+			// two malformed entries look like duplicates and makes the
+			// reference, which compares the values, accept the same card.
+			em, ok := e.(map[string]interface{})
+			if !ok {
+				return cardProofResult{reason: ReasonInvalidCard}
+			}
+			kid, ok := em["keyId"].(string)
+			if !ok {
+				return cardProofResult{reason: ReasonInvalidCard}
+			}
 			if seen[kid] {
 				return cardProofResult{reason: ReasonDuplicateKeyID}
 			}

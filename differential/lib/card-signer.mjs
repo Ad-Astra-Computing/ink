@@ -95,7 +95,13 @@ export function buildSignedCard(rng, key = keyFromRng(rng)) {
   // An optional member a mutation can never introduce is a member the surface
   // cannot fuzz. Emitting it sometimes is what lets the wrong-type arm reach
   // the branches that read it.
-  if (rng.bool(0.3)) card.rotationChain = [];
+  if (rng.bool(0.3)) {
+    // An empty chain reaches only the no-chain branch. A one-link chain is what
+    // reaches the per-link checks, and it does not need to verify to do that.
+    card.rotationChain = rng.bool(0.5)
+      ? []
+      : [{ keySetVersion: 1, signing: [], prevKeyId: "g1", signature: "A".repeat(86) }];
+  }
   return { card: { ...card, cardSignature: buildSignature(card, key) }, key };
 }
 
@@ -105,17 +111,27 @@ function buildSignature(card, key) {
 
 /**
  * Re-sign a card after a mutation, so the mutation is what is under test.
- * Total by construction: a mutation can produce a card the canonicalizer
- * refuses, a lone surrogate for one, and a generator that throws takes the run
- * down with it. Such a card keeps the signature it had, which is a case worth
- * deciding on anyway.
+ *
+ * A mutation can produce a card the canonicalizer refuses, a lone surrogate for
+ * one. The runner already skips a case whose generator throws, so the choice
+ * here is between skipping that case and deciding it with the signature it
+ * already had. The second is worth more: a card whose signature no longer
+ * covers its bytes is exactly what a verifier has to reject.
+ *
+ * Only the canonicalizer's own refusals are caught. Anything else, a bad secret
+ * for instance, is a harness fault, and swallowing it would leave every
+ * re-signed case silently failing its signature while the run still reported
+ * green.
  */
+const CANONICALIZER_REFUSALS = /Lone surrogate|not allowed|NaN|Infinity/i;
+
 export function resign(card, key) {
   const { cardSignature, ...rest } = card;
   if (!cardSignature || typeof cardSignature !== "object") return card;
   try {
     return { ...card, cardSignature: { ...cardSignature, signature: signCard(rest, key.secret) } };
-  } catch {
-    return card;
+  } catch (error) {
+    if (error instanceof Error && CANONICALIZER_REFUSALS.test(error.message)) return card;
+    throw error;
   }
 }

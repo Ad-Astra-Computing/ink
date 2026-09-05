@@ -85,25 +85,45 @@ const CARD_STRUCTURAL_MEMBERS = [
   ["keys"], ["keys", "signing"], ["keys", "encryption"], ["rotationChain"],
   ["cardSignature"], ["cardSignature", "keyId"], ["cardSignature", "signature"],
   ["currentSigningKeyId"], ["keySetVersion"], ["capabilities"], ["availability"],
+  // Inside the arrays. A member list that stops at the top level fuzzes only
+  // the half of the verifier that reads the top level, and the entry and link
+  // members are where the two implementations read a value without checking
+  // its type.
+  ["keys", "signing", 0], ["keys", "signing", 0, "keyId"],
+  ["keys", "signing", 0, "publicKeyMultibase"], ["keys", "signing", 0, "status"],
+  ["keys", "signing", 0, "validFrom"], ["keys", "signing", 1, "keyId"],
+  ["rotationChain", 0], ["rotationChain", 0, "signing"],
+  ["rotationChain", 0, "keySetVersion"], ["rotationChain", 0, "prevKeyId"],
+  ["rotationChain", 0, "signature"],
 ];
 
 const WRONG_TYPED = [
   null, false, true, 0, 7, -1, "", "x", [], {}, { bad: true }, [1, 2], [{}],
+  [null], ["x"], [[]], [{ keyId: 7 }], [{ keyId: null }],
 ];
 
 /** Set a member to a value of the wrong type, adding it when it is absent. */
 function setWrongType(card, rng) {
   const path = rng.pick(CARD_STRUCTURAL_MEMBERS);
-  const value = rng.pick(WRONG_TYPED);
+  // Clone it. The bank holds shared objects, and assigning one by reference
+  // lets a later mutation descend into the bank itself and eventually assign a
+  // value into its own descendant, which builds a cycle the runner then
+  // recurses into forever.
+  const value = structuredClone(rng.pick(WRONG_TYPED));
   let node = card;
   for (const step of path.slice(0, -1)) {
-    if (!isObj(node[step])) {
+    const wantArray = typeof step === "number";
+    const container = wantArray ? Array.isArray(node) : isObj(node);
+    if (!container) return; // the parent is already the malformed thing
+    if (node[step] === undefined || (typeof node[step] !== "object" || node[step] === null)) {
       if (rng.bool(0.5)) return; // leave the parent malformed and stop
       node[step] = {};
     }
     node = node[step];
   }
-  node[path[path.length - 1]] = value;
+  const last = path[path.length - 1];
+  if (typeof last === "number" ? !Array.isArray(node) : !isObj(node)) return;
+  node[last] = value;
 }
 
 function mutateCardInput(input, rng) {
@@ -111,7 +131,10 @@ function mutateCardInput(input, rng) {
   // text mutation, which finds the encoding and canonicalization cases.
   if (isObj(input.card) && rng.bool(0.35)) {
     const card = structuredClone(input.card);
+    // Sometimes two, because a disagreement can need one malformed member to
+    // collide with another, and one mutation per case can never build that.
     setWrongType(card, rng);
+    if (rng.bool(0.3)) setWrongType(card, rng);
     const next = { ...input, card };
     if (input.signerSecretHex && rng.bool(0.5)) {
       const key = keyFromRng({ between: () => 0 });

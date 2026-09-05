@@ -217,12 +217,9 @@ export async function verifyAgentCardSignature(
     if (typeof agentId !== "string" || agentId.length === 0) {
       return reject("invalid_card");
     }
-    // A member that is present but not the shape the schema declares is not
-    // absent. Reading it as absent selects a weaker path: no key set means the
-    // legacy single key, no rotation chain means the genesis root, and either
-    // one authenticates a card the set or the chain would have rejected. The
-    // verifier is exported, so it fails closed on its own rather than trusting
-    // that admission ran.
+    // A member present but not the declared shape is not absent. Reading it as
+    // absent selects a weaker path, and this verifier is exported, so it fails
+    // closed rather than trusting that admission ran.
     const keysMember: unknown = (card as { keys?: unknown }).keys;
     if (keysMember !== undefined) {
       if (keysMember === null || typeof keysMember !== "object" || Array.isArray(keysMember)) {
@@ -237,6 +234,13 @@ export async function verifyAgentCardSignature(
     if ("cardSignature" in card) {
       const sig: unknown = (card as { cardSignature?: unknown }).cardSignature;
       if (sig === null || typeof sig !== "object" || Array.isArray(sig)) return reject("invalid_card");
+      // A wrong-typed keyId or signature is malformed too. Go collapses a
+      // non-string to the empty string, which then matches an entry whose own
+      // keyId is missing, so the two disagree on which check failed.
+      // §3.4 makes both a MUST, so absent is malformed rather than a value.
+      const shape = sig as { keyId?: unknown; signature?: unknown };
+      if (typeof shape.keyId !== "string") return reject("invalid_card");
+      if (typeof shape.signature !== "string") return reject("invalid_card");
     }
     const chainMember: unknown = (card as { rotationChain?: unknown }).rotationChain;
     if (chainMember !== undefined && !Array.isArray(chainMember)) return reject("invalid_card");
@@ -357,6 +361,15 @@ async function verifyProof(card: AgentCard, cardSignature: CardSignature): Promi
     // signer resolution ambiguous (§4.1); reject them.
     const seen = new Set<string>();
     for (const entry of signing) {
+      // A wrong-typed keyId is a malformed card, not an unusual id: comparing
+      // it as a value accepts what the second implementation rejects.
+      const candidate: unknown = entry;
+      if (candidate === null || typeof candidate !== "object" || Array.isArray(candidate)) {
+        return { ok: false, reason: "invalid_card" };
+      }
+      if (typeof (candidate as { keyId?: unknown }).keyId !== "string") {
+        return { ok: false, reason: "invalid_card" };
+      }
       if (seen.has(entry.keyId)) return { ok: false, reason: "duplicate_key_id" };
       seen.add(entry.keyId);
     }
@@ -530,6 +543,12 @@ async function rootChained(
     for (const e of committed) {
       if (seen.has(e.keyId)) return rootReject("chain_duplicate_key_id");
       seen.add(e.keyId);
+    }
+    // After the set decodes and after the duplicate check, which is where the
+    // second implementation type-checks it. A link with no usable version is a
+    // malformed card, and it is reachable with no signing key at all.
+    if (typeof (link as { keySetVersion?: unknown }).keySetVersion !== "number") {
+      return rootReject("invalid_card");
     }
 
     // keySetVersion strictly increasing and contiguous across CONSECUTIVE links;

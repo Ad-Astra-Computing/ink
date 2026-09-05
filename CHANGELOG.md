@@ -11,14 +11,25 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 - The card verifier rejects a present member of the wrong type wherever it
   reads one, rather than at the top level only. A non-string
   `currentSigningKeyId` was compared as a value by the reference and read as
-  missing by Go, and a rotation chain carrying something that is not a link was
-  reported as a key that failed to decode rather than as a malformed card. Both
-  now reject as an invalid card in both implementations.
+  missing by Go; a rotation chain carrying something that is not a link was
+  reported as a key that failed to decode rather than as a malformed card; a
+  signing entry whose `keyId` was not a string was accepted by the reference
+  and rejected by Go, because a Go type assertion collapses every non-string to
+  the empty string and calls two of them duplicates. `cardSignature.keyId` and
+  `cardSignature.signature` are also required rather than merely type-checked:
+  the spec makes both a MUST, and an absent `keyId` read as undefined in the
+  reference and as the empty string in Go, where it matched an entry whose own
+  `keyId` was empty. All reject as an invalid card in both implementations.
 - The card-signature differential surface mutates member types and emits the
   optional structural members, so it can generate the bug class it was built to
   find. It could not before: a non-array `rotationChain` appeared zero times in
-  363000 cases because the generator never emitted the member. The generator is
-  also total now, where a card the canonicalizer refuses used to end the run.
+  363000 cases because the generator never emitted the member.
+- The differential runner no longer records a finding it has already
+  disproved. It minimizes a case, re-decides it, and on a fallback path kept
+  the original claim when the minimized case stopped diverging, so a finding
+  could be written whose own recorded decisions showed both sides agreeing. It
+  now re-decides the original too, and reports an unstable observation rather
+  than writing one.
 
 - The Go card verifier no longer demotes a card with a malformed key set to the
   legacy single-key path. `keys.signing` present but not an array failed a type

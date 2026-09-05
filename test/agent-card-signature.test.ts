@@ -274,6 +274,46 @@ describe("verifyAgentCardSignature — a malformed member never reads as absent"
     });
   }
 
+  // 3.4 makes keyId and signature a MUST. An absent keyId read as undefined
+  // here and as the empty string in Go, where it matched an empty entry id.
+  for (const missing of ["keyId", "signature"] as const) {
+    it(`refuses a cardSignature with no ${missing}`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      const signed = await attachCardSignature(card, "g1", G.priv);
+      const sig = { ...(signed.cardSignature as Record<string, unknown>) };
+      delete sig[missing];
+      const withoutMember = { ...signed, cardSignature: sig } as unknown as Parameters<typeof verifyAgentCardSignature>[0];
+
+      const result = await verifyAgentCardSignature(withoutMember, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
+  // A Go type assertion collapses every non-string to the empty string, so two
+  // wrong-typed entry ids looked like duplicates there and distinct here.
+  for (const keyId of [7, null, [], {}, false]) {
+    it(`refuses a signing entry whose keyId is ${JSON.stringify(keyId)}`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      const good = signingEntry("g1", G, "active");
+      card.keys = { signing: [good, { ...good, keyId }], encryption: [] } as unknown as typeof card.keys;
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      const signed = await attachCardSignature(card, "g1", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
   // 3.4: the only unsigned card carries no member at all, so a present member
   // that is not a signature must not reach the more permissive unsigned path.
   for (const sig of [null, false, 0, "", "x", []]) {
