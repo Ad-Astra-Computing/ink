@@ -87,6 +87,20 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   manifest rather than transcribed. Rows whose old file name has no
   successor category are marked as pinned by tests only, which is what was
   true of them all along.
+- The checklist's Tests column was read row by row against the test files it
+  cited. Sixty-four rows cited a file that did not exercise them: most
+  pointed at `test/security-fixes.test.ts`, which holds ECIES, SSRF and
+  checkpoint tests and nothing about the signature base, the freshness
+  window, the envelope or the audit chain those rows describe. Each row now
+  cites the tests that assert it, a new `test/checklist-evidence.test.ts`
+  covers the rows nothing had covered (the standalone replay helper's
+  `duplicate_nonce`, unpadded base64url in the auth header, handshake path
+  binding, envelope provenance and required members, canonicalization of
+  unknown members, header `keyId` precedence over body `signingKeyId`, the
+  rotation and containment audit event types, the receipt disposition set), and the rows that are receiver behaviour
+  rather than library behaviour say "none in the library" instead of
+  borrowing a file. A cited path inside the repository must now exist, which
+  `npm run check:facts` enforces.
 
 ## 0.19.0, a key must fit its role
 

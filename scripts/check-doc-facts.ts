@@ -12,7 +12,7 @@
  *
  * Run `npm run check:facts`. Pass `--write` to regenerate the generated blocks.
  */
-import { readFileSync, writeFileSync, mkdtempSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -430,6 +430,16 @@ const checklistRows: ChecklistRow[] = [];
           continue;
         }
         ids.push(group(id, 1));
+      }
+      // The Tests column cites files by path. A path inside this repository
+      // must exist; a citation into another repository is annotated as such
+      // and is not checked here.
+      for (const cited of (cells[7] ?? "").match(/`[^`]+`/g) ?? []) {
+        const file = cited.replace(/`/g, "");
+        if (!/^(test|examples)\//.test(file)) continue;
+        if (!existsSync(repoRoot + file)) {
+          errors.push(`${CHECKLIST}:${i + 1}: row ${row[1]} cites \`${file}\` in its Tests column, which does not exist.`);
+        }
       }
       checklistRows.push({ id: group(row, 1), vectors: ids });
     });

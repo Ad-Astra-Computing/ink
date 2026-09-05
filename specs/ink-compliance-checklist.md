@@ -32,8 +32,12 @@ whose vectors pin the row for every implementation; the empty marker `,`
 means no vector pins the row, so whatever evidence it has is in the Tests
 column.
 `npm run check:facts` rejects an id the manifest does not have and renders
-§16 from this column. **Tests column** names the reference test files that
-exercise the row.
+§16 from this column. **Tests column** names the test files that exercise
+the row, each chosen because a test in it asserts the row's requirement, not
+because the file is nearby. A path inside this repository must exist, which
+the same check enforces; "none in the library" says plainly that no test
+here covers the row, usually because the behaviour belongs to a receiver
+deployment rather than the library.
 
 ---
 
@@ -41,14 +45,14 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| D1 | Agent Card served at the discovery path | MUST | Required | Discovery Fetch, Discovery path |, | `test/ink-discovery-gating.test.ts` |
-| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
-| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/ink-discovery-gating.test.ts` |
+| D1 | Agent Card served at the discovery path | MUST | Required | Discovery Fetch, Discovery path |, | `examples/reference-receiver/test/discovery-roundtrip.test.ts` |
+| D2 | Agent Card includes `protocol`, `agentId`, `publicKeyMultibase`, `endpoint` | MUST | Required | Protocol §2 | `agent-card` | `test/checklist-evidence.test.ts`, `test/conformance.test.ts` |
+| D3 | Agent Card includes `capabilities.intentsAccepted` and `intentsSent` | MUST | Required | Protocol §2 | `agent-card` | `test/checklist-evidence.test.ts`, `test/conformance.test.ts` |
 | D4 | Agent Card includes `keys.signing[]` with key-set model | SHOULD | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 |, | `test/ink-key-rotation.test.ts` |
 | D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `agent-card` | `test/ink-key-rotation.test.ts` |
-| D7 | Agent Card includes receipt capability advertisement | MAY | Optional | Auditability §1 |, | `test/ink-discovery-gating.test.ts` |
-| D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/ink-discovery-gating.test.ts` |
+| D7 | Agent Card includes receipt capability advertisement | MAY | Optional | Auditability §1 |, | none in the library |
+| D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/checklist-evidence.test.ts` |
 
 ---
 
@@ -56,14 +60,14 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| S1 | Signature base: `ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp` | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
-| S2 | Ed25519 signature over UTF-8 encoded signature base | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
-| S3 | Auth header: `INK-Ed25519 <base64url(sig)>` | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
+| S1 | Signature base: `ink/0.1\nMETHOD\nPATH\nrecipientDid\nJCS(body)\ntimestamp` | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts`, `test/go-request-signing-interop.test.ts` |
+| S2 | Ed25519 signature over UTF-8 encoded signature base | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts`, `test/go-request-signing-interop.test.ts` |
+| S3 | Auth header: `INK-Ed25519 <base64url(sig)>` | MUST | Required | Protocol §3.3 | `authorization-header` | `test/ink-auth.test.ts`, `test/security-round8.test.ts`, `test/auth-header-separator.test.ts` |
 | S4 | Auth header extended: `INK-Ed25519 <sig> keyId=<keyId>` (optional) | SHOULD | Required | Key Rotation §13 | `authorization-header`, `key-rotation` | `test/ink-auth-header.test.ts` |
-| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
-| S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs-number`, `jcs-string-safety` | `test/security-fixes.test.ts` |
-| S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
-| S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
+| S5 | base64url encoding uses no-padding (RFC 4648 §5) | MUST | Required | Protocol §3.3 | `authorization-header` | `test/checklist-evidence.test.ts`, `test/security-round23.test.ts` |
+| S6 | JCS canonicalization per RFC 8785 | MUST | Required | Protocol §3.3 | `jcs-number`, `jcs-string-safety` | `test/security-round23.test.ts`, `test/conformance-independent.test.ts`, `test/input-hardening.test.ts` |
+| S7 | Verification fails on wrong path | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts` |
+| S8 | Verification fails on tampered body | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts`, `test/conformance-independent.test.ts` |
 | S9 | Transport auth returns the canonical, prefix-independent principal alongside the raw `from`, so a receiver can key its per-sender controls on it as Protocol §4 requires; the two spellings of one key map to one principal | MUST | Required | Protocol §4, §7 | `principal-normalization` | `test/canonical-principal.test.ts` |
 
 ---
@@ -72,11 +76,11 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| R1 | Reject timestamps older than 5 minutes | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
-| R2 | Reject timestamps more than 30 seconds in the future | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
-| R3 | Reject duplicate nonces within the freshness window | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
-| R4 | Accept valid nonce + fresh timestamp | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
-| R5 | Nonce recorded only after all rejection checks pass | SHOULD | Required | Auth Chain Audit |, | `test/security-fixes.test.ts` |
+| R1 | Reject timestamps older than 5 minutes | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/ink-auth.test.ts`, `test/security-round6.test.ts` |
+| R2 | Reject timestamps more than 30 seconds in the future | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/ink-auth.test.ts`, `test/security-round6.test.ts` |
+| R3 | Reject duplicate nonces within the freshness window | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/checklist-evidence.test.ts`, `test/security-round25.test.ts` |
+| R4 | Accept valid nonce + fresh timestamp | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/checklist-evidence.test.ts`, `test/security-round25.test.ts` |
+| R5 | Nonce recorded only after all rejection checks pass | SHOULD | Required | Auth Chain Audit |, | `test/security-round25.test.ts` |
 
 ---
 
@@ -86,12 +90,12 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
-| E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
-| E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
-| E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
+| E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
+| E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
+| E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, recipientKey, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts` |
+| E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/wire-namespace-dual-accept.test.ts`, `test/security-round8.test.ts` |
 | E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
-| E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts` |
+| E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/encrypt-inner-binding.test.ts`, `test/security-round18.test.ts` |
 
 ---
 
@@ -99,10 +103,10 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| M1 | Intent envelope includes `protocol`, `id`, `correlationId`, `createdAt`, `from`, `to`, `intent`, `payload`, `signature`; `timestamp` and `nonce` are optional in the schema and required at receipt for the replay checks (§3.5). Intent messages carry `intent` and have no `type`; the reverse-domain `type` field is on protocol messages (encrypted, handshake, receipt, audit) in the `network.tulpa.*`/`network.ink.*` namespace (§6) | MUST | Required | Protocol §3.1, §6 | , | `test/security-fixes.test.ts` |
-| M2 | `protocol` field is `"ink/0.1"` or `"ink/0.2"`; an unknown value is rejected, never inferred | MUST | Required | Protocol §3.1, §8 | , | `test/security-fixes.test.ts` |
+| M1 | Intent envelope includes `protocol`, `id`, `correlationId`, `createdAt`, `from`, `to`, `intent`, `payload`, `signature`; `timestamp` and `nonce` are optional in the schema and required at receipt for the replay checks (§3.5). Intent messages carry `intent` and have no `type`; the reverse-domain `type` field is on protocol messages (encrypted, handshake, receipt, audit) in the `network.tulpa.*`/`network.ink.*` namespace (§6) | MUST | Required | Protocol §3.1, §6 | , | `test/checklist-evidence.test.ts` |
+| M2 | `protocol` field is `"ink/0.1"` or `"ink/0.2"`; an unknown value is rejected, never inferred | MUST | Required | Protocol §3.1, §8 | , | `test/protocol-version-schema.test.ts` |
 | M3 | `signingKeyId` optional field for key rotation | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` |
-| M4 | Unknown fields preserved during canonicalization | MUST | Required | Compat Policy §3.1 | , | `test/security-fixes.test.ts` |
+| M4 | Unknown fields preserved during canonicalization | MUST | Required | Compat Policy §3.1 | , | `test/checklist-evidence.test.ts` |
 
 ---
 
@@ -116,8 +120,8 @@ exercise the row.
 | H2 | Rejection: `network.tulpa.rejection` with reason code | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
 | H3 | Resolution: `network.tulpa.resolution` with outcome | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
 | H4 | Resolution outcome: `accepted`, `declined`, `escalated_to_human`, `expired` | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
-| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | , | `test/ink-handshake-schemas.test.ts` |
-| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | , | `test/ink-handshake-schemas.test.ts` |
+| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | , | `test/checklist-evidence.test.ts` |
+| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | , | `test/checklist-evidence.test.ts` |
 
 ---
 
@@ -125,10 +129,10 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| RC1 | Receipt type: `network.tulpa.receipt` | MUST (if receipts supported) | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
-| RC2 | Dispositions: `received`, `delivered`, `acted`, `rejected`, `expired` | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
+| RC1 | Receipt type: `network.tulpa.receipt` | MUST (if receipts supported) | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts`, `test/verify-receipt.test.ts` |
+| RC2 | Dispositions: `received`, `delivered`, `acted`, `rejected`, `expired` | MUST | Optional | Auditability §1 | , | `test/checklist-evidence.test.ts` |
 | RC3 | `messageHash`: SHA-256 of JCS-canonicalized original message (hex) | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
-| RC4 | Receipts are Ed25519 signed | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
+| RC4 | Receipts are Ed25519 signed | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts`, `test/verify-receipt.test.ts` |
 | RC5 | No receipt sent for receipts (loop prevention) | MUST | Optional | Auditability §1 |, | `test/ink-receipt-generation.test.ts` |
 | RC6 | Receipt transport uses INK-Ed25519 auth header | MUST | Optional | Auditability §1 | , | `test/ink-receipt-generation.test.ts` |
 
@@ -138,13 +142,13 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| A1 | Audit events: hash-chained with `previousEventHash` (SHA-256 hex) | MUST (if audit supported) | Optional | Auditability §2 | , | `test/ink-receipt-generation.test.ts` |
-| A2 | Audit events: signed with `agentSignature` (Ed25519) | MUST | Optional | Auditability §2 | , | `test/ink-receipt-generation.test.ts` |
-| A3 | Monotonic `sequence` per agent | MUST | Optional | Auditability §2 | , | `test/ink-receipt-generation.test.ts` |
-| A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | , | `test/ink-receipt-generation.test.ts` |
-| A5 | Audit response: filtered to sender/recipient only | MUST | Optional | Auditability §3 |, | `test/ink-receipt-generation.test.ts` |
+| A1 | Audit events: hash-chained with `previousEventHash` (SHA-256 hex) | MUST (if audit supported) | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
+| A2 | Audit events: signed with `agentSignature` (Ed25519) | MUST | Optional | Auditability §2 | , | `test/verify-audit-query-response.test.ts`, `test/conformance-independent.test.ts` |
+| A3 | Monotonic `sequence` per agent | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
+| A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| A5 | Audit response: filtered to sender/recipient only | MUST | Optional | Auditability §3 |, | none in the library (responder behaviour) |
 | A6 | Fork detection: same sequence + different hash = tampered | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
-| A7 | `signingKeyId` recorded as top-level `InkAuditEvent.signingKeyId` field | SHOULD | Required | Key Rotation Phase 3 | , | `test/ink-key-rotation.test.ts` |
+| A7 | `signingKeyId` recorded as top-level `InkAuditEvent.signingKeyId` field | SHOULD | Required | Key Rotation Phase 3 | , | `test/rotation-aware-artifacts.test.ts` |
 | A8 | Response slices have strictly +1 sequence continuity (no gaps within a slice) | MUST | Required | Auditability §3 | , | `test/security-round25.test.ts` |
 | A9 | `previousEventHash` MUST equal SHA-256(JCS(prior event without `agentSignature`)) for every event after the first in a slice | MUST | Required | Auditability §2 | , | `test/security-round25.test.ts` |
 | A10 | Consumers run both `verifyAuditResponseSignature` and `verifyAuditEventChain` before treating events as authoritative | MUST | Required | Auditability §3 |, | `test/security-round25.test.ts` |
@@ -155,14 +159,14 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| W1 | Submit: `POST /ink/v1/audit/submit` with INK-Ed25519 + embedded event signature | MUST (if witness supported) | Optional | Auditability §7 | , | `test/security-fixes.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W2 | Query: `POST /ink/v1/audit/query` with INK-Ed25519 | MUST | Optional | Auditability §7 | , | `test/security-fixes.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W1 | Submit: `POST /ink/v1/audit/submit` with INK-Ed25519 + embedded event signature | MUST (if witness supported) | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W2 | Query: `POST /ink/v1/audit/query` with INK-Ed25519 | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W3 | Access control: requester must be event agent or counterparty | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 | `merkle-inclusion`, `merkle-consistency` | `witness/witness/test/merkle.test.ts (witness repo)` |
-| W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 | `inclusion-receipt` | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W6 | Checkpoint body is the C2SP tlog-checkpoint format; the witness serves it at `GET /ink/v1/checkpoint` (the endpoint itself is covered by the witness repo tests, the format by the vectors) | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 | `merkle-inclusion`, `merkle-consistency` | `test/inclusion-receipt-verify.test.ts`, `test/consistency-proof.test.ts`, `witness/witness/test/merkle.test.ts (witness repo)` |
+| W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 | `inclusion-receipt` | `test/inclusion-receipt-verify.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W6 | Checkpoint body is the C2SP tlog-checkpoint format; the witness serves it at `GET /ink/v1/checkpoint` (the endpoint itself is covered by the witness repo tests, the format by the vectors) | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `test/verify-checkpoint.test.ts`, `test/ink-checkpoint.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | `test/ink-key-rotation.test.ts` |
+| W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | none in the library |
 | W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
 | W10 | Per-event Merkle proof rule: leaf = `SHA-256(0x00 \|\| JCS(event-without-agentSignature))` (RFC 6962) | MUST | Optional | `ink-merkle-leaf.md` | `merkle-leaf` | `test/merkle-leaf-hash.test.ts` |
 | W11 | Per-event scope: `event.messageId == envelope.messageId` AND `envelope.requester ∈ {event.agentId, event.counterpartyId}` | MUST | Optional | Auditability §7.3, §7.4 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
@@ -180,17 +184,17 @@ exercise the row.
 |---|-----------|-------|--------|------|---------|-------|
 | K1 | `agentId` stable across key rotation | MUST | Required | Key Rotation §4 |, | `test/ink-key-rotation-e2e.test.ts` |
 | K2 | Agent Card key-set: `keys.signing[]` with `keyId`, `algorithm`, `publicKeyMultibase`, `status`, `validFrom` | MUST | Required | Key Rotation §5 | `agent-card` | `test/ink-key-rotation.test.ts` |
-| K3 | Key statuses: `active`, `retired`, `revoked` | MUST | Required | Key Rotation §5.3 | `key-rotation` | `test/ink-key-rotation.test.ts` |
-| K4 | Verification order: hinted key → active → retired → skip revoked | MUST | Required | Key Rotation §6.4 | `key-rotation` | `test/ink-key-rotation.test.ts` |
-| K5 | Retired keys valid for historical verification | MUST | Required | Key Rotation §6.2 | `key-rotation` | `test/ink-key-rotation.test.ts` |
-| K6 | Revoked keys rejected for signatures after `revokedAt` | MUST | Required | Key Rotation §6.3 | `key-rotation` | `test/ink-key-rotation.test.ts` |
+| K3 | Key statuses: `active`, `retired`, `revoked` | MUST | Required | Key Rotation §5.3 | `key-rotation` | `test/ink-key-rotation.test.ts`, `test/multi-key-verify.test.ts` |
+| K4 | Verification order: hinted key → active → retired → skip revoked | MUST | Required | Key Rotation §6.4 | `key-rotation` | `test/multi-key-verify.test.ts`, `test/ink-key-rotation.test.ts` |
+| K5 | Retired keys valid for historical verification | MUST | Required | Key Rotation §6.2 | `key-rotation` | `test/multi-key-verify.test.ts`, `test/rotation-aware-artifacts.test.ts` |
+| K6 | Revoked keys rejected for signatures after `revokedAt` | MUST | Required | Key Rotation §6.3 | `key-rotation` | `test/multi-key-verify.test.ts`, `test/rotation-aware-artifacts.test.ts` |
 | K7 | Cache refresh on verification miss (max 1 retry) | SHOULD | Required | Key Rotation §9.2 | , | `test/ink-key-rotation-e2e.test.ts` |
-| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` |
-| K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | , | `test/ink-key-rotation.test.ts` |
+| K8 | `keyId` emitted on outbound messages (auth header + envelope) | SHOULD | Required | Key Rotation §13 | , | `test/ink-auth-header.test.ts` for the header; envelope emission is sender behaviour, none in the library |
+| K9 | `keyId` in auth header takes precedence over body `signingKeyId` | SHOULD | Required | Key Rotation §13 | , | `test/checklist-evidence.test.ts` |
 | K10 | Historical keys retained minimum 90 days | SHOULD | Required | Key Rotation §11.2 |, |, |
 | K11 | `keySetVersion` monotonically incremented on rotation/revocation | MUST | Required | Key Rotation §5 |, | `test/ink-key-rotation-e2e.test.ts` |
-| K12 | Rotation audit events: `key.rotated`, `key.revoked` | SHOULD | Required | Audit Bridge | , | `test/ink-key-rotation.test.ts` |
-| K13 | Retired-key verification result includes `keyStatus` | SHOULD | Required | Multi-Key Verify |, | `test/ink-key-rotation.test.ts` |
+| K12 | Rotation audit events: `key.rotated`, `key.revoked` | SHOULD | Required | Audit Bridge | , | `test/checklist-evidence.test.ts` |
+| K13 | Retired-key verification result includes `keyStatus` | SHOULD | Required | Multi-Key Verify |, | `test/security-round14.test.ts` |
 
 ---
 
@@ -198,8 +202,8 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| AC1 | `provenance` field on message envelope | MAY | Extension | Auth Chain §1 |, | `test/security-fixes.test.ts` |
-| AC2 | Delegation token: signed scope + expiry | MAY | Extension | Auth Chain §2 |, | `test/security-fixes.test.ts` |
+| AC1 | `provenance` field on message envelope | MAY | Extension | Auth Chain §1 |, | `test/checklist-evidence.test.ts` |
+| AC2 | Delegation token: signed scope + expiry | MAY | Extension | Auth Chain §2 |, | `test/authorization-grant.test.ts` |
 | AC3 | Multi-hop chains: ordered hops with permission attenuation | MAY | Extension | Auth Chain §3 |, |, |
 | AC4 | `allowedTransports` constraint on delegation hops | SHOULD | Required | Containment §7 |, | `test/ink-transport-auth.test.ts` |
 | AC5 | Transport attenuation: child hops subset of parent transports | MUST | Required | Containment §7 |, | `test/ink-transport-auth.test.ts` |
@@ -212,23 +216,23 @@ exercise the row.
 
 | # | Requirement | Level | Status | Spec | Vectors | Tests |
 |---|-----------|-------|--------|------|---------|-------|
-| ER1 | `missing_authorization`, no auth header | MUST | Required | Protocol §3.3 | `authorization-header` | `test/ink-handshake-schemas.test.ts` |
-| ER2 | `invalid_auth_scheme`, wrong auth scheme | MUST | Required | Protocol §3.3 | `authorization-header` | `test/security-fixes.test.ts` |
-| ER3 | `invalid_signature`, signature does not verify | MUST | Required | Protocol §3.3 | `signature-base` | `test/security-fixes.test.ts` |
-| ER4 | `timestamp_expired`, older than 5 minutes | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
-| ER5 | `timestamp_too_far_future`, more than 30s ahead | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| ER1 | `missing_authorization`, no auth header | MUST | Required | Protocol §3.3 | `authorization-header` | `test/ink-auth.test.ts` |
+| ER2 | `invalid_auth_scheme`, wrong auth scheme | MUST | Required | Protocol §3.3 | `authorization-header` | `test/ink-auth.test.ts` |
+| ER3 | `invalid_signature`, signature does not verify | MUST | Required | Protocol §3.3 | `signature-base` | `test/ink-auth.test.ts` |
+| ER4 | `timestamp_expired`, older than 5 minutes | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/ink-auth.test.ts` |
+| ER5 | `timestamp_too_far_future`, more than 30s ahead | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/ink-auth.test.ts` |
 | ER6a | `nonce_handling_required`, `verifyInkAuth` invoked without a `nonceStore` (fail-closed default) | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
 | ER6b | `missing_nonce`, body.nonce missing or out of `[16,256]` charset bounds when `nonceStore` is supplied | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
 | ER6c | `nonce_replay`, `nonceStore.has(nonce)` returned true after successful signature verify | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
 | ER6d | `nonce_store_error`, `nonceStore.has` or `.add` threw (fail-closed) | MUST | Required | Protocol §3.5 |, | `test/security-round25.test.ts` |
-| ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/security-fixes.test.ts` |
+| ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/checklist-evidence.test.ts` |
 | ER7 | `unsupported_intent`, unknown intent type | MUST | Required | Protocol §3.1 |, | `test/ink-handshake-schemas.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | ER8 | `encryption_required`, plaintext where encrypted required, ahead of the intent allowlist | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | ER9 | `rate_limited`, request rate exceeded. The library registers the code as a rejection reason; the limiter itself is receiver policy and has no library test | SHOULD | Required | Protocol §4 |, | receiver-side, none in the library |
 | ER10 | `handshake_budget_exhausted`, per-correlation budget hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | ER11 | `sender_rate_limited`, per-sender rate limit hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
-| ER12 | `counterparty_cooldown`, recipient broadly rate-limiting | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
-| ER13 | `delegation_budget_exhausted`, delegation issuance limit hit | SHOULD | Required | Containment §4 |, | `test/ink-transport-auth.test.ts` |
+| ER12 | `counterparty_cooldown`, recipient broadly rate-limiting | SHOULD | Required | Containment §5 |, | `test/ink-transport-auth.test.ts` (reason registered; the cooldown itself is receiver policy) |
+| ER13 | `delegation_budget_exhausted`, delegation issuance limit hit | SHOULD | Required | Containment §4 |, | `test/ink-transport-auth.test.ts` (reason registered; the budget itself is receiver policy) |
 | ER14 | `transport_scope_violation`, invocation transport not in token | MUST | Required | Containment §7 |, | `test/ink-transport-auth.test.ts` |
 
 ---
@@ -241,8 +245,8 @@ exercise the row.
 | CT2 | Unauthenticated GET returns redacted card for non-public visibility | MUST | Required | Containment §6 |, | `test/ink-discovery-gating.test.ts` |
 | CT3 | Redacted card includes only: `agentId`, `displayName`, `supportsInk`, `discoveryMode` | MUST | Required | Containment §6 |, | `test/ink-discovery-gating.test.ts` |
 | CT4 | `POST /ink/v1/{agentId}/agent-card-query` with INK-Ed25519 auth | MUST (if `capability_gated`) | Required | Containment §6 |, | `test/ink-discovery-gating.test.ts` |
-| CT5 | Authenticated query denied for unknown requester | MUST | Required | Containment §6 |, | `test/ink-discovery-gating.test.ts` |
-| CT6 | `private` visibility returns 404 on unauthenticated GET | MUST | Required | Containment §6 |, | `test/ink-discovery-gating.test.ts` |
+| CT5 | Authenticated query denied for unknown requester | MUST | Required | Containment §6 |, | `test/ink-discovery-gating.test.ts` (denial shape only; the decision is receiver policy) |
+| CT6 | `private` visibility returns 404 on unauthenticated GET | MUST | Required | Containment §6 |, | none in the library (receiver behaviour) |
 | CT7 | Per-correlation handshake budget: max 3 challenges | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | CT8 | Rejection and resolution are terminal per correlationId | MUST | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | CT9 | Total state transitions capped at 5 per correlationId | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
@@ -250,9 +254,9 @@ exercise the row.
 | CT11 | Per-sender intent rate limit: 10/minute | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | CT12 | First budget violation returns typed rejection with backoff hint | MUST | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | CT13 | Subsequent violations are silent drops (no amplification) | MUST | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
-| CT14 | `backoffHint` optional on rejection: `retryAfterSeconds`, `cooldownUntil`, `backoffClass` | MAY | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
+| CT14 | `backoffHint` optional on rejection: `retryAfterSeconds`, `cooldownUntil`, `backoffClass` | MAY | Required | Containment §5 |, | `test/ink-transport-auth.test.ts` |
 | CT15 | Agent Card `governance` block: `maxAcceptedDelegationDepth`, `supportedTransports`, `handshakeBudget` | MAY | Required | Containment §9 |, |, |
-| CT16 | Containment audit events: `transport_scope_violation`, `handshake_rate_limited`, `handshake_budget_exhausted`, `discovery_query_*` | SHOULD | Required | Containment §9 |, | `test/ink-transport-auth.test.ts` |
+| CT16 | Containment audit events: `transport_scope_violation`, `handshake_rate_limited`, `handshake_budget_exhausted`, `discovery_query_*` | SHOULD | Required | Containment §9 |, | `test/checklist-evidence.test.ts` |
 
 ---
 
@@ -345,24 +349,26 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 
 | Area | Required | Implemented | Tested |
 |------|----------|------------|--------|
-| Discovery | 8 | 8 | 8 |
+| Discovery | 8 | 8 | 7 |
 | Transport Signing | 9 | 9 | 9 |
 | Replay Protection | 5 | 5 | 5 |
 | Encryption | 6 | 6 | 6 |
 | Message Envelope | 4 | 4 | 4 |
 | Handshake | 6 | 6 | 6 |
 | Receipts | 6 | 6 | 6 |
-| Bilateral Audit | 7 | 7 | 7 |
-| Witness | 8 | 8 | 8 |
-| Key Rotation | 13 | 13 | 12 |
+| Bilateral Audit | 7 | 7 | 6 |
+| Witness | 8 | 8 | 7 |
+| Key Rotation | 13 | 13 | 11 |
 | Auth Chains | 7 | 6 | 6 |
 | Error Semantics | 14 | 14 | 14 |
-| Containment | 16 | 16 | 15 |
-| **Total** | **109** | **108** | **106** |
+| Containment | 16 | 16 | 14 |
+| **Total** | **109** | **108** | **101** |
 
 **Notes:**
 - AC3 (multi-hop chains) is designed but not fully implemented, extension status
 - K10 (90-day retention) is enforced by design (keys never deleted) but not explicitly tested with time simulation
+- K8 (`keyId` on outbound messages) has a library test for the auth header only; the library does not build outbound envelopes, so envelope emission is sender behaviour
 - CT15 (governance block) is schema-defined but not yet tested with governance-specific assertions
+- D7 (receipt capability advertisement), W8 (`signingKeyId` on witness submit), A5 (bilateral audit response filtering) and CT6 (`private` visibility 404) have no library test; the first two are unexercised, the third is responder behaviour and the fourth is receiver behaviour
 
 [^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.
