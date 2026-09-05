@@ -154,7 +154,23 @@ const plain = (s: string): string => s.replace(/`/g, "");
 const CONFIDENTIAL_INTENT_SOURCE = "src/ink/encryption-policy.ts (CONFIDENTIAL_INTENTS)";
 const confidentialIntents = [...CONFIDENTIAL_INTENTS].sort().join(", ");
 
+// The differential fuzzer's scheduled budget is a workflow fact the readiness
+// record cites as the soak's declared budget; the workflow owns the number.
+const DIFFERENTIAL_WORKFLOW = ".github/workflows/differential.yml";
+const differentialBudget = (() => {
+  const match = /CASES: \$\{\{ inputs\.cases \|\| '(\d+)' \}\}/.exec(read(DIFFERENTIAL_WORKFLOW));
+  if (!match) throw new Error(`${DIFFERENTIAL_WORKFLOW}: scheduled budget default not found`);
+  return group(match, 1);
+})();
+
 const claims: Claim[] = [
+  {
+    id: "soak.differential-budget",
+    file: READINESS,
+    pattern: /scheduled default, \*\*(\d+)\*\*\[\^ck\] cases/,
+    expected: differentialBudget,
+    source: `${DIFFERENTIAL_WORKFLOW} (scheduled budget default)`,
+  },
   {
     id: "encryption.confidential-intents",
     file: PROTOCOL_SPEC,
