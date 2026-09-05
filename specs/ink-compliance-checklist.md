@@ -146,7 +146,7 @@ deployment rather than the library.
 | A2 | Audit events: signed with `agentSignature` (Ed25519) | MUST | Optional | Auditability §2 | , | `test/verify-audit-query-response.test.ts`, `test/conformance-independent.test.ts` |
 | A3 | Monotonic `sequence` per agent | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
 | A4 | Audit query: `network.tulpa.audit_query` with INK auth | MUST | Optional | Auditability §3 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
-| A5 | Audit response: filtered to sender/recipient only | MUST | Optional | Auditability §3 |, | `test/verify-audit-query-response.test.ts` |
+| A5 | Audit response: filtered to sender/recipient only | MUST | Optional | Auditability §3 |, | none in the library (responder behaviour) |
 | A6 | Fork detection: same sequence + different hash = tampered | MUST | Optional | Auditability §2 | , | `test/security-round25.test.ts` |
 | A7 | `signingKeyId` recorded as top-level `InkAuditEvent.signingKeyId` field | SHOULD | Required | Key Rotation Phase 3 | , | `test/rotation-aware-artifacts.test.ts` |
 | A8 | Response slices have strictly +1 sequence continuity (no gaps within a slice) | MUST | Required | Auditability §3 | , | `test/security-round25.test.ts` |
@@ -356,19 +356,19 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | Message Envelope | 4 | 4 | 4 |
 | Handshake | 6 | 6 | 6 |
 | Receipts | 6 | 6 | 6 |
-| Bilateral Audit | 7 | 7 | 7 |
+| Bilateral Audit | 7 | 7 | 6 |
 | Witness | 8 | 8 | 7 |
 | Key Rotation | 13 | 13 | 11 |
 | Auth Chains | 7 | 6 | 6 |
 | Error Semantics | 14 | 14 | 14 |
 | Containment | 16 | 16 | 14 |
-| **Total** | **109** | **108** | **102** |
+| **Total** | **109** | **108** | **101** |
 
 **Notes:**
 - AC3 (multi-hop chains) is designed but not fully implemented, extension status
 - K10 (90-day retention) is enforced by design (keys never deleted) but not explicitly tested with time simulation
 - K8 (`keyId` on outbound messages) has a library test for the auth header only; the library does not build outbound envelopes, so envelope emission is sender behaviour
 - CT15 (governance block) is schema-defined but not yet tested with governance-specific assertions
-- D7 (receipt capability advertisement), W8 (`signingKeyId` on witness submit) and CT6 (`private` visibility 404) have no library test; the first two are unexercised and the third is receiver behaviour
+- D7 (receipt capability advertisement), W8 (`signingKeyId` on witness submit), A5 (bilateral audit response filtering) and CT6 (`private` visibility 404) have no library test; the first two are unexercised, the third is responder behaviour and the fourth is receiver behaviour
 
 [^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.
