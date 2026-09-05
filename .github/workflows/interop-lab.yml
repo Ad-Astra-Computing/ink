@@ -47,7 +47,7 @@ permissions: {}
 # is keyed by commit, because a group holds one pending run and the readiness
 # evidence needs a verdict for every commit that reached `main`.
 concurrency:
-  group: interop-lab-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  group: interop-lab-${{ github.event_name == 'pull_request' && github.ref || inputs.commit || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:

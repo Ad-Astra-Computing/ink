@@ -198,9 +198,20 @@ if (!/ref: \$\{\{ inputs\.commit \|\| github\.sha \}\}/.test(read(INTEROP_WORKFL
       "or readiness §2.6(b) has no way to evidence a commit under a pushed tip.",
   );
 }
-const groupPerCommit = /group: [a-z-]+-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}/;
-for (const workflow of [INTEROP_WORKFLOW, DIFFERENTIAL_WORKFLOW]) {
-  if (!groupPerCommit.test(read(workflow))) {
+const groupPerCommit: [string, RegExp][] = [
+  // A backfill run names its commit, so the lab's key has to prefer that input
+  // or two backfills for different commits share one group.
+  [
+    INTEROP_WORKFLOW,
+    /group: interop-lab-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| inputs\.commit \|\| github\.sha \}\}/,
+  ],
+  [
+    DIFFERENTIAL_WORKFLOW,
+    /group: differential-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}/,
+  ],
+];
+for (const [workflow, pattern] of groupPerCommit) {
+  if (!pattern.test(read(workflow))) {
     errors.push(
       `${workflow}: outside pull requests the concurrency group must be keyed by commit, ` +
         "or a queued run for an earlier commit is cancelled and that commit has no result.",
