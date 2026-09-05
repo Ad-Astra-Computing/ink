@@ -92,7 +92,7 @@ deployment rather than the library.
 |---|-----------|-------|--------|------|---------|-------|
 | E1 | ECIES: X25519 ECDH + HKDF-SHA256 + AES-256-GCM | MUST (if encryption supported) | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
 | E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
-| E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts` |
+| E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, recipientKey, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts` |
 | E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/wire-namespace-dual-accept.test.ts`, `test/security-round8.test.ts` |
 | E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/encrypt-inner-binding.test.ts`, `test/security-round18.test.ts` |
