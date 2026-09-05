@@ -3443,6 +3443,137 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "malformed-signing-bootstrap-signed-reject",
+      "description": "A validly signed card whose keys.signing is not an array, carrying the legacy bootstrap keyId. Reading the member as absent would demote the card to the legacy single key and authenticate it against the top-level publicKeyMultibase, so the key set that retires or revokes that key would stop being consulted.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": {
+              "bad": true
+            },
+            "encryption": []
+          },
+          "keySetVersion": 1,
+          "updatedAt": "2026-07-20T00:00:00Z",
+          "cardSignature": {
+            "keyId": "bootstrap",
+            "signature": "QpeKBh_DuEMC3ipnQkeBo7RXiD79op2tip3nw2YV7__wMSGPXUPF5GRJpauObwWq6I5UGjspUegvYaa2NIMHBA"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_card"
+      }
+    },
+    {
+      "caseId": "null-signing-bootstrap-signed-reject",
+      "description": "The same shape with a falsy member. A truthiness test would read null as absent and take the legacy path.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": null,
+            "encryption": []
+          },
+          "keySetVersion": 1,
+          "updatedAt": "2026-07-20T00:00:00Z",
+          "cardSignature": {
+            "keyId": "bootstrap",
+            "signature": "wOk7X255s_8fJ0Z5IZdNtMcYVsmbdm3ekTQMkhcrEDv5lgSa25ZnAMM3u9XcHOCSaNCuVvFpt7XFEMouP4iXAA"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_card"
+      }
+    },
+    {
+      "caseId": "malformed-rotation-chain-reject",
+      "description": "A validly signed card whose rotationChain is present but not an array. Reading it as absent roots the card at genesis and skips the chain it declared.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "handle": "agent",
+          "displayName": "Agent",
+          "endpoint": "https://example.com/ink",
+          "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+          "capabilities": {
+            "intentsAccepted": [],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "UTC"
+          },
+          "keys": {
+            "signing": [
+              {
+                "keyId": "g1",
+                "algorithm": "Ed25519",
+                "publicKeyMultibase": "z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+                "status": "active",
+                "validFrom": "2026-01-01T00:00:00Z"
+              }
+            ],
+            "encryption": []
+          },
+          "currentSigningKeyId": "g1",
+          "keySetVersion": 1,
+          "updatedAt": "2026-07-20T00:00:00Z",
+          "rotationChain": {
+            "bad": true
+          },
+          "cardSignature": {
+            "keyId": "g1",
+            "signature": "mBMTgwZnYFoyXy8w_QlFRdQuSw9saWrvamA7XMhN6HOvtar4pv2iqmEGReP_J19qtsQc1k-bQyYemoEyveUnAQ"
+          }
+        },
+        "agentId": "tulpa:z6Mkon3Necd6NkkyfoGoHxid2znGc59LU3K7mubaRcFbLfLX",
+        "options": {
+          "profile": "1.0"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "invalid_card"
+      }
     }
   ]
 }

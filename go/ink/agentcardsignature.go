@@ -68,6 +68,20 @@ func VerifyAgentCardSignature(card map[string]interface{}, agentID string, optio
 	if card == nil || agentID == "" {
 		return rejectCard(ReasonInvalidCard)
 	}
+	// A member present but not the shape the schema declares is not absent.
+	// Reading it as absent selects a weaker path, so fail closed here.
+	if keys, ok := card["keys"].(map[string]interface{}); ok {
+		if signing, present := keys["signing"]; present {
+			if _, isArray := signing.([]interface{}); !isArray {
+				return rejectCard(ReasonInvalidCard)
+			}
+		}
+	}
+	if chain, present := card["rotationChain"]; present {
+		if _, isArray := chain.([]interface{}); !isArray {
+			return rejectCard(ReasonInvalidCard)
+		}
+	}
 	// §5 step 1 backstop: identity binding.
 	if cid, ok := card["agentId"].(string); !ok || cid != agentID {
 		return rejectCard(ReasonIdentityMismatch)

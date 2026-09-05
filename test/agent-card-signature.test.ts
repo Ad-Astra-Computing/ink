@@ -205,6 +205,43 @@ describe("verifyAgentCardSignature — accept paths", () => {
   });
 });
 
+describe("verifyAgentCardSignature — a malformed member never reads as absent", () => {
+  // Reading it as absent selects a weaker path: no key set means the legacy
+  // single key, no chain means the genesis root.
+  for (const signing of [{ bad: true }, null, false, 0, "", "x", 7]) {
+    it(`refuses keys.signing ${JSON.stringify(signing)} rather than falling back to the legacy key`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing, encryption: [] } as unknown as typeof card.keys;
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      const signed = await attachCardSignature(card, "bootstrap", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.authenticated).toBe(false);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+
+  for (const chain of [{ bad: true }, null, false, 0, "", "x"]) {
+    it(`refuses rotationChain ${JSON.stringify(chain)} rather than rooting at genesis`, async () => {
+      const agentId = deriveAgentId(G.pub);
+      const card = baseCard(agentId, G.multibase);
+      card.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+      card.currentSigningKeyId = "g1";
+      card.keySetVersion = 1;
+      card.updatedAt = UPDATED_AT;
+      card.rotationChain = chain as unknown as typeof card.rotationChain;
+      const signed = await attachCardSignature(card, "g1", G.priv);
+
+      const result = await verifyAgentCardSignature(signed, agentId, PROFILE_10);
+      expect(result.rejected).toBe(true);
+      expect(result.reason).toBe("invalid_card");
+    });
+  }
+});
+
 describe("verifyAgentCardSignature — proof rejects", () => {
   async function keyDerivedSigned(mutate: (c: AgentCard) => void, signerKeyId: string, signerPriv: Uint8Array) {
     const agentId = deriveAgentId(G.pub);

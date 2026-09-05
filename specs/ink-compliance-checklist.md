@@ -311,7 +311,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `agent-card` | `base` | 53 | D2, D3, D4, D6, K2 |
 | `agent-card-evidence` | `evidence` | 19 | none |
 | `agent-card-fetch` | `base` | 34 | none |
-| `agent-card-signature` | `base` | 50 | none |
+| `agent-card-signature` | `base` | 53 | none |
 | `agent-card-signature-phase-c` | `staged` | 10 | none |
 | `attestation` | `evidence` | 34 | none |
 | `audit-query-response` | `audit` | 27 | W9, W11, W15, W16 |
@@ -340,7 +340,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 17 | none |
 
-45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 894 cases.
+45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 897 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---

@@ -2808,6 +2808,38 @@ vectorFile("agent-card-fetch", [
   // by internal path, so only the decision is pinned). ──
   const nonArraySigning = { ...acsBaseCard(keyDerivedId, G.mb), keys: { signing: { bad: true }, encryption: [] }, currentSigningKeyId: "g1", keySetVersion: 1, cardSignature: { keyId: "g1", signature: "A".repeat(86) } };
 
+  // The same malformed member, signed for real and with the legacy keyId, which
+  // is the case that distinguishes failing closed from demoting to the legacy
+  // single-key path. The card above carries a placeholder signature and the
+  // key-set keyId, so a verifier that demoted still rejected it and the vector
+  // passed while the demotion was live.
+  const malformedSigningBootstrapCard = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: { bad: true }, encryption: [] };
+    c.keySetVersion = 1;
+    c.updatedAt = ACS_UPDATED_AT;
+    return c;
+  })();
+  const malformedSigningBootstrapSigned = await attach(malformedSigningBootstrapCard, "bootstrap", G.priv);
+  const nullSigningBootstrapCard = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: null, encryption: [] };
+    c.keySetVersion = 1;
+    c.updatedAt = ACS_UPDATED_AT;
+    return c;
+  })();
+  const nullSigningBootstrapSigned = await attach(nullSigningBootstrapCard, "bootstrap", G.priv);
+  const malformedChainCard = (() => {
+    const c = acsBaseCard(keyDerivedId, G.mb);
+    c.keys = { signing: [signingEntry("g1", G, "active")], encryption: [] };
+    c.currentSigningKeyId = "g1";
+    c.keySetVersion = 1;
+    c.updatedAt = ACS_UPDATED_AT;
+    c.rotationChain = { bad: true };
+    return c;
+  })();
+  const malformedChainSigned = await attach(malformedChainCard, "g1", G.priv);
+
   // ── base64url non-canonical trailing bit. The final base64url character of an
   // 86-char Ed25519 signature carries 4 padding bits that MUST be zero for a
   // canonical encoding. Both implementations decode the low bits leniently, so a
@@ -2946,6 +2978,9 @@ vectorFile("agent-card-fetch", [
 
     // ── structural reject ──
     acsReject("schema-invalid-non-array-signing-reject", "A card whose keys.signing is not an array fails closed rather than crashing or diverging; the verifier assumes schema validation already ran.", { card: nonArraySigning, agentId: keyDerivedId, options: { profile: "pre-1.0" } }),
+    acsReject("malformed-signing-bootstrap-signed-reject", "A validly signed card whose keys.signing is not an array, carrying the legacy bootstrap keyId. Reading the member as absent would demote the card to the legacy single key and authenticate it against the top-level publicKeyMultibase, so the key set that retires or revokes that key would stop being consulted.", { card: malformedSigningBootstrapSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "invalid_card" }),
+    acsReject("null-signing-bootstrap-signed-reject", "The same shape with a falsy member. A truthiness test would read null as absent and take the legacy path.", { card: nullSigningBootstrapSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "invalid_card" }),
+    acsReject("malformed-rotation-chain-reject", "A validly signed card whose rotationChain is present but not an array. Reading it as absent roots the card at genesis and skips the chain it declared.", { card: malformedChainSigned, agentId: keyDerivedId, options: { profile: "1.0" } }, { reason: "invalid_card" }),
   ]);
 
   // ── agent-card-signature-phase-c (STAGED) ──────────────────────────────────

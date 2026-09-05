@@ -377,15 +377,39 @@ func TestCardVerify_LegacyBootstrapMismatchReject(t *testing.T) {
 // It would authenticate the card against the top-level publicKeyMultibase, so
 // a set that retires or revokes that key would stop being consulted at all.
 func TestCardVerify_MalformedKeySetDoesNotDemoteToLegacy(t *testing.T) {
-	g := fixedKeypair(t, 1)
-	agentID := deriveAgentID(g)
-	card := baseCard(agentID, g.multibase)
-	card["keySetVersion"] = 1
-	card["keys"] = map[string]interface{}{"signing": map[string]interface{}{"bad": true}, "encryption": []interface{}{}}
-	signed := attachCardSignature(t, card, legacyBootstrapKeyID, g.priv)
+	for _, signing := range []interface{}{
+		map[string]interface{}{"bad": true}, nil, false, float64(0), "", "x", float64(7),
+	} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keySetVersion"] = 1
+		card["keys"] = map[string]interface{}{"signing": signing, "encryption": []interface{}{}}
+		signed := attachCardSignature(t, card, legacyBootstrapKeyID, g.priv)
 
-	res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
-	expectReject(t, res, ReasonInvalidCard)
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
+}
+
+// A malformed rotationChain must not read as absent either: that roots the card
+// at genesis and skips the chain it declared.
+func TestCardVerify_MalformedRotationChainDoesNotRootAtGenesis(t *testing.T) {
+	for _, chain := range []interface{}{
+		map[string]interface{}{"bad": true}, nil, false, float64(0), "", "x",
+	} {
+		g := fixedKeypair(t, 1)
+		agentID := deriveAgentID(g)
+		card := baseCard(agentID, g.multibase)
+		card["keys"] = map[string]interface{}{"signing": []interface{}{signingEntry("g1", g, "active")}, "encryption": []interface{}{}}
+		card["currentSigningKeyId"] = "g1"
+		card["keySetVersion"] = 1
+		card["rotationChain"] = chain
+		signed := attachCardSignature(t, card, "g1", g.priv)
+
+		res := VerifyAgentCardSignature(mustWire(t, signed), agentID, CardVerifyOptions{Profile: ProfilePre10})
+		expectReject(t, res, ReasonInvalidCard)
+	}
 }
 
 func TestCardVerify_WrongDomainReject(t *testing.T) {

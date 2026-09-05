@@ -217,6 +217,20 @@ export async function verifyAgentCardSignature(
     if (typeof agentId !== "string" || agentId.length === 0) {
       return reject("invalid_card");
     }
+    // A member that is present but not the shape the schema declares is not
+    // absent. Reading it as absent selects a weaker path: no key set means the
+    // legacy single key, no rotation chain means the genesis root, and either
+    // one authenticates a card the set or the chain would have rejected. The
+    // verifier is exported, so it fails closed on its own rather than trusting
+    // that admission ran.
+    const keysMember: unknown = (card as { keys?: unknown }).keys;
+    if (keysMember !== null && typeof keysMember === "object") {
+      const signing: unknown = (keysMember as { signing?: unknown }).signing;
+      if (signing !== undefined && !Array.isArray(signing)) return reject("invalid_card");
+    }
+    const chainMember: unknown = (card as { rotationChain?: unknown }).rotationChain;
+    if (chainMember !== undefined && !Array.isArray(chainMember)) return reject("invalid_card");
+
     // §5 step 1 backstop: identity binding.
     if (card.agentId !== agentId) {
       return reject("identity_mismatch");
