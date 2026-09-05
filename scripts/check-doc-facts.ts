@@ -184,6 +184,17 @@ if (
       `so the release under evaluation has one source.`,
   );
 }
+// A conformance run that the Go test cache can serve is not a run. The cache
+// does not track the corpus files the tests read, so a vector change validates
+// against a stale pass unless every invocation asks for a fresh one.
+for (const workflow of [".github/workflows/ci.yml", ".github/workflows/weekly-conformance.yml"]) {
+  for (const line of read(workflow).split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("go test ") || trimmed.includes("-count=1")) continue;
+    errors.push(`${workflow}: "${trimmed}" must pass -count=1, or the corpus can be checked against a cached result.`);
+  }
+}
+
 const INTEROP_WORKFLOW = ".github/workflows/interop-lab.yml";
 const cancelOnlyForPullRequests = /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/;
 // A group holds one pending run, so a second push while the first is queued

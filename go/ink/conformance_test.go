@@ -69,6 +69,7 @@ type conformanceCase struct {
 	Expect           struct {
 		Result             string `json:"result"`
 		Reason             string `json:"reason"`
+		Step               string `json:"step"`
 		AuditEvent         string `json:"auditEvent"`
 		CanonicalPrincipal string `json:"canonicalPrincipal"`
 		KeyStatus          string `json:"keyStatus"`
@@ -603,6 +604,26 @@ func TestAuditQueryResponse(t *testing.T) {
 	}
 }
 
+// boundaryReject records that the receiver's parser refused the input before the
+// verifier ran. That is a structural rejection, so the vector's step still has
+// to match: skipping the assertion here let a reject vector pass without any
+// check at all, which is the verdict-only weakness one layer lower.
+func expectBoundaryStep(t *testing.T, caseID, wantStep, what string) {
+	t.Helper()
+	if wantStep == "" || wantStep == "structure" {
+		return
+	}
+	// These refuse here rather than at the step the vector names: this runner
+	// applies the raw-text checks the enforcement order requires before the
+	// parse, and the reference runner cannot, being handed a parsed object.
+	// Listed by name so the set cannot widen silently.
+	switch caseID {
+	case "surrogate-in-event-rejects", "null-event-rejects", "surrogate-in-event-id-rejects":
+		return
+	}
+	t.Errorf("%s: %s refused at the boundary (step structure), want step %q", caseID, what, wantStep)
+}
+
 func TestInclusionReceipt(t *testing.T) {
 	vf := loadVectors(t, "inclusion-receipt")
 	for _, c := range vf.Cases {
@@ -624,6 +645,8 @@ func TestInclusionReceipt(t *testing.T) {
 		if !ok {
 			if want {
 				t.Errorf("%s: receipt failed to parse but vector expects accept", c.CaseID)
+			} else {
+				expectBoundaryStep(t, c.CaseID, c.Expect.Step, "receipt")
 			}
 			continue
 		}
@@ -637,6 +660,8 @@ func TestInclusionReceipt(t *testing.T) {
 			if err != nil {
 				if want {
 					t.Errorf("%s: event failed to parse but vector expects accept: %v", c.CaseID, err)
+				} else {
+					expectBoundaryStep(t, c.CaseID, c.Expect.Step, "event")
 				}
 				continue
 			}
@@ -644,6 +669,8 @@ func TestInclusionReceipt(t *testing.T) {
 			if !isObj {
 				if want {
 					t.Errorf("%s: event is not an object but vector expects accept", c.CaseID)
+				} else {
+					expectBoundaryStep(t, c.CaseID, c.Expect.Step, "event")
 				}
 				continue
 			}
@@ -668,8 +695,14 @@ func TestInclusionReceipt(t *testing.T) {
 			opts.LaterCheckpoint = &cp
 		}
 
-		if got := VerifyInclusionReceipt(receipt, pub, opts); got != want {
-			t.Errorf("%s: VerifyInclusionReceipt = %v, want %v", c.CaseID, got, want)
+		got, step := VerifyInclusionReceiptStep(receipt, pub, opts)
+		if got != want {
+			t.Errorf("%s: VerifyInclusionReceipt = %v, want %v (step %s)", c.CaseID, got, want, step)
+		}
+		// The step is the reason for this surface. A vector pinning only the
+		// verdict is satisfied by a refusal from the wrong check.
+		if c.Expect.Step != "" && string(step) != c.Expect.Step {
+			t.Errorf("%s: step = %q, want %q", c.CaseID, step, c.Expect.Step)
 		}
 	}
 }

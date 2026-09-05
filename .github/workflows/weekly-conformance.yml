@@ -239,7 +239,7 @@ jobs:
 
       - name: Go conformance and manifest integrity
         working-directory: go
-        run: go test ./...
+        run: go test -count=1 ./...
 
       - name: Go verifier, staged vectors
         working-directory: go
@@ -247,9 +247,9 @@ jobs:
           INK_STAGED_CONFORMANCE: "1"
         run: |
           set -euo pipefail
-          go test ./ink/
+          go test -count=1 ./ink/
           log="${RUNNER_TEMP:-/tmp}/staged.log"
-          go test ./ink/ -run TestAgentCardSignaturePhaseC -v > "$log"
+          go test -count=1 ./ink/ -run TestAgentCardSignaturePhaseC -v > "$log"
           cat "$log"
           grep -q '^--- PASS: TestAgentCardSignaturePhaseC' "$log"
 
