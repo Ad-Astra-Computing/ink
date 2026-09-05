@@ -154,7 +154,91 @@ const plain = (s: string): string => s.replace(/`/g, "");
 const CONFIDENTIAL_INTENT_SOURCE = "src/ink/encryption-policy.ts (CONFIDENTIAL_INTENTS)";
 const confidentialIntents = [...CONFIDENTIAL_INTENTS].sort().join(", ");
 
+// The differential fuzzer's scheduled budget is a workflow fact the readiness
+// record cites as the soak's declared budget; the workflow owns the number.
+const DIFFERENTIAL_WORKFLOW = ".github/workflows/differential.yml";
+const differentialBudget = (() => {
+  const match = /CASES: \$\{\{ inputs\.cases \|\| '(\d+)' \}\}/.exec(read(DIFFERENTIAL_WORKFLOW));
+  if (!match) throw new Error(`${DIFFERENTIAL_WORKFLOW}: scheduled budget default not found`);
+  return group(match, 1);
+})();
+
+// Two workflow shapes the readiness record depends on for criterion 4. Neither
+// is a value quoted in prose, so they are structural checks rather than claims:
+// if the release leg or the main-run cancellation guard is dropped, the nights
+// §2.6(a) counts stop being attributable to the release, and the lab stops
+// having a verdict for every commit that reached `main`.
+const differentialWorkflow = read(DIFFERENTIAL_WORKFLOW);
+if (!/matrix:\s*\n\s*leg: .*fromJSON\('\["main","release"\]'\)/.test(differentialWorkflow)) {
+  errors.push(
+    `${DIFFERENTIAL_WORKFLOW}: the scheduled run must keep its main and release legs. ` +
+      "Readiness §2.6(a) counts a night only when the release leg ran.",
+  );
+}
+if (
+  !/version=\$\(node -p '[^']*distTags\.next'\)/.test(differentialWorkflow) ||
+  !/git checkout "v\$version"/.test(differentialWorkflow)
+) {
+  errors.push(
+    `${DIFFERENTIAL_WORKFLOW}: the release leg must resolve its tag from the dist-tag pin, ` +
+      `so the release under evaluation has one source.`,
+  );
+}
+const INTEROP_WORKFLOW = ".github/workflows/interop-lab.yml";
+const cancelOnlyForPullRequests = /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/;
+// A group holds one pending run, so a second push while the first is queued
+// cancels the earlier commit's run whatever cancel-in-progress says. Keying the
+// group by commit outside pull requests is what actually gives every commit a
+// verdict; the flag alone does not.
+// The closure path for a multi-commit push is a dispatched run at an older
+// commit, which only exists while the workflow takes one.
+if (!/ref: \$\{\{ inputs\.commit \|\| github\.sha \}\}/.test(read(INTEROP_WORKFLOW))) {
+  errors.push(
+    `${INTEROP_WORKFLOW}: workflow_dispatch must accept a commit to run at, ` +
+      "or readiness §2.6(b) has no way to evidence a commit under a pushed tip.",
+  );
+}
+const groupPerCommit: [string, RegExp][] = [
+  // A backfill run names its commit, so the lab's key has to prefer that input
+  // or two backfills for different commits share one group.
+  [
+    INTEROP_WORKFLOW,
+    /group: interop-lab-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| inputs\.commit \|\| github\.sha \}\}/,
+  ],
+  [
+    DIFFERENTIAL_WORKFLOW,
+    /group: differential-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}/,
+  ],
+];
+for (const [workflow, pattern] of groupPerCommit) {
+  if (!pattern.test(read(workflow))) {
+    errors.push(
+      `${workflow}: outside pull requests the concurrency group must be keyed by commit, ` +
+        "or a queued run for an earlier commit is cancelled and that commit has no result.",
+    );
+  }
+}
+if (!cancelOnlyForPullRequests.test(read(INTEROP_WORKFLOW))) {
+  errors.push(
+    `${INTEROP_WORKFLOW}: runs on main must not be cancelled by a later push. ` +
+      "Readiness §2.6(b) requires a verdict for every commit that reached main.",
+  );
+}
+if (!cancelOnlyForPullRequests.test(differentialWorkflow)) {
+  errors.push(
+    `${DIFFERENTIAL_WORKFLOW}: a push to main must not cancel a running night. ` +
+      "Readiness §2.6(a) counts a night only when its release leg completed.",
+  );
+}
+
 const claims: Claim[] = [
+  {
+    id: "soak.differential-budget",
+    file: READINESS,
+    pattern: /scheduled default, \*\*(\d+)\*\*\[\^ck\] cases/,
+    expected: differentialBudget,
+    source: `${DIFFERENTIAL_WORKFLOW} (scheduled budget default)`,
+  },
   {
     id: "encryption.confidential-intents",
     file: PROTOCOL_SPEC,
