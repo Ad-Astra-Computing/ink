@@ -170,7 +170,7 @@ exercise the row.
 | W13 | Fail-closed on truncation: refuse to sign a partial result; return unsigned 413 | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W14 | Fail-closed on storage integrity (event_hash mismatch, missing Merkle node, column-vs-event_json drift): HTTP 500, no signed response | MUST | Optional | Auditability §7.3 |, | `witness/witness/test/security-round12.test.ts (witness repo)` |
 | W15 | Empty-log response: `treeSize == 0` MUST have empty `events`, empty `proofs` and canonical empty-tree `rootHash` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
-| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance) | MUST | Optional | Auditability §7.3, §7.5 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
+| W16 | Every returned event MUST include `agentSignature`; verifiers MUST verify it against the agent's published keys (witness Merkle validity does not prove agent provenance). The vectors pin the provenance check against a wrong or unresolvable key; the missing-signature case is a library test | MUST | Optional | Auditability §7.3, §7.5 | `audit-query-response` | `test/verify-audit-query-response.test.ts` |
 
 ---
 
