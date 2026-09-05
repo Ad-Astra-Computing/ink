@@ -52,7 +52,7 @@ deployment rather than the library.
 | D5 | Agent Card includes `currentSigningKeyId` and `keySetVersion` | SHOULD | Required | Key Rotation §5 |, | `test/ink-key-rotation.test.ts`, `test/ink-key-rotation-e2e.test.ts` |
 | D6 | Legacy single-key Agent Cards accepted (no `keys` block) | MUST | Required | Key Rotation §16 | `agent-card` | `test/ink-key-rotation.test.ts` |
 | D7 | Agent Card includes receipt capability advertisement | MAY | Optional | Auditability §1 |, | none in the library |
-| D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/security-fixes.test.ts` |
+| D8 | Agent Card includes third-party audit service advertisement | MAY | Optional | Auditability §7 |, | `test/checklist-evidence.test.ts` |
 
 ---
 

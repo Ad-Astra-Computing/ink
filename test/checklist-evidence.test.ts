@@ -12,6 +12,7 @@ import { MessageEnvelopeSchema, MessageProvenanceSchema } from "../src/models/in
 import { InkAuditEventTypeSchema, InkReceiptDispositionSchema } from "../src/models/ink-audit.js";
 import { jcsCanonicalize } from "../src/index.js";
 import type { CandidateKey } from "../src/models/key-entry.js";
+import { AgentCardSchema } from "../src/models/agent-card.js";
 
 const NONCE = "nonce-0123456789abcdef";
 
@@ -98,6 +99,35 @@ describe("handshake transport signing (H5, H6)", () => {
       body,
     });
     expect(r).toEqual({ valid: false, error: "invalid_signature" });
+  });
+});
+
+// D8: an Agent Card may advertise third-party audit services, and a card that
+// does so validates with the advertisement intact. The rejection of a
+// non-https service endpoint is the bad-third-party-audit-endpoint-rejects
+// vector in the agent-card conformance category.
+describe("agent card third-party audit advertisement (D8)", () => {
+  const card = {
+    protocol: "ink/0.1",
+    agentId: "did:web:a.example",
+    handle: "alice",
+    displayName: "Alice",
+    endpoint: "https://a.example/ink/inbox",
+    publicKeyMultibase: "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+    capabilities: { intentsAccepted: ["connection_request"], intentsSent: ["connection_request"] },
+    availability: { timezone: "America/Los_Angeles" },
+  };
+  const thirdPartyAudit = {
+    services: [{ endpoint: "https://witness.example/ink/v1/audit/submit", did: "did:web:witness.example", publicKey: "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX" }],
+    submitPolicy: "high_value",
+  };
+  it("accepts a card that advertises an audit service and keeps the advertisement", () => {
+    const r = AgentCardSchema.safeParse({ ...card, capabilities: { ...card.capabilities, thirdPartyAudit } });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.capabilities.thirdPartyAudit).toEqual(thirdPartyAudit);
+  });
+  it("accepts a card without the advertisement", () => {
+    expect(AgentCardSchema.safeParse(card).success).toBe(true);
   });
 });
 
