@@ -186,6 +186,19 @@ if (
 }
 const INTEROP_WORKFLOW = ".github/workflows/interop-lab.yml";
 const cancelOnlyForPullRequests = /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/;
+// A group holds one pending run, so a second push while the first is queued
+// cancels the earlier commit's run whatever cancel-in-progress says. Keying the
+// group by commit outside pull requests is what actually gives every commit a
+// verdict; the flag alone does not.
+const groupPerCommit = /group: [a-z-]+-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}/;
+for (const workflow of [INTEROP_WORKFLOW, DIFFERENTIAL_WORKFLOW]) {
+  if (!groupPerCommit.test(read(workflow))) {
+    errors.push(
+      `${workflow}: outside pull requests the concurrency group must be keyed by commit, ` +
+        "or a queued run for an earlier commit is cancelled and that commit has no result.",
+    );
+  }
+}
 if (!cancelOnlyForPullRequests.test(read(INTEROP_WORKFLOW))) {
   errors.push(
     `${INTEROP_WORKFLOW}: runs on main must not be cancelled by a later push. ` +

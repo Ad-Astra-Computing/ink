@@ -32,11 +32,10 @@ on:
 permissions:
   contents: read
 
-# A pull-request run is superseded by its own next push. A run on `main` is
-# not: the scheduled nights are the evidence readiness §2.6(a) counts, and a
-# push that cancels a half-finished night leaves that night unmet.
+# Pull requests share a group per ref and supersede each other. Everything else
+# is keyed by commit so a push cannot cancel a queued night.
 concurrency:
-  group: differential-${{ github.ref }}
+  group: differential-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -55,7 +54,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          fetch-depth: ${{ matrix.leg == 'release' && 0 || 1 }}
+          # The release leg checks out a tag, and a shallow clone has none.
+          fetch-depth: 0
 
       - name: check out the release under evaluation
         if: matrix.leg == 'release'

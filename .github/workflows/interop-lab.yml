@@ -39,12 +39,11 @@ on:
 
 permissions: {}
 
-# Superseding a pull-request run is free: only the head commit matters there.
-# Superseding a run on `main` is not: the readiness evidence claims the lab was
-# green on every commit that reached `main` during a soak window, and a
-# cancelled run leaves a commit with no verdict at all.
+# Pull requests share a group per ref and supersede each other. Everything else
+# is keyed by commit, because a group holds one pending run and the readiness
+# evidence needs a verdict for every commit that reached `main`.
 concurrency:
-  group: interop-lab-${{ github.ref }}
+  group: interop-lab-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
