@@ -373,6 +373,68 @@ for (const file of markerFiles) {
   }
 }
 
+// ------------------------------------------------ compliance checklist rows
+
+/**
+ * The Vectors column of a checklist requirement row names the conformance
+ * categories whose vectors pin the row, by manifest id. The column used to
+ * carry file names from a pre-corpus scheme that rotted silently when the
+ * corpus was built, so it is now gated: every cited id must exist in the
+ * manifest, and the coverage matrix in the checklist is rendered from the
+ * rows rather than transcribed.
+ */
+interface ChecklistRow {
+  id: string;
+  vectors: string[];
+}
+const checklistRows: ChecklistRow[] = [];
+{
+  const categoryIds = new Set(categories.map((c) => c.id));
+  read(CHECKLIST)
+    .split("\n")
+    .forEach((line, i) => {
+      const row = /^\| ([A-Z]+\d+[a-z]?) \|/.exec(line);
+      if (!row) return;
+      // Split on unescaped pipes only; a `\|` inside a code span is content.
+      const cells = line.split(/(?<!\\)\|/);
+      if (cells.length !== 9) {
+        errors.push(
+          `${CHECKLIST}:${i + 1}: row ${row[1]} has ${cells.length - 2} cells; a requirement row has exactly seven ` +
+            "(id, requirement, level, status, spec, vectors, tests), so it can be checked and counted.",
+        );
+        return;
+      }
+      const cell = (cells[6] ?? "").trim();
+      if (cell === "") {
+        errors.push(
+          `${CHECKLIST}:${i + 1}: row ${row[1]} has a blank Vectors cell; a row no vector pins carries the empty marker \`,\`.`,
+        );
+        return;
+      }
+      const cited = cell === "," ? [] : cell.split(",").map((s) => s.trim());
+      const ids: string[] = [];
+      for (const entry of cited) {
+        const id = /^`([a-z0-9-]+)`$/.exec(entry);
+        if (!id) {
+          errors.push(
+            `${CHECKLIST}:${i + 1}: row ${row[1]} cites ${JSON.stringify(entry)} in its Vectors column; ` +
+              "each entry must be a backticked conformance category id, or the cell must be the empty marker `,`.",
+          );
+          continue;
+        }
+        if (!categoryIds.has(group(id, 1))) {
+          errors.push(
+            `${CHECKLIST}:${i + 1}: row ${row[1]} cites conformance category \`${group(id, 1)}\`, ` +
+              "which is not in conformance/v1/manifest.json.",
+          );
+          continue;
+        }
+        ids.push(group(id, 1));
+      }
+      checklistRows.push({ id: group(row, 1), vectors: ids });
+    });
+}
+
 // ------------------------------------------------------- generated blocks
 
 interface GeneratedBlock {
@@ -395,6 +457,29 @@ const generated: GeneratedBlock[] = [
         "| Profile | Categories | Vectors |",
         "|---------|-----------:|--------:|",
         ...rows,
+      ].join("\n");
+    },
+  },
+  {
+    id: "checklist-vector-matrix",
+    file: CHECKLIST,
+    render: () => {
+      const rows = [...categories]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((c) => {
+          const cited = checklistRows.filter((r) => r.vectors.includes(c.id)).map((r) => r.id);
+          return `| \`${c.id}\` | \`${c.profile}\` | ${c.caseCount} | ${cited.length > 0 ? cited.join(", ") : "none"} |`;
+        });
+      const citedCategories = categories.filter((c) => checklistRows.some((r) => r.vectors.includes(c.id))).length;
+      const pinnedRows = checklistRows.filter((r) => r.vectors.length > 0).length;
+      return [
+        "*Generated from `conformance/v1/manifest.json` and the Vectors column of the rows above. Regenerate with `npm run check:facts -- --write`.*",
+        "",
+        "| Category | Profile | Cases | Rows citing it |",
+        "|----------|---------|------:|----------------|",
+        ...rows,
+        "",
+        `${pinnedRows} of ${checklistRows.length} requirement rows cite at least one category; ${citedCategories} of ${categories.length} categories are cited by at least one row; the corpus holds ${totalVectors} cases.`,
       ].join("\n");
     },
   },
