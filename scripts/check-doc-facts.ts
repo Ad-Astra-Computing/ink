@@ -190,6 +190,14 @@ const cancelOnlyForPullRequests = /cancel-in-progress: \$\{\{ github\.event_name
 // cancels the earlier commit's run whatever cancel-in-progress says. Keying the
 // group by commit outside pull requests is what actually gives every commit a
 // verdict; the flag alone does not.
+// The closure path for a multi-commit push is a dispatched run at an older
+// commit, which only exists while the workflow takes one.
+if (!/ref: \$\{\{ inputs\.commit \|\| github\.sha \}\}/.test(read(INTEROP_WORKFLOW))) {
+  errors.push(
+    `${INTEROP_WORKFLOW}: workflow_dispatch must accept a commit to run at, ` +
+      "or readiness §2.6(b) has no way to evidence a commit under a pushed tip.",
+  );
+}
 const groupPerCommit = /group: [a-z-]+-\$\{\{ github\.event_name == 'pull_request' && github\.ref \|\| github\.sha \}\}/;
 for (const workflow of [INTEROP_WORKFLOW, DIFFERENTIAL_WORKFLOW]) {
   if (!groupPerCommit.test(read(workflow))) {

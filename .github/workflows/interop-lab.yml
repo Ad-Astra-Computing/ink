@@ -36,6 +36,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      commit:
+        description: "Commit to run at. Defaults to the dispatch ref."
+        required: false
 
 permissions: {}
 
@@ -62,6 +66,21 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # A dispatched run can name an older commit, which is how a push that
+          # carried several commits gets a verdict for each of them.
+          ref: ${{ inputs.commit || github.sha }}
+          fetch-depth: 0
+
+      # The lab is evidence about `main`, so refuse a commit that is not on it.
+      - name: check the commit is on main
+        if: inputs.commit != ''
+        env:
+          COMMIT: ${{ inputs.commit }}
+        run: |
+          set -euo pipefail
+          case "$COMMIT" in *[!0-9a-f]*|"") echo "commit must be hex"; exit 1 ;; esac
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$COMMIT" origin/main
 
       - name: Interop lab
         # run.sh selects docker when it is on PATH, which it is on the runner
