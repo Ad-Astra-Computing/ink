@@ -32,9 +32,12 @@ on:
 permissions:
   contents: read
 
+# A pull-request run is superseded by its own next push. A run on `main` is
+# not: the scheduled nights are the evidence readiness §2.6(a) counts, and a
+# push that cancels a half-finished night leaves that night unmet.
 concurrency:
   group: differential-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   differential:
@@ -123,6 +126,6 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: differential-findings
+          name: differential-findings-${{ matrix.leg }}
           path: differential/findings/
           if-no-files-found: ignore

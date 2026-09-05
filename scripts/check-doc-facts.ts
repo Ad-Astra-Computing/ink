@@ -175,17 +175,27 @@ if (!/matrix:\s*\n\s*leg: .*fromJSON\('\["main","release"\]'\)/.test(differentia
       "Readiness §2.6(a) counts a night only when the release leg ran.",
   );
 }
-if (!/distTags\.next/.test(differentialWorkflow)) {
+if (
+  !/version=\$\(node -p '[^']*distTags\.next'\)/.test(differentialWorkflow) ||
+  !/git checkout "v\$version"/.test(differentialWorkflow)
+) {
   errors.push(
     `${DIFFERENTIAL_WORKFLOW}: the release leg must resolve its tag from the dist-tag pin, ` +
       `so the release under evaluation has one source.`,
   );
 }
 const INTEROP_WORKFLOW = ".github/workflows/interop-lab.yml";
-if (!/cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/.test(read(INTEROP_WORKFLOW))) {
+const cancelOnlyForPullRequests = /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/;
+if (!cancelOnlyForPullRequests.test(read(INTEROP_WORKFLOW))) {
   errors.push(
     `${INTEROP_WORKFLOW}: runs on main must not be cancelled by a later push. ` +
       "Readiness §2.6(b) requires a verdict for every commit that reached main.",
+  );
+}
+if (!cancelOnlyForPullRequests.test(differentialWorkflow)) {
+  errors.push(
+    `${DIFFERENTIAL_WORKFLOW}: a push to main must not cancel a running night. ` +
+      "Readiness §2.6(a) counts a night only when its release leg completed.",
   );
 }
 
