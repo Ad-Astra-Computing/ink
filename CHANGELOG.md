@@ -31,9 +31,10 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   §2 gain a fourth criterion. The sixty-day window is now the container for
   adversarial evidence rather than the evidence itself: nightly differential
   fuzzing at a declared budget with every finding dispositioned, the interop
-  lab green at the release commit, every ambiguity surfaced during the window
-  resolved in spec text and both implementations, and an implementation from
-  outside the project passing the frozen base corpus or a written waiver. The
+  lab green at the release commit and every ambiguity surfaced during the
+  window resolved in spec text and both implementations. An implementation
+  from outside the project passing the frozen base corpus, or a written
+  waiver, completes it. The
   daily synthetic exchange gains a randomized arm with negative cases, where
   an invalid-accept or an unexplained valid-reject fails the day. Organic
   volume, third-party submissions and performance are recorded and do not
