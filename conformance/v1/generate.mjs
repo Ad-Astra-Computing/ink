@@ -182,6 +182,11 @@ function writeSchema() {
               properties: {
                 result: { type: "string", enum: ["accept", "reject"] },
                 reason: { type: "string" },
+                // The check that refused, where the surface has one. A vector
+                // pinning only the verdict is satisfied by a refusal from the
+                // wrong check, so a reject vector names the step wherever the
+                // implementations can express it.
+                step: { type: "string" },
                 auditEvent: { type: "string" },
                 canonicalPrincipal: { type: "string" },
                 keyStatus: { type: "string", enum: ["active", "retired", "revoked"] },
@@ -1890,8 +1895,51 @@ const validReceipt = await makeReceipt();
 function rcptAccept(caseId, description, input) {
   return { caseId, description, input, expect: { result: "accept" } };
 }
+// The check that MUST refuse each rejected receipt, asserted by both runners.
+// Coarser than a per-case reason, since thirteen cases share `structure`, but
+// it is what both implementations can express today.
+const RECEIPT_REJECT_STEP = {
+  "checkpoint-bad-root-rejects": "checkpoint",
+  "checkpoint-fork-rejects": "checkpoint",
+  "checkpoint-negative-size-rejects": "checkpoint",
+  "checkpoint-rollback-rejects": "checkpoint",
+  "empty-event-id-rejects": "structure",
+  "empty-signature-rejects": "structure",
+  "empty-timestamp-rejects": "structure",
+  "event-hash-bad-format-rejects": "proof",
+  "event-hash-not-in-tree-rejects": "proof",
+  "event-id-mismatch-rejects": "proof",
+  "event-leaf-not-at-index-rejects": "proof",
+  "event-missing-id-rejects": "proof",
+  "leaf-index-ge-tree-size-rejects": "structure",
+  "malformed-signature-rejects": "signature",
+  "negative-leaf-index-rejects": "structure",
+  "non-integer-leaf-index-rejects": "structure",
+  "null-event-rejects": "proof",
+  "proof-bad-element-rejects": "structure",
+  "proof-not-array-rejects": "structure",
+  "proof-too-long-rejects": "structure",
+  "receipt-not-object-rejects": "structure",
+  "short-root-hash-rejects": "structure",
+  "surrogate-in-event-id-rejects": "signature",
+  "surrogate-in-event-rejects": "proof",
+  "tampered-event-id-rejects": "signature",
+  "tampered-leaf-index-rejects": "signature",
+  "tampered-proof-rejects": "proof",
+  "tampered-root-hash-rejects": "signature",
+  "tampered-timestamp-rejects": "signature",
+  "tampered-tree-size-rejects": "signature",
+  "uppercase-root-hash-rejects": "structure",
+  "wrong-witness-key-rejects": "signature",
+  "zero-tree-size-rejects": "structure",
+};
+
 function rcptReject(caseId, description, input) {
-  return { caseId, description, input, expect: { result: "reject" } };
+  const step = RECEIPT_REJECT_STEP[caseId];
+  // A new reject vector has to declare which check refuses it. Generating one
+  // without a step would quietly reintroduce the verdict-only assertion.
+  if (!step) throw new Error(`inclusion-receipt: no reject step declared for ${caseId}`);
+  return { caseId, description, input, expect: { result: "reject", step } };
 }
 const wpk = { witnessPublicKeyHex: publicKeyHex };
 

@@ -86,10 +86,10 @@ interface VectorCase {
   description: string;
   optionalBehavior?: OptionalBehavior;
   input: Record<string, unknown>;
-  expect: { result: "accept" | "reject"; reason?: string; auditEvent?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
+  expect: { result: "accept" | "reject"; reason?: string; step?: string; auditEvent?: string; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 }
 
-type Outcome = { result: "accept" | "reject"; reason?: string; auditEvents?: string[]; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
+type Outcome = { result: "accept" | "reject"; reason?: string; step?: string; auditEvents?: string[]; canonicalPrincipal?: string; keyStatus?: string; keyId?: string; signature?: string; epochMs?: number; canonicalString?: string; leafHash?: string; derivedGrantId?: string };
 
 async function evaluate(category: string, input: Record<string, unknown>): Promise<Outcome> {
   switch (category) {
@@ -495,7 +495,10 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
         eventHash,
         laterCheckpoint,
       });
-      return { result: r.valid ? "accept" : "reject" };
+      // The failing step is the reason for this surface. A vector that pins
+      // only the verdict is satisfied by refusing for the wrong reason.
+      const failed = r.steps.find((step) => !step.pass);
+      return { result: r.valid ? "accept" : "reject", step: failed?.name };
     }
     case "payload-encryption": {
       const { envelope, recipientPrivateKeyHex, recipientDid } = input as {
@@ -641,6 +644,9 @@ describe("ink/1 conformance vectors", () => {
           expect(actual.result, c.caseId).toBe(c.expect.result);
           if (c.expect.reason !== undefined) {
             expect(actual.reason, c.caseId).toBe(c.expect.reason);
+          }
+          if (c.expect.step !== undefined) {
+            expect(actual.step, c.caseId).toBe(c.expect.step);
           }
           if (c.expect.auditEvent !== undefined) {
             expect(actual.auditEvents ?? [], c.caseId).toContain(c.expect.auditEvent);

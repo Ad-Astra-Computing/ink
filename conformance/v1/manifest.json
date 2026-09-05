@@ -153,7 +153,7 @@
       "spec": "specs/ink-inclusion-receipt.md",
       "summary": "Composite inclusion-receipt verification.",
       "caseCount": 39,
-      "sha256": "e8f41905b2b482ac82cac2262f92f99b14045ffe8060c69a94de29e99b431e2f"
+      "sha256": "2be8699b9d047b6692c329902882ae12af99a00e9a4c7fd40b32164de2336ec0"
     },
     {
       "id": "jcs-number",
