@@ -184,7 +184,9 @@ number are built from the same tree.
 
 While INK is pre-1.0 the Go tag carries a `-next.<n>` suffix until the version
 is promoted, matching the npm `next` dist-tag. The proxy has no dist-tags of
-its own, so the suffix is what keeps an unpromoted release out of `@latest`.
+its own, so the suffix is what keeps an unpromoted release out of `@latest`:
+`go get ...@latest` picks the highest version without a suffix, and only falls
+back to a prerelease when the module has no unsuffixed version at all.
 [RELEASING.md](../RELEASING.md) has the rules and the current state.
 
 ```sh
