@@ -125,10 +125,49 @@ Promotion is a separate act with its own authority. It says the version has
 soaked and an adopter should install it without re-testing. The lead maintainer
 runs it, and it moves both artifacts in one sitting.
 
-1. Verify the pin on `main` names the destination:
-   `npm run check:release-pin -- --tag latest --version "${VERSION}"`.
-2. Confirm the release gate is green under
-   [§2 of the readiness record](governance/releases/1.0-readiness-evidence.md).
+### Which gate applies
+
+The bar depends on the version being promoted, and the two bars are not
+interchangeable.
+
+A `0.x` version passes the pre-1.0 default-channel gate. Every line is about the
+commit being promoted, not about the state of `main` on the day:
+
+- The version is published on `next` already, with the provenance the publish
+  workflow was supposed to attach.
+- The npm release tag and the Go tag resolve to the same commit.
+- The release gauntlet was green on that commit.
+- Conformance, the Go and TypeScript interop suites and the security tests were
+  green on that same commit.
+- No release-attributable correctness or security finding is open.
+- The published limitations and the release notes describe the version as
+  pre-1.0.
+- The soak evidence has been read, and whatever is missing from it is recorded
+  as accepted pre-1.0 risk. Evidence nobody gathered is not evidence of safety.
+- The lead maintainer records the decision in the pull request that carries the
+  pin change.
+
+A `1.0` or later version passes
+[§2](governance/releases/1.0-readiness-evidence.md#2-soak-exit-criteria) and the
+checklist in
+[§4](governance/releases/1.0-readiness-evidence.md#4-promote-recommendation-checklist)
+of the readiness record. The pre-1.0 gate applies only while the major version
+is `0`. Nothing here authorizes a `1.x` move on the shorter bar.
+
+Passing the pre-1.0 gate is not a waiver of §2, a partial completion of it or
+any kind of credit against it. A promotion that took the shorter path is not
+citable later as evidence that a soak criterion was met.
+
+### The sequence
+
+1. Have the pin change ready. If `main` already names the destination, verify
+   it: `npm run check:release-pin -- --tag latest --version "${VERSION}"`. If it
+   does not, open the pull request that flips it and get it reviewed before
+   step 4. The pin is the record of an act that has no undo, so it is written
+   and reviewed in advance and merged straight after, never reconstructed from
+   memory afterwards.
+2. Confirm the gate above is satisfied for this version, and say which of the
+   two it was.
 3. Resolve the commit the prerelease tag names, before touching npm:
 
    ```sh
@@ -163,6 +202,46 @@ document is written to prevent. If step 4 succeeds and step 5 cannot run,
 `latest` is ahead of Go and the gap is visible to adopters until it is closed.
 Finish both or roll the dist-tag back to its previous version.
 
+### Reconciling npm to an existing Go stable tag
+
+Sometimes the Go tag is out and npm is behind. That is not the sequence above
+running late. The irreversible half has already happened, and what is left is
+the reversible half catching up to it, so the steps are different.
+
+1. Confirm what the proxy actually serves:
+   `go list -m github.com/Ad-Astra-Computing/ink/go@latest`.
+2. Resolve the commit the Go tag names and check its signature:
+
+   ```sh
+   COMMIT=$(git rev-parse --verify "go/v${VERSION}^{commit}")
+   git verify-tag "go/v${VERSION}"
+   ```
+
+3. Confirm the npm release tag names that same commit:
+   `git rev-parse --verify "v${VERSION}^{commit}"` and compare it with
+   `${COMMIT}`. If they differ, stop. The two implementations were cut from
+   different trees and no dist-tag move fixes that.
+4. Confirm the version sits on `next` with its provenance intact:
+   `npm view @adastracomputing/ink@${VERSION} dist-tags`.
+5. Apply the gate above for this version.
+6. Open the pull request that flips the npm pin to `${VERSION}` and records the
+   decision. Get it reviewed. Do not merge it yet: until step 7 lands, the pin
+   would claim something the registry does not say.
+7. Move the dist-tag, then read the registry back:
+
+   ```sh
+   npm dist-tag add @adastracomputing/ink@${VERSION} latest --otp=<code>
+   npm view @adastracomputing/ink dist-tags --json
+   ```
+
+8. Set `verifiedAt` in the pin to the day of that reading, rerun
+   `npm run check:facts` and `npm run check:release-parity`, and merge the
+   prepared pull request.
+
+This path never creates, moves, replaces or force-pushes a Go tag. If Go is
+ahead and npm cannot catch up, the way out is the next release publishing both
+together under the sequence above.
+
 ## Security posture
 
 The [`publish`](.github/workflows/publish.yml) workflow splits the build from
@@ -185,17 +264,3 @@ decision in either implementation. Review the whole release diff, not only the
 individual pull requests that make it up. Cross-change interactions are the
 class of defect that per-change review does not catch, and a large release is
 where they live.
-
-## Current state
-
-`go/v0.19.0` was pushed as a bare tag on 2026-09-02, before this document
-existed, and it is the only Go version the proxy has. Because it is stable and
-alone, it is what `go get ...@latest` resolves, while npm `latest` is still
-0.18.0. The two verifiers an adopter installs today are one release apart.
-
-The Go tag cannot be withdrawn, and retracting it would not help: there is no
-earlier Go release for `@latest` to fall back to. The gap closes when 0.19.0 is
-promoted on npm or when the next release publishes both under the rules above,
-whichever comes first. `--allow-known-gap` accepts this one pair, which is
-written into `scripts/release-parity.ts` rather than read from the pin, so a
-release commit cannot widen it by editing a file it is already editing.
