@@ -6,10 +6,5 @@
     "prerelease": null
   },
   "verifiedAt": "2026-09-07",
-  "updatedBy": "The release commit that cuts the version, alongside the npm dist-tag pin. `stable` is the version `go get ...@latest` resolves and `prerelease` is the newest `go/v<version>-next.<n>` tag if one is ahead of it, both as recorded by the maintainer who pushed the tag. The Go module proxy has no dist-tags and no unpublish, and nothing in CI queries it, so this file is a governance record rather than a verified one: it says what the release sequence in RELEASING.md was supposed to publish. `npm run check:release-parity` reads it against the npm pin and the two version strings in the tree.",
-  "knownGap": {
-    "npmLatest": "0.18.0",
-    "goStable": "0.19.0",
-    "reason": "go/v0.19.0 was pushed as a bare tag on 2026-09-02, before RELEASING.md set the prerelease rule, and it is the only version the proxy has. A Go tag cannot be unpublished, and with no earlier Go release to fall back to there is nothing a retraction could redirect @latest to, so the gap closes when 0.19.0 is promoted on npm or when the next release publishes both together. This field records the skew for a reader; the check accepts it because the same pair is written into scripts/release-parity.ts, which is where to remove it."
-  }
+  "updatedBy": "The release commit that cuts the version, alongside the npm dist-tag pin. `stable` is the version `go get ...@latest` resolves and `prerelease` is the newest `go/v<version>-next.<n>` tag if one is ahead of it, both as recorded by the maintainer who pushed the tag. The Go module proxy has no dist-tags and no unpublish, and nothing in CI queries it, so this file is a governance record rather than a verified one: it says what the release sequence in RELEASING.md was supposed to publish. `npm run check:release-parity` reads it against the npm pin and the two version strings in the tree."
 }

@@ -19,7 +19,6 @@
 export interface GoPin {
   module: string;
   published: { stable: string | null; prerelease: string | null };
-  knownGap?: { npmLatest: string; goStable: string; reason: string };
 }
 
 export interface ParityInput {
@@ -28,20 +27,7 @@ export interface ParityInput {
   cliVersion: string | null;
   goPin: GoPin;
   npmLatest: string | undefined;
-  allowKnownGap: boolean;
 }
-
-/**
- * The one published skew this check accepts, held here rather than read from
- * the pin file. `go/v0.19.0` was pushed bare on 2026-09-02, before RELEASING.md
- * set the prerelease rule, and a Go tag cannot be withdrawn. Reading the
- * allowance out of the same file a release commit edits would let any later
- * skew be waved through by editing two lines, which is the opposite of what the
- * check is for. It is still ordinary source a pull request can edit, so widening
- * it is a governance change and reviewers should refuse it on that footing.
- * Delete this and the `--allow-known-gap` flag once npm catches up.
- */
-export const ACKNOWLEDGED_GAP = { npmLatest: "0.18.0", goStable: "0.19.0" } as const;
 
 interface Parsed {
   release: [string, string, string];
@@ -192,22 +178,16 @@ export function parityFailures(input: ParityInput): string[] {
 
   if (stable !== null && npmLatest !== undefined && compareVersions(stable, npmLatest) !== 0) {
     const goAhead = compareVersions(stable, npmLatest) > 0;
-    const acknowledged =
-      input.allowKnownGap &&
-      npmLatest === ACKNOWLEDGED_GAP.npmLatest &&
-      stable === ACKNOWLEDGED_GAP.goStable;
-    if (!acknowledged) {
-      const shared =
-        "An adopter running `go get` and an adopter running `npm install` get " +
-        "different builds of the same protocol.";
-      failures.push(
-        goAhead
-          ? `the Go module serves ${stable} as its @latest while npm latest is ${npmLatest}. ` +
-              `${shared} Promote npm to close the gap; the Go tag cannot be withdrawn to open it.`
-          : `npm serves ${npmLatest} on \`latest\` while the Go module's stable channel is ` +
-              `${stable}. ${shared} Tag the Go module to close the gap.`,
-      );
-    }
+    const shared =
+      "An adopter running `go get` and an adopter running `npm install` get " +
+      "different builds of the same protocol.";
+    failures.push(
+      goAhead
+        ? `the Go module serves ${stable} as its @latest while npm latest is ${npmLatest}. ` +
+            `${shared} Promote npm to close the gap; the Go tag cannot be withdrawn to open it.`
+        : `npm serves ${npmLatest} on \`latest\` while the Go module's stable channel is ` +
+            `${stable}. ${shared} Tag the Go module to close the gap.`,
+    );
   }
 
   return failures;

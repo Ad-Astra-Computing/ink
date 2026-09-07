@@ -9,10 +9,7 @@
  * the registry.
  *
  * Usage:
- *   tsx scripts/check-release-parity.ts [--allow-known-gap]
- *
- * `--allow-known-gap` accepts the one published skew recorded in
- * `release-parity.ts` and nothing else. A new skew still fails with it set.
+ *   tsx scripts/check-release-parity.ts
  */
 
 import { readFileSync } from "node:fs";
@@ -43,7 +40,6 @@ const failures = parityFailures({
   cliVersion: cliMatch?.[1] ?? null,
   goPin,
   npmLatest,
-  allowKnownGap: process.argv.includes("--allow-known-gap"),
 });
 
 if (failures.length > 0) {

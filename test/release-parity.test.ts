@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  ACKNOWLEDGED_GAP,
   compareVersions,
   isVersion,
   sameRelease,
@@ -18,8 +17,7 @@ function input(overrides: Partial<ParityInput> = {}): ParityInput {
     packageVersion: "0.19.0",
     cliVersion: "0.19.0",
     goPin: basePin,
-    npmLatest: "0.18.0",
-    allowKnownGap: true,
+    npmLatest: "0.19.0",
     ...overrides,
   };
 }
@@ -131,7 +129,6 @@ describe("parityFailures", () => {
           cliVersion: "0.20.0",
           goPin: { ...basePin, published: { stable: "0.19.0", prerelease: "0.20.0-next.1" } },
           npmLatest: "0.19.0",
-          allowKnownGap: false,
         }),
       ),
     ).toEqual([]);
@@ -148,28 +145,22 @@ describe("parityFailures", () => {
     expect(failure).toMatch(/does not include the tree's version/);
   });
 
-  it("fails when Go is ahead of npm and nothing acknowledges it", () => {
-    const [failure] = parityFailures(input({ allowKnownGap: false }));
+  it("fails when the Go module is ahead of npm", () => {
+    const [failure] = parityFailures(input({ npmLatest: "0.18.0" }));
     expect(failure).toMatch(/serves 0\.19\.0 as its @latest while npm latest is 0\.18\.0/);
   });
 
-  it("accepts only the recorded gap, not a wider one the pin was edited to claim", () => {
-    const widened = parityFailures(
+  it("keeps failing on a skew a pin file was edited to excuse", () => {
+    const excused = parityFailures(
       input({
-        packageVersion: "0.20.0",
-        cliVersion: "0.20.0",
+        npmLatest: "0.18.0",
         goPin: {
           ...basePin,
-          published: { stable: "0.20.0", prerelease: null },
-          knownGap: { npmLatest: "0.18.0", goStable: "0.20.0", reason: "widened by hand" },
-        },
+          knownGap: { npmLatest: "0.18.0", goStable: "0.19.0", reason: "added by hand" },
+        } as ParityInput["goPin"],
       }),
     );
-    expect(widened.join("\n")).toMatch(/serves 0\.20\.0 as its @latest/);
-  });
-
-  it("holds the acknowledged gap as a literal the pin file cannot move", () => {
-    expect(ACKNOWLEDGED_GAP).toEqual({ npmLatest: "0.18.0", goStable: "0.19.0" });
+    expect(excused.join("\n")).toMatch(/serves 0\.19\.0 as its @latest/);
   });
 
   it("rejects a pin that records a prerelease on the stable channel", () => {
