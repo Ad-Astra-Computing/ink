@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACKNOWLEDGED_GAP,
   compareVersions,
+  isVersion,
   sameRelease,
   parityFailures,
   type ParityInput,
@@ -51,6 +52,42 @@ describe("compareVersions", () => {
     expect(compareVersions("0.20.0+build.1", "0.20.0")).toBe(0);
     expect(compareVersions("0.20.0+build.1", "0.19.0")).toBeGreaterThan(0);
     expect(sameRelease("0.20.0+build.1", "0.20.0")).toBe(true);
+  });
+
+  it("separates release components too long to survive a double", () => {
+    const wide = (lead: string) => `${lead}${"0".repeat(400)}.0.0`;
+    expect(compareVersions(wide("1"), wide("2"))).toBeLessThan(0);
+    expect(compareVersions(wide("2"), wide("1"))).toBeGreaterThan(0);
+    expect(compareVersions(wide("1"), wide("1"))).toBe(0);
+  });
+
+  it("ranks a numeric prerelease identifier below an alphanumeric one", () => {
+    expect(compareVersions("1.0.0-1", "1.0.0-alpha")).toBeLessThan(0);
+    expect(compareVersions("1.0.0-alpha", "1.0.0-1")).toBeGreaterThan(0);
+  });
+});
+
+describe("isVersion", () => {
+  it("accepts the shapes a release actually publishes", () => {
+    for (const version of ["0.19.0", "1.0.0", "0.20.0-next.1", "1.0.0-alpha.1+build.5"]) {
+      expect(isVersion(version)).toBe(true);
+    }
+  });
+
+  it("rejects strings semver does not order", () => {
+    for (const version of [
+      "0.19",
+      "01.0.0",
+      "1.0.0-01",
+      "1.0.0-bad!",
+      "1.0.0+",
+      "1.0.0+bad!",
+      "1.0.0+one+two",
+      "v1.0.0",
+      "",
+    ]) {
+      expect(isVersion(version), version).toBe(false);
+    }
   });
 });
 

@@ -44,26 +44,32 @@ export interface ParityInput {
 export const ACKNOWLEDGED_GAP = { npmLatest: "0.18.0", goStable: "0.19.0" } as const;
 
 interface Parsed {
-  release: [number, number, number];
+  release: [string, string, string];
   prerelease: string[];
 }
 
 /**
- * The version, or null when the string is not one. Build metadata is dropped
- * because SemVer gives it no precedence, and a component that is not a run of
- * digits makes the whole string unreadable rather than silently zero: a pin
- * this check cannot order is a pin it cannot vouch for.
+ * The whole grammar, so a string this check cannot order is rejected outright
+ * rather than read as something near it. Leading zeros, an empty or malformed
+ * build suffix and a character outside the alphabet all fail here: a pin the
+ * check cannot order is a pin it cannot vouch for.
+ */
+const SEMVER =
+  /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*)?$/;
+
+/**
+ * The version, or null when the string is not one. Build metadata is parsed and
+ * discarded, because SemVer gives it no precedence. Release components stay as
+ * digit strings: a counter wide enough to overflow a double still has to order.
  */
 function parse(version: string): Parsed | null {
-  const [withoutBuild = ""] = version.split("+");
-  const hyphen = withoutBuild.indexOf("-");
-  const base = hyphen === -1 ? withoutBuild : withoutBuild.slice(0, hyphen);
-  const suffix = hyphen === -1 ? "" : withoutBuild.slice(hyphen + 1);
-  const parts = base.split(".");
-  if (parts.length !== 3 || !parts.every((part) => /^\d+$/.test(part))) return null;
-  const [major = 0, minor = 0, patch = 0] = parts.map(Number);
-  if (suffix !== "" && suffix.split(".").some((id) => id === "")) return null;
-  return { release: [major, minor, patch], prerelease: suffix === "" ? [] : suffix.split(".") };
+  const match = SEMVER.exec(version);
+  if (match === null) return null;
+  const [, major = "0", minor = "0", patch = "0", suffix] = match;
+  return {
+    release: [major, minor, patch],
+    prerelease: suffix === undefined ? [] : suffix.split("."),
+  };
 }
 
 function require_(version: string): Parsed {
@@ -72,7 +78,7 @@ function require_(version: string): Parsed {
   return parsed;
 }
 
-/** True when the string is one this check can order. */
+/** True when the string is a semantic version, and so one this check can order. */
 export function isVersion(version: string): boolean {
   return parse(version) !== null;
 }
@@ -84,13 +90,14 @@ export function isPrerelease(version: string): boolean {
 /** True when two versions name the same release, prerelease suffix aside. */
 export function sameRelease(a: string, b: string): boolean {
   const [x, y] = [require_(a).release, require_(b).release];
-  return x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
+  return x.every((part, i) => part === y[i]);
 }
 
 /**
- * Numeric prerelease identifiers compared without turning them into doubles,
- * so two counters that differ past the point a double can represent still
- * order. Longer is larger once the leading zeros are gone.
+ * Numeric identifiers compared without turning them into doubles, so two
+ * counters that differ past the point a double can represent still order, and
+ * two wide enough to round to infinity do not come back equal. Longer is larger
+ * once the leading zeros are gone.
  */
 function compareNumeric(a: string, b: string): number {
   const [l, r] = [a.replace(/^0+(?=\d)/, ""), b.replace(/^0+(?=\d)/, "")];
@@ -107,7 +114,7 @@ export function compareVersions(a: string, b: string): number {
   const left = require_(a);
   const right = require_(b);
   for (let i = 0; i < 3; i++) {
-    const diff = (left.release[i] ?? 0) - (right.release[i] ?? 0);
+    const diff = compareNumeric(left.release[i] ?? "0", right.release[i] ?? "0");
     if (diff !== 0) return diff;
   }
   if (left.prerelease.length === 0 || right.prerelease.length === 0) {

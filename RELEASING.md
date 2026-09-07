@@ -73,8 +73,9 @@ is a governance question and not a mechanical one.
    `governance/releases/npm-dist-tags.json`, the Go pin in
    `governance/releases/go-module.json` and the changelog section.
    `check:release-parity` reads the two version strings, the Go pin and the
-   `latest` entry of the dist-tag pin, and fails when they disagree. It does
-   not read the `next` entry, which moves ahead of `latest` by design.
+   `latest` entry of the dist-tag pin, and enforces the parity rules over them,
+   including the one skew this file records as accepted. It does not read the
+   `next` entry, which moves ahead of `latest` by design.
 2. Merge it once CI is green and the review is signed off.
 3. Push the npm tag at the merge commit, and wait for it:
 
