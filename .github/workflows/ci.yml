@@ -73,8 +73,8 @@ jobs:
       - name: Go and npm publish at the same version
         # The Go proxy has no dist-tags and no unpublish, so nothing else here
         # notices when the two implementations drift apart. RELEASING.md has
-        # the rules. `--allow-known-gap` passes only the skew recorded in
-        # governance/releases/go-module.json; a new one still fails.
+        # the rules. `--allow-known-gap` passes only the one skew hard-coded in
+        # scripts/release-parity.ts; a new one still fails.
         run: nix develop --command npm run check:release-parity -- --allow-known-gap
 
       - name: Examples flake check
