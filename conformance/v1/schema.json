@@ -119,6 +119,9 @@
               "reason": {
                 "type": "string"
               },
+              "step": {
+                "type": "string"
+              },
               "auditEvent": {
                 "type": "string"
               },

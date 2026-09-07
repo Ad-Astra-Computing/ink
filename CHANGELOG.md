@@ -8,6 +8,20 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- Inclusion-receipt reject vectors name the check that must refuse them, and
+  both runners assert it. Every one of the 33 asserted a verdict and nothing
+  else, so a verifier that refused for an unrelated reason satisfied them. Go
+  gained a step alongside its verdict, the generator refuses to emit a reject
+  vector without one, and the corpus schema carries the member.
+- Go conformance runs pass `-count=1`. The Go test cache does not track the
+  corpus files the tests read, so a vector edit could be validated against a
+  cached pass: mutating an expected step reported ok in 0.004 seconds and
+  caught nothing, while the same run with `-count=1` caught it. The rule is
+  gated, so an invocation without it fails the fact check.
+- The Go conformance runner asserts a reject vector that its parser refused at
+  the boundary. Those cases used to skip every assertion, so a parser that
+  refused everything satisfied them.
+
 - The card verifier rejects a present member of the wrong type wherever it
   reads one, rather than at the top level only. A non-string
   `currentSigningKeyId` was compared as a value by the reference and read as

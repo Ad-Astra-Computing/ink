@@ -290,8 +290,28 @@ func verifyReceiptSignatureWith(r InclusionReceipt, s signerStrategy, artifactMs
 // optionally walks the inclusion proof (when Event or EventHash is given) and
 // cross-checks a later checkpoint (when LaterCheckpoint is given). It returns
 // false, never panics, on any failed step.
+// ReceiptRejectStep names the check that refused a receipt, using the
+// reference's step names, so a vector can pin why and not merely that.
+type ReceiptRejectStep string
+
+const (
+	ReceiptStepNone       ReceiptRejectStep = ""
+	ReceiptStepStructure  ReceiptRejectStep = "structure"
+	ReceiptStepSignature  ReceiptRejectStep = "signature"
+	ReceiptStepProof      ReceiptRejectStep = "proof"
+	ReceiptStepCheckpoint ReceiptRejectStep = "checkpoint"
+)
+
 func VerifyInclusionReceipt(receipt InclusionReceipt, witnessPublicKey []byte, opts ReceiptVerifyOptions) bool {
-	return verifyInclusionReceiptWith(receipt, fixedKey(witnessPublicKey), opts).Verified
+	ok, _ := VerifyInclusionReceiptStep(receipt, witnessPublicKey, opts)
+	return ok
+}
+
+// VerifyInclusionReceiptStep is VerifyInclusionReceipt plus the step that
+// refused. On acceptance the step is ReceiptStepNone.
+func VerifyInclusionReceiptStep(receipt InclusionReceipt, witnessPublicKey []byte, opts ReceiptVerifyOptions) (bool, ReceiptRejectStep) {
+	result, step := verifyInclusionReceiptWith(receipt, fixedKey(witnessPublicKey), opts)
+	return result.Verified, step
 }
 
 // VerifyInclusionReceiptWithKeys verifies an INK inclusion receipt (INK
@@ -312,24 +332,25 @@ func VerifyInclusionReceipt(receipt InclusionReceipt, witnessPublicKey []byte, o
 // matching the "no key attribution for a rejection" rule
 // VerifyInkSignatureForLiveAuth documents elsewhere in this package.
 func VerifyInclusionReceiptWithKeys(receipt InclusionReceipt, keys []CandidateKey, hintKeyID string, opts ReceiptVerifyOptions) MultiKeyResult {
-	return verifyInclusionReceiptWith(receipt, candidateKeys(keys, hintKeyID), opts)
+	result, _ := verifyInclusionReceiptWith(receipt, candidateKeys(keys, hintKeyID), opts)
+	return result
 }
 
-func verifyInclusionReceiptWith(receipt InclusionReceipt, s signerStrategy, opts ReceiptVerifyOptions) MultiKeyResult {
+func verifyInclusionReceiptWith(receipt InclusionReceipt, s signerStrategy, opts ReceiptVerifyOptions) (MultiKeyResult, ReceiptRejectStep) {
 	if !checkReceiptShape(receipt) {
-		return MultiKeyResult{}
+		return MultiKeyResult{}, ReceiptStepStructure
 	}
 	var artifactMs int64
 	if s.needsClock {
 		ms, ok := ParseInkTimestampMs(receipt.Timestamp)
 		if !ok {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepSignature
 		}
 		artifactMs = ms
 	}
 	result := verifyReceiptSignatureWith(receipt, s, artifactMs)
 	if !result.Verified {
-		return MultiKeyResult{}
+		return MultiKeyResult{}, ReceiptStepSignature
 	}
 
 	var leafHash string
@@ -337,33 +358,33 @@ func verifyInclusionReceiptWith(receipt InclusionReceipt, s signerStrategy, opts
 	if opts.Event != nil {
 		id, ok := opts.Event["id"].(string)
 		if !ok || id != receipt.EventID {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepProof
 		}
 		h, ok := ComputeAuditMerkleLeafHash(opts.Event)
 		if !ok {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepProof
 		}
 		leafHash, hasLeaf = h, true
 	} else if opts.EventHash != "" {
 		if !isMerkleHashHex(opts.EventHash) {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepProof
 		}
 		leafHash, hasLeaf = opts.EventHash, true
 	}
 	if hasLeaf && !VerifyInclusionProof(leafHash, receipt.InclusionProof, receipt.LeafIndex, receipt.TreeSize, receipt.RootHash) {
-		return MultiKeyResult{}
+		return MultiKeyResult{}, ReceiptStepProof
 	}
 
 	if cp := opts.LaterCheckpoint; cp != nil {
 		if cp.TreeSize < 0 || !isMerkleHashHex(cp.RootHash) {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepCheckpoint
 		}
 		if cp.TreeSize < receipt.TreeSize {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepCheckpoint
 		}
 		if cp.TreeSize == receipt.TreeSize && cp.RootHash != receipt.RootHash {
-			return MultiKeyResult{}
+			return MultiKeyResult{}, ReceiptStepCheckpoint
 		}
 	}
-	return result
+	return result, ReceiptStepNone
 }

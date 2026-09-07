@@ -174,7 +174,7 @@ jobs:
         run: |
           test -z "$(gofmt -l .)"
           go vet ./...
-          go test ./...
+          go test -count=1 ./...
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink" ./cmd/ink
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-verify-server" ./cmd/ink-verify-server
           CGO_ENABLED=0 go build -o "${RUNNER_TEMP:-/tmp}/ink-witness-server" ./cmd/ink-witness-server
@@ -222,9 +222,9 @@ jobs:
           nix develop --command bash -c '
             set -euo pipefail
             cd go
-            go test ./ink/
+            go test -count=1 ./ink/
             log="${RUNNER_TEMP:-/tmp}/staged.log"
-            go test ./ink/ -run TestAgentCardSignaturePhaseC -v | tee "$log"
+            go test -count=1 ./ink/ -run TestAgentCardSignaturePhaseC -v | tee "$log"
             # A skip exits 0, so assert the staged test actually ran and passed.
             grep -q "^--- PASS: TestAgentCardSignaturePhaseC" "$log"
           '
