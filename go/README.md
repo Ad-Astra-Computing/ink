@@ -178,9 +178,14 @@ only where `int` is 64 bits wide.
 
 The module path is `github.com/Ad-Astra-Computing/ink/go`. Because it lives in
 a subdirectory, Go versions it by tags of the form `go/v<version>`, not the
-`v<version>` tags that publish the npm package. Every release cut pushes both
-tags on the same commit, so the Go module and the npm package with the same
-version number are built from the same tree:
+`v<version>` tags that publish the npm package. A release cut pushes both tags
+on the same commit, so the Go module and the npm package with the same version
+number are built from the same tree.
+
+While INK is pre-1.0 the Go tag carries a `-next.<n>` suffix until the version
+is promoted, matching the npm `next` dist-tag. The proxy has no dist-tags of
+its own, so the suffix is what keeps an unpromoted release out of `@latest`.
+[RELEASING.md](../RELEASING.md) has the rules and the current state.
 
 ```sh
 go get github.com/Ad-Astra-Computing/ink/go@v0.19.0
