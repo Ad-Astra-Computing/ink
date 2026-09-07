@@ -71,8 +71,10 @@ is a governance question and not a mechanical one.
 1. Open a release pull request that bumps `version` in `package.json`, the
    `Version` constant in `go/internal/cli/cli.go`, the dist-tag pin in
    `governance/releases/npm-dist-tags.json`, the Go pin in
-   `governance/releases/go-module.json` and the changelog section. These move
-   together or `check:release-parity` fails.
+   `governance/releases/go-module.json` and the changelog section.
+   `check:release-parity` reads the two version strings, the Go pin and the
+   `latest` entry of the dist-tag pin, and fails when they disagree. It does
+   not read the `next` entry, which moves ahead of `latest` by design.
 2. Merge it once CI is green and the review is signed off.
 3. Push the npm tag at the merge commit, and wait for it:
 

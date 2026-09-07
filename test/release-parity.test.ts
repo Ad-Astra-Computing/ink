@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACKNOWLEDGED_GAP,
   compareVersions,
+  sameRelease,
   parityFailures,
   type ParityInput,
 } from "../scripts/release-parity.js";
@@ -39,6 +40,18 @@ describe("compareVersions", () => {
     expect(compareVersions("0.20.0-next.2", "0.20.0-next.10")).toBeLessThan(0);
     expect(compareVersions("0.20.0-next.1", "0.20.0-next.1")).toBe(0);
   });
+
+  it("separates counters too long to survive a double", () => {
+    expect(
+      compareVersions("0.20.0-next.9007199254740992", "0.20.0-next.9007199254740993"),
+    ).toBeLessThan(0);
+  });
+
+  it("ignores build metadata, which carries no precedence", () => {
+    expect(compareVersions("0.20.0+build.1", "0.20.0")).toBe(0);
+    expect(compareVersions("0.20.0+build.1", "0.19.0")).toBeGreaterThan(0);
+    expect(sameRelease("0.20.0+build.1", "0.20.0")).toBe(true);
+  });
 });
 
 describe("parityFailures", () => {
@@ -49,6 +62,23 @@ describe("parityFailures", () => {
   it("catches the two version strings drifting apart", () => {
     const [failure] = parityFailures(input({ cliVersion: "0.18.9" }));
     expect(failure).toMatch(/version skew in the tree/);
+  });
+
+  it("refuses a version string it cannot order rather than reading it as zero", () => {
+    const failures = parityFailures(input({ packageVersion: "0.19", cliVersion: "0.19" }));
+    expect(failures.join("\n")).toMatch(/not a version this check can order/);
+  });
+
+  it("catches npm running ahead of the Go module, not only behind", () => {
+    const failures = parityFailures(
+      input({
+        packageVersion: "0.20.0",
+        cliVersion: "0.20.0",
+        goPin: { ...basePin, published: { stable: "0.19.0", prerelease: "0.20.0-next.1" } },
+        npmLatest: "0.20.0",
+      }),
+    );
+    expect(failures.join("\n")).toMatch(/npm serves 0\.20\.0 .* while the Go module/);
   });
 
   it("catches a release commit that forgets the Go pin", () => {

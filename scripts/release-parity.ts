@@ -37,8 +37,9 @@ export interface ParityInput {
  * set the prerelease rule, and a Go tag cannot be withdrawn. Reading the
  * allowance out of the same file a release commit edits would let any later
  * skew be waved through by editing two lines, which is the opposite of what the
- * check is for. Delete this and the `--allow-known-gap` flag once npm catches
- * up.
+ * check is for. It is still ordinary source a pull request can edit, so widening
+ * it is a governance change and reviewers should refuse it on that footing.
+ * Delete this and the `--allow-known-gap` flag once npm catches up.
  */
 export const ACKNOWLEDGED_GAP = { npmLatest: "0.18.0", goStable: "0.19.0" } as const;
 
@@ -47,21 +48,54 @@ interface Parsed {
   prerelease: string[];
 }
 
-function parse(version: string): Parsed {
-  const [base = "", ...rest] = version.split("-");
-  const [major = 0, minor = 0, patch = 0] = base.split(".").map(Number);
-  const suffix = rest.join("-");
+/**
+ * The version, or null when the string is not one. Build metadata is dropped
+ * because SemVer gives it no precedence, and a component that is not a run of
+ * digits makes the whole string unreadable rather than silently zero: a pin
+ * this check cannot order is a pin it cannot vouch for.
+ */
+function parse(version: string): Parsed | null {
+  const [withoutBuild = ""] = version.split("+");
+  const hyphen = withoutBuild.indexOf("-");
+  const base = hyphen === -1 ? withoutBuild : withoutBuild.slice(0, hyphen);
+  const suffix = hyphen === -1 ? "" : withoutBuild.slice(hyphen + 1);
+  const parts = base.split(".");
+  if (parts.length !== 3 || !parts.every((part) => /^\d+$/.test(part))) return null;
+  const [major = 0, minor = 0, patch = 0] = parts.map(Number);
+  if (suffix !== "" && suffix.split(".").some((id) => id === "")) return null;
   return { release: [major, minor, patch], prerelease: suffix === "" ? [] : suffix.split(".") };
 }
 
+function require_(version: string): Parsed {
+  const parsed = parse(version);
+  if (parsed === null) throw new RangeError(`${version} is not a semantic version`);
+  return parsed;
+}
+
+/** True when the string is one this check can order. */
+export function isVersion(version: string): boolean {
+  return parse(version) !== null;
+}
+
 export function isPrerelease(version: string): boolean {
-  return parse(version).prerelease.length > 0;
+  return require_(version).prerelease.length > 0;
 }
 
 /** True when two versions name the same release, prerelease suffix aside. */
 export function sameRelease(a: string, b: string): boolean {
-  const [x, y] = [parse(a).release, parse(b).release];
+  const [x, y] = [require_(a).release, require_(b).release];
   return x[0] === y[0] && x[1] === y[1] && x[2] === y[2];
+}
+
+/**
+ * Numeric prerelease identifiers compared without turning them into doubles,
+ * so two counters that differ past the point a double can represent still
+ * order. Longer is larger once the leading zeros are gone.
+ */
+function compareNumeric(a: string, b: string): number {
+  const [l, r] = [a.replace(/^0+(?=\d)/, ""), b.replace(/^0+(?=\d)/, "")];
+  if (l.length !== r.length) return l.length - r.length;
+  return l === r ? 0 : l < r ? -1 : 1;
 }
 
 /**
@@ -70,8 +104,8 @@ export function sameRelease(a: string, b: string): boolean {
  * numbers so `next.10` is after `next.2`.
  */
 export function compareVersions(a: string, b: string): number {
-  const left = parse(a);
-  const right = parse(b);
+  const left = require_(a);
+  const right = require_(b);
   for (let i = 0; i < 3; i++) {
     const diff = (left.release[i] ?? 0) - (right.release[i] ?? 0);
     if (diff !== 0) return diff;
@@ -84,9 +118,11 @@ export function compareVersions(a: string, b: string): number {
     const r = right.prerelease[i];
     if (l === undefined || r === undefined) return (l === undefined ? 0 : 1) - (r === undefined ? 0 : 1);
     if (l === r) continue;
-    const [ln, rn] = [Number(l), Number(r)];
-    const numeric = !Number.isNaN(ln) && !Number.isNaN(rn);
-    if (numeric) return ln - rn;
+    const digits = /^\d+$/;
+    const [ln, rn] = [digits.test(l), digits.test(r)];
+    if (ln && rn) return compareNumeric(l, r);
+    // A numeric identifier ranks below an alphanumeric one.
+    if (ln !== rn) return ln ? -1 : 1;
     return l < r ? -1 : 1;
   }
   return 0;
@@ -96,6 +132,21 @@ export function compareVersions(a: string, b: string): number {
 export function parityFailures(input: ParityInput): string[] {
   const failures: string[] = [];
   const { packageVersion, cliVersion, goPin, npmLatest } = input;
+
+  // Nothing below can order a string it cannot read, and reading an unreadable
+  // one as 0.0.0 would let it pass every comparison. Stop here instead.
+  const unreadable = [
+    ["package.json", packageVersion],
+    ["go/internal/cli/cli.go", cliVersion],
+    ["the Go pin's stable channel", goPin.published.stable],
+    ["the Go pin's prerelease channel", goPin.published.prerelease],
+    ["the npm `latest` pin", npmLatest],
+  ].filter(([, v]) => typeof v === "string" && !isVersion(v));
+  if (unreadable.length > 0) {
+    return unreadable.map(
+      ([where, v]) => `${where} records ${v}, which is not a version this check can order`,
+    );
+  }
 
   // The constant is the version the `ink` binary reports, so it is what an
   // adopter quotes in a bug report and the only version string the Go module
@@ -132,17 +183,22 @@ export function parityFailures(input: ParityInput): string[] {
     );
   }
 
-  if (stable !== null && npmLatest !== undefined && compareVersions(stable, npmLatest) > 0) {
+  if (stable !== null && npmLatest !== undefined && compareVersions(stable, npmLatest) !== 0) {
+    const goAhead = compareVersions(stable, npmLatest) > 0;
     const acknowledged =
       input.allowKnownGap &&
       npmLatest === ACKNOWLEDGED_GAP.npmLatest &&
       stable === ACKNOWLEDGED_GAP.goStable;
     if (!acknowledged) {
+      const shared =
+        "An adopter running `go get` and an adopter running `npm install` get " +
+        "different builds of the same protocol.";
       failures.push(
-        `the Go module serves ${stable} as its @latest while npm latest is ${npmLatest}. ` +
-          "An adopter running `go get` and an adopter running `npm install` get " +
-          "different builds of the same protocol. Promote npm to close the gap; " +
-          "the Go tag cannot be withdrawn to open it.",
+        goAhead
+          ? `the Go module serves ${stable} as its @latest while npm latest is ${npmLatest}. ` +
+              `${shared} Promote npm to close the gap; the Go tag cannot be withdrawn to open it.`
+          : `npm serves ${npmLatest} on \`latest\` while the Go module's stable channel is ` +
+              `${stable}. ${shared} Tag the Go module to close the gap.`,
       );
     }
   }
