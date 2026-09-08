@@ -20,6 +20,7 @@ import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { REFERENCE, compareAll, compareOne } from "./lib/compare.mjs";
 import { deriveSeed, rngFromSeed } from "./lib/rng.mjs";
 import { SURFACES, SURFACE_BY_ID } from "./lib/surfaces.mjs";
 import { shrinkCandidates, sizeOf } from "./lib/shrink.mjs";
@@ -265,7 +266,6 @@ const tsxBin = join(repo, "node_modules", ".bin", "tsx");
 let mutant = null;
 
 /** The reference every other decider is compared against. */
-const REFERENCE = "typescript";
 
 /** Deciders that can be told to answer wrongly. The Go decider has no fault
  * injection, so a self-test against it is refused rather than passing on a
@@ -343,72 +343,6 @@ async function decideAll(cases) {
   return new Map(entries);
 }
 
-// ── comparison ──
-
-const VALUE_FIELDS = ["canonicalPrincipal", "canonicalString", "epochMs", "signature", "keyId"];
-const isHarness = (r) => typeof r === "string" && r.startsWith("__harness");
-
-/** Compare one decider against the reference. Returns null when they agree. */
-function comparePair(ts, other, id) {
-  if (!ts || !other) {
-    return { kind: "missing", detail: `ts=${ts ? "present" : "missing"} ${id}=${other ? "present" : "missing"}` };
-  }
-  if (isHarness(ts.reason) && ts.reason.startsWith("__harness_error")) {
-    return { kind: "crash", detail: `typescript: ${ts.reason}` };
-  }
-  if (isHarness(other.reason) && other.reason.startsWith("__harness_error")) {
-    return { kind: "crash", detail: `${id}: ${other.reason}` };
-  }
-  if (ts.result !== other.result) {
-    return { kind: "decision", detail: `ts=${ts.result} ${id}=${other.result}` };
-  }
-  for (const f of VALUE_FIELDS) {
-    const a = ts[f];
-    const b = other[f];
-    if (a === undefined && b === undefined) continue;
-    if (a !== b) return { kind: "value", detail: `${f}: ts=${JSON.stringify(a)} ${id}=${JSON.stringify(b)}` };
-  }
-  // The reason code is compared only when both sides emit one and neither is a
-  // harness marker: the marker means one side's public entry point could not be
-  // reached with this input at all, which is an API asymmetry, not a divergence.
-  if (ts.reason && other.reason && !isHarness(ts.reason) && !isHarness(other.reason) && ts.reason !== other.reason) {
-    return { kind: "reason", detail: `reason: ts=${ts.reason} ${id}=${other.reason}` };
-  }
-  return null;
-}
-
-/** Compare every decider against the reference for one case, and return EVERY
- * disagreement rather than the first. Each pair is its own finding: with three
- * implementations, "the witness and the reference disagree" is a different
- * fact from "Go and the reference disagree", and returning only the first
- * would let a Go disagreement mask a witness one on the same case, so the
- * witness pair could go a whole run without ever producing a finding. A
- * decider that does not answer this surface is not absent, it simply was not
- * asked. */
-function compareAll(decisions, caseId, surface) {
-  const reference = decisions.get(REFERENCE)?.get(caseId);
-  const out = [];
-  for (const d of deciders) {
-    if (d.id === REFERENCE) continue;
-    if (d.surfaces !== null && !d.surfaces.has(surface)) continue;
-    const diff = comparePair(reference, decisions.get(d.id)?.get(caseId), d.id);
-    if (diff) out.push({ ...diff, against: d.id });
-  }
-  return out;
-}
-
-/** The disagreement between the reference and one named decider, or null. The
- * caller has already established that this decider answers the surface, so a
- * decider with no record here has failed to answer something it was asked,
- * which is a `missing` divergence and not a case it sat out. */
-function compareOne(decisions, caseId, against) {
-  const diff = comparePair(
-    decisions.get(REFERENCE)?.get(caseId),
-    decisions.get(against)?.get(caseId),
-    against,
-  );
-  return diff ? { ...diff, against } : null;
-}
 
 // ── minimization ──
 
@@ -567,7 +501,7 @@ async function main() {
       perArm.set(c.arm, (perArm.get(c.arm) ?? 0) + 1);
       const surface = SURFACE_BY_ID.get(c.surface);
       // Every diverging pair on this case, each handled on its own terms.
-      for (const diff of compareAll(decisions, c.caseId, c.surface)) {
+      for (const diff of compareAll(deciders, decisions, c.caseId, c.surface)) {
         // Dedupe on the divergence shape so one systematic bug does not write ten
         // thousand files, and stop minimizing a shape once it is well understood:
         // minimization is the expensive step, and the twenty-sixth witness of one
