@@ -73,9 +73,9 @@ is a governance question and not a mechanical one.
    `governance/releases/npm-dist-tags.json`, the Go pin in
    `governance/releases/go-module.json` and the changelog section.
    `check:release-parity` reads the two version strings, the Go pin and the
-   `latest` entry of the dist-tag pin, and enforces the parity rules over them,
-   including the one skew this file records as accepted. It does not read the
-   `next` entry, which moves ahead of `latest` by design.
+   `latest` entry of the dist-tag pin, and enforces the parity rules over them
+   with no exceptions. It does not read the `next` entry, which moves ahead of
+   `latest` by design.
 2. Merge it once CI is green and the review is signed off.
 3. Push the npm tag at the merge commit, and wait for it:
 
@@ -209,7 +209,8 @@ running late. The irreversible half has already happened, and what is left is
 the reversible half catching up to it, so the steps are different.
 
 1. Confirm what the proxy actually serves:
-   `go list -m github.com/Ad-Astra-Computing/ink/go@latest`.
+   `go list -m github.com/Ad-Astra-Computing/ink/go@latest`. It has to name
+   `${VERSION}` exactly.
 2. Resolve the commit the Go tag names and check its signature:
 
    ```sh
@@ -221,8 +222,16 @@ the reversible half catching up to it, so the steps are different.
    `git rev-parse --verify "v${VERSION}^{commit}"` and compare it with
    `${COMMIT}`. If they differ, stop. The two implementations were cut from
    different trees and no dist-tag move fixes that.
-4. Confirm the version sits on `next` with its provenance intact:
-   `npm view @adastracomputing/ink@${VERSION} dist-tags`.
+4. Confirm `next` names `${VERSION}`, and that the published artifact carries
+   the provenance the publish workflow attaches:
+
+   ```sh
+   npm view @adastracomputing/ink dist-tags --json
+   npm view @adastracomputing/ink@${VERSION} dist.attestations
+   ```
+
+   `dist-tags` says which version is on the channel and nothing about how it got
+   there, so the attestation needs its own command.
 5. Apply the gate above for this version.
 6. Open the pull request that flips the npm pin to `${VERSION}` and records the
    decision. Get it reviewed. Do not merge it yet: until step 7 lands, the pin
