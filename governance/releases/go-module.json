@@ -1,0 +1,10 @@
+{
+  "module": "github.com/Ad-Astra-Computing/ink/go",
+  "tagPrefix": "go/",
+  "published": {
+    "stable": "0.19.0",
+    "prerelease": null
+  },
+  "verifiedAt": "2026-09-07",
+  "updatedBy": "The release commit that cuts the version, alongside the npm dist-tag pin. `stable` is the version `go get ...@latest` resolves and `prerelease` is the newest `go/v<version>-next.<n>` tag if one is ahead of it, both as recorded by the maintainer who pushed the tag. The Go module proxy has no dist-tags and no unpublish, and nothing in CI queries it, so this file is a governance record rather than a verified one: it says what the release sequence in RELEASING.md was supposed to publish. `npm run check:release-parity` reads it against the npm pin and the two version strings in the tree."
+}

@@ -65,7 +65,7 @@ All changes must include tests. For bug fixes, add a regression test that fails 
    - `npm run check:facts` (recomputes every derivable number quoted in `governance/`, `specs/`, `README.md` and `CHANGELOG.md` and fails on a stale one)
    - `npm run check:release-pin -- --tag any` (asserts the version in the tree is recorded on a dist-tag in `governance/releases/npm-dist-tags.json`)
 
-   Only a release pull request can fail the last one, since only a release pull request bumps the version. When it does, update `governance/releases/npm-dist-tags.json` in the same commit and rerun `npm run check:facts` to pick up the documents that quote a dist-tag. The publish workflow runs a stricter form of the same check and refuses to publish without it.
+   Only a release pull request can fail the last one, since only a release pull request bumps the version. A release pull request also bumps the Go pin and the `Version` constant in `go/internal/cli/cli.go` alongside it, which `npm run check:release-parity` gates. [RELEASING.md](RELEASING.md) covers why the two implementations publish together. When it does, update `governance/releases/npm-dist-tags.json` in the same commit and rerun `npm run check:facts` to pick up the documents that quote a dist-tag. The publish workflow runs a stricter form of the same check and refuses to publish without it.
 3. Keep commits small and focused. Commit messages: imperative mood, under 72 characters.
 4. Reference any related issue or spec section in the PR description.
 

@@ -70,6 +70,12 @@ jobs:
         # per-tag form of this check before it publishes anything.
         run: nix develop --command npm run check:release-pin -- --tag any
 
+      - name: Go and npm publish at the same version
+        # The Go proxy has no dist-tags and no unpublish, so nothing else here
+        # notices when the two implementations drift apart. RELEASING.md has
+        # the rules.
+        run: nix develop --command npm run check:release-parity
+
       - name: Examples flake check
         # Gates examples/flake.nix against the tree: a runnable example with
         # no dev shell, or a shell naming a directory that has moved, fails
