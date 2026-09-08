@@ -129,3 +129,59 @@ jobs:
           name: differential-findings-${{ matrix.leg }}
           path: differential/findings/
           if-no-files-found: ignore
+
+  # The INK witness, a third implementation of these rules in its own
+  # repository, joins for the surfaces it decides. Not on pull requests: it is
+  # checked out at its own head, so a divergence can come from a change nobody
+  # on the pull request made, and a required check an author cannot fix is a
+  # check that gets ignored.
+  witness:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Ad-Astra-Computing/witness
+          path: witness
+          persist-credentials: false
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+        with:
+          extra-conf: |
+            experimental-features = nix-command flakes
+
+      - name: Install npm deps
+        run: |
+          set -euo pipefail
+          echo "witness at $(git -C witness rev-parse HEAD)"
+          nix develop --command npm ci
+          # The witness supplies decisions, never build steps. Its install
+          # scripts have no business running inside this job.
+          nix develop --command npm ci --prefix witness --ignore-scripts
+
+      # The negative control comes first here too, and it is injected into the
+      # witness rather than the reference: what has to be proved is that a
+      # witness disagreement is reported as one, against the witness.
+      - name: self-test
+        run: nix develop --command node differential/run.mjs --self-test merkle-checkpoint:witness --cases 200 --witness witness
+
+      - name: three-way budget
+        env:
+          CASES: ${{ inputs.cases || '200000' }}
+        run: |
+          set -euo pipefail
+          case "$CASES" in ''|*[!0-9]*) echo "cases must be digits"; exit 1 ;; esac
+          nix develop --command node differential/run.mjs --cases "$CASES" --batch 20000 --witness witness
+
+      - name: upload findings
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: differential-findings-witness
+          path: differential/findings/
+          if-no-files-found: ignore
