@@ -135,9 +135,15 @@ jobs:
   # checked out at its own head, so a divergence can come from a change nobody
   # on the pull request made, and a required check an author cannot fix is a
   # check that gets ignored.
+  #
+  # Monitoring, not release evidence. The witness head moves, so a green run
+  # here is not reproducible later and is not what a release is signed off
+  # against; the `differential` job above is.
   witness:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
+    # The third decider is code from another repository and can hang.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

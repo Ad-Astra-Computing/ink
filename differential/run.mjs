@@ -300,7 +300,15 @@ function resolveDeciders(witnessDir) {
         `\n${(listed.stderr ?? "").slice(0, 2000)}`,
     );
   }
-  const surfaces = new Set(listed.stdout.split("\n").map((l) => l.trim()).filter(Boolean));
+  // The witness answers corpus categories, some of which are not surfaces this
+  // harness generates. Keeping only the ones that are keeps two namespaces from
+  // being conflated, and keeps the surface list this repository's own business
+  // without asking the witness to carry a copy of it.
+  const advertised = listed.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
+  const surfaces = new Set(advertised.filter((id) => SURFACE_BY_ID.has(id)));
+  if (surfaces.size === 0) {
+    throw new Error(`the witness at ${dir} decides none of this harness's surfaces`);
+  }
   set.push({
     id: "witness",
     run: (cases, env) => runDecider(tsxBin, [script], cases, env, dir),
@@ -360,21 +368,33 @@ function comparePair(ts, other, id) {
   return null;
 }
 
-/** Compare every decider against the reference for one case, and return the
- * first disagreement. Each pair is reported on its own: with three
+/** Compare every decider against the reference for one case, and return EVERY
+ * disagreement rather than the first. Each pair is its own finding: with three
  * implementations, "the witness and the reference disagree" is a different
- * finding from "Go and the reference disagree", and collapsing them would hide
- * which implementation moved. A decider that does not answer this surface is
- * not absent, it simply was not asked. */
-function compare(decisions, caseId, surface) {
+ * fact from "Go and the reference disagree", and returning only the first
+ * would let a Go disagreement mask a witness one on the same case, so the
+ * witness pair could go a whole run without ever producing a finding. A
+ * decider that does not answer this surface is not absent, it simply was not
+ * asked. */
+function compareAll(decisions, caseId, surface) {
   const reference = decisions.get(REFERENCE)?.get(caseId);
+  const out = [];
   for (const d of deciders) {
     if (d.id === REFERENCE) continue;
-    if (d.surfaces !== null && !d.surfaces.has(surface)) continue;
+    // A null surface means "whoever answered this case", which is what the
+    // single-pair lookup needs: the decider set for the case is already fixed
+    // by the batch it was decided in.
+    if (surface !== null && d.surfaces !== null && !d.surfaces.has(surface)) continue;
+    if (surface === null && !decisions.get(d.id)?.has(caseId)) continue;
     const diff = comparePair(reference, decisions.get(d.id)?.get(caseId), d.id);
-    if (diff) return { ...diff, against: d.id };
+    if (diff) out.push({ ...diff, against: d.id });
   }
-  return null;
+  return out;
+}
+
+/** The disagreement between the reference and one named decider, or null. */
+function compareOne(decisions, caseId, against) {
+  return compareAll(decisions, caseId, null).find((d) => d.against === against) ?? null;
 }
 
 // ── minimization ──
@@ -394,8 +414,8 @@ async function minimize(surface, input, kind, against, opts) {
     const decisions = await decideAll(candidates);
     let improved = null;
     for (const c of candidates) {
-      const diff = compare(decisions, c.caseId, surface.id);
-      if (diff && diff.kind === kind && diff.against === against) {
+      const diff = compareOne(decisions, c.caseId, against);
+      if (diff && diff.kind === kind) {
         if (improved === null || sizeOf(c.input) < sizeOf(improved)) improved = c.input;
       }
     }
@@ -532,64 +552,69 @@ async function main() {
       ran++;
       perSurface.set(c.surface, perSurface.get(c.surface) + 1);
       perArm.set(c.arm, (perArm.get(c.arm) ?? 0) + 1);
-      const diff = compare(decisions, c.caseId, c.surface);
-      if (!diff) continue;
       const surface = SURFACE_BY_ID.get(c.surface);
-      // Dedupe on the divergence shape so one systematic bug does not write ten
-      // thousand files, and stop minimizing a shape once it is well understood:
-      // minimization is the expensive step, and the twenty-sixth witness of one
-      // root cause teaches nothing the first twenty-five did not.
-      const key = `${c.surface}|${diff.against}|${diff.kind}`;
-      const already = (shapeCounts.get(key) ?? 0);
-      shapeCounts.set(key, already + 1);
-      if (already >= opts.minimizePerShape) {
-        findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: diff.detail, path: null, minimized: null });
-        continue;
-      }
-      if (opts.selfTest !== null) {
-        // The self-test's divergence is injected, so it is counted and never
-        // written: an artifact of a deliberate fault is not a finding.
-        findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: diff.detail, path: null, minimized: c.input });
-        seenFindings.add(key);
-        continue;
-      }
-      let minimizedInput = await minimize(surface, c.input, diff.kind, diff.against, opts);
-      let minCheck = await decideAll([{ caseId: "min", surface: surface.id, input: minimizedInput }]);
-      let minId = "min";
-      // The shrinker matches on the kind, not the exact detail, so a minimized
-      // case can carry a different reason than the case it came from. Record the
-      // detail of what actually landed on disk.
-      let minDiff = compare(minCheck, "min", surface.id);
-      if (!minDiff) {
-        // The minimized case does not reproduce. Re-decide the case it came
-        // from before recording anything: a finding whose artifact disagrees
-        // with its own claim sends a reader chasing a divergence that is not
-        // there, which is worse than no finding at all.
-        const again = await decideAll([{ caseId: "orig", surface: surface.id, input: c.input }]);
-        const origDiff = compare(again, "orig", surface.id);
-        if (!origDiff) {
-          log(`  UNSTABLE ${c.surface} [${diff.kind}] ${diff.detail}`);
-          log(`    neither the minimized case nor the original reproduces; not recorded`);
-          unstable++;
+      // Every diverging pair on this case, each handled on its own terms.
+      for (const diff of compareAll(decisions, c.caseId, c.surface)) {
+        // Dedupe on the divergence shape so one systematic bug does not write ten
+        // thousand files, and stop minimizing a shape once it is well understood:
+        // minimization is the expensive step, and the twenty-sixth witness of one
+        // root cause teaches nothing the first twenty-five did not.
+        const key = `${c.surface}|${diff.against}|${diff.kind}`;
+        const already = (shapeCounts.get(key) ?? 0);
+        shapeCounts.set(key, already + 1);
+        if (opts.selfTest !== null) {
+          // The self-test's divergence is injected, so it is counted and never
+          // written: an artifact of a deliberate fault is not a finding. The
+          // case is kept so the pass condition can re-decide it with the fault
+          // off.
+          findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: diff.detail, path: null, minimized: c.input, case: c });
+          seenFindings.add(key);
           continue;
         }
-        // The minimized case is not a witness for what was observed, so the
-        // artifact carries the case that actually diverges.
-        minimizedInput = c.input;
-        minCheck = again;
-        minId = "orig";
-        minDiff = origDiff;
-      }
-      const path = writeFinding(
-        surface, c, minDiff, minimizedInput, decisions,
-        { decisions: minCheck, caseId: minId }, opts.seed,
-      );
-      findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: minDiff.detail, path, minimized: minimizedInput });
-      if (!seenFindings.has(key)) {
-        seenFindings.add(key);
-        log(`  DIVERGENCE ${c.surface} [${diff.against}/${diff.kind}] ${diff.detail}`);
-        log(`    minimized: ${JSON.stringify(minimizedInput).slice(0, 400)}`);
-        log(`    written to ${path}`);
+        if (already >= opts.minimizePerShape) {
+          findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: diff.detail, path: null, minimized: null });
+          continue;
+        }
+        let minimizedInput = await minimize(surface, c.input, diff.kind, diff.against, opts);
+        let minCheck = await decideAll([{ caseId: "min", surface: surface.id, input: minimizedInput }]);
+        let minId = "min";
+        // The shrinker matches on the kind, not the exact detail, so a minimized
+        // case can carry a different reason than the case it came from. Record the
+        // detail of what actually landed on disk.
+        // The pair is fixed: a shrink that lands on a different decider is a
+        // different finding, not a smaller version of this one.
+        let minDiff = compareOne(minCheck, "min", diff.against);
+        if (!minDiff || minDiff.kind !== diff.kind) {
+          // The minimized case does not reproduce. Re-decide the case it came
+          // from before recording anything: a finding whose artifact disagrees
+          // with its own claim sends a reader chasing a divergence that is not
+          // there, which is worse than no finding at all.
+          const again = await decideAll([{ caseId: "orig", surface: surface.id, input: c.input }]);
+          const origDiff = compareOne(again, "orig", diff.against);
+          if (!origDiff || origDiff.kind !== diff.kind) {
+            log(`  UNSTABLE ${c.surface} [${diff.kind}] ${diff.detail}`);
+            log(`    neither the minimized case nor the original reproduces; not recorded`);
+            unstable++;
+            continue;
+          }
+          // The minimized case is not a witness for what was observed, so the
+          // artifact carries the case that actually diverges.
+          minimizedInput = c.input;
+          minCheck = again;
+          minId = "orig";
+          minDiff = origDiff;
+        }
+        const path = writeFinding(
+          surface, c, minDiff, minimizedInput, decisions,
+          { decisions: minCheck, caseId: minId }, opts.seed,
+        );
+        findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: minDiff.detail, path, minimized: minimizedInput });
+        if (!seenFindings.has(key)) {
+          seenFindings.add(key);
+          log(`  DIVERGENCE ${c.surface} [${diff.against}/${diff.kind}] ${diff.detail}`);
+          log(`    minimized: ${JSON.stringify(minimizedInput).slice(0, 400)}`);
+          log(`    written to ${path}`);
+        }
       }
     }
     batch = [];
@@ -613,9 +638,25 @@ async function main() {
   if (opts.selfTest !== null) {
     // The negative control: one decider was told to answer this surface
     // wrongly, so the run PASSES only if the comparison caught it, and only if
-    // it named the decider carrying the fault. A run that reports the wrong
-    // pair has not proved what it claims to.
-    const caught = findings.filter((f) => mutant.decider === REFERENCE || f.against === mutant.decider);
+    // the divergence it caught is the injected one. A surface that already
+    // diverges on its own would otherwise let the control pass while the fault
+    // was never injected at all, which is the failure the control exists to
+    // rule out. So each candidate is decided again with the fault off, and
+    // only the ones that agree without it count.
+    const candidates = findings.filter(
+      (f) => f.case !== undefined && (mutant.decider === REFERENCE || f.against === mutant.decider),
+    );
+    const injected = mutant;
+    mutant = null;
+    const control = await decideAll(candidates.map((f) => f.case));
+    mutant = injected;
+    const caught = candidates.filter((f) => compareOne(control, f.case.caseId, f.against) === null);
+    const natural = candidates.length - caught.length;
+    if (natural > 0) {
+      process.stdout.write(
+        `differential: ${natural} divergence(s) on ${mutant.surface} reproduce without the fault and do not count\n`,
+      );
+    }
     if (caught.length > 0) {
       process.stdout.write(
         `differential: self-test PASS, caught ${caught.length} injected divergences on ${mutant.surface} in ${mutant.decider}\n`,

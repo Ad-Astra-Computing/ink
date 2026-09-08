@@ -65,7 +65,10 @@ node differential/run.mjs --self-test merkle-checkpoint:witness --cases 100 --wi
 
 This tells one decider to invert its answer on one surface and passes only if
 the comparison catches it, and names the decider the fault was injected into, so
-a run cannot pass by catching a different pair. Run it in the same job that runs
+a run cannot pass by catching a different pair. Each divergence it counts is
+decided again with the fault switched off, and only the ones that then agree
+count: a surface that already diverges on its own would otherwise let the
+control pass while nothing was injected at all. Run it in the same job that runs
 the fuzzer. The Go decider has no fault injection and a self-test against it is
 refused rather than passing on a fault that was never injected.
 
@@ -181,12 +184,13 @@ accept-or-reject result; then every value field either side emitted
 (`canonicalPrincipal`, `canonicalString`, `epochMs`, `signature`, `keyId`); then
 the typed reason code, but only when both sides emitted one.
 
-Every decider is compared against the TypeScript reference pair by pair, and a
-finding names the pair it came from. Reporting "somebody disagreed" would hide
-which implementation moved, and the point of a third opinion is to make that
-visible. A finding records what every decider answered, not only the diverging
-pair, because the question after "which two disagree" is immediately "and what
-did the third one say".
+Every decider is compared against the TypeScript reference pair by pair, and
+every diverging pair on a case becomes its own finding. Stopping at the first
+one would let a Go disagreement mask a witness disagreement on the same input,
+so the witness could go a whole run without ever producing a finding. A finding
+names the pair it came from and records what every decider answered, because
+the question after "which two disagree" is immediately "and what did the third
+one say".
 
 ### Two things the bridge deliberately does
 
