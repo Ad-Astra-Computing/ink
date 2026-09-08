@@ -484,6 +484,7 @@ fixed, which is the opposite of what a vector is for.
 differential/
   run.mjs              the runner: generate, compare, minimize, report
   promote.mjs          turn a finding into a conformance case block
+  lib/compare.mjs      what counts as a divergence, and its tests
   lib/rng.mjs          seeded PRNG and seed derivation
   lib/mutators.mjs     edge-value banks and structure-aware mutators
   lib/shrink.mjs       the three shrinkers
