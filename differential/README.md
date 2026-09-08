@@ -61,6 +61,7 @@ disagreement at all, so that is a first-class check:
 ```sh
 node differential/run.mjs --self-test private-hostname --cases 100
 node differential/run.mjs --self-test merkle-checkpoint:witness --cases 100 --witness ../witness
+node differential/run.mjs --self-test merkle-checkpoint:witness --drop --cases 100 --witness ../witness
 ```
 
 This tells one decider to invert its answer on one surface and passes only if
@@ -71,6 +72,11 @@ count: a surface that already diverges on its own would otherwise let the
 control pass while nothing was injected at all. Run it in the same job that runs
 the fuzzer. The Go decider has no fault injection and a self-test against it is
 refused rather than passing on a fault that was never injected.
+
+`--drop` makes the fault a withheld answer rather than a wrong one. A decider
+that says nothing about a case it was asked is a divergence too, and it travels
+a different path through the comparison than a wrong answer does, so it gets its
+own control.
 
 ## Surfaces
 
@@ -348,6 +354,7 @@ In practice this takes a 2 KB generated body down to `1e309`.
 | `--shrink-candidates N` | 400 | candidates per pass |
 | `--minimize-per-shape N` | 25 | stop minimizing a `(surface, kind)` shape after N witnesses |
 | `--self-test SURFACE` | off | negative control: inject a fault and require it to be caught |
+| `--drop` | off | make `--self-test` withhold the answer rather than invert it |
 
 Minimization, not comparison, is the expensive step, so a systematic divergence
 would otherwise dominate a large run while teaching nothing after the first few

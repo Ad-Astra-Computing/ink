@@ -48,6 +48,7 @@ function parseArgs(argv) {
     quiet: false,
     list: false,
     selfTest: null,
+    drop: false,
     witness: process.env.INK_WITNESS_DIR ?? null,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -65,6 +66,7 @@ function parseArgs(argv) {
       case "--minimize-per-shape": opts.minimizePerShape = Number(val()); break;
       case "--findings-dir": opts.findingsDir = val(); break;
       case "--self-test": opts.selfTest = val(); break;
+      case "--drop": opts.drop = true; break;
       case "--witness": opts.witness = val(); break;
       case "--quiet": opts.quiet = true; break;
       case "--list": opts.list = true; break;
@@ -90,6 +92,8 @@ const HELP = `differential/run.mjs - differential fuzzing between the TypeScript
   --self-test S[:D]    negative control: tell decider D (default typescript,
                        or witness) to answer surface S wrongly, and pass only
                        if that is caught
+  --drop               make --self-test withhold the answer instead of
+                       inverting it, so the missing-response path is exercised
   --witness DIR        add the INK witness as a third decider, from a checkout
                        at DIR (or set INK_WITNESS_DIR)
   --quiet              summary only
@@ -255,7 +259,9 @@ function runDecider(cmd, args, cases, env = {}, cwd = repo) {
 const tsxBin = join(repo, "node_modules", ".bin", "tsx");
 
 /** Set by --self-test: the surface one decider is told to answer wrongly, and
- * which decider that is, so the comparison has something to catch. */
+ * which decider that is, so the comparison has something to catch. The fault
+ * is either a wrong answer or no answer at all, because those travel through
+ * different comparison paths and only one of them was ever exercised. */
 let mutant = null;
 
 /** The reference every other decider is compared against. */
@@ -327,7 +333,10 @@ async function decideAll(cases) {
       if (mine.length === 0) return [d.id, new Map()];
       // The injected fault goes to one decider. Sending it to all of them would
       // flip both sides of the pair and prove nothing.
-      const env = mutant !== null && mutant.decider === d.id ? { INK_DIFF_MUTANT: mutant.surface } : {};
+      const env =
+        mutant !== null && mutant.decider === d.id
+          ? { INK_DIFF_MUTANT: mutant.surface, ...(mutant.kind === "drop" ? { INK_DIFF_MUTANT_KIND: "drop" } : {}) }
+          : {};
       return [d.id, await d.run(mine, env)];
     }),
   );
@@ -381,20 +390,24 @@ function compareAll(decisions, caseId, surface) {
   const out = [];
   for (const d of deciders) {
     if (d.id === REFERENCE) continue;
-    // A null surface means "whoever answered this case", which is what the
-    // single-pair lookup needs: the decider set for the case is already fixed
-    // by the batch it was decided in.
-    if (surface !== null && d.surfaces !== null && !d.surfaces.has(surface)) continue;
-    if (surface === null && !decisions.get(d.id)?.has(caseId)) continue;
+    if (d.surfaces !== null && !d.surfaces.has(surface)) continue;
     const diff = comparePair(reference, decisions.get(d.id)?.get(caseId), d.id);
     if (diff) out.push({ ...diff, against: d.id });
   }
   return out;
 }
 
-/** The disagreement between the reference and one named decider, or null. */
+/** The disagreement between the reference and one named decider, or null. The
+ * caller has already established that this decider answers the surface, so a
+ * decider with no record here has failed to answer something it was asked,
+ * which is a `missing` divergence and not a case it sat out. */
 function compareOne(decisions, caseId, against) {
-  return compareAll(decisions, caseId, null).find((d) => d.against === against) ?? null;
+  const diff = comparePair(
+    decisions.get(REFERENCE)?.get(caseId),
+    decisions.get(against)?.get(caseId),
+    against,
+  );
+  return diff ? { ...diff, against } : null;
 }
 
 // ── minimization ──
@@ -497,7 +510,7 @@ async function main() {
     if (!MUTABLE_DECIDERS.has(decider)) {
       throw new Error(`cannot inject a fault into ${decider}; try ${[...MUTABLE_DECIDERS].join(" or ")}`);
     }
-    mutant = { surface, decider };
+    mutant = { surface, decider, kind: opts.drop ? "drop" : "invert" };
     opts.selfTest = surface;
     opts.surfaces = [surface];
   }

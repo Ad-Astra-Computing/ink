@@ -96,6 +96,7 @@ jobs:
         run: |
           nix develop --command node differential/run.mjs --self-test private-hostname --cases 200
           nix develop --command node differential/run.mjs --self-test signature-base --cases 200
+          nix develop --command node differential/run.mjs --self-test signature-base --drop --cases 200
 
       - name: pull request budget
         if: github.event_name == 'pull_request'
@@ -174,7 +175,9 @@ jobs:
       # witness rather than the reference: what has to be proved is that a
       # witness disagreement is reported as one, against the witness.
       - name: self-test
-        run: nix develop --command node differential/run.mjs --self-test merkle-checkpoint:witness --cases 200 --witness witness
+        run: |
+          nix develop --command node differential/run.mjs --self-test merkle-checkpoint:witness --cases 200 --witness witness
+          nix develop --command node differential/run.mjs --self-test merkle-checkpoint:witness --drop --cases 200 --witness witness
 
       - name: three-way budget
         env:
