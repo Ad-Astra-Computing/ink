@@ -340,6 +340,16 @@ is minimizing.
 
 In practice this takes a 2 KB generated body down to `1e309`.
 
+The shrinker searches, and it matches on the divergence kind rather than the
+exact detail, so the smallest input it saw diverge is not always one that still
+does. Nothing is written until the case about to be written has been decided
+again and seen to diverge the same way against the same decider. When the
+minimized case does not survive that, the case it was shrunk from is re-decided
+and the artifact carries that instead; when neither survives, the run counts it
+as unstable and writes nothing. A finding whose artifact disagrees with its own
+claim sends a reader chasing a divergence that is not there, which is worse than
+no finding at all.
+
 ## Budget
 
 | Flag | Default | What it does |
@@ -485,6 +495,7 @@ differential/
   run.mjs              the runner: generate, compare, minimize, report
   promote.mjs          turn a finding into a conformance case block
   lib/compare.mjs      what counts as a divergence, and its tests
+  lib/record.mjs       the re-decision a finding has to survive, and its tests
   lib/rng.mjs          seeded PRNG and seed derivation
   lib/mutators.mjs     edge-value banks and structure-aware mutators
   lib/shrink.mjs       the three shrinkers
