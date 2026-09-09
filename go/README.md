@@ -216,6 +216,13 @@ of the repository root:
 nix flake check
 ```
 
+### License files
+
+`LICENSE-MIT` and `LICENSE-APACHE` are duplicated here from the repository root
+because a Go module zip contains only the module directory. Without them the
+module proxy sees no license and pkg.go.dev suppresses the documentation. CI
+fails if the copies drift from the root.
+
 ## Running the conformance suite
 
 ```sh

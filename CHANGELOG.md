@@ -12,7 +12,10 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   builds the CLI, the verify server and the witness server against a pinned Go
   toolchain with nothing installed first. Its version is read from the CLI
   source rather than transcribed, and CI gates the flake and the three builds.
-
+- The Go module carries its own copies of the two license files. A module zip
+  holds only the module directory, so the copies at the repository root never
+  reached the proxy and pkg.go.dev refused to render the documentation. CI
+  holds each copy byte-identical to the root.
 - Inclusion-receipt reject vectors name the check that must refuse them, and
   both runners assert it. Every one of the 33 asserted a verdict and nothing
   else, so a verifier that refused for an unrelated reason satisfied them. Go
