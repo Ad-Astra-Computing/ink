@@ -8,6 +8,11 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- The Go module has a flake, so `nix run 'github:Ad-Astra-Computing/ink?dir=go'`
+  builds the CLI, the verify server and the witness server against a pinned Go
+  toolchain with nothing installed first. Its version is read from the CLI
+  source rather than transcribed, and CI gates the flake and the three builds.
+
 - Inclusion-receipt reject vectors name the check that must refuse them, and
   both runners assert it. Every one of the 33 asserted a verdict and nothing
   else, so a verifier that refused for an unrelated reason satisfied them. Go

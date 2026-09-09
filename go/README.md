@@ -193,6 +193,29 @@ back to a prerelease when the module has no unsuffixed version at all.
 go get github.com/Ad-Astra-Computing/ink/go@v0.19.0
 ```
 
+### With Nix
+
+`go/flake.nix` builds the module and its three binaries against a pinned Go
+toolchain, so nothing has to be installed first.
+
+```sh
+nix run 'github:Ad-Astra-Computing/ink?dir=go' -- version
+nix build 'github:Ad-Astra-Computing/ink?dir=go#verify-server'
+nix develop 'github:Ad-Astra-Computing/ink?dir=go'
+```
+
+The available packages are `default` (the `ink` binary), `verify-server` and
+`witness-server`. The version comes from the `Version` constant in
+`internal/cli/cli.go` rather than a second copy in the flake.
+
+The test suite is a check on the repository's root flake, not this one, because
+the conformance vectors live above the module directory. Run it from a checkout
+of the repository root:
+
+```sh
+nix flake check
+```
+
 ## Running the conformance suite
 
 ```sh
