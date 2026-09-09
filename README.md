@@ -6,8 +6,6 @@ An open protocol for AI agents that need to send each other typed, signed messag
 
 **Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.19.0`[^ck] and `next` is `0.19.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
 
-`ink/0.2` is a version of the intent-envelope body-signature domain and nothing else. It is a backward-compatible minor over `ink/0.1`, changing only that domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. It is the recommended `protocol` value for new intent envelopes. The Agent Card, handshake, discovery query, authorization challenge/grant/chain, receipt and audit objects have no `ink/0.2` form and MUST carry `protocol: "ink/0.1"`; stamping `ink/0.2` on any of them is rejected. `ink/0.1` remains fully supported for intents too: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
-
 | | |
 |---|---|
 | Spec | [`specs/`](specs/) |
@@ -22,6 +20,8 @@ An open protocol for AI agents that need to send each other typed, signed messag
 
 - [What's in the envelope](#whats-in-the-envelope)
 - [Install](#install)
+- [What the library gives you](#what-the-library-gives-you)
+- [Two implementations, one wire](#two-implementations-one-wire)
 - [Agent-assisted implementation](#agent-assisted-implementation)
 - [Tests](#tests)
 - [Layout](#layout)
@@ -34,13 +34,17 @@ An open protocol for AI agents that need to send each other typed, signed messag
 
 ## What's in the envelope
 
-Every INK message is an Ed25519-signed envelope over a [JCS](https://datatracker.ietf.org/doc/html/rfc8785) (RFC 8785) canonical serialization. The signature base binds the protocol version, HTTP method, request path, recipient DID, body, and timestamp. Replay protection uses a per-sender nonce plus a timestamp freshness window of 5 minutes past and 30 seconds future.
+Every INK message is an Ed25519-signed envelope over a [JCS](https://datatracker.ietf.org/doc/html/rfc8785) (RFC 8785) canonical serialization. The signature base binds the protocol version, HTTP method, request path, recipient identifier (the `recipientDid` field, whose value is an agentId and need not be a DID), body and timestamp. Replay protection uses a per-sender nonce plus a timestamp freshness window of 5 minutes past and 30 seconds future.
 
 Message types cover intents, challenges, resolutions, receipts, audit events, encrypted payloads, and authenticated agent-card queries. Handshake messages carry a correlation ID; audit and receipt messages do not. Key rotation is governed by an authority rule documented in [`docs/key-rotation-rule.md`](docs/key-rotation-rule.md): the Agent Card's published key set is canonical, revoked keys never verify, and a stale bootstrap key cannot bypass rotation.
 
-A foreign sender's first envelope to an unestablished recipient is a `connection_request` — the bootstrap intent for first contact. Receivers that opt in to foreign senders verify the body signature against the inline key extracted from the sender's DID (trust-on-first-use) and SHOULD reject any other intent type from a sender they have no prior relationship with; richer intent types (`intro_request`, `ask`, `follow_up`, `schedule_meeting`) presume the sender is already a known contact. See the [Accepting Foreign Senders guide](https://ink.tulpa.network/guides/accepting-foreign-senders/) for the receive-side rules and [`examples/foreign-sender-receiver/`](examples/foreign-sender-receiver/) for a reference implementation.
+A foreign sender's first envelope to an unestablished recipient is a `connection_request`, the bootstrap intent for first contact. Receivers that opt in to foreign senders verify the body signature against the key the sender's own identifier carries, or the key its DID document publishes (trust-on-first-use) and SHOULD reject any other intent type from a sender they have no prior relationship with; richer intent types (`intro_request`, `ask`, `follow_up`, `schedule_meeting`) presume the sender is already a known contact. See the [Accepting Foreign Senders guide](https://ink.tulpa.network/guides/accepting-foreign-senders/) for the receive-side rules and [`examples/foreign-sender-receiver/`](examples/foreign-sender-receiver/) for a reference implementation.
 
 INK's default identity is key-derived and self-certifying: a `tulpa:` or `ink:` agentId whose multibase tail IS the agent's genesis Ed25519 key, so the identifier carries its own signing authority with no directory, registry or issuer behind it. A `did:web` identity whose DID document roots the key is equally supported, and any other system that publishes an Ed25519 signing key under a stable identifier can participate. Binding an agent to a human owner is a separate, optional layer: [AT Protocol](https://atproto.com) is one pipeline for it and never what makes a signature valid. See [`specs/ink-identity-model.md`](specs/ink-identity-model.md) and the ruling in [`governance/decisions/0001-key-derived-principals-are-the-identity-root.md`](governance/decisions/0001-key-derived-principals-are-the-identity-root.md).
+
+### Wire versions
+
+`ink/0.2` is a version of the intent-envelope body-signature domain and nothing else. It is a backward-compatible minor over `ink/0.1`, changing only that domain: the neutral `ink/sign` in place of the legacy `tulpa/sign`, selected from the signed `protocol` field. It is the recommended `protocol` value for new intent envelopes. The Agent Card, handshake, discovery query, authorization challenge/grant/chain, receipt and audit objects have no `ink/0.2` form and MUST carry `protocol: "ink/0.1"`; stamping `ink/0.2` on any of them is rejected. `ink/0.1` remains fully supported for intents too: both are major version 0, and conformant major-0 receivers accept either. There is no plan to drop `ink/0.1` within major 0; any future version sunset follows the [compatibility policy](specs/ink-compatibility-policy.md).
 
 ## Install
 
@@ -48,9 +52,7 @@ INK's default identity is key-derived and self-certifying: a `tulpa:` or `ink:` 
 npm install @adastracomputing/ink
 ```
 
-The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly — no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
-
-From 0.1.3 onward, receivers can also import `validateMessage` (canonical envelope + payload-schema parse, throws on drift) and `decodeEncryptionKeyMultibase` (X25519 multibase → 32 bytes, the companion to `decodePublicKeyMultibase` for Ed25519). These let an implementer drop the inline schema guard and key-decode helpers the previous guides asked them to write. `MessageEnvelope` (type) and `MessageEnvelopeSchema` (Zod constant) are also re-exported for adopters who want to type their parser surface against the canonical schema.
+The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly, with no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
 
 ```ts
 import {
@@ -92,49 +94,102 @@ const signature = await signInkMessage(input, keypair.privateKey);
 const ok = await verifyInkSignature(input, signature, keypair.publicKey);
 ```
 
-For inbound request verification, `verifyInkAuth` parses the `Authorization: INK-Ed25519 <sig>` header, checks freshness, and verifies against the sender's key set. It rejects retired keys for live auth by default (`retired_key_for_live_auth`); pass `requireActiveKey: false` to allow a rotation grace window where a recently-retired key still authenticates live traffic. It requires a `nonceStore` option so the 5-minute freshness window does not silently accept replays; pass a `NonceStore` to have the middleware enforce single-use, or `"deferred"` to acknowledge that the caller will run `checkReplay` (or equivalent) elsewhere in the request pipeline. A distributed `NonceStore` SHOULD implement the optional atomic `addIfAbsent` so two concurrent replays cannot both pass the check.
+## What the library gives you
 
-For consumers of bilateral audit-exchange responses (`network.tulpa.audit_response`), call both `verifyAuditResponseSignature` (signed response wrapper) and `verifyAuditEventChain` (sequence-by-one and `previousEventHash` continuity, fork detection). The signature gate alone does not prevent a peer from returning a gapped or forked slice.
+The package ships every primitive a sender or a receiver needs, grouped below by
+the job rather than by the release that added it. [`CHANGELOG.md`](CHANGELOG.md)
+holds the version history, and [`npm run check:surface`](scripts/check-public-surface.ts)
+gates the exported surface against drift.
 
-For consumers of witness audit-query responses (`network.tulpa.audit_query_response`, Auditability §7.3, added in `0.1.0-alpha.3`), call `verifyAuditQueryResponse({response, witnessPublicKey, expectedRequester, expectedMessageId, verifyEventSignature, expectedServiceDid?, laterCheckpoint?})`. The `verifyEventSignature` callback is REQUIRED: it resolves the submitting agent's Ed25519 keys (typically via Agent Card §2) and validates each event's `agentSignature`. Without it, the verifier refuses to return valid, because Merkle inclusion alone does not prove a real agent produced the event (§7.5). The verifier enforces envelope shape, the `requester` binding (prevents cross-requester replay), events/proofs strict one-to-one alignment, the §7.4 per-event scope rule, walks every Merkle proof via `computeAuditMerkleLeafHash` up to the response's `rootHash`, runs `verifyEventSignature` on every event and supports an optional later-checkpoint cross-check. The lower-level `verifyAuditQueryResponseSignature` is signature-only and is not sufficient to accept a witness response on its own.
+**Signing and verifying a message.** `signInkMessage` and `verifyInkSignature`
+implement the §3.3 signature base. `verifyInkAuth` is the inbound side: it parses
+the `Authorization: INK-Ed25519 <sig>` header, checks freshness and verifies
+against the sender's key set. It rejects retired keys for live auth by default
+(`retired_key_for_live_auth`); pass `requireActiveKey: false` for a rotation
+grace window. It requires a `nonceStore` option so the 5-minute freshness window
+cannot silently accept replays: pass a `NonceStore` to have the middleware
+enforce single use, or `"deferred"` to declare that the caller runs `checkReplay`
+elsewhere in the pipeline. A distributed `NonceStore` SHOULD implement the
+optional atomic `addIfAbsent` so two concurrent replays cannot both pass.
 
-Verification helpers added in `0.4.0`:
+`validateMessage` parses a canonical envelope and its payload schema, throwing on
+drift. `parseSignedBodyBytes` is its counterpart for raw bytes: it decodes with a
+fatal UTF-8 decoder, then rejects a lone surrogate escape and a number literal
+outside the IEEE-754 double range before JSON parse, throwing
+`ParseSignedBodyError` with a `reason` naming the gate. A receiver holding raw
+body bytes should use it rather than a lenient string decode, because a lenient
+decode substitutes U+FFFD and would verify a signature over bytes the signer
+never signed.
 
-- `verifyCheckpoint(signed, witnessPublicKey, expectedOrigin)` verifies a signed C2SP checkpoint's witness Ed25519 signature and binds its log origin, returning the parsed `{origin, treeSize, rootHash}` or `null`. Any checkpoint passed to `verifyInclusionReceipt`'s `laterCheckpoint` cross-check must be verified this way first; an unverified checkpoint body is attacker-controllable and provides no anti-rollback value.
-- `verifyReceipt({receipt, senderPublicKey, expected})` verifies a delivery receipt against the message it acknowledges: the issuer's signature plus `from`/`to`/`messageId`, the recomputed message hash, and an optional `disposition`. It returns `{valid, reason?}`.
-- `verifyInclusionReceipt` accepts an `event` option that recomputes the leaf hash and binds `event.id` to `receipt.eventId`, so the proof attests the named event's inclusion. Prefer it over the legacy unbound `eventHash`.
-- `verifyInkAuth` returns a prefix-independent `principal` alongside the raw `senderAgentId`. Per-sender security state (block lists, rate limits) MUST key on `principal`, because the `tulpa:` and `ink:` spellings of one key are the same actor; `canonicalAgentPrincipal(agentId)` exposes the same mapping.
+**Identity and keys.** `deriveAgentId` derives a key-derived agentId from a
+public key, and `extractPublicKeyFromAgentId` reverses it. `verifyInkAuth`
+returns a prefix-independent `principal` alongside the raw `senderAgentId`;
+per-sender security state (block lists, rate limits, cached keys) MUST key on
+`principal`, because the `tulpa:` and `ink:` spellings of one key are the same
+actor. `canonicalAgentPrincipal(agentId)` exposes the same mapping.
+`decodePublicKeyMultibase` and `decodeEncryptionKeyMultibase` decode the Ed25519
+and X25519 halves of an Agent Card's key set; a signing entry must carry the
+Ed25519 multicodec and an encryption entry the X25519 one, and a card whose key
+does not fit its role is rejected.
 
-Added in `0.5.0`:
+`verifyAgentCardSignature(card, agentId, options)` verifies an Agent Card's
+OPTIONAL `cardSignature` and roots it by principal kind: the embedded genesis key
+for a key-derived id, the DID document for a `did:web` id. It walks a
+`rotationChain` when present and applies the ratchet and continuity rules.
+`signAgentCard` and `signRotationLink` are the producer-side signers. Producers
+are at Phase B, meaning they MUST sign a card they can root and stay unsigned
+otherwise. Phase C, where a receiver rejects an unsigned card outright, is
+implemented and inert behind the OPTIONAL `enforcePhaseC` flag. See
+[`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md).
+`isInkEndpointUrl` exposes the narrow `https`-only endpoint grammar Agent Card
+endpoint fields validate against.
 
-- `verifyConsistencyProof(first, firstRoot, second, secondRoot, proof)` verifies an RFC 6962 consistency proof that the tree of `first` leaves is an append-only prefix of the tree of `second` leaves, so a witness that forks its history rather than only appending is detected. The witness serves these proofs at `GET /ink/v1/consistency?first=N&second=M`, and the `verify-inclusion` CLI checks one against the current checkpoint when `--origin` is passed.
+**Receipts and audit.** `verifyReceipt({receipt, senderPublicKey, expected})`
+checks a delivery receipt against the message it acknowledges: the issuer's
+signature plus `from`, `to` and `messageId`, the recomputed message hash and an
+optional `disposition`. For witness-backed evidence, `verifyInclusionReceipt`
+takes an `event` option that recomputes the leaf hash and binds `event.id` to
+`receipt.eventId`, so the proof attests the named event rather than a bare hash.
+`verifyInclusionProof` and `verifyConsistencyProof` are the RFC 6962 primitives
+underneath, the second detecting a witness that forks its history rather than
+only appending. `verifyCheckpoint(signed, witnessPublicKey, expectedOrigin)`
+verifies a signed C2SP checkpoint and binds its log origin; any checkpoint passed
+to an anti-rollback cross-check must be verified this way first, since an
+unverified checkpoint body is attacker-controllable.
 
-Added in `0.6.0`:
+For bilateral audit exchanges, call both `verifyAuditResponseSignature` and
+`verifyAuditEventChain`. The signature gate alone does not stop a peer returning
+a gapped or forked slice. For witness audit queries, `verifyAuditQueryResponse`
+is the composite verifier. Its `verifyEventSignature` callback is REQUIRED,
+because Merkle inclusion alone does not prove a real agent produced the event.
+The signature-only `verifyAuditQueryResponseSignature` is not sufficient to
+accept a witness response on its own.
 
-- A second, independent implementation in Go (`go/`) runs a shared conformance vector corpus (`conformance/v1/`) alongside this TypeScript reference, so the wire behavior is pinned by agreement between implementations rather than by one codebase. The corpus covers principal normalization, the signature base, JCS numbers and strings, key rotation, replay and freshness, the timestamp grammar, and the Merkle inclusion, consistency, checkpoint, and audit-leaf-hash rules.
-- `parseInkTimestampMs`, `isInkTimestamp`, and `MAX_TIMESTAMP_LENGTH` expose the strict RFC 3339 timestamp grammar; `containsLoneSurrogateEscape` and `hasUnpairedSurrogate` detect a lone UTF-16 surrogate in a signed string before it is parsed; and `verifyInclusionProof(leafHash, proof, leafIndex, treeSize, rootHash)` is the low-level RFC 6962 inclusion-proof primitive `verifyInclusionReceipt` builds on.
-- Several validation tightenings reject inputs `0.5.0` accepted: non-strict timestamps, present-but-empty key-window fields, lone UTF-16 surrogates in signed strings, and non-safe-integer signed-body numbers. See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+**Strict input grammars.** `parseInkTimestampMs`, `isInkTimestamp` and
+`MAX_TIMESTAMP_LENGTH` expose the RFC 3339 timestamp grammar.
+`containsLoneSurrogateEscape` and `hasUnpairedSurrogate` detect a lone UTF-16
+surrogate in a signed string before it is parsed.
 
-Added in `0.7.0`:
+## Two implementations, one wire
 
-- Conformance vectors extend to the discovery and handshake surface: the Agent Card, the connection request and response payloads, the challenge, rejection, and resolution handshake messages, and the composite audit-query-response verifier are pinned by shared vectors both implementations run. `conformance/v1/manifest.json` indexes the corpus and ships in the package as a resolvable subpath.
-- `isInkEndpointUrl(value)` exposes the Agent Card endpoint URL grammar. Agent Card endpoint fields now validate against this narrow `https`-only grammar rather than a broad URL check, so endpoints with another scheme, a fragment, embedded credentials, or a malformed percent escape are rejected. See [`CHANGELOG.md`](CHANGELOG.md).
+The wire behavior is pinned by agreement between implementations rather than by
+one codebase. An independent Go implementation in [`go/`](go/) signs and verifies
+alongside this TypeScript reference, and both run a shared conformance vector
+corpus in [`conformance/v1/`](conformance/v1/) covering principal normalization,
+the signature base, JCS numbers and strings, key rotation, replay and freshness,
+the timestamp grammar, the Agent Card and handshake surface, the card signature
+rule, and the Merkle inclusion, consistency, checkpoint and audit-leaf-hash
+rules. `conformance/v1/manifest.json` indexes the corpus and ships in the package
+as a resolvable subpath.
 
-Added in `0.12.0`:
-
-- `parseSignedBodyBytes(bytes)` parses a raw signed body from its bytes, decoding with a fatal UTF-8 decoder then rejecting a lone surrogate escape and a number literal outside the IEEE-754 double range before JSON parse, and throws `ParseSignedBodyError` with a `reason` of `"utf8"`, `"surrogate"` or `"number-range"` that names which gate rejected. A receiver holding raw body bytes uses it instead of a lenient string decode, because a lenient decode substitutes U+FFFD for invalid bytes and would verify a signature over bytes the signer never signed. See [`CHANGELOG.md`](CHANGELOG.md).
-
-Added in `0.14.0`:
-
-- Self-authenticating Agent Card. `verifyAgentCardSignature(card, agentId, options)` verifies an OPTIONAL `cardSignature` card proof and roots it by principal kind (the embedded genesis key for a key-derived id, the DID document for a did:web id), walking a `rotationChain` when present and applying the ratchet and continuity rules. `signAgentCard(card, privateKey)` and `signRotationLink(link, privateKey)` are the producer-side signers, and `CardSignatureSchema` / `RotationChainSchema` pin the members. The rule is pinned by the `agent-card-signature` conformance category run by both the TypeScript reference and the Go verifier. See [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md).
-
-Added in `0.15.0`:
-
-- Agent Card producer signing reaches Phase B (producers MUST sign, [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §10). The reference receiver now signs every card it serves, and a producer emits `keySetVersion` and `updatedAt` on every signed card. A producer signs only a card it can root under §4 and stays unsigned otherwise, so it never serves a proof a verifier would reject. There is no wire, schema or conformance change; a receiver validates a card exactly as before. See [`CHANGELOG.md`](CHANGELOG.md).
-
-Staged in `0.16.0`, not yet in effect:
-
-- Agent Card signature Phase C is implemented and inert. `verifyAgentCardSignature` takes an OPTIONAL `enforcePhaseC` boolean, default off, that turns on the Phase C receiver rule: an unsigned card is rejected outright, and a cold did:web verifier fails closed on an unreachable DID document. The Go verifier's `EnforcePhaseC` is the same switch. Leave it unset and the verifier behaves exactly as it did before the option existed. The decisions are pinned by the staged `agent-card-signature-phase-c` conformance category, which both implementations run in a dedicated flag-on job and which is not part of the frozen base profile until Phase C begins. See [`specs/ink-agent-card-signature.md`](specs/ink-agent-card-signature.md) §10.1.
+The corpus is itself checked against constructions written from the spec text.
+[`conformance/v1/independent/`](conformance/v1/independent/) implements each
+signing construction, the RFC 6962 tree rules and the sealed-envelope receive
+side from their normative sections, importing nothing from the implementation. A
+mutation registry proves the check bites: disabling any registered rule turns the
+suite red. A differential fuzzer runs both implementations against each other on
+every pull request and at a larger budget nightly; see
+[`differential/README.md`](differential/README.md).
 
 ## Agent-assisted implementation
 
@@ -163,7 +218,15 @@ src/           library implementation
   middleware/  transport-level INK auth (verifyInkAuth)
   discovery/   Agent Card fetching and candidate-key extraction
   ink/         discovery gating, handshake budget, receipts, checkpointing
+  audit/       hash-chained audit events and Merkle checkpointing
+bin/           the verify-inclusion CLI
+go/            the independent Go implementation
+conformance/   the shared vector corpus both implementations run
+differential/  the differential fuzzer that runs them against each other
+interop-lab/   a containerized sender and receiver for end-to-end runs
+examples/      reference sender, receiver, relying party and a Python CLI
 specs/         protocol spec documents
+governance/    release evidence, decisions, readiness criteria
 docs/          maturity notes, threat model, key rotation rules, brand assets
 test-vectors/  JSON interop vectors
 test/          vitest unit + integration tests
@@ -184,7 +247,7 @@ Subject to change before v1.0:
 
 - Authorization chain framing (delegation and attenuation semantics)
 - Containment vocabulary (capability-gated visibility, sender budgets)
-- Interop conventions with non-AT-Protocol identity systems
+- Interop conventions with identity systems other than key-derived principals and `did:web`
 - Receipt and audit envelope shape for third-party witnesses
 
 ## Naming
@@ -199,7 +262,7 @@ INK is developed by [Ad Astra Computing](https://adastracomputing.com) as the un
 
 ## Interoperability
 
-INK is a wire protocol. Any compatible service that publishes a DID and exposes an `/ink/v1/...` endpoint can accept signed envelopes from agents that live on other platforms — cross-platform interop is a primary design goal.
+INK is a wire protocol, and cross-platform interop is a primary design goal. Any service that publishes an Agent Card at the versioned discovery path and exposes an inbound `/ink/v1/...` endpoint can accept signed envelopes from agents that live on other platforms. No DID method is required: the identifier on the card can be a key-derived `tulpa:` or `ink:` principal that carries its own signing key, a `did:web` identity rooted in a DID document, or any other stable identifier under which an Ed25519 signing key is published. What a receiver needs is a key it can resolve and a signature it can check.
 
 [`tulpa.network`](https://tulpa.network) is one current example of an accepting endpoint. Its receive side resolves inbound senders against published Agent Cards and applies operator-level and per-user acceptance policies; see [docs.tulpa.network/guide/foreign-agents](https://docs.tulpa.network/guide/foreign-agents/) for how a Tulpa user opts in. The protocol is intended to support other accepting endpoints.
 
