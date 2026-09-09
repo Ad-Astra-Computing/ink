@@ -1,8 +1,29 @@
-<img src="docs/logo.svg" alt="INK" width="200">
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo-light.svg">
+    <img src="docs/logo.svg" alt="INK" width="200">
+  </picture>
+</p>
 
-# INK: Inter-agent Networking Kernel
+<h1 align="center">INK: Inter-agent Networking Kernel</h1>
 
-An open protocol for AI agents that need to send each other typed, signed messages on the public web. Built for scheduling, introductions, receipts, and other coordination flows where a user delegates an agent to act on their behalf.
+<p align="center">
+  An open protocol for typed, signed messages between AI agents on the public web.
+</p>
+
+<p align="center">
+  <a href="https://github.com/Ad-Astra-Computing/ink/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/Ad-Astra-Computing/ink/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/Ad-Astra-Computing/ink/actions/workflows/interop-lab.yml"><img alt="Interop lab status" src="https://github.com/Ad-Astra-Computing/ink/actions/workflows/interop-lab.yml/badge.svg?branch=main"></a>
+  <a href="https://www.npmjs.com/package/@adastracomputing/ink"><img alt="npm version" src="https://img.shields.io/npm/v/%40adastracomputing%2Fink?label=npm"></a>
+  <a href="https://pkg.go.dev/github.com/Ad-Astra-Computing/ink/go"><img alt="Go reference" src="https://pkg.go.dev/badge/github.com/Ad-Astra-Computing/ink/go.svg"></a>
+  <a href="#license"><img alt="License: MIT or Apache 2.0" src="https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue"></a>
+</p>
+
+INK carries the messages agents send each other when a person has delegated
+something to them: scheduling, introductions, receipts and the other flows where
+one agent acts on its user's behalf and the receiving side needs to know who
+asked. Every message is a signed envelope with a typed payload, so a receiver can
+check the sender's key and apply its own policy before anything reaches the user.
 
 **Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.19.0`[^ck] and `next` is `0.19.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
 
@@ -11,6 +32,7 @@ An open protocol for AI agents that need to send each other typed, signed messag
 | Spec | [`specs/`](specs/) |
 | Docs | [ink.tulpa.network](https://ink.tulpa.network) |
 | npm | [`@adastracomputing/ink`](https://www.npmjs.com/package/@adastracomputing/ink) |
+| Go module | [`github.com/Ad-Astra-Computing/ink/go`](https://pkg.go.dev/github.com/Ad-Astra-Computing/ink/go) |
 | Contributing | [`CONTRIBUTING.md`](CONTRIBUTING.md) |
 | Security | [`SECURITY.md`](SECURITY.md) |
 | Code of Conduct | [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) |
@@ -29,6 +51,7 @@ An open protocol for AI agents that need to send each other typed, signed messag
 - [Naming](#naming)
 - [Relationship to Tulpa](#relationship-to-tulpa)
 - [Interoperability](#interoperability)
+- [Contributing](#contributing)
 - [Security](#security)
 - [License](#license)
 
@@ -50,6 +73,12 @@ INK's default identity is key-derived and self-certifying: a `tulpa:` or `ink:` 
 
 ```bash
 npm install @adastracomputing/ink
+```
+
+The Go implementation is a separate module, tagged in lockstep with the npm package:
+
+```bash
+go get github.com/Ad-Astra-Computing/ink/go
 ```
 
 The package ships compiled ESM with bundled type definitions (`dist/index.js` + `dist/index.d.ts`). Any project with a standard JS toolchain can import it directly, with no TypeScript build step on the consumer side. The build runs automatically via `prepack` before publish.
@@ -268,6 +297,26 @@ INK is a wire protocol, and cross-platform interop is a primary design goal. Any
 
 If you are implementing INK in production or building an independent implementation, write to [ink@tulpa.network](mailto:ink@tulpa.network). Implementer questions get direct maintainer help, and what you run into feeds the conformance corpus before 1.0 freezes it.
 
+## Contributing
+
+Bug reports, spec feedback and test contributions are welcome. A protocol change
+starts as a discussion and lands with a spec file in [`specs/`](specs/); a bug fix
+or a test can go straight to a pull request. Read
+[`CONTRIBUTING.md`](CONTRIBUTING.md) first: every commit needs a
+`Signed-off-by:` trailer under the
+[Developer Certificate of Origin](governance/DCO.txt), and a pull request has to
+clear the type, lint, surface and fact checks along with the conformance corpus
+and the differential fuzzer before it can merge.
+
+```bash
+npm install
+npm test
+git commit -s -m "Reject empty key window"
+```
+
+Governance, including who decides a wire change, is in
+[`GOVERNANCE.md`](GOVERNANCE.md).
+
 ## Security
 
 See [`SECURITY.md`](SECURITY.md) for the disclosure path. The threat model is in [`docs/threat-model.md`](docs/threat-model.md). **Do not open a public issue for security problems.**
@@ -279,6 +328,6 @@ Dual-licensed under either of:
 - MIT ([`LICENSE-MIT`](LICENSE-MIT))
 - Apache 2.0 ([`LICENSE-APACHE`](LICENSE-APACHE))
 
-at your option. The Apache 2.0 license includes an explicit patent grant; MIT is the simpler text. Pick whichever fits your downstream policy. This covers the code, specs, docs, and test vectors. Contributions are accepted under both licenses.
+at your option. The Apache 2.0 license includes an explicit patent grant; MIT is the simpler text. Pick whichever fits your downstream policy. This covers the code, specs, docs and test vectors. Contributions are accepted under both licenses.
 
 [^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.
