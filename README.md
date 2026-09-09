@@ -330,4 +330,6 @@ Dual-licensed under either of:
 
 at your option. The Apache 2.0 license includes an explicit patent grant; MIT is the simpler text. Pick whichever fits your downstream policy. This covers the code, specs, docs and test vectors. Contributions are accepted under both licenses.
 
+The Go module ships its own copies at [`go/LICENSE-MIT`](go/LICENSE-MIT) and [`go/LICENSE-APACHE`](go/LICENSE-APACHE). A Go module zip contains only the module directory, so without them the proxy sees no license and pkg.go.dev will not render the documentation. CI holds the two pairs byte-identical.
+
 [^ck]: Machine-checked value, recomputed from the repository by `npm run check:facts`. Do not hand-edit it to match a document; change the source of truth and rerun the check.

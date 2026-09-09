@@ -96,6 +96,14 @@ jobs:
         # on the root flake rather than go/flake.nix.
         run: nix build .#checks.x86_64-linux.go-tests --no-link --no-update-lock-file
 
+      - name: Go module carries its own license files
+        # A Go module zip contains only the module directory, so the copies at
+        # the repository root never reach the proxy and pkg.go.dev suppresses
+        # the documentation. These two must stay byte-identical to the root.
+        run: |
+          diff LICENSE-MIT go/LICENSE-MIT
+          diff LICENSE-APACHE go/LICENSE-APACHE
+
       - name: Build nix package
         # Builds the cli derivation, which verifies npmDepsHash against the
         # lockfile. Catches a stale or malformed hash that the devshell-based
