@@ -236,7 +236,7 @@ npm run check:surface   # public-surface drift check
 npm run check:facts     # documented-fact drift check
 ```
 
-For Nix users: `nix develop` gives a pinned Node 24 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`. `nix run github:Ad-Astra-Computing/ink -- verify-inclusion --file receipt.json --witness https://witness.example.com` runs the CLI without installing anything globally.
+For Nix users: `nix develop` gives a pinned Node 24 + git + gitleaks shell. `nix build` produces the publishable npm tarball under `result/`. `nix run github:Ad-Astra-Computing/ink -- verify-inclusion --file receipt.json --witness https://witness.example.com` runs the CLI without installing anything globally. The Go implementation has its own flake in [`go/`](go/README.md#with-nix): `nix run 'github:Ad-Astra-Computing/ink?dir=go' -- version`.
 
 ## Layout
 

@@ -83,11 +83,30 @@ jobs:
         working-directory: examples
         run: nix flake check
 
+      - name: Go module flake check
+        # Gates go/flake.nix, which is what a Go consumer runs. The vendorHash
+        # is verified by the package builds further down, not by this step.
+        # The lock file is pinned, never refreshed here: a check that silently
+        # advanced it would build against nixpkgs nobody reviewed.
+        working-directory: go
+        run: nix flake check --no-update-lock-file
+
+      - name: Go tests through the flake
+        # The conformance vectors live above the Go module, so this check is
+        # on the root flake rather than go/flake.nix.
+        run: nix build .#checks.x86_64-linux.go-tests --no-link --no-update-lock-file
+
       - name: Build nix package
         # Builds the cli derivation, which verifies npmDepsHash against the
         # lockfile. Catches a stale or malformed hash that the devshell-based
         # steps above never exercise.
         run: nix build .#default .#cli --no-link
+
+      - name: Build Go binaries
+        # Realizes the three Go derivations, which is where vendorHash is
+        # verified against go.sum. The flake check above never builds them.
+        working-directory: go
+        run: nix build .#default .#verify-server .#witness-server --no-link
 
       - name: Verify npm package would publish cleanly
         run: nix develop --command npm pack --dry-run

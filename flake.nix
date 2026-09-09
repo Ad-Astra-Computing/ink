@@ -6,6 +6,13 @@
   outputs = {self, nixpkgs, ...}: let
     systems = ["x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin"];
     forAllSystems = nixpkgs.lib.genAttrs systems;
+    # A whole line at a time. An unanchored match over the file would also
+    # match a commented-out declaration, and would prefer the last one.
+    readVersion = file: let
+      lines = builtins.filter builtins.isString (builtins.split "\n" (builtins.readFile file));
+      matched = builtins.filter (m: m != null)
+        (map (line: builtins.match ''const Version = "([0-9][^"]*)"'' line) lines);
+    in builtins.elemAt (builtins.head matched) 0;
   in {
     devShells = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
@@ -97,6 +104,33 @@
           license = with pkgs.lib.licenses; [mit asl20];
           mainProgram = "ink";
         };
+      };
+    });
+
+    checks = forAllSystems (system: let
+      pkgs = nixpkgs.legacyPackages.${system};
+    in {
+      # `go test ./...` over the whole module. It runs here rather than from
+      # go/flake.nix because the conformance tests read vector files from
+      # conformance/v1/vectors, above the Go module's own directory.
+      go-tests = pkgs.buildGoModule {
+        pname = "ink-go-tests";
+        version = readVersion ./go/internal/cli/cli.go;
+        src = builtins.path {
+          path = ./.;
+          name = "ink-source";
+        };
+        modRoot = "go";
+        vendorHash = "sha256-62TRxpLtAh7LyhI+B7/8sBsgpQ+klW43rKhhYtnLCWc=";
+        # Named so a `go.sum` change invalidates the vendor derivation instead
+        # of a warm store handing back the previous dependencies.
+        goSum = ./go/go.sum;
+        buildPhase = ''
+          runHook preBuild
+          go test ./...
+          runHook postBuild
+        '';
+        installPhase = "touch $out";
       };
     });
 
