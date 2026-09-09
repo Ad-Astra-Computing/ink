@@ -87,16 +87,25 @@ jobs:
       - name: Install npm deps
         run: nix develop --command npm ci
 
-      # The negative control, and it runs FIRST. A count of agreeing cases is
-      # only evidence if the comparison can report a disagreement at all, so a
-      # harness that detects nothing must fail before its clean run is allowed
-      # to mean anything. Two surfaces, because the fault is injected per
-      # surface and one passing does not prove the mechanism works elsewhere.
+      # The negative controls, and they run FIRST: a harness that detects
+      # nothing must fail before its clean run means anything. They come from
+      # the checked-out tree, so the release leg runs the release's own. The
+      # fallback goes when the pinned release has the script.
       - name: self-test
+        env:
+          LEG: ${{ matrix.leg }}
         run: |
-          nix develop --command node differential/run.mjs --self-test private-hostname --cases 200
-          nix develop --command node differential/run.mjs --self-test signature-base --cases 200
-          nix develop --command node differential/run.mjs --self-test signature-base --drop --cases 200
+          set -euo pipefail
+          if [ -x differential/self-test.sh ]; then
+            nix develop --command differential/self-test.sh
+          elif [ "$LEG" = release ]; then
+            echo "release tree predates differential/self-test.sh; running the controls it has"
+            nix develop --command node differential/run.mjs --self-test private-hostname --cases 200
+            nix develop --command node differential/run.mjs --self-test signature-base --cases 200
+          else
+            echo "differential/self-test.sh is missing from this tree"
+            exit 1
+          fi
 
       - name: pull request budget
         if: github.event_name == 'pull_request'

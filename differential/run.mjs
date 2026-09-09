@@ -22,6 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { REFERENCE, compareAll, compareOne } from "./lib/compare.mjs";
 import { deriveSeed, rngFromSeed } from "./lib/rng.mjs";
+import { reproduce } from "./lib/record.mjs";
 import { SURFACES, SURFACE_BY_ID } from "./lib/surfaces.mjs";
 import { shrinkCandidates, sizeOf } from "./lib/shrink.mjs";
 
@@ -522,44 +523,28 @@ async function main() {
           findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: diff.detail, path: null, minimized: null });
           continue;
         }
-        let minimizedInput = await minimize(surface, c.input, diff.kind, diff.against, opts);
-        let minCheck = await decideAll([{ caseId: "min", surface: surface.id, input: minimizedInput }]);
-        let minId = "min";
-        // The shrinker matches on the kind, not the exact detail, so a minimized
-        // case can carry a different reason than the case it came from. Record the
-        // detail of what actually landed on disk.
-        // The pair is fixed: a shrink that lands on a different decider is a
-        // different finding, not a smaller version of this one.
-        let minDiff = compareOne(minCheck, "min", diff.against);
-        if (!minDiff || minDiff.kind !== diff.kind) {
-          // The minimized case does not reproduce. Re-decide the case it came
-          // from before recording anything: a finding whose artifact disagrees
-          // with its own claim sends a reader chasing a divergence that is not
-          // there, which is worse than no finding at all.
-          const again = await decideAll([{ caseId: "orig", surface: surface.id, input: c.input }]);
-          const origDiff = compareOne(again, "orig", diff.against);
-          if (!origDiff || origDiff.kind !== diff.kind) {
-            log(`  UNSTABLE ${c.surface} [${diff.kind}] ${diff.detail}`);
-            log(`    neither the minimized case nor the original reproduces; not recorded`);
-            unstable++;
-            continue;
-          }
-          // The minimized case is not a witness for what was observed, so the
-          // artifact carries the case that actually diverges.
-          minimizedInput = c.input;
-          minCheck = again;
-          minId = "orig";
-          minDiff = origDiff;
+        // Nothing below reads the shrunk input directly. What the shrinker
+        // returned is a proposal, and `repro` is the case that survived being
+        // decided again; a log line or an artifact built from the proposal can
+        // name an input that does not diverge.
+        const repro = await reproduce(
+          surface, c.input, await minimize(surface, c.input, diff.kind, diff.against, opts), diff, decideAll,
+        );
+        if (repro === null) {
+          log(`  UNSTABLE ${c.surface} [${diff.kind}] ${diff.detail}`);
+          log(`    neither the minimized case nor the original reproduces; not recorded`);
+          unstable++;
+          continue;
         }
         const path = writeFinding(
-          surface, c, minDiff, minimizedInput, decisions,
-          { decisions: minCheck, caseId: minId }, opts.seed,
+          surface, c, repro.diff, repro.input, decisions,
+          { decisions: repro.decisions, caseId: repro.caseId }, opts.seed,
         );
-        findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: minDiff.detail, path, minimized: minimizedInput });
+        findings.push({ surface: c.surface, against: diff.against, kind: diff.kind, detail: repro.diff.detail, path, minimized: repro.input });
         if (!seenFindings.has(key)) {
           seenFindings.add(key);
           log(`  DIVERGENCE ${c.surface} [${diff.against}/${diff.kind}] ${diff.detail}`);
-          log(`    minimized: ${JSON.stringify(minimizedInput).slice(0, 400)}`);
+          log(`    minimized: ${JSON.stringify(repro.input).slice(0, 400)}`);
           log(`    written to ${path}`);
         }
       }
