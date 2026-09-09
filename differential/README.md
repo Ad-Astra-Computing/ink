@@ -8,6 +8,13 @@ asserts that they reach the same decision.
 node differential/run.mjs --cases 20000
 ```
 
+The INK witness is a third implementation of the byte-level rules, in its own
+repository, and joins for the surfaces it decides when it is pointed at:
+
+```sh
+node differential/run.mjs --cases 20000 --witness ../witness
+```
+
 Exit 0 means every case agreed. Exit 1 means at least one did not, and the
 minimized case is written to `differential/findings/`.
 
@@ -24,12 +31,23 @@ two reach different decisions is either a bug in one of them or a place where
 the spec does not actually decide, and both of those are things a 1.0 needs to
 have found on purpose rather than in production.
 
+A third makes the tie breakable. Two implementations that disagree say only that
+one of them is wrong; the argument about which usually gets settled by reading
+the spec, which is the same reading that produced the disagreement. A third
+independent answer is evidence rather than argument. The witness qualifies
+because it re-implements these rules instead of importing them: it is the
+implementation that already drifted a protocol revision behind on the number
+profile without noticing, which is the strongest thing that can be said for
+including it.
+
 ## What it proves, and what it does not
 
-It proves: across the surfaces listed below, for the cases actually run, the two
-implementations make the same accept-or-reject decision, and where the decision
-carries a value (a canonical principal, an epoch, canonical bytes, a parsed
-signature) they produce the same value.
+It proves: across the surfaces listed below, for the cases actually run, every
+participating implementation makes the same accept-or-reject decision as the
+reference, and where the decision carries a value (a canonical principal, an
+epoch, canonical bytes, a parsed signature) they produce the same value. The
+witness participates only on the surfaces it decides, so a clean run says
+nothing about the ones it sits out.
 
 It does not prove: that either implementation is correct. Two implementations
 can agree and both be wrong against the spec; that is what the conformance
@@ -42,10 +60,23 @@ disagreement at all, so that is a first-class check:
 
 ```sh
 node differential/run.mjs --self-test private-hostname --cases 100
+node differential/run.mjs --self-test merkle-checkpoint:witness --cases 100 --witness ../witness
+node differential/run.mjs --self-test merkle-checkpoint:witness --drop --cases 100 --witness ../witness
 ```
 
-This tells the TypeScript decider to invert its answer on one surface and passes
-only if the comparison catches it. Run it in the same job that runs the fuzzer.
+This tells one decider to invert its answer on one surface and passes only if
+the comparison catches it, and names the decider the fault was injected into, so
+a run cannot pass by catching a different pair. Each divergence it counts is
+decided again with the fault switched off, and only the ones that then agree
+count: a surface that already diverges on its own would otherwise let the
+control pass while nothing was injected at all. Run it in the same job that runs
+the fuzzer. The Go decider has no fault injection and a self-test against it is
+refused rather than passing on a fault that was never injected.
+
+`--drop` makes the fault a withheld answer rather than a wrong one. A decider
+that says nothing about a case it was asked is a divergence too, and it travels
+a different path through the comparison than a wrong answer does, so it gets its
+own control.
 
 ## Surfaces
 
@@ -145,6 +176,10 @@ rather than a new bridge.
 - `deciders/go/main.go` imports `github.com/Ad-Astra-Computing/ink/go/ink`, the
   package an adopter imports. It is a nested Go module with a `replace` back to
   `go/`, so it builds without touching the released module.
+- `scripts/decide.mts` in the witness repository answers for the witness. It is
+  asked which surfaces it decides rather than told, because a list of them kept
+  here would be a transcription of another repository's behavior and would go
+  stale the first time that repository learned a new one.
 
 Batching rather than a subprocess per case is what makes a large budget
 tractable: process startup dominates the cost of every decision on this list. A
@@ -154,6 +189,14 @@ The runner compares, in order: an unhandled crash on either side; the
 accept-or-reject result; then every value field either side emitted
 (`canonicalPrincipal`, `canonicalString`, `epochMs`, `signature`, `keyId`); then
 the typed reason code, but only when both sides emitted one.
+
+Every decider is compared against the TypeScript reference pair by pair, and
+every diverging pair on a case becomes its own finding. Stopping at the first
+one would let a Go disagreement mask a witness disagreement on the same input,
+so the witness could go a whole run without ever producing a finding. A finding
+names the pair it came from and records what every decider answered, because
+the question after "which two disagree" is immediately "and what did the third
+one say".
 
 ### Two things the bridge deliberately does
 
@@ -311,6 +354,7 @@ In practice this takes a 2 KB generated body down to `1e309`.
 | `--shrink-candidates N` | 400 | candidates per pass |
 | `--minimize-per-shape N` | 25 | stop minimizing a `(surface, kind)` shape after N witnesses |
 | `--self-test SURFACE` | off | negative control: inject a fault and require it to be caught |
+| `--drop` | off | make `--self-test` withhold the answer rather than invert it |
 
 Minimization, not comparison, is the expensive step, so a systematic divergence
 would otherwise dominate a large run while teaching nothing after the first few
@@ -440,6 +484,7 @@ fixed, which is the opposite of what a vector is for.
 differential/
   run.mjs              the runner: generate, compare, minimize, report
   promote.mjs          turn a finding into a conformance case block
+  lib/compare.mjs      what counts as a divergence, and its tests
   lib/rng.mjs          seeded PRNG and seed derivation
   lib/mutators.mjs     edge-value banks and structure-aware mutators
   lib/shrink.mjs       the three shrinkers

@@ -46,10 +46,16 @@ const block = {
   expect: expect ? { result: expect } : { result: "TODO accept|reject" },
 };
 
+// Every decider that answered is printed, not only the diverging pair: deciding
+// which side is right is the judgement this tool cannot make for you, and a
+// third answer is the fastest evidence available for it.
+const answers = Object.entries(finding.decisions.minimized)
+  .map(([id, decision]) => `# ${(id + ":").padEnd(12)}${JSON.stringify(decision)}`)
+  .join("\n");
+
 process.stdout.write(`# ${path}
-# surface ${finding.surface}, kind ${finding.kind}
-# typescript: ${JSON.stringify(finding.decisions.minimized.typescript)}
-# go:         ${JSON.stringify(finding.decisions.minimized.go)}
+# surface ${finding.surface}, kind ${finding.kind}${finding.against ? `, reference vs ${finding.against}` : ""}
+${answers}
 
 Case block for the ${category} category:
 

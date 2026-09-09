@@ -209,7 +209,10 @@ async function decide(surface: string, input: Record<string, unknown>): Promise<
 // exists so `run.mjs --self-test` can prove the comparison actually reports a
 // disagreement: a differential harness that has never seen one is
 // indistinguishable from a broken one. It is off unless the variable is set.
+// INK_DIFF_MUTANT_KIND=drop withholds the answer instead of inverting it, so
+// the harness can also prove it notices a decider that says nothing.
 const MUTANT = process.env.INK_DIFF_MUTANT ?? "";
+const MUTANT_DROPS = process.env.INK_DIFF_MUTANT_KIND === "drop";
 
 const rl = createInterface({ input: process.stdin, crlfDelay: Infinity });
 const out: string[] = [];
@@ -225,6 +228,7 @@ for await (const line of rl) {
     decision = { result: "reject", reason: `__harness_error:${(err as Error).message}` };
   }
   if (MUTANT !== "" && c.surface === MUTANT) {
+    if (MUTANT_DROPS) continue;
     decision = { ...decision, result: decision.result === "accept" ? "reject" : "accept" };
   }
   out.push(JSON.stringify({ caseId: c.caseId, ...decision }));
