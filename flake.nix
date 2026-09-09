@@ -48,7 +48,7 @@
         pname = "ink";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-J9B3fqC/at9KaDm6EClyVu3EpKlRQOaXCZIhNJvZAO8=";
+        npmDepsHash = "sha256-7Q61Ta1+uZs0FGDMli0n8BbZiWoCqIikFZavchacv/4=";
         nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
@@ -73,7 +73,7 @@
         pname = "ink-cli";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-J9B3fqC/at9KaDm6EClyVu3EpKlRQOaXCZIhNJvZAO8=";
+        npmDepsHash = "sha256-7Q61Ta1+uZs0FGDMli0n8BbZiWoCqIikFZavchacv/4=";
         nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
