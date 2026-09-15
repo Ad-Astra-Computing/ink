@@ -30,6 +30,11 @@ const common = {
   packages: "bundle",
   alias: {
     "@adastracomputing/ink": join(repoRoot, "src", "index.ts"),
+    // The bare specifier aliases to a single source FILE, so subpath imports
+    // do not resolve through it and have to be mapped on their own. The
+    // receiver reads the library version from the package manifest; in the lab
+    // it is built from this tree, so the tree's manifest is the right answer.
+    "@adastracomputing/ink/package.json": join(repoRoot, "package.json"),
   },
   logLevel: "info",
 };

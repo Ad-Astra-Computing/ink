@@ -7,6 +7,7 @@
  *   GET  /.well-known/ink/agent.json         → agent card (alias, identical bytes)
  *   POST /ink/v1/inbound                     → envelope handler
  *   GET  /                                   → minimal HTML landing page
+ *   GET  /_build                             → library + deployment versions
  *
  * `/ink/v1/:agentId/agent.json` is the path the reference library's
  * `fetchAgentCard` builds, so a consumer that only knows the DID and the
@@ -36,8 +37,9 @@ import { processInbound, readBoundedBody } from "./inbound.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { recordAudit } from "./audit-log.js";
 import { InMemoryNonceStore } from "./nonce-store.js";
+import { buildInfo, buildInfoHeader, BUILD_INFO_HEADER, type BuildInfoEnv } from "./build-info.js";
 
-export interface Env extends ReceiverEnv {
+export interface Env extends ReceiverEnv, BuildInfoEnv {
   INK_RECEIVER: KVNamespace;
 }
 
@@ -247,49 +249,71 @@ function faviconResponse(): Response {
 }
 
 export default {
+  /**
+   * Every response leaves here carrying the build that produced it. Stamping
+   * it in one place is what makes the claim true: a per-route header is a
+   * promise that each new route remembers, and the route most worth stamping
+   * is the misconfiguration 500 that returns before any route matches.
+   */
   async fetch(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    let id: PreparedIdentity;
-    try {
-      id = await identityOnce(env);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "unknown";
-      return jsonResponse({ error: "receiver_misconfigured", detail: msg }, { status: 500 });
-    }
-    const url = new URL(req.url);
-    const path = url.pathname;
-    const method = req.method;
-    if (method === "GET" && path === "/.well-known/did.json") {
-      return jsonResponse(buildDidDocument({ did: id.did, host: id.host, identity: id.identity }));
-    }
-    if (method === "GET" && path === "/.well-known/ink/agent.json") {
-      return cardRoute(id);
-    }
-    // Versioned discovery path. The agentId segment is percent-encoded by the
-    // client (a DID carries colons), so decode before comparing. A card is
-    // served only for THIS receiver's own agentId: any other id is a 404, not
-    // a card for someone else.
-    if (method === "GET") {
-      const versioned = matchVersionedCardPath(path);
-      if (versioned !== null) {
-        if (versioned !== id.did) return jsonResponse({ error: "not_found" }, { status: 404 });
-        return cardRoute(id);
-      }
-    }
-    if (method === "POST" && path === "/ink/v1/inbound") {
-      return handleInbound(req, env, ctx, id);
-    }
-    if (method === "GET" && path === "/") {
-      return landingResponse(landingHtml(id.did, id.host));
-    }
-    if (method === "GET" && (path === "/favicon.svg" || path === "/favicon.ico")) {
-      return faviconResponse();
-    }
-    if (method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: { ...BASE_SECURITY_HEADERS } });
-    }
-    return jsonResponse({ error: "not_found" }, { status: 404 });
+    const res = await route(req, env, ctx);
+    // Responses built from a cache or another response can be immutable, so
+    // rebuild rather than mutate headers in place.
+    const stamped = new Response(res.body, res);
+    stamped.headers.set(BUILD_INFO_HEADER, buildInfoHeader(env));
+    return stamped;
   },
 };
+
+async function route(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  let id: PreparedIdentity;
+  try {
+    id = await identityOnce(env);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown";
+    return jsonResponse({ error: "receiver_misconfigured", detail: msg }, { status: 500 });
+  }
+  const url = new URL(req.url);
+  const path = url.pathname;
+  const method = req.method;
+  if (method === "GET" && path === "/.well-known/did.json") {
+    return jsonResponse(buildDidDocument({ did: id.did, host: id.host, identity: id.identity }));
+  }
+  if (method === "GET" && path === "/.well-known/ink/agent.json") {
+    return cardRoute(id);
+  }
+  // Versioned discovery path. The agentId segment is percent-encoded by the
+  // client (a DID carries colons), so decode before comparing. A card is
+  // served only for THIS receiver's own agentId: any other id is a 404, not
+  // a card for someone else.
+  if (method === "GET") {
+    const versioned = matchVersionedCardPath(path);
+    if (versioned !== null) {
+      if (versioned !== id.did) return jsonResponse({ error: "not_found" }, { status: 404 });
+      return cardRoute(id);
+    }
+  }
+  if (method === "POST" && path === "/ink/v1/inbound") {
+    return handleInbound(req, env, ctx, id);
+  }
+  // Which library build is serving, for anyone holding a confusing result
+  // from this receiver. Kept outside `/.well-known/`: that prefix is an IANA
+  // registry (RFC 8615), and this is one deployment's operational detail
+  // rather than a protocol discovery surface.
+  if (method === "GET" && path === "/_build") {
+    return jsonResponse(buildInfo(env));
+  }
+  if (method === "GET" && path === "/") {
+    return landingResponse(landingHtml(id.did, id.host));
+  }
+  if (method === "GET" && (path === "/favicon.svg" || path === "/favicon.ico")) {
+    return faviconResponse();
+  }
+  if (method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { ...BASE_SECURITY_HEADERS } });
+  }
+  return jsonResponse({ error: "not_found" }, { status: 404 });
+}
 
 async function handleInbound(
   req: Request,

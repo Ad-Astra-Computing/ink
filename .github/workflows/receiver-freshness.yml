@@ -1,0 +1,57 @@
+name: receiver-freshness
+
+# Is the live INK test receiver running the library everyone else installs?
+#
+# ink-echo.tulpa.network is the public test target, built only on the published
+# @adastracomputing/ink package and deployed by hand. Nothing else here can
+# tell a current deployment from one running a release behind, and staleness is
+# not a visible failure: the published-artifact e2e still passes against a stale
+# receiver and reports interop for a pairing nobody meant to ship.
+#
+# This is deliberately not a step in publish.yml. At publish time the receiver
+# CANNOT be current, because the package it is built from reached npm seconds
+# earlier, so a check there would be red on every release and learned as noise.
+# A scheduled check is also the only kind that catches a forgotten deploy:
+# anything a person has to trigger is by definition not triggered when they
+# forget.
+#
+# It compares against the `latest` dist-tag, not the newest version. A
+# prerelease published to `next` must not make a receiver correctly tracking
+# `latest` go red. Dispatch takes the tag as an input for the other cases.
+#
+# No credential and no deploy. The job reads a public registry and a public
+# endpoint. Deploying the receiver from here would mean a Cloudflare token in a
+# public repository's secrets, which is a larger surface than the problem.
+
+on:
+  schedule:
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "npm dist-tag to compare against. Empty means latest."
+        required: false
+        type: string
+
+permissions: {}
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0 # zizmor: ignore[cache-poisoning]
+        with:
+          node-version: 24
+
+      # No install step: the script uses only the Node standard library, so
+      # nothing from the registry runs in this job.
+      - name: Compare the live receiver against the published release
+        env:
+          TAG: ${{ inputs.tag }}
+        run: node scripts/check-receiver-freshness.mjs "${TAG:-latest}"
