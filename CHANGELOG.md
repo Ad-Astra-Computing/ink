@@ -8,6 +8,12 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- `nix flake check` builds the npm packages at the root and the Go packages
+  in `go/`, so a lockfile change that leaves `npmDepsHash` or `vendorHash`
+  behind fails before a push instead of in CI. The npm hash is declared once.
+  CI runs the interop-cli flake check, which builds that package in the
+  sandbox, and refuses a rewritten flake.lock. The publish workflow refuses a
+  tag whose commit is not on `main` with CI green.
 - The Go module has a flake, so `nix run 'github:Ad-Astra-Computing/ink?dir=go'`
   builds the CLI, the verify server and the witness server against a pinned Go
   toolchain with nothing installed first. Its version is read from the CLI

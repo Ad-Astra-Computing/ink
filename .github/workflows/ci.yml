@@ -38,19 +38,19 @@ jobs:
             npm-${{ runner.os }}-
 
       - name: Install npm deps
-        run: nix develop --command npm ci
+        run: nix develop --no-update-lock-file --command npm ci
 
       - name: Tests
-        run: nix develop --command npm test
+        run: nix develop --no-update-lock-file --command npm test
 
       - name: Typecheck
-        run: nix develop --command npm run typecheck
+        run: nix develop --no-update-lock-file --command npm run typecheck
 
       - name: Lint
-        run: nix develop --command npm run lint
+        run: nix develop --no-update-lock-file --command npm run lint
 
       - name: Public-surface drift check
-        run: nix develop --command npm run check:surface
+        run: nix develop --no-update-lock-file --command npm run check:surface
 
       - name: Documented-fact drift check
         # Recomputes every derivable claim in the governance record, the specs,
@@ -58,7 +58,7 @@ jobs:
         # unreachable registry a failure here rather than an unverified pin.
         env:
           CHECK_FACTS_REQUIRE_NPM: "1"
-        run: nix develop --command npm run check:facts
+        run: nix develop --no-update-lock-file --command npm run check:facts
 
       - name: Dist-tag pin describes the tree
         # The version in the tree must be recorded on some dist-tag in
@@ -68,24 +68,24 @@ jobs:
         # reviewer instead of leaving it to surface as a red `main` after the
         # release has already published. The publish workflow runs the stricter
         # per-tag form of this check before it publishes anything.
-        run: nix develop --command npm run check:release-pin -- --tag any
+        run: nix develop --no-update-lock-file --command npm run check:release-pin -- --tag any
 
       - name: Go and npm publish at the same version
         # The Go proxy has no dist-tags and no unpublish, so nothing else here
         # notices when the two implementations drift apart. RELEASING.md has
         # the rules.
-        run: nix develop --command npm run check:release-parity
+        run: nix develop --no-update-lock-file --command npm run check:release-parity
 
       - name: Examples flake check
         # Gates examples/flake.nix against the tree: a runnable example with
         # no dev shell, or a shell naming a directory that has moved, fails
         # here. The examples job below runs each shell for real.
         working-directory: examples
-        run: nix flake check
+        run: nix flake check --no-update-lock-file
 
       - name: Go module flake check
-        # Gates go/flake.nix, which is what a Go consumer runs. The vendorHash
-        # is verified by the package builds further down, not by this step.
+        # Gates go/flake.nix, which is what a Go consumer runs. `checks` builds
+        # the packages, so this step is where vendorHash is verified.
         # The lock file is pinned, never refreshed here: a check that silently
         # advanced it would build against nixpkgs nobody reviewed.
         working-directory: go
@@ -108,22 +108,35 @@ jobs:
         # Builds the cli derivation, which verifies npmDepsHash against the
         # lockfile. Catches a stale or malformed hash that the devshell-based
         # steps above never exercise.
-        run: nix build .#default .#cli --no-link
+        run: nix build .#default .#cli --no-link --no-update-lock-file
 
       - name: Build Go binaries
         # Realizes the three Go derivations, which is where vendorHash is
         # verified against go.sum. The flake check above never builds them.
         working-directory: go
-        run: nix build .#default .#verify-server .#witness-server --no-link
+        run: nix build .#default .#verify-server .#witness-server --no-link --no-update-lock-file
+
+      - name: Flake locks are the committed ones
+        # An input added to a flake.nix without `nix flake lock` is written
+        # into the lock by the first nix command that reads it, and the run
+        # goes on against whatever that resolved to. Every lock a step above
+        # read has to be the one under review.
+        run: |
+          changed="$(git status --porcelain -- flake.lock examples/flake.lock go/flake.lock examples/interop-cli/flake.lock)"
+          if [ -n "$changed" ]; then
+            echo "a flake.lock was rewritten during CI; run nix flake lock in that directory and commit it"
+            echo "$changed"
+            exit 1
+          fi
 
       - name: Verify npm package would publish cleanly
-        run: nix develop --command npm pack --dry-run
+        run: nix develop --no-update-lock-file --command npm pack --dry-run
 
       - name: Pack-and-import smoke
         # Mirrors the publish job's tarball smoke. CI runs it on every
         # push so a broken-publish regression is caught long before a
         # release tag is cut.
-        run: nix develop --command npm run check:pack
+        run: nix develop --no-update-lock-file --command npm run check:pack
 
   node-24-compat:
     runs-on: ubuntu-latest
@@ -154,7 +167,15 @@ jobs:
 
       - name: Python interop tests, lint and types
         working-directory: examples/interop-cli
-        run: nix develop --command bash -c "pytest -q && ruff check src tests && mypy src"
+        run: nix develop --no-update-lock-file --command bash -c "pytest -q && ruff check src tests && mypy src"
+
+      - name: Interop flake check
+        # The README tells people to run this. It builds the package in the
+        # sandbox, without the repo-root vectors, and runs the test suite in
+        # there. The devshell run above sees the whole tree, so it cannot
+        # stand in for it.
+        working-directory: examples/interop-cli
+        run: nix flake check --no-update-lock-file
 
   examples:
     # The npm examples are what adopters copy, so they get the same
@@ -187,7 +208,7 @@ jobs:
         working-directory: examples/${{ matrix.example }}
         # --if-present because docker-receiver has no typecheck script.
         run: |
-          nix develop "..#${{ matrix.example }}" --command bash -c \
+          nix develop --no-update-lock-file "..#${{ matrix.example }}" --command bash -c \
             'npm ci && npm test && npm run typecheck --if-present'
 
   go-conformance:
@@ -239,10 +260,10 @@ jobs:
             npm-${{ runner.os }}-
 
       - name: Install npm deps
-        run: nix develop --command npm ci
+        run: nix develop --no-update-lock-file --command npm ci
 
       - name: TypeScript reference, staged vectors
-        run: nix develop --command npm run test:staged
+        run: nix develop --no-update-lock-file --command npm run test:staged
 
       # Runs through the devshell so the Go here is the one flake.lock pins,
       # the same one a contributor gets from `nix develop`. `nix develop` reads
@@ -252,7 +273,7 @@ jobs:
         env:
           INK_STAGED_CONFORMANCE: "1"
         run: |
-          nix develop --command bash -c '
+          nix develop --no-update-lock-file --command bash -c '
             set -euo pipefail
             cd go
             go test -count=1 ./ink/
@@ -284,7 +305,7 @@ jobs:
             npm-${{ runner.os }}-
 
       - name: Install npm deps
-        run: nix develop --command npm ci
+        run: nix develop --no-update-lock-file --command npm ci
 
       - name: Go witness issues, TypeScript reference verifies
-        run: nix develop --command npx vitest run test/go-witness-interop.test.ts
+        run: nix develop --no-update-lock-file --command npx vitest run test/go-witness-interop.test.ts

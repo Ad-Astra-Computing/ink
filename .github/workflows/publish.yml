@@ -30,6 +30,40 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  release-gate:
+    # A tag can be pushed at any commit, and the gauntlet below runs only a
+    # subset of CI. The rule is a merged pull request with CI green before
+    # any release, so this job refuses a tag whose commit is not on main or
+    # whose CI run on main did not succeed. No checkout and nothing
+    # third-party: two read-only API calls.
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Tagged commit is on main with CI green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          status="$(gh api "repos/${REPO}/compare/main...${SHA}" --jq .status)"
+          case "$status" in
+            identical|behind) ;;
+            *)
+              echo "${SHA} is not on main (compare status: ${status}); release from the merge commit"
+              exit 1
+              ;;
+          esac
+          conclusion="$(gh api "repos/${REPO}/actions/workflows/ci.yml/runs?head_sha=${SHA}&branch=main&event=push&per_page=1" \
+            --jq '.workflow_runs[0].conclusion // "none"')"
+          if [ "$conclusion" != success ]; then
+            echo "CI on main for ${SHA} is ${conclusion}; wait for it to pass, then push the tag again"
+            exit 1
+          fi
+          echo "${SHA} is on main and CI passed there"
+
   gauntlet:
     # Builds and fully tests the release WITHOUT any publishing credential.
     # Everything that executes third-party code — the nix toolchain, npm
@@ -37,6 +71,7 @@ jobs:
     # permission is reading the repo. The tarball this job produces is the
     # exact artifact the publish jobs ship, pinned by SHA-256 across the job
     # boundary, so nothing that runs alongside a credential ever builds code.
+    needs: [release-gate]
     runs-on: ubuntu-latest
     permissions:
       contents: read

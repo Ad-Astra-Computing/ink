@@ -69,6 +69,11 @@
       };
     });
 
+    # `nix flake check` only evaluates `packages`, and vendorHash is verified
+    # by a build. Listing them here makes a go.sum change that forgot the
+    # hash fail locally, with the value to paste in the error.
+    checks = forAllSystems (system: self.packages.${system});
+
     apps = forAllSystems (system: {
       default = {
         type = "app";

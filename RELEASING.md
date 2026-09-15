@@ -86,7 +86,11 @@ is a governance question and not a mechanical one.
 
    It triggers the [`publish`](.github/workflows/publish.yml) workflow, which
    builds under the pinned Nix toolchain and publishes to the `next` dist-tag
-   with sigstore provenance. Watch it finish before going on.
+   with sigstore provenance. Watch it finish before going on. Its first job
+   refuses a tag whose commit is not on `main`, or whose CI run on `main` has
+   not finished green, so wait for that run before pushing the tag. If it
+   refuses, delete the tag, fix the cause and push it again; nothing has been
+   published at that point.
 4. Push the Go tag at the same commit:
 
    ```sh

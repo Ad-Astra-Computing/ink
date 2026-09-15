@@ -51,7 +51,10 @@ jobs:
       - name: Compute new npmDepsHash
         id: hash
         run: |
-          NEW=$(nix run nixpkgs#prefetch-npm-deps -- package-lock.json)
+          # --inputs-from .: the nixpkgs flake.lock pins, not the registry's,
+          # so the hash is computed by the same prefetch-npm-deps the build
+          # verifies it with.
+          NEW=$(nix run --inputs-from . nixpkgs#prefetch-npm-deps -- package-lock.json)
           # prefetch-npm-deps already prints the sha256- prefix; strip any
           # existing prefix before re-adding one so the hash is never
           # double-prefixed (which produces an unparseable SRI hash).
