@@ -217,11 +217,10 @@ func DecryptInkPayload(envelope map[string]any, recipientPrivKeyHex string, reci
 	// about 1,050,000 bytes), and Go's encoding/json enforces its own hard
 	// nesting limit (about 10000) as a stack backstop, so no separate depth
 	// guard is needed.
-	var decryptedRaw any
-	if err := json.Unmarshal(plaintext, &decryptedRaw); err != nil {
-		return nil, errDecrypt
-	}
-	decrypted, ok := decryptedRaw.(map[string]any)
+	// ParseSignedObject, not json.Unmarshal: the inner envelope carries its own
+	// body signature, verified over the bytes the signer signed, so this parse
+	// runs the same byte-level rules as every other signed-body parse here.
+	decrypted, ok := ParseSignedObject(plaintext)
 	if !ok {
 		return nil, errDecrypt
 	}
