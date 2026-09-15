@@ -146,6 +146,34 @@ func TestDecryptInkPayloadAcceptsDeepPlaintext(t *testing.T) {
 	}
 }
 
+// TestDecryptInkPayloadRunsSignedBodyRules pins the decrypt path to the same
+// byte-level rules every other signed-body parse in this package uses. The
+// plaintext is AES-GCM authenticated, so it came from the sender, but the inner
+// envelope carries its own body signature and a verifier checks that over the
+// bytes the signer signed. A lenient parse accepts wire forms the signer never
+// produced.
+func TestDecryptInkPayloadRunsSignedBodyRules(t *testing.T) {
+	const from = "did:web:sender.example"
+	const to = "did:web:recipient.example"
+	head := `{"from":"` + from + `","to":"` + to + `",`
+	cases := []struct {
+		name      string
+		plaintext []byte
+	}{
+		{"invalid utf8", append(append([]byte(head+`"x":"`), 0xff), []byte(`"}`)...)},
+		{"lone surrogate", []byte(head + `"x":"\ud800"}`)},
+		{"escaped member name", []byte(head + `"\u0078":1}`)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			envelope, privHex := encryptForTest(t, tc.plaintext, from, to)
+			if _, err := DecryptInkPayload(envelope, privHex, to); err == nil {
+				t.Fatalf("decrypt accepted %s, want rejection", tc.name)
+			}
+		})
+	}
+}
+
 // recipientKeypair returns a fresh X25519 recipient keypair as the public key
 // hex the sealer accepts and the private key hex the decrypter accepts.
 func recipientKeypair(t *testing.T) (pubHex, privHex string) {
