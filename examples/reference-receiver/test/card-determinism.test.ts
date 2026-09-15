@@ -269,6 +269,7 @@ describe("agent card determinism across processes", () => {
       "  INK_RECEIVER_PUBLIC_KEY_MULTIBASE: process.env.PUBKEY,",
       "  INK_RECEIVER_HOST: process.env.RECEIVER_HOST,",
       "  INK_RECEIVER_CARD_UPDATED_AT: process.env.CARD_UPDATED_AT,",
+      "  CF_VERSION_METADATA: { id: process.env.DEPLOYMENT_ID, tag: '' },",
       "  INK_RECEIVER: {",
       "    async get(k) { return store.get(k) ?? null; },",
       "    async put(k, v) { store.set(k, String(v)); },",
@@ -304,14 +305,18 @@ describe("agent card determinism across processes", () => {
       CARD_UPDATED_AT: "2026-02-03T04:05:06Z",
     };
     const run = promisify(execFile);
-    // Different fake clocks AND different card paths: neither the wall clock
-    // nor the URL the card was fetched from may influence the bytes.
+    // Different fake clocks, different card paths AND different deployment
+    // ids: neither the wall clock, the URL the card was fetched from, nor the
+    // build serving it may influence the bytes. The deployment id has to vary
+    // in SEPARATE processes to mean anything, because the card is memoized on
+    // a key that excludes it, so two fetches in one process would compare a
+    // cache entry against itself.
     const [a, b] = await Promise.all([
       run(process.execPath, [bundle], {
-        env: { ...base, FAKE_CLOCK_MS: String(RealDate.UTC(2026, 0, 1)), CARD_PATH: VERSIONED_PATH },
+        env: { ...base, FAKE_CLOCK_MS: String(RealDate.UTC(2026, 0, 1)), CARD_PATH: VERSIONED_PATH, DEPLOYMENT_ID: "deployment-a" },
       }),
       run(process.execPath, [bundle], {
-        env: { ...base, FAKE_CLOCK_MS: String(RealDate.UTC(2039, 10, 20)), CARD_PATH: WELL_KNOWN_PATH },
+        env: { ...base, FAKE_CLOCK_MS: String(RealDate.UTC(2039, 10, 20)), CARD_PATH: WELL_KNOWN_PATH, DEPLOYMENT_ID: "deployment-b" },
       }),
     ]);
 

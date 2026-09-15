@@ -70,6 +70,7 @@ Astra Computing at `api.tulpa.network`.
 | `src/rate-limit.ts` | Per-IP and per-sender KV-backed sliding window. |
 | `src/audit-log.ts` | 7-day KV audit ring of accepted / rejected envelopes. |
 | `src/nonce-store.ts` | In-memory ring buffer used by `verifyInkAuth` for replay defense. |
+| `src/build-info.ts` | The library and deployment versions this build is running. |
 | `test/*.test.ts` | Vitest tests for the pure helpers. |
 
 ## Deploy
@@ -119,6 +120,29 @@ curl "https://<your-host>/ink/v1/did%3Aweb%3A<your-host>/agent.json"
 curl https://<your-host>/.well-known/ink/agent.json
 curl https://<your-host>/.well-known/did.json
 ```
+
+## Which build am I talking to
+
+Every response carries an `Ink-Receiver-Build` header naming the
+`@adastracomputing/ink` version in the bundle and the Cloudflare version id of
+the deployment, so a confusing result can be pinned to a build with no extra
+request:
+
+```sh
+curl -sI https://<your-host>/.well-known/ink/agent.json | grep -i ink-receiver-build
+# Ink-Receiver-Build: ink=0.19.0; deployment=e3f1...
+
+curl https://<your-host>/_build
+# {"ink":"0.19.0","deployment":"e3f1..."}
+```
+
+The version is imported from the installed package rather than written down, so
+it cannot drift from what is actually deployed. It stays off the agent card on
+purpose: the card is a signed protocol document and a pure function of
+configuration and key material, while the build is an operational fact about
+one deployment. `/_build` deliberately sits outside `/.well-known/`, which is
+an IANA registry (RFC 8615) and not the right home for a detail that is not
+protocol.
 
 ## A deterministic card
 

@@ -47,3 +47,9 @@ INK_RECEIVER_CARD_UPDATED_AT = "2026-08-18T00:00:00Z"
 # Secret (set via `wrangler secret put`, never in this file):
 #   INK_RECEIVER_SIGNING_SEED — 32-byte Ed25519 seed, base64url-encoded.
 #     Anyone with this can sign as this DID; treat it like a private key.
+
+# Cloudflare stamps the deployed version id here. A new id is minted on every
+# deploy whatever changed, so it tells a redeploy from no redeploy and nothing
+# finer. It is set by the platform rather than written down, so it cannot drift.
+[version_metadata]
+binding = "CF_VERSION_METADATA"
