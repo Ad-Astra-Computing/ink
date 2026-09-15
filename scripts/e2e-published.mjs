@@ -17,7 +17,7 @@
 // REJECTED. The negative control is not optional: a 200 alone proves the
 // endpoint is reachable, not that it verifies anything.
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, appendFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -50,7 +50,7 @@ async function post(body, authorization, timestamp) {
       },
       body: JSON.stringify(body),
     });
-    return { status: res.status, text: await res.text() };
+    return { status: res.status, text: await res.text(), build: res.headers.get("ink-receiver-build") };
   } finally {
     clearTimeout(timer);
   }
@@ -59,6 +59,8 @@ async function post(body, authorization, timestamp) {
 // Install into a throwaway directory so the local build cannot satisfy the
 // import. This is the whole point: the code under test is the registry's copy.
 const dir = mkdtempSync(join(tmpdir(), "ink-e2e-"));
+let receiverBuild = "not reached";
+let passed = false;
 try {
   console.log(`installing @adastracomputing/ink@${version} from the registry`);
   try {
@@ -116,6 +118,11 @@ try {
   const authorization = `INK-Ed25519 ${transportSignature}`;
 
   const accepted = await post(wireBody, authorization, now);
+  // Read before anything can fail. A run that fails an assertion is exactly
+  // the run where someone needs to know which build judged the envelope, so
+  // this cannot sit behind the assertions it helps explain.
+  receiverBuild = accepted.build ?? "not reported";
+  console.log(`receiver build: ${receiverBuild}`);
   console.log(`accept case: HTTP ${accepted.status} ${accepted.text.slice(0, 200)}`);
   if (accepted.status !== 200) fail(`receiver rejected a well-formed envelope (${accepted.status})`);
 
@@ -143,7 +150,27 @@ try {
   }
   console.log("[OK] tampered envelope rejected");
 
-  console.log(`\ne2e-published: @adastracomputing/ink@${version} interoperates with ${RECEIVER_DID}`);
+  passed = true;
+  console.log(`\ne2e-published: @adastracomputing/ink@${version} interoperates with ${RECEIVER_DID} (${receiverBuild})`);
 } finally {
+  // Written on every path, pass or fail. The receiver's build is never
+  // asserted on: the receiver is built from the published package, so at this
+  // point in a release it cannot be running THIS version, and a check that is
+  // red every time for a reason no action can fix is one people learn to skip.
+  // What this run answers is whether the new artifact interoperates with
+  // whatever is live. Whether the deployment is current is a different
+  // question, and receiver-freshness.yml asks it.
+  // Cleanup first: a throw from the summary write must not leave the
+  // installed tarball behind.
   rmSync(dir, { recursive: true, force: true });
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    appendFileSync(
+      process.env.GITHUB_STEP_SUMMARY,
+      `### Published artifact e2e\n\n`
+        + `- result: ${passed ? "pass" : "FAIL"}\n`
+        + `- sender library: \`@adastracomputing/ink@${version}\`\n`
+        + `- live receiver: \`${RECEIVER_DID}\`\n`
+        + `- receiver build: \`${receiverBuild}\`\n`,
+    );
+  }
 }
