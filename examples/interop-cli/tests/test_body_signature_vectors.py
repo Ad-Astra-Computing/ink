@@ -21,7 +21,11 @@ VECTORS_PATH = Path(__file__).resolve().parents[3] / "test-vectors" / "body-sign
 
 def _load_vectors() -> list[dict[str, Any]]:
     if not VECTORS_PATH.exists():
-        pytest.skip(f"vector file not found: {VECTORS_PATH}")
+        # allow_module_level: this runs during collection, inside the
+        # parametrize decorator, and a plain skip there is an error rather
+        # than a skip. The vectors live outside this example, so they are
+        # absent whenever it is built on its own.
+        pytest.skip(f"vector file not found: {VECTORS_PATH}", allow_module_level=True)
     return json.loads(VECTORS_PATH.read_text(encoding="utf-8"))["vectors"]
 
 

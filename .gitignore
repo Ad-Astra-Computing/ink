@@ -13,3 +13,6 @@ Thumbs.db
 
 # Stray local wrangler state (e.g. from kv CLI invocations in this dir)
 .wrangler/
+
+# Local agent worktrees
+.claude/worktrees/
