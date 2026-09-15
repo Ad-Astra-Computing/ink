@@ -136,6 +136,11 @@ curl https://<your-host>/_build
 # {"ink":"0.19.0","deployment":"e3f1..."}
 ```
 
+The landing page footer names the same library version and links to `/_build`,
+so a person looking at the page can see when the deployment is a release behind
+without opening a terminal. The deployment id stays at `/_build`: it tells a
+redeploy from no redeploy and nothing finer.
+
 The version is imported from the installed package rather than written down, so
 it cannot drift from what is actually deployed. It stays off the agent card on
 purpose: the card is a signed protocol document and a pure function of

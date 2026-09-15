@@ -90,6 +90,29 @@ describe("build surface", () => {
     expect(res.headers.get(BUILD_INFO_HEADER)).toBe(`ink=${inkPkg.version}; deployment=dep-1`);
   });
 
+  it("shows the library version in the landing page footer", async () => {
+    // The header and `/_build` are machine-facing. A person reading the page
+    // gets no hint that the deployment is a release behind unless the footer
+    // says which library it runs. The version is compared against the
+    // installed package, so a transcribed number cannot satisfy this.
+    const res = await get("/");
+    const html = await res.text();
+    const footer = /<footer>([\s\S]*)<\/footer>/.exec(html)?.[1] ?? "";
+    expect(footer).not.toBe("");
+    expect(footer).toContain(`@adastracomputing/ink ${inkPkg.version}`);
+    expect(footer).toContain(`href="/_build"`);
+  });
+
+  it("keeps the deployment id off the landing page", async () => {
+    // The Cloudflare version id tells a redeploy from no redeploy and nothing
+    // finer, which is a debugging fact for `/_build`, not something a person
+    // reading the page can act on. The env above sets `dep-1`, so this is a
+    // real absence rather than a blank compared against a blank.
+    const res = await get("/");
+    expect(res.headers.get(BUILD_INFO_HEADER)).toContain("dep-1");
+    expect(await res.text()).not.toContain("dep-1");
+  });
+
   it("keeps the build out of the card body while stamping it on the response", async () => {
     // Only the deployment id is checked for containment. Asserting the card
     // also omits the package version would fail the day a protocol version

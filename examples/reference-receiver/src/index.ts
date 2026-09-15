@@ -37,7 +37,7 @@ import { processInbound, readBoundedBody } from "./inbound.js";
 import { checkRateLimit } from "./rate-limit.js";
 import { recordAudit } from "./audit-log.js";
 import { InMemoryNonceStore } from "./nonce-store.js";
-import { buildInfo, buildInfoHeader, BUILD_INFO_HEADER, type BuildInfoEnv } from "./build-info.js";
+import { buildInfo, buildInfoHeader, BUILD_INFO_HEADER, type BuildInfo, type BuildInfoEnv } from "./build-info.js";
 
 export interface Env extends ReceiverEnv, BuildInfoEnv {
   INK_RECEIVER: KVNamespace;
@@ -304,7 +304,7 @@ async function route(req: Request, env: Env, ctx: ExecutionContext): Promise<Res
     return jsonResponse(buildInfo(env));
   }
   if (method === "GET" && path === "/") {
-    return landingResponse(landingHtml(id.did, id.host));
+    return landingResponse(landingHtml(id.did, id.host, buildInfo(env)));
   }
   if (method === "GET" && (path === "/favicon.svg" || path === "/favicon.ico")) {
     return faviconResponse();
@@ -416,7 +416,15 @@ async function handleInbound(
   });
 }
 
-function landingHtml(did: string, host: string): string {
+/**
+ * The landing page. Takes the build alongside the identity so the footer can
+ * name the library version a person is looking at: the header and `/_build`
+ * answer the same question for machines, and without the footer a reader has
+ * no way to see that the deployment is a release behind. Only the library
+ * version is shown. The Cloudflare deployment id tells a redeploy from no
+ * redeploy and nothing finer, which is a fact for `/_build`, not for a page.
+ */
+function landingHtml(did: string, host: string, build: BuildInfo): string {
   const escapeHtml = (value: string) =>
     value.replace(/[<>&"]/g, (c) =>
       c === "<" ? "&lt;" : c === ">" ? "&gt;" : c === "&" ? "&amp;" : "&quot;",
@@ -426,6 +434,7 @@ function landingHtml(did: string, host: string): string {
   const didDocUrl = `${origin}/.well-known/did.json`;
   const agentUrl = `${origin}/ink/v1/${encodeURIComponent(did)}/agent.json`;
   const inboundUrl = `${origin}/ink/v1/inbound`;
+  const safeInkVersion = escapeHtml(build.ink);
   return [
     "<!doctype html>",
     "<html lang=\"en\">",
@@ -465,6 +474,8 @@ function landingHtml(did: string, host: string): string {
     "footer{margin-top:30px;padding-top:24px;border-top:1px solid var(--line);display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;color:var(--muted);font-size:.88rem}",
     "footer .brand{font-family:Georgia,\"Times New Roman\",serif;font-size:1rem;color:var(--text);letter-spacing:.01em}",
     "footer .copy{margin-top:4px;color:var(--muted);font-size:.8rem}",
+    "footer .build{margin-top:4px;color:var(--muted);font-size:.8rem}",
+    "footer .build a{color:inherit}",
     ".footer-links{display:flex;flex-wrap:wrap;gap:10px;align-items:center}",
     ".footer-link{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:rgba(18,18,32,.72);color:var(--muted);font:500 13px/1 system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif;text-decoration:none;white-space:nowrap;transition:color .16s ease,border-color .16s ease,background-color .16s ease}",
     ".footer-link:hover{color:#fff;border-color:rgba(196,181,253,.58);background:rgba(196,181,253,.08)}",
@@ -524,6 +535,7 @@ function landingHtml(did: string, host: string): string {
     "<div>",
     "<div class=\"brand\">Ad Astra Computing</div>",
     "<div class=\"copy\">&copy; 2026 Ad Astra Computing, Inc. All rights reserved.</div>",
+    "<div class=\"build\">Running <a href=\"/_build\">@adastracomputing/ink " + safeInkVersion + "</a></div>",
     "</div>",
     "<nav class=\"footer-links\" aria-label=\"Footer links\">",
     "<a class=\"footer-link\" href=\"https://ink.tulpa.network\" aria-label=\"INK protocol docs\">",
