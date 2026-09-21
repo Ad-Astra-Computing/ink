@@ -80,8 +80,12 @@ mandatory bound recipient DID, an implementation:
 8. Runs AES-256-GCM decryption over `ciphertext` with that nonce and AAD.
    Rejects on an authentication failure (a tampered ciphertext, tag, AAD field,
    or wrong recipient key).
-9. Parses the plaintext as JSON and rejects unless it is a non-null object
-   (not an array or scalar).
+9. Parses the plaintext as a signed body: the raw UTF-8, lone-surrogate,
+   numeric-range and escaped-member-name rules of
+   [`ink-signed-string-safety.md`](ink-signed-string-safety.md) run on the
+   plaintext bytes before the JSON parse, because the inner envelope carries
+   its own body signature. Rejects unless the result is a non-null object (not
+   an array or scalar).
 10. Rejects unless the decrypted inner `from` equals the outer envelope `from`.
     A recipient DID is mandatory: it must be a non-empty string and the
     decrypted inner `to` must equal it. The AAD `recipientKey` already binds the
