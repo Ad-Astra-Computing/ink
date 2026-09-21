@@ -45,8 +45,9 @@ Everything else that carries a signature or a hash is covered: the base profile,
 grants, authorization challenges, discovery envelopes, audit query responses and
 their per-event `agentSignature`, inclusion receipts, the RFC 6962 leaf hash and
 inclusion-proof walk, delegation link signatures, the `attestation` bodies under
-the §3.6 body base, and the card signatures in both `agent-card-signature` and
-`agent-card-evidence`.
+the §3.6 body base, the card signatures in both `agent-card-signature` and
+`agent-card-evidence`, and the attestations carried on an accepted evidence
+card, each re-verified against its issuer principal on the §3.6 body base.
 
 ## The mutation registry
 
