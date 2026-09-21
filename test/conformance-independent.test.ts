@@ -113,7 +113,10 @@ describe("agent card signature base, card spec §3.2", () => {
     const failures: string[] = [];
     let exercised = 0;
     let unsigned = 0;
-    for (const c of cases("agent-card-signature")) {
+    const signedCardCategories = ["agent-card-signature", "agent-card-evidence"];
+    const exercisedBy = new Map<string, number>();
+    for (const category of signedCardCategories)
+    for (const c of cases(category)) {
       if (c.expect.result !== "accept") continue;
       const card = c.input?.card;
       const cs = card?.cardSignature;
@@ -145,6 +148,7 @@ describe("agent card signature base, card spec §3.2", () => {
         `${c.caseId}: cardSignature.keyId ${cs.keyId} resolves to no key under §3.3`,
       ).toEqual("string");
       exercised++;
+      exercisedBy.set(category, (exercisedBy.get(category) ?? 0) + 1);
       if (
         !(await verify(
           cs.signature,
@@ -155,10 +159,14 @@ describe("agent card signature base, card spec §3.2", () => {
         failures.push(c.caseId);
       }
     }
-    expect(
-      exercised,
-      "no accepted agent-card-signature vectors were exercised",
-    ).toBeGreaterThan(0);
+    // Per category, not a total: a total stays green if one category stops
+    // contributing, which is how a signature-bearing category goes unchecked.
+    for (const category of signedCardCategories) {
+      expect(
+        exercisedBy.get(category) ?? 0,
+        `no accepted ${category} card signature was exercised`,
+      ).toBeGreaterThan(0);
+    }
     expect(
       unsigned,
       "every accepted card was unsigned, so nothing was verified",
@@ -380,7 +388,7 @@ describe("the oracle enforces the §3.2 profile itself", () => {
   });
 });
 
-// The base profile is 16 of the 29 categories. These cover the signed bytes in
+// The base profile is 16 of the 32 categories. These cover the signed bytes in
 // the rest: grants and agent authorization reuse the §3.6 body base, so they
 // need no new construction, while the audit query response and the RFC 6962
 // leaf hash have their own domains.

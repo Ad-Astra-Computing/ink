@@ -39,11 +39,14 @@ Not yet covered, and honest about it:
   category carries a crypto artifact in the corpus today, so there is nothing
   here for this to check.
 - `handshake-message`, same reason.
+- `evidence-refusal`, same reason: a refusal carries no crypto artifact.
 
 Everything else that carries a signature or a hash is covered: the base profile,
 grants, authorization challenges, discovery envelopes, audit query responses and
 their per-event `agentSignature`, inclusion receipts, the RFC 6962 leaf hash and
-inclusion-proof walk, and delegation link signatures.
+inclusion-proof walk, delegation link signatures, the `attestation` bodies under
+the §3.6 body base, and the card signatures in both `agent-card-signature` and
+`agent-card-evidence`.
 
 ## The mutation registry
 
