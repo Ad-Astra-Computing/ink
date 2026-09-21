@@ -8,6 +8,21 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- **Breaking:** `decryptInkPayload` parses the decrypted plaintext through
+  `parseSignedBodyBytes`, so the raw UTF-8, lone-surrogate, numeric-range and
+  escaped-member-name rules run on the inner envelope before it is returned.
+  It previously decoded with a non-fatal decoder and a bare `JSON.parse`, which
+  admitted invalid UTF-8 as `U+FFFD`, stripped a leading BOM and let an
+  escaped member name reach the inner body signature, the V8 defect that lets
+  one signature validate against several bodies on workerd. A plaintext that
+  trips a rule now throws `ParseSignedBodyError` with `reason` set, in place of
+  the `SyntaxError` or silent acceptance it produced before; malformed JSON
+  still throws `SyntaxError`. A caller that matches on the plain `Error`
+  messages this function throws should also expect `ParseSignedBodyError`.
+  Go's `DecryptInkPayload` goes through `ParseSignedObject` in the same
+  release, so the two implementations agree on this path.
+  [`specs/ink-payload-encryption.md`](specs/ink-payload-encryption.md) step 9
+  states the rule.
 - `nix flake check` builds the npm packages at the root and the Go packages
   in `go/`, so a lockfile change that leaves `npmDepsHash` or `vendorHash`
   behind fails before a push instead of in CI. The npm hash is declared once.
@@ -274,6 +289,13 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   [#301](https://github.com/Ad-Astra-Computing/ink/issues/301).
 
 ## 0.17.0, identity model, resolver spec and two fail-closed guards
+
+> **Erratum, 2026-09-21:** the entry below stating that every
+> signature-relevant parse in shipped code runs the same text-level rules was
+> wrong when written. Through 0.19.0, `decryptInkPayload` still parsed the
+> decrypted inner envelope with a bare `JSON.parse` and Go's
+> `DecryptInkPayload` with a bare `json.Unmarshal`. Both are corrected in the
+> release after 0.19.0; see the Unreleased entry.
 
 ### Changes
 

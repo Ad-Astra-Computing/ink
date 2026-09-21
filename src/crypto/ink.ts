@@ -5,6 +5,7 @@ import { isJcsSafeNumber, isSignableBody, hasNonJsonObject, type SignableBody } 
 import { parseInkTimestampMs } from "./timestamp.js";
 import { hasUnpairedSurrogate } from "./surrogate.js";
 import { hasUnsafeObjectKey } from "./member-name.js";
+import { parseSignedBodyBytes } from "./parse-signed-body.js";
 import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "./multi-key-verify.js";
 import type { CandidateKey } from "../models/key-entry.js";
 
@@ -536,6 +537,11 @@ export async function encryptInkPayload(
 /**
  * Decrypt an INK encrypted envelope using the recipient's X25519 private key.
  * Returns the decrypted inner envelope and verifies inner/outer consistency.
+ *
+ * The plaintext is parsed through `parseSignedBodyBytes`, so a plaintext that
+ * trips one of the four byte-level rules throws `ParseSignedBodyError` with its
+ * `reason` set, and malformed JSON throws the native `SyntaxError`. Every other
+ * rejection throws a plain `Error`.
  */
 export async function decryptInkPayload(
   envelope: InkEncryptedEnvelope,
@@ -679,11 +685,13 @@ export async function decryptInkPayload(
     ),
   );
 
-  // Plaintext is now AES-GCM-authenticated, so any well-formed JSON object
-  // here came from the sender. Still type-check before property access so
-  // a sender posting `null`/array/scalar payloads gets a clean validation
-  // error instead of a TypeError on `.from`.
-  const decryptedRaw = JSON.parse(new TextDecoder().decode(plaintextBytes));
+  // The plaintext is AES-GCM authenticated, so it came from the sender. That
+  // says nothing about its wire form: the inner envelope carries its own body
+  // signature, verified over the bytes the signer signed, so the parse runs
+  // the same byte-level rules as every other signed-body parse here. Type
+  // check before property access so a `null`, array or scalar payload gets a
+  // clean validation error instead of a TypeError on `.from`.
+  const decryptedRaw = parseSignedBodyBytes(plaintextBytes);
   if (decryptedRaw === null || typeof decryptedRaw !== "object" || Array.isArray(decryptedRaw)) {
     throw new Error("Inner envelope must be a JSON object");
   }
