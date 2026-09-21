@@ -48,6 +48,16 @@
     packages = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
       pkg = builtins.fromJSON (builtins.readFile ./package.json);
+      # The dependency closure package-lock.json describes, fetched once for
+      # both packages. The hash moves with every lockfile change; `nix flake
+      # check` builds the packages and prints the value to paste when it is
+      # stale.
+      npmDepsHash = "sha256-PoRDt2JixZYtc52a0NC3t0UI1zV79yRt+MeR2IuKxzg=";
+      npmDeps = pkgs.fetchNpmDeps {
+        name = "ink-${pkg.version}-npm-deps";
+        src = ./.;
+        hash = npmDepsHash;
+      };
     in {
       # Publishable npm tarball. Used to verify the package builds and
       # ships the right files; not the runnable form.
@@ -55,7 +65,7 @@
         pname = "ink";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-PoRDt2JixZYtc52a0NC3t0UI1zV79yRt+MeR2IuKxzg=";
+        inherit npmDeps;
         nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
@@ -80,7 +90,7 @@
         pname = "ink-cli";
         version = pkg.version;
         src = ./.;
-        npmDepsHash = "sha256-PoRDt2JixZYtc52a0NC3t0UI1zV79yRt+MeR2IuKxzg=";
+        inherit npmDeps;
         nodejs = pkgs.nodejs_24;
         dontNpmBuild = true;
         installPhase = ''
@@ -110,6 +120,12 @@
     checks = forAllSystems (system: let
       pkgs = nixpkgs.legacyPackages.${system};
     in {
+      # `nix flake check` only evaluates `packages`, so a stale npmDepsHash
+      # passed it and failed in CI. Building them here makes the hash a
+      # local check, and the mismatch error names the hash to paste in.
+      npm-package = self.packages.${system}.default;
+      cli = self.packages.${system}.cli;
+
       # `go test ./...` over the whole module. It runs here rather than from
       # go/flake.nix because the conformance tests read vector files from
       # conformance/v1/vectors, above the Go module's own directory.
