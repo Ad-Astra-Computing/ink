@@ -35,8 +35,10 @@ signature base. A transcript carries:
 
 - `cardFetch` — the discovery response the sender received for the receiver's
   agent card: `status`, `contentType`, `contentLength`, `bodyRaw`, and the
-  `requestedAgentId` the sender bound the fetch to. This is the same shape the
-  `agent-card-fetch` category pins.
+  `requestedAgentId` the sender bound the fetch to. `bodyRaw` is a string here,
+  not the `bodyHex` the `agent-card-fetch` category carries, so this category
+  cannot express a body that is not valid UTF-8. A runner MUST encode it to
+  bytes before the fetch evaluator sees it.
 - `clientSupportedVersions` — the message protocol versions the sender can emit,
   in descending preference order.
 - `receiverClock` and `seenNonces` — the receiver's clock and its

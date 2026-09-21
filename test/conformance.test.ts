@@ -441,7 +441,14 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       return { result: AgentCardSchema.safeParse(input.card).success ? "accept" : "reject" };
     }
     case "agent-card-fetch": {
-      return { result: evaluateAgentCardFetch(input as unknown as AgentCardFetchInput).accepted ? "accept" : "reject" };
+      // MIRRORED with the differential harness's own `fromHex`: some vectors
+      // in this category are deliberately over the 64 KiB card cap, so this
+      // uses a plain decode rather than the library's `hexToBytes`, which
+      // carries its own (unrelated) encode-size cap.
+      const { bodyHex, ...rest } = input as { bodyHex: string } & Omit<AgentCardFetchInput, "bodyRaw">;
+      const raw = Uint8Array.from(Buffer.from(bodyHex, "hex"));
+      const fetchInput: AgentCardFetchInput = { ...rest, bodyRaw: raw };
+      return { result: evaluateAgentCardFetch(fetchInput).accepted ? "accept" : "reject" };
     }
     case "agent-card-signature":
     case "agent-card-signature-phase-c": {
@@ -520,7 +527,7 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
     }
     case "first-contact-transcript": {
       const t = input as {
-        cardFetch: AgentCardFetchInput;
+        cardFetch: Omit<AgentCardFetchInput, "bodyRaw"> & { bodyRaw: string };
         clientSupportedVersions: string[];
         receiverClock: string;
         seenNonces: string[];
@@ -530,8 +537,11 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       // Compose the pinned primitives in order; any failed step rejects the
       // whole transcript. See specs/ink-first-contact-transcript.md.
       const reject = { result: "reject" } as const;
-      // 1. discovery
-      const fetched = evaluateAgentCardFetch(t.cardFetch);
+      // 1. discovery. The vector's cardFetch.bodyRaw is a JSON string (built
+      // directly from a card object, not read off a live stream), so it is
+      // still valid UTF-8 by construction; encode it to bytes here the same
+      // way a caller crossing this boundary would.
+      const fetched = evaluateAgentCardFetch({ ...t.cardFetch, bodyRaw: new TextEncoder().encode(t.cardFetch.bodyRaw) });
       if (!fetched.accepted || fetched.card === null) return reject;
       // 2. version selection
       const advertised = agentSupportedProtocolVersions(fetched.card);

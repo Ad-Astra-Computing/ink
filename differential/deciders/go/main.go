@@ -279,9 +279,16 @@ func decide(surface string, in map[string]json.RawMessage) decision {
 		if !ok {
 			return reject()
 		}
-		bodyRaw, _ := str(in, "bodyRaw")
+		bodyHex, ok := str(in, "bodyHex")
+		if !ok {
+			return reject()
+		}
+		raw, err := hex.DecodeString(bodyHex)
+		if err != nil {
+			return reject()
+		}
 		reqID, _ := str(in, "requestedAgentId")
-		if ink.EvaluateAgentCardFetch(status, optStr(in, "contentType"), optStr(in, "contentLength"), bodyRaw, reqID, optStr(in, "resolutionDid")) {
+		if ink.EvaluateAgentCardFetch(status, optStr(in, "contentType"), optStr(in, "contentLength"), string(raw), reqID, optStr(in, "resolutionDid")) {
 			return accept()
 		}
 		return reject()

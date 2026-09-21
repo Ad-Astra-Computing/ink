@@ -1,6 +1,6 @@
 import type { AgentCard } from "../models/agent-card.js";
 import { AgentCardSchema } from "../models/agent-card.js";
-import { parseSignedBodyText } from "../crypto/parse-signed-body.js";
+import { parseSignedBodyBytes } from "../crypto/parse-signed-body.js";
 
 /**
  * Agent Card discovery fetch contract.
@@ -29,8 +29,12 @@ export interface AgentCardFetchInput {
   contentType: string | null;
   /** Raw Content-Length header value, or null when absent. */
   contentLength: string | null;
-  /** The response body as a string (already decoded from UTF-8 bytes). */
-  bodyRaw: string;
+  /** The response body exactly as received, not transcoded. A caller that
+   * has already crossed the UTF-8 boundary (a JS string) has lost the
+   * information this contract decides on: a lenient decode substitutes
+   * U+FFFD for an invalid byte and strips a leading BOM, either of which
+   * would let a card pass here that the byte-level signed-body gate refuses. */
+  bodyRaw: Uint8Array;
   /** The agentId the fetch was made for, for identity binding. */
   requestedAgentId: string;
   /**
@@ -49,11 +53,6 @@ export interface AgentCardFetchResult {
   accepted: boolean;
   /** The validated card when accepted, else null. */
   card: AgentCard | null;
-}
-
-/** UTF-8 byte length of a string, the unit the body cap is measured in. */
-function utf8ByteLength(s: string): number {
-  return new TextEncoder().encode(s).length;
 }
 
 /**
@@ -82,7 +81,10 @@ function digitsGreaterThan(value: string, cap: string): boolean {
 
 /**
  * Decide whether a discovery response yields a valid Agent Card bound to the
- * requested agentId. Steps are ordered; the first failing step rejects.
+ * requested agentId. This is a total function: it never throws, rejecting
+ * instead when `bodyRaw` is not a Uint8Array, which the differential harness
+ * feeds it as arbitrary shapes. Steps are ordered; the first failing step
+ * rejects.
  *
  *   1. status MUST be exactly 200.
  *   2. If Content-Length is a base-10 non-negative integer and exceeds the
@@ -91,8 +93,9 @@ function digitsGreaterThan(value: string, cap: string): boolean {
  *   3. Content-Type MUST be present, single-valued (no comma), and its media
  *      type MUST be application/json (case-insensitive); a charset parameter,
  *      when present, MUST be utf-8.
- *   4. The body's UTF-8 byte length MUST NOT exceed the cap.
- *   5. The body MUST parse as JSON.
+ *   4. bodyRaw's byte length MUST NOT exceed the cap.
+ *   5. bodyRaw MUST be valid UTF-8 with no leading byte-order mark and MUST
+ *      parse as JSON under the signed-body rules of ink-signed-string-safety.md.
  *   6. The parsed value MUST satisfy AgentCardSchema.
  *   7. card.protocol MUST be "ink/0.1".
  *   8. card.agentId MUST equal the requested agentId (identity binding).
@@ -101,6 +104,11 @@ function digitsGreaterThan(value: string, cap: string): boolean {
  */
 export function evaluateAgentCardFetch(input: AgentCardFetchInput): AgentCardFetchResult {
   const reject: AgentCardFetchResult = { accepted: false, card: null };
+
+  // ArrayBuffer.isView as well as instanceof: a prototype-forged object or a
+  // Proxy passes instanceof but has no backing buffer, and reading byteLength
+  // off one throws. This is a decision function, so it rejects instead.
+  if (!ArrayBuffer.isView(input.bodyRaw) || !(input.bodyRaw instanceof Uint8Array)) return reject;
 
   // 1. Status.
   if (input.status !== 200) return reject;
@@ -112,16 +120,16 @@ export function evaluateAgentCardFetch(input: AgentCardFetchInput): AgentCardFet
   if (!isJsonContentType(input.contentType)) return reject;
 
   // 4. Actual body size.
-  if (utf8ByteLength(input.bodyRaw) > MAX_AGENT_CARD_BYTES) return reject;
+  if (input.bodyRaw.byteLength > MAX_AGENT_CARD_BYTES) return reject;
 
-  // 5. JSON parse, through the signed-body text gates. The card carries a
+  // 5. JSON parse, through the signed-body byte gates. The card carries a
   //    signature verified over its canonical form, so it is signature-relevant
-  //    and must not reach canonicalization through a lenient parse. Only the
-  //    text-level gates apply: the caller hands us a string, so the UTF-8
-  //    boundary is already behind us.
+  //    and must not reach canonicalization through a lenient decode: a fatal
+  //    UTF-8 decoder that keeps a leading BOM as a code point (rather than
+  //    stripping it) is what lets step 5 see the raw bytes the signer signed.
   let parsed: unknown;
   try {
-    parsed = parseSignedBodyText(input.bodyRaw);
+    parsed = parseSignedBodyBytes(input.bodyRaw);
   } catch {
     return reject;
   }

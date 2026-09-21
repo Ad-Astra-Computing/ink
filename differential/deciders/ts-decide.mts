@@ -124,11 +124,13 @@ async function decide(surface: string, input: Record<string, unknown>): Promise<
       return { result: r.rejected ? "reject" : "accept", reason: r.reason };
     }
     case "agent-card-fetch": {
+      const bodyRaw = fromHex(input.bodyHex);
+      if (bodyRaw === null) return REJECT;
       const fetchInput: AgentCardFetchInput = {
         status: input.status as number,
         contentType: (input.contentType ?? null) as string | null,
         contentLength: (input.contentLength ?? null) as string | null,
-        bodyRaw: input.bodyRaw as string,
+        bodyRaw,
         requestedAgentId: input.requestedAgentId as string,
         resolutionDid: (input.resolutionDid ?? null) as string | null,
       };
