@@ -20,7 +20,7 @@ from `src/`, `dist/` or the Go tree:
 | `card-signature.mjs` | Agent Card and rotation-link bases | `specs/ink-agent-card-signature.md` §3.2, §5 |
 | `principal.mjs` | principal normalization | `specs/ink-protocol.md` §7 |
 | `seal.mjs` | §3.4 sealed-envelope receive side: X25519, HKDF, AAD reconstruction, inner validation | `specs/ink-payload-encryption.md` |
-| `audit-and-chain.mjs` | audit domains, inclusion-receipt base, RFC 6962 leaf and proof walk, delegation parent hash | `specs/ink-protocol.md` §3.6, `specs/ink-merkle-leaf.md`, `specs/ink-merkle-inclusion.md`, `specs/ink-inclusion-receipt.md`, `specs/ink-authorization-chain.md` |
+| `audit-and-chain.mjs` | audit domains, inclusion-receipt base, RFC 6962 leaf, inclusion and consistency proof walks, delegation parent hash | `specs/ink-protocol.md` §3.6, `specs/ink-merkle-leaf.md`, `specs/ink-merkle-inclusion.md`, `specs/ink-merkle-consistency.md`, `specs/ink-inclusion-receipt.md`, `specs/ink-authorization-chain.md` |
 
 `../../../test/conformance-independent.test.ts` re-verifies every signature the corpus records against bases
 built here. An accept case whose signature does not verify means the corpus and
@@ -35,19 +35,23 @@ base, so the same module covers them.
 
 Not yet covered, and honest about it:
 
-- The witness `merkle-checkpoint` and `merkle-consistency` proofs. Neither
-  category carries a crypto artifact in the corpus today, so there is nothing
-  here for this to check.
+- The witness `merkle-checkpoint` vectors. The category carries no crypto
+  artifact in the corpus today (its accept cases pin the checkpoint body's
+  canonical bytes, not a signature over them), so there is nothing here for
+  this to check.
 - `handshake-message`, same reason.
 - `evidence-refusal`, same reason: a refusal carries no crypto artifact.
 
-Everything else that carries a signature or a hash is covered: the base profile,
-grants, authorization challenges, discovery envelopes, audit query responses and
-their per-event `agentSignature`, inclusion receipts, the RFC 6962 leaf hash and
-inclusion-proof walk, delegation link signatures, the `attestation` bodies under
-the §3.6 body base, the card signatures in both `agent-card-signature` and
-`agent-card-evidence`, and the attestations carried on an accepted evidence
-card, each re-verified against its issuer principal on the §3.6 body base.
+Everything else that carries a signature or a hash is covered: the base
+profile, `key-rotation`'s transport signatures, grants, authorization
+challenges, discovery envelopes, audit query responses and their per-event
+`agentSignature`, inclusion receipts, the RFC 6962 leaf hash, the inclusion-proof
+walk, the consistency-proof walk over `merkle-consistency`'s `firstRoot`,
+`secondRoot` and `proof` array, delegation link signatures, the `attestation`
+bodies under the §3.6 body base, the card signatures in `agent-card-signature`,
+`agent-card-evidence` and `agent-card-signature-phase-c`, and the attestations
+carried on an accepted evidence card, each re-verified against its issuer
+principal on the §3.6 body base.
 
 ## The mutation registry
 
