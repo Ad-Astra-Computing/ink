@@ -33,6 +33,12 @@ const MaxAgentCardBytes = 64 * 1024
 // nil, including one that reached the card through the agent's own DID
 // document. Passing an agent identifier rejects every card whose owner and
 // agent differ.
+//
+// bodyRaw is the raw response body byte for byte, never transcoded: a Go
+// string is already a lossless byte container (len() is its byte length and
+// string([]byte) round-trips without loss), so this signature already carries
+// the bytes the signer signed. Callers should pass string(bodyBytes) directly
+// rather than decoding through anything that could substitute or strip bytes.
 func EvaluateAgentCardFetch(status int, contentType *string, contentLength *string, bodyRaw string, requestedAgentID string, resolutionDID *string) bool {
 	// 1. Status.
 	if status != 200 {

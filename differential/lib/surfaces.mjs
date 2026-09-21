@@ -41,6 +41,7 @@ const isStrArray = (v) => Array.isArray(v) && v.every(isStr);
 const strings = (...keys) => (input) => isObj(input) && keys.every((k) => isStr(input[k]));
 
 const utf8Hex = (s) => Buffer.from(s, "utf8").toString("hex");
+const hexToUtf8 = (hex) => Buffer.from(hex, "hex").toString("utf8");
 
 // ── surface definitions ──
 
@@ -410,7 +411,8 @@ export const SURFACES = [
       "the size caps and the identity binding. A divergence admits a substituted " +
       "card on one side.",
     wellFormed: (input) =>
-      isObj(input) && isNum(input.status) && isStr(input.bodyRaw) && isStr(input.requestedAgentId) &&
+      isObj(input) && isNum(input.status) && isStr(input.bodyHex) && /^([0-9a-f]{2})*$/i.test(input.bodyHex) &&
+      isStr(input.requestedAgentId) &&
       (input.contentType === undefined || input.contentType === null || isStr(input.contentType)) &&
       (input.contentLength === undefined || input.contentLength === null || isStr(input.contentLength)) &&
       (input.resolutionDid === undefined || input.resolutionDid === null || isStr(input.resolutionDid)),
@@ -429,7 +431,26 @@ export const SURFACES = [
       } else if (op === "contentLength") {
         next.contentLength = rng.pick(["0", "1", "65536", "65537", "99999999999999999999", "-1", "+1", "1.0", " 1", "1 ", "0x10", "", null]);
       } else if (op === "body") {
-        next.bodyRaw = rng.bool(0.5) ? mutateJsonText(next.bodyRaw || "{}", rng) : randomJsonText(rng);
+        const bodyOp = rng.pick(["json", "flip-high-byte", "bom", "truncate-multibyte", "hex"]);
+        if (bodyOp === "json") {
+          const text = rng.bool(0.5) ? mutateJsonText(hexToUtf8(next.bodyHex || "7b7d"), rng) : randomJsonText(rng);
+          next.bodyHex = utf8Hex(text);
+        } else if (bodyOp === "flip-high-byte") {
+          // Flip one byte into the 0x80..0xFF range: the class of byte that a
+          // fatal UTF-8 decoder can refuse but a lenient one silently repairs.
+          const bytes = [];
+          for (let i = 0; i + 1 < (next.bodyHex || "").length; i += 2) bytes.push(parseInt(next.bodyHex.slice(i, i + 2), 16));
+          if (bytes.length) bytes[rng.int(bytes.length)] = 0x80 + rng.int(0x80);
+          next.bodyHex = bytes.map((b) => b.toString(16).padStart(2, "0")).join("");
+        } else if (bodyOp === "bom") {
+          next.bodyHex = "efbbbf" + (next.bodyHex || "");
+        } else if (bodyOp === "truncate-multibyte") {
+          // Drop the last byte, so a body ending mid multibyte sequence
+          // separates a fatal decoder from one that pads or drops silently.
+          next.bodyHex = (next.bodyHex || "").slice(0, -2);
+        } else {
+          next.bodyHex = randomHex(rng);
+        }
       } else if (op === "id") {
         next.requestedAgentId = rng.bool(0.5) ? rng.pick(PRINCIPAL_EDGES) : mutateString(next.requestedAgentId, rng);
       } else {
@@ -442,7 +463,7 @@ export const SURFACES = [
         status: rng.pick([200, 200, 301, 404, 500, 0]),
         contentType: rng.pick(["application/json", "application/json; charset=utf-8", "text/html", null]),
         contentLength: rng.pick([null, "10", "65537", "-1"]),
-        bodyRaw: randomJsonText(rng),
+        bodyHex: rng.bool(0.15) ? randomHex(rng) : utf8Hex(randomJsonText(rng)),
         requestedAgentId: rng.pick(PRINCIPAL_EDGES),
         resolutionDid: rng.pick([undefined, null, "did:web:example.com"]),
       };

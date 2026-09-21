@@ -56,7 +56,7 @@ The decision is a pure function of synthetic response metadata:
 | `status` | integer | HTTP status of the discovery response |
 | `contentType` | string or null | raw `Content-Type` header, null when absent |
 | `contentLength` | string or null | raw `Content-Length` header, null when absent |
-| `bodyRaw` | string | response body, decoded from UTF-8 bytes |
+| `bodyRaw` | bytes | the response body exactly as received, not transcoded |
 | `requestedAgentId` | string | the agentId the fetch was made for |
 | `resolutionDid` | string or null | the DID under resolution when the fetch was reached through a DID document, null otherwise |
 
@@ -77,8 +77,12 @@ Evaluate in order. The first failing step rejects.
    and lowercased, MUST be `application/json`. Parameters are allowed; if a
    `charset` parameter is present its value MUST be `utf-8` (case-insensitive,
    optionally quoted).
-4. **Body size.** Reject if the UTF-8 byte length of `bodyRaw` exceeds 65536.
-5. **JSON.** Reject unless `bodyRaw` parses as JSON.
+4. **Body size.** Reject if the byte length of `bodyRaw` exceeds 65536.
+5. **JSON.** Reject unless `bodyRaw` is valid UTF-8 with no leading byte-order
+   mark and parses as JSON under the signed-body rules of
+   [`ink-signed-string-safety.md`](./ink-signed-string-safety.md) (invalid
+   UTF-8, lone surrogate escape, out-of-range number literal, escaped member
+   name).
 6. **Schema.** Reject unless the parsed value satisfies the Agent Card schema
    (see [`ink-agent-card.md`](./ink-agent-card.md)).
 7. **Protocol.** Reject unless `protocol` is `ink/0.1`.

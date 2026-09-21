@@ -140,7 +140,7 @@ describe("unknown members survive parsing for proof verification", () => {
       status: 200,
       contentLength: null,
       contentType: "application/json",
-      bodyRaw: JSON.stringify(served),
+      bodyRaw: new TextEncoder().encode(JSON.stringify(served)),
       requestedAgentId: agentId,
       resolutionDid: null,
     });

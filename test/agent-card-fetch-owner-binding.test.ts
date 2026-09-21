@@ -37,7 +37,7 @@ function evaluate(body: unknown, resolutionDid?: string | null) {
     status: 200,
     contentType: "application/json",
     contentLength: null,
-    bodyRaw: JSON.stringify(body),
+    bodyRaw: new TextEncoder().encode(JSON.stringify(body)),
     requestedAgentId: AGENT_ID,
     resolutionDid: resolutionDid ?? null,
   });
@@ -71,7 +71,7 @@ describe("evaluateAgentCardFetch step 9: owner anti-substitution", () => {
       status: 200,
       contentType: "application/json",
       contentLength: null,
-      bodyRaw: JSON.stringify(card({ ownerDid: OWNER_DID })),
+      bodyRaw: new TextEncoder().encode(JSON.stringify(card({ ownerDid: OWNER_DID }))),
       requestedAgentId: AGENT_ID,
     }).accepted).toBe(true);
   });
@@ -81,7 +81,7 @@ describe("evaluateAgentCardFetch step 9: owner anti-substitution", () => {
       status: 200,
       contentType: "application/json",
       contentLength: null,
-      bodyRaw: JSON.stringify(card({ agentId: "did:web:other.example", ownerDid: OWNER_DID })),
+      bodyRaw: new TextEncoder().encode(JSON.stringify(card({ agentId: "did:web:other.example", ownerDid: OWNER_DID }))),
       requestedAgentId: AGENT_ID,
       resolutionDid: OWNER_DID,
     });

@@ -23,9 +23,12 @@ function isSafePublicUrl(rawUrl: string, allowPrivate: boolean): boolean {
 
 /** Stream-read a Response body with a hard byte cap. Aborts after the cap is
  * exceeded so a chunked-transfer response without Content-Length cannot
- * force unbounded buffering. Returns null on cap-exceeded. */
-async function readResponseBodyWithCap(res: Response, capBytes: number): Promise<string | null> {
-  if (!res.body) return "";
+ * force unbounded buffering. Returns null on cap-exceeded. The bytes are
+ * returned as read, not decoded: decoding here would launder a raw invalid
+ * byte into U+FFFD and strip a leading BOM before the signed-body gate ever
+ * sees them. */
+async function readResponseBodyWithCap(res: Response, capBytes: number): Promise<Uint8Array | null> {
+  if (!res.body) return new Uint8Array(0);
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -48,7 +51,7 @@ async function readResponseBodyWithCap(res: Response, capBytes: number): Promise
   const merged = new Uint8Array(total);
   let off = 0;
   for (const c of chunks) { merged.set(c, off); off += c.byteLength; }
-  return new TextDecoder().decode(merged);
+  return merged;
 }
 
 /** Reject hostnames that resolve (statically) to loopback, private, or
@@ -369,8 +372,8 @@ export async function fetchAgentCard(
     // Cap card body size with a STREAM-READ before the contract check.
     // res.text() would buffer the entire body first; a chunked response
     // without Content-Length could exhaust memory pre-validation.
-    const text = await readResponseBodyWithCap(res, MAX_AGENT_CARD_BYTES);
-    if (text === null) return null;
+    const bodyBytes = await readResponseBodyWithCap(res, MAX_AGENT_CARD_BYTES);
+    if (bodyBytes === null) return null;
     // The response contract (status 200, application/json, size cap, JSON
     // parse, AgentCardSchema, protocol literal, identity binding, owner
     // anti-substitution when the fetch is DID-mediated) is the pinned
@@ -380,7 +383,7 @@ export async function fetchAgentCard(
       status: res.status,
       contentType: res.headers.get("Content-Type"),
       contentLength: res.headers.get("Content-Length"),
-      bodyRaw: text,
+      bodyRaw: bodyBytes,
       requestedAgentId: agentId,
       resolutionDid: options?.resolutionDid ?? null,
     });

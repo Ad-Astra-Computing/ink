@@ -2352,10 +2352,11 @@ vectorFile("agent-card", [
 // specs/ink-agent-card-discovery-fetch.md.
 const fetchBody = JSON.stringify(acCard);
 const fetchReqId = acCard.agentId;
-const fetchInput = (over = {}) => ({ status: 200, contentType: "application/json", contentLength: null, bodyRaw: fetchBody, requestedAgentId: fetchReqId, resolutionDid: null, ...over });
+const fetchInput = (over = {}) => ({ status: 200, contentType: "application/json", contentLength: null, bodyHex: utf8Hex(fetchBody), requestedAgentId: fetchReqId, resolutionDid: null, ...over });
 // Step 9 (owner anti-substitution) needs a card that carries an ownerDid.
 const fetchOwnerDid = "did:web:owner.example";
 const fetchOwnedBody = JSON.stringify({ ...acCard, ownerDid: fetchOwnerDid });
+const fetchOwnedBodyHex = utf8Hex(fetchOwnedBody);
 const fAccept = (caseId, description, input) => ({ caseId, description, input, expect: { result: "accept" } });
 const fReject = (caseId, description, input) => ({ caseId, description, input, expect: { result: "reject" } });
 vectorFile("agent-card-fetch", [
@@ -2385,20 +2386,46 @@ vectorFile("agent-card-fetch", [
   fReject("content-length-over-cap-rejects", "A Content-Length over the 64 KiB cap rejects before the body is trusted.", fetchInput({ contentLength: String(64 * 1024 + 1) })),
   fReject("content-length-int64-overflow-rejects", "A Content-Length larger than a 64-bit integer still classifies as over the cap (digit-string comparison, no parse).", fetchInput({ contentLength: "9223372036854775808" })),
   fReject("content-length-astronomical-rejects", "An astronomically large Content-Length rejects.", fetchInput({ contentLength: "1" + "0".repeat(100) })),
-  fReject("body-over-cap-rejects", "A body whose actual UTF-8 size exceeds the 64 KiB cap rejects.", fetchInput({ bodyRaw: "x".repeat(64 * 1024 + 1) })),
-  fReject("body-over-cap-multibyte-rejects", "A multibyte body over the cap rejects; the cap is UTF-8 bytes, not code units, identically in both implementations.", fetchInput({ bodyRaw: "€".repeat(21846) })),
+  fReject("body-over-cap-rejects", "A body whose actual UTF-8 size exceeds the 64 KiB cap rejects.", fetchInput({ bodyHex: utf8Hex("x".repeat(64 * 1024 + 1)) })),
+  fReject("body-over-cap-multibyte-rejects", "A multibyte body over the cap rejects; the cap is UTF-8 bytes, not code units, identically in both implementations.", fetchInput({ bodyHex: utf8Hex("€".repeat(21846)) })),
   // body content
-  fReject("body-not-json-rejects", "A non-JSON body rejects.", fetchInput({ bodyRaw: "{not json" })),
-  fReject("body-json-not-card-rejects", "Well-formed JSON that is not an Agent Card rejects.", fetchInput({ bodyRaw: JSON.stringify({ hello: "world" }) })),
-  fReject("body-array-rejects", "A JSON array body rejects.", fetchInput({ bodyRaw: "[]" })),
+  fReject("body-not-json-rejects", "A non-JSON body rejects.", fetchInput({ bodyHex: utf8Hex("{not json") })),
+  fReject("body-json-not-card-rejects", "Well-formed JSON that is not an Agent Card rejects.", fetchInput({ bodyHex: utf8Hex(JSON.stringify({ hello: "world" })) })),
+  fReject("body-array-rejects", "A JSON array body rejects.", fetchInput({ bodyHex: utf8Hex("[]") })),
+  // byte fidelity: bodyRaw is the response body exactly as received, not
+  // transcoded (specs/ink-agent-card-discovery-fetch.md). A caller that had
+  // already decoded to a JS string would have laundered these two cases
+  // through U+FFFD substitution and BOM stripping; only a byte-level gate
+  // catches them, and only non-ASCII content proves an implementation isn't
+  // catching them by refusing everything past ASCII.
+  fReject(
+    "body-invalid-utf8-rejects",
+    "An otherwise valid, bound card carrying one raw invalid UTF-8 byte inside displayName rejects; a lenient decode would substitute U+FFFD and admit the card.",
+    (() => {
+      const bytes = [...Buffer.from(fetchBody, "utf8")];
+      const at = fetchBody.indexOf('"Alice"') + 1; // the 'A' byte, corrupted below
+      bytes[at] = 0xff;
+      return fetchInput({ bodyHex: toHex(bytes) });
+    })(),
+  ),
+  fReject(
+    "body-bom-prefixed-rejects",
+    "A valid bound card prefixed with a UTF-8 byte-order mark rejects; a lenient decode would strip the BOM and admit the card.",
+    fetchInput({ bodyHex: toHex([0xef, 0xbb, 0xbf, ...Buffer.from(fetchBody, "utf8")]) }),
+  ),
+  fAccept(
+    "body-multibyte-accepts",
+    "A valid bound card whose displayName carries 2-, 3- and 4-byte UTF-8 sequences accepts; a byte gate must not reject non-ASCII content in general, only the invalid or BOM-prefixed cases above.",
+    fetchInput({ bodyHex: utf8Hex(JSON.stringify({ ...acCard, displayName: "héllo 中 😀" })) }),
+  ),
   // identity binding
   fReject("identity-mismatch-rejects", "A valid card whose agentId differs from the requested id rejects.", fetchInput({ requestedAgentId: "did:web:other.example" })),
   // owner anti-substitution (step 9)
-  fReject("owner-did-mismatch-rejects", "A DID-mediated fetch whose card names a different ownerDid rejects; a host that legitimately publishes a card for one DID must not answer resolution of another with it.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: "did:web:someone-else.example" })),
-  fAccept("owner-did-match-accepts", "A DID-mediated fetch whose card names the DID under resolution accepts; the comparison is byte for byte with no canonicalization.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: fetchOwnerDid })),
-  fReject("owner-did-case-differs-rejects", "The step 9 comparison performs no case folding, so a re-cased ownerDid is a different DID and rejects.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: "did:web:Owner.example" })),
+  fReject("owner-did-mismatch-rejects", "A DID-mediated fetch whose card names a different ownerDid rejects; a host that legitimately publishes a card for one DID must not answer resolution of another with it.", fetchInput({ bodyHex: fetchOwnedBodyHex, resolutionDid: "did:web:someone-else.example" })),
+  fAccept("owner-did-match-accepts", "A DID-mediated fetch whose card names the DID under resolution accepts; the comparison is byte for byte with no canonicalization.", fetchInput({ bodyHex: fetchOwnedBodyHex, resolutionDid: fetchOwnerDid })),
+  fReject("owner-did-case-differs-rejects", "The step 9 comparison performs no case folding, so a re-cased ownerDid is a different DID and rejects.", fetchInput({ bodyHex: fetchOwnedBodyHex, resolutionDid: "did:web:Owner.example" })),
   fAccept("owner-did-absent-accepts", "A card without an ownerDid passes step 9 unchanged, even under a DID-mediated fetch.", fetchInput({ resolutionDid: "did:web:owner.example" })),
-  fAccept("resolution-did-absent-accepts", "A fetch that was not DID-mediated passes step 9 unchanged, even when the card carries an ownerDid.", fetchInput({ bodyRaw: fetchOwnedBody, resolutionDid: null })),
+  fAccept("resolution-did-absent-accepts", "A fetch that was not DID-mediated passes step 9 unchanged, even when the card carries an ownerDid.", fetchInput({ bodyHex: fetchOwnedBodyHex, resolutionDid: null })),
 ]);
 
 // ── agent-card-signature ─────────────────────────────────────────────────────

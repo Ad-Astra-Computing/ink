@@ -35,8 +35,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card-discovery-fetch.md",
       "summary": "Agent Card discovery response contract (status, content type, size caps, identity binding, owner anti-substitution).",
-      "caseCount": 34,
-      "sha256": "689835be9ba72b648b19c10e413f875462202551743af0f672b5af3e7da8adf6"
+      "caseCount": 37,
+      "sha256": "118c949e3445239ef23d821b622272b1a51609aff89164362cbd727464a28f87"
     },
     {
       "id": "agent-card-signature",

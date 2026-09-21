@@ -8,6 +8,27 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- **Breaking:** `AgentCardFetchInput.bodyRaw` is now `Uint8Array` rather than
+  a string, and `evaluateAgentCardFetch` decides on it through
+  `parseSignedBodyBytes`. The prior string form was already decoded with a
+  non-fatal UTF-8 decoder, which admits a raw invalid byte as `U+FFFD` and
+  strips a leading BOM before the signed-body gate ever sees them, so a card
+  carrying either one passed discovery in TypeScript while Go's byte-faithful
+  `EvaluateAgentCardFetch` (a Go string is already a lossless byte container)
+  refused it. `fetchAgentCard` now hands the evaluator the response bytes
+  directly instead of decoding them first. `evaluateAgentCardFetch` never
+  throws: a `bodyRaw` that is not a `Uint8Array` rejects. Go's
+  `EvaluateAgentCardFetch` keeps its `string` parameter unchanged.
+  [`specs/ink-agent-card-discovery-fetch.md`](specs/ink-agent-card-discovery-fetch.md)
+  step 5 now states the full signed-body rule instead of a bare "parses as
+  JSON". The `agent-card-fetch` conformance category moved from `bodyRaw` to a
+  hex-encoded `bodyHex` so the corpus can express these byte-level cases, its
+  vector file has a new SHA-256 in the manifest, and it gained three cases
+  covering an invalid byte, a leading BOM and a multibyte-safe accept.
+  The runnable examples build against the published package, so they still
+  decode a card body to a string and carry their own lenient parse. They
+  adopt the byte contract when they move to this version, and until then
+  they are not a model for the fetch step.
 - **Breaking:** `decryptInkPayload` parses the decrypted plaintext through
   `parseSignedBodyBytes`, so the raw UTF-8, lone-surrogate, numeric-range and
   escaped-member-name rules run on the inner envelope before it is returned.
@@ -96,15 +117,22 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   interface has no index signature, so callers previously had to write
   `as unknown as Record<string, unknown>` at every call site, and a double cast
   is exactly the construct that hides a wrong argument. `isSignableBody` is
-  exported alongside it and is enforced at each entry point: null, arrays and
-  exotic objects such as `Date`, `Map` and class instances are refused. Those
+  exported alongside it and runs in `signMessage`, `verifyMessage`,
+  `verifyInkAuth`, `computeMessageHash`, `computeAuditMerkleLeafHash`,
+  `deriveDelegationParentHash` and `buildSignatureBase`, which is what covers
+  `signInkMessage` and the INK signature verifiers: there, null, arrays and
+  exotic objects such as `Date`, `Map` and class instances are refused. It does
+  not run yet in `signAuditEvent`, `signAuditResponse`,
+  `signAuditQueryResponse`, `signAgentCard`, `signRotationLink`, the audit and
+  card verifiers, or `jcsCanonicalize` itself, so those still canonicalize
+  whatever they are given. The exotic objects
   passed the old signature at runtime and canonicalize to `{}`, so a caller
   handing one to `signMessage` signed an empty body and got a valid signature
   back for it. The check reaches nested values too, so `{ when: new Date(0) }`
   is refused rather than signed as `{"when":{}}`, and it tests the prototype
   chain rather than one realm's `Object.prototype`, so an ordinary object that
   crossed a `vm`, worker or iframe boundary still signs. A boxed primitive is
-  refused for the same reason: `new String("ink/0.2")` canonicalizes to the
+  refused at those entry points for the same reason: `new String("ink/0.2")` canonicalizes to the
   string it wraps, so the signed bytes named a protocol version that
   domain selection, which compares strictly, did not use.
 
