@@ -155,3 +155,83 @@ export function recomputeMerkleRoot(
 
   return hash.toString("hex");
 }
+
+// ink-merkle-consistency.md: the empty tree's root is SHA-256("").
+const EMPTY_TREE_ROOT_HEX =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+const isHex64 = (s) => typeof s === "string" && /^[0-9a-f]{64}$/.test(s);
+
+// ink-merkle-consistency.md: the RFC 6962 §2.1.2 imperative consistency walk.
+// Boolean rather than throwing: a verifier facing malformed input rejects it,
+// it does not except on it.
+export function verifyConsistencyProof(first, firstRoot, second, secondRoot, proof) {
+  if (!Number.isSafeInteger(first) || !Number.isSafeInteger(second)) return false;
+  if (first < 0 || second < 0 || first > second) return false;
+  if (!isHex64(firstRoot) || !isHex64(secondRoot)) return false;
+  if (!Array.isArray(proof) || !proof.every(isHex64)) return false;
+
+  if (first === second) {
+    return proof.length === 0 && firstRoot === secondRoot;
+  }
+  if (first === 0) {
+    return proof.length === 0 && firstRoot === EMPTY_TREE_ROOT_HEX;
+  }
+
+  // Shift down to the first node on the rightmost path of the `first` tree
+  // that the two trees do not share.
+  let node = first - 1;
+  let last = second - 1;
+  while (node % 2 === 1) {
+    node = Math.floor(node / 2);
+    last = Math.floor(last / 2);
+  }
+
+  let idx = 0;
+  let firstHash;
+  let secondHash;
+  if (node > 0) {
+    // `first` is not an exact power of two: the walk starts from a proof node.
+    if (proof.length === 0) return false;
+    firstHash = secondHash = fromHex(proof[idx]);
+    idx++;
+  } else {
+    // `first` is an exact power of two: the old subtree hash is `firstRoot`.
+    firstHash = secondHash = fromHex(firstRoot);
+  }
+
+  while (node > 0) {
+    if (node % 2 === 1) {
+      // Odd node: the left sibling is shared and feeds both reconstructions.
+      if (idx >= proof.length) return false;
+      const sibling = fromHex(proof[idx]);
+      idx++;
+      firstHash = hashPair(sibling, firstHash);
+      secondHash = hashPair(sibling, secondHash);
+    } else if (node < last) {
+      // Even node still short of `last`: the right sibling exists only in
+      // the second tree and feeds the new reconstruction alone.
+      if (idx >= proof.length) return false;
+      const sibling = fromHex(proof[idx]);
+      idx++;
+      secondHash = hashPair(secondHash, sibling);
+    }
+    node = Math.floor(node / 2);
+    last = Math.floor(last / 2);
+  }
+
+  if (firstHash.toString("hex") !== firstRoot) return false;
+
+  // Any remaining proof nodes extend the second tree on up to its root.
+  while (last > 0) {
+    if (idx >= proof.length) return false;
+    const sibling = fromHex(proof[idx]);
+    idx++;
+    secondHash = hashPair(secondHash, sibling);
+    last = Math.floor(last / 2);
+  }
+
+  // Unused proof nodes mean a padded proof, which must not verify.
+  if (idx !== proof.length) return false;
+  return secondHash.toString("hex") === secondRoot;
+}

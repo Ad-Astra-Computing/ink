@@ -28,6 +28,7 @@ import {
   auditEventSignatureBase,
   inclusionReceiptSignatureBase,
   recomputeMerkleRoot,
+  verifyConsistencyProof,
 } from "../conformance/v1/independent/audit-and-chain.mjs";
 
 const VECTORS = join(
@@ -60,10 +61,27 @@ const verify = (sig: string, base: string, key: Uint8Array) =>
 describe("transport signature base, protocol §3.3", () => {
   it("verifies every signature the corpus accepts", async () => {
     const failures: string[] = [];
-    let exercised = 0;
-    for (const c of cases("signature-base")) {
-      const { signInput, signature, publicKeyHex } = c.input ?? {};
-      if (!signInput || !signature || !publicKeyHex) {
+    // signature-base carries a single publicKeyHex per case. key-rotation
+    // carries a keys[] set instead, and names the signer via expect.keyId
+    // (or, when only one key is offered, that sole key). Both name the same
+    // §3.3 transport signature, so both belong in this loop.
+    const signedTransportCategories = ["signature-base", "key-rotation"];
+    const exercisedBy = new Map<string, number>();
+    for (const category of signedTransportCategories)
+    for (const c of cases(category)) {
+      const { signInput, signature } = c.input ?? {};
+      const keys = c.input?.keys;
+      const publicKeyHex =
+        typeof c.input?.publicKeyHex === "string"
+          ? c.input.publicKeyHex
+          : Array.isArray(keys)
+            ? keys.find(
+                (k: any) =>
+                  k?.keyId ===
+                  (c.expect?.keyId ?? (keys.length === 1 ? keys[0]?.keyId : undefined)),
+              )?.publicKeyHex
+            : undefined;
+      if (!signInput || !signature || typeof publicKeyHex !== "string") {
         // An accept case missing its artifacts cannot be checked, and silently
         // skipping it is how a check goes hollow. Fail instead.
         expect(
@@ -72,7 +90,7 @@ describe("transport signature base, protocol §3.3", () => {
         ).not.toEqual("accept");
         continue;
       }
-      exercised++;
+      exercisedBy.set(category, (exercisedBy.get(category) ?? 0) + 1);
       // §3.3: a scalar carrying CR or LF must refuse at base construction,
       // because the collision vectors carry a signature that VERIFIES over the
       // collided base; a builder that constructs it anyway authenticates two
@@ -100,10 +118,14 @@ describe("transport signature base, protocol §3.3", () => {
       }
       if (c.expect.result === "accept" && !ok) failures.push(c.caseId);
     }
-    expect(
-      exercised,
-      "no signature-base vectors were exercised",
-    ).toBeGreaterThan(0);
+    // Per category, not a total: a total stays green if one category stops
+    // contributing, which is how a signature-bearing category goes unchecked.
+    for (const category of signedTransportCategories) {
+      expect(
+        exercisedBy.get(category) ?? 0,
+        `no ${category} transport signature was exercised`,
+      ).toBeGreaterThan(0);
+    }
     expect(failures).toEqual([]);
   });
 });
@@ -113,7 +135,11 @@ describe("agent card signature base, card spec §3.2", () => {
     const failures: string[] = [];
     let exercised = 0;
     let unsigned = 0;
-    const signedCardCategories = ["agent-card-signature", "agent-card-evidence"];
+    const signedCardCategories = [
+      "agent-card-signature",
+      "agent-card-evidence",
+      "agent-card-signature-phase-c",
+    ];
     const exercisedBy = new Map<string, number>();
     for (const category of signedCardCategories)
     for (const c of cases(category)) {
@@ -690,6 +716,41 @@ describe("audit and delegation profiles", () => {
       if (!ok) failures.push(`${c.caseId} (${c.expect.result})`);
     }
     expect(exercised, "no inclusion proofs were exercised").toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
+  it("walks every merkle-consistency proof, accept and reject alike", () => {
+    let exercised = 0;
+    let accepted = 0;
+    let rejected = 0;
+    const failures: string[] = [];
+    for (const c of cases("merkle-consistency")) {
+      const i = c.input;
+      if (typeof i?.firstRoot !== "string" || typeof i?.secondRoot !== "string")
+        continue;
+      exercised++;
+      const got = verifyConsistencyProof(
+        i.first,
+        i.firstRoot,
+        i.second,
+        i.secondRoot,
+        i.proof ?? [],
+      );
+      if (c.expect.result === "accept") {
+        accepted++;
+        if (!got) failures.push(`${c.caseId} (accept)`);
+      } else {
+        // A tampered root, a swapped proof element, a short or padded proof,
+        // and every other reject vector must fail the walk, not merely miss
+        // being asserted true. A walk that accepts any of these is the bug
+        // this pins.
+        rejected++;
+        if (got) failures.push(`${c.caseId} (reject)`);
+      }
+    }
+    expect(accepted, "no accepted merkle-consistency proofs were exercised").toBeGreaterThan(0);
+    expect(rejected, "no rejected merkle-consistency proofs were exercised").toBeGreaterThan(0);
+    expect(exercised, "no merkle-consistency vectors were exercised").toBeGreaterThan(0);
     expect(failures).toEqual([]);
   });
 
