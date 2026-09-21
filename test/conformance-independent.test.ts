@@ -449,6 +449,37 @@ describe("non-base profiles", () => {
     ],
   ];
 
+  it("verifies every attestation carried on an accepted evidence card", async () => {
+    // The card loop checks cardSignature. An accepted card can also carry
+    // attestations, each signed by its issuer over the §3.6 body base, and
+    // nothing re-verified those against this construction.
+    const failures: string[] = [];
+    let exercised = 0;
+    for (const c of cases("agent-card-evidence")) {
+      if (c.expect.result !== "accept") continue;
+      const atts = (c.input?.card as { attestations?: unknown[] })?.attestations;
+      if (!Array.isArray(atts)) continue;
+      for (const a of atts as { signature?: string; issuer?: string }[]) {
+        if (typeof a?.signature !== "string" || typeof a?.issuer !== "string") continue;
+        // A key-derived issuer carries its own public key, so the signature
+        // roots in the principal rather than in any card field.
+        const mb = a.issuer.startsWith("ink:") || a.issuer.startsWith("tulpa:")
+          ? a.issuer.slice(a.issuer.indexOf(":") + 1)
+          : undefined;
+        if (mb === undefined) continue;
+        exercised++;
+        if (!(await verify(a.signature, bodySignatureBase(a), decodePublicKeyMultibase(mb)))) {
+          failures.push(`${c.caseId}:${(a as { attestationId?: string }).attestationId ?? "?"}`);
+        }
+      }
+    }
+    expect(
+      exercised,
+      "no attestation carried on an accepted evidence card was exercised",
+    ).toBeGreaterThan(0);
+    expect(failures).toEqual([]);
+  });
+
   for (const [category, label, pick] of bodySigned) {
     it(`verifies every accepted ${label} on the §3.6 body base`, async () => {
       const t = tally();
