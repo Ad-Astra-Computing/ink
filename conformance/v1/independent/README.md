@@ -41,6 +41,10 @@ Not yet covered, and honest about it:
   this to check.
 - `handshake-message`, same reason.
 - `evidence-refusal`, same reason: a refusal carries no crypto artifact.
+- `authorization-header`. Every accept case carries an 86-char Ed25519
+  signature in `expect.signature`, but the category supplies no key and no
+  signing base to re-verify it against: it is a parsing category, extracting
+  the signature substring from the header rather than checking it.
 
 Everything else that carries a signature or a hash is covered: the base
 profile, `key-rotation`'s transport signatures, grants, authorization
