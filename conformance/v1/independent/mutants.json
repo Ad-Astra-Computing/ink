@@ -80,6 +80,13 @@
       "replace": "withoutSignature[key] = object[key];"
     },
     {
+      "id": "card-base-keeps-signature",
+      "file": "conformance/v1/independent/card-signature.mjs",
+      "rule": "§3.2: the cardSignature member is removed before canonicalizing",
+      "find": "return `${CARD_DOMAIN}\\n${jcs(without(card, \"cardSignature\"))}`;",
+      "replace": "return `${CARD_DOMAIN}\\n${jcs(card)}`;"
+    },
+    {
       "id": "transport-base-allows-newline",
       "file": "conformance/v1/independent/signature-base.mjs",
       "rule": "\u00a73.3: a scalar carrying CR or LF refuses at base construction",
@@ -134,6 +141,20 @@
       "rule": "\u00a73.6: the audit query response preimage excludes serviceSignature",
       "find": "jcs(without(response, \"serviceSignature\"))",
       "replace": "jcs(response)"
+    },
+    {
+      "id": "consistency-skips-first-root",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "RFC 6962 §2.1.2: the reconstructed old-tree hash must equal firstRoot",
+      "find": "if (firstHash.toString(\"hex\") !== firstRoot) return false;",
+      "replace": ""
+    },
+    {
+      "id": "consistency-padded-proof-accepted",
+      "file": "conformance/v1/independent/audit-and-chain.mjs",
+      "rule": "RFC 6962 §2.1.2: unused (padded) proof nodes are rejected, not silently accepted",
+      "find": "if (idx !== proof.length) return false;\n  return secondHash.toString(\"hex\") === secondRoot;",
+      "replace": "return secondHash.toString(\"hex\") === secondRoot;"
     },
     {
       "id": "delegation-pools-issuer-keys",
