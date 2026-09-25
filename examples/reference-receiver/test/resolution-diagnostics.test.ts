@@ -86,9 +86,14 @@ interface RawResponse {
   [RAW]: true;
   bytes: Uint8Array;
   contentType?: string | null;
+  contentLength?: string;
 }
-function rawResponse(bytes: Uint8Array, contentType: string | null = "application/json"): RawResponse {
-  return { [RAW]: true, bytes, contentType };
+function rawResponse(
+  bytes: Uint8Array,
+  contentType: string | null = "application/json",
+  contentLength?: string,
+): RawResponse {
+  return { [RAW]: true, bytes, contentType, contentLength };
 }
 
 /** Serves only the URLs in `map`; every other URL 404s and is recorded. */
@@ -105,6 +110,7 @@ function trackingFetcher(map: Record<string, unknown>) {
       if (raw.contentType !== null && raw.contentType !== undefined) {
         headers["content-type"] = raw.contentType;
       }
+      if (raw.contentLength !== undefined) headers["content-length"] = raw.contentLength;
       return new Response(raw.bytes, { status: 200, headers });
     }
     return new Response(JSON.stringify(value), {
@@ -249,6 +255,31 @@ describe("resolveAgentCardForDidWebDetailed", () => {
     const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.reason).toBe("card_response_invalid");
+  });
+
+  it("reports a card response declaring a length over the cap", async () => {
+    const card = await senderCard();
+    const bytes = new TextEncoder().encode(JSON.stringify(card));
+    const { fetcher } = trackingFetcher({
+      [SENDER_DID_DOC]: { id: SENDER_DID, service: [] },
+      [SENDER_CARD_URL]: rawResponse(bytes, "application/json", "99999999999"),
+    });
+    const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("card_response_invalid");
+  });
+
+  it("reports the bytes, not the headers, when both are wrong", async () => {
+    const card = await senderCard();
+    const bytes = new TextEncoder().encode(JSON.stringify(card));
+    bytes[new TextDecoder().decode(bytes).indexOf("Test Sender")] = 0xff;
+    const { fetcher } = trackingFetcher({
+      [SENDER_DID_DOC]: { id: SENDER_DID, service: [] },
+      [SENDER_CARD_URL]: rawResponse(bytes, "text/plain"),
+    });
+    const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("card_bytes_invalid");
   });
 
   it("reports a card that binds to a different DID", async () => {

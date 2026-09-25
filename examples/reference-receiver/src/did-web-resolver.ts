@@ -28,7 +28,6 @@ import {
   evaluateAgentCardFetch,
   parseSignedBodyBytes,
   ParseSignedBodyError,
-  MAX_AGENT_CARD_BYTES,
 } from "@adastracomputing/ink";
 
 const DID_WEB_HOST_RE =
@@ -315,50 +314,6 @@ async function fetchCardBytes(
   }
 }
 
-/**
- * True when the header names exactly the application/json media type with no
- * ambiguity. This is a diagnostic-only copy of the check `evaluateAgentCardFetch`
- * already runs; the library does not export it, so the reasoning is duplicated
- * here purely to classify a rejection, never to change one.
- */
-function isJsonContentType(value: string | null): boolean {
-  if (value === null) return false;
-  const header = value.trim();
-  if (header.length === 0) return false;
-  if (header.includes(",")) return false;
-  const parts = header.split(";");
-  const mediaType = (parts[0] ?? "").trim().toLowerCase();
-  if (mediaType !== "application/json") return false;
-  for (let i = 1; i < parts.length; i++) {
-    const param = parts[i]!.trim();
-    if (param.length === 0) continue;
-    const eq = param.indexOf("=");
-    if (eq === -1) continue;
-    const name = param.slice(0, eq).trim().toLowerCase();
-    if (name === "charset") {
-      let charset = param.slice(eq + 1).trim().toLowerCase();
-      if (charset.startsWith('"') && charset.endsWith('"') && charset.length >= 2) {
-        charset = charset.slice(1, -1);
-      }
-      if (charset !== "utf-8") return false;
-    }
-  }
-  return true;
-}
-
-/** Same digit-string comparison `evaluateAgentCardFetch` uses, duplicated for
- *  the same reason as `isJsonContentType`. */
-function contentLengthExceedsCap(header: string | null): boolean {
-  if (header === null) return false;
-  const trimmed = header.trim();
-  if (!/^\d+$/.test(trimmed)) return false;
-  let v = trimmed.replace(/^0+/, "");
-  if (v === "") v = "0";
-  const cap = String(MAX_AGENT_CARD_BYTES);
-  if (v.length !== cap.length) return v.length > cap.length;
-  return v > cap;
-}
-
 function hasUtf8Bom(bytes: Uint8Array): boolean {
   return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
 }
@@ -369,8 +324,13 @@ function hasUtf8Bom(bytes: Uint8Array): boolean {
  * checks purely to pick a more specific reason code, on bytes and headers the
  * authoritative gate has already refused.
  *
- * Header checks run first (`card_response_invalid`), because they are decided
- * before the byte-level gate ever runs. `parseSignedBodyBytes` is the same
+ * `card_response_invalid` is reported only when the headers alone caused the
+ * refusal. That is decided by re-running `evaluateAgentCardFetch` with a
+ * plain `application/json` type and no declared length: if the same bytes
+ * are then accepted, the headers were the problem. Using the library's own
+ * header rules this way keeps the hint in step with the library without
+ * copying its checks. When the bytes are also bad, the byte reason wins,
+ * since fixing the headers alone would not help. `parseSignedBodyBytes` is the same
  * byte-level gate the receiver's inbound path uses, so a lone surrogate escape,
  * an out-of-range number literal or an escaped member name are reported the
  * same way an invalid UTF-8 byte is: `card_bytes_invalid`. A leading BOM is
@@ -381,9 +341,14 @@ function diagnoseCardRejection(
   cardFetch: FetchedCardBytes,
   requestedAgentId: string,
 ): CardResolutionReason {
-  if (!isJsonContentType(cardFetch.contentType) || contentLengthExceedsCap(cardFetch.contentLength)) {
-    return "card_response_invalid";
-  }
+  const acceptedWithPlainHeaders = evaluateAgentCardFetch({
+    status: cardFetch.status,
+    contentType: "application/json",
+    contentLength: null,
+    bodyRaw: cardFetch.bodyRaw,
+    requestedAgentId,
+  }).accepted;
+  if (acceptedWithPlainHeaders) return "card_response_invalid";
   if (hasUtf8Bom(cardFetch.bodyRaw)) return "card_bytes_invalid";
   let parsed: unknown;
   try {
