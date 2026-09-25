@@ -30,7 +30,7 @@
  * untrusted.
  */
 
-import { AgentCardSchema, resolveAgentInbox } from "@adastracomputing/ink";
+import { evaluateAgentCardFetch, resolveAgentInbox } from "@adastracomputing/ink";
 import { validateTargetUrl } from "./transport.ts";
 import { didWebOrigin } from "./host-safety.ts";
 
@@ -147,12 +147,23 @@ export async function resolveInboxEndpoint(
   );
   if (serviceEndpoint) cardUrl = serviceEndpoint;
 
-  const fetched = await fetchCard(cardUrl, doFetch, timeoutMs);
+  const fetched = await fetchCardBytes(cardUrl, doFetch, timeoutMs);
   if (!fetched) return { ok: false, reason: "card_unreachable" };
 
-  const card = evaluateCardResponse(fetched, input.recipientDid);
-  if (!card) return { ok: false, reason: "card_rejected" };
-  return { ok: true, endpoint: resolveAgentInbox(card), source: "did-web-card" };
+  // The response contract (status 200, JSON content type, size cap, the
+  // signed-body byte gates, schema, protocol, agentId binding) is decided by
+  // the library against the raw response bytes, never a decoded string: a
+  // lenient decode would substitute U+FFFD for an invalid byte and strip a
+  // leading BOM before the signed-body gate ever saw them.
+  const evaluated = evaluateAgentCardFetch({
+    status: fetched.status,
+    contentType: fetched.contentType,
+    contentLength: fetched.contentLength,
+    bodyRaw: fetched.bodyRaw,
+    requestedAgentId: input.recipientDid,
+  });
+  if (!evaluated.accepted || !evaluated.card) return { ok: false, reason: "card_rejected" };
+  return { ok: true, endpoint: resolveAgentInbox(evaluated.card), source: "did-web-card" };
 }
 
 /**
@@ -205,40 +216,14 @@ interface FetchedCard {
   body: string;
 }
 
-/**
- * The discovery response contract: status 200, a JSON content type with
- * at most a utf-8 charset, a schema-valid card, protocol ink/0.1, and the
- * card's agentId bound to the requested DID. Returns the validated card or
- * null. (The same decision the package pins for the handle convention; an
- * adopter on a newer package can swap in its `evaluateAgentCardFetch`.)
- */
-function evaluateCardResponse(
-  res: FetchedCard,
-  requestedAgentId: string,
-): ReturnType<typeof AgentCardSchema.parse> | null {
-  if (res.status !== 200) return null;
-  const contentType = res.contentType;
-  if (!contentType || contentType.includes(",")) return null;
-  const [mediaType, ...params] = contentType.split(";").map((s) => s.trim().toLowerCase());
-  if (mediaType !== "application/json") return null;
-  for (const p of params) {
-    if (p.startsWith("charset=") && p.slice("charset=".length) !== "utf-8") return null;
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(res.body);
-  } catch {
-    return null;
-  }
-  const result = AgentCardSchema.safeParse(parsed);
-  if (!result.success) return null;
-  const card = result.data;
-  if (card.protocol !== "ink/0.1") return null;
-  if (card.agentId !== requestedAgentId) return null;
-  return card;
+interface FetchedCardBytes {
+  status: number;
+  contentType: string | null;
+  contentLength: string | null;
+  bodyRaw: Uint8Array;
 }
 
-/** GET the card with a bounded timeout, no redirects, and a body cap. */
+/** GET the DID document with a bounded timeout, no redirects, and a body cap. */
 async function fetchCard(
   url: string,
   doFetch: typeof fetch,
@@ -301,4 +286,79 @@ async function readCappedText(response: Response, max: number): Promise<string |
     }
   }
   return out;
+}
+
+/**
+ * GET the Agent Card with a bounded timeout, no redirects, and a body cap,
+ * handing back the response bytes exactly as received. The card carries a
+ * signature verified over its canonical form, so it must reach
+ * `evaluateAgentCardFetch` un-decoded: a lenient UTF-8 decode would
+ * substitute U+FFFD for an invalid byte and strip a leading BOM before the
+ * signed-body gate ever saw them.
+ */
+async function fetchCardBytes(
+  url: string,
+  doFetch: typeof fetch,
+  timeoutMs: number,
+): Promise<FetchedCardBytes | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    let response: Response;
+    try {
+      response = await doFetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+        redirect: "manual",
+      });
+    } catch {
+      return null;
+    }
+    let bodyRaw: Uint8Array | null;
+    try {
+      bodyRaw = await readCappedBytes(response, MAX_CARD_BYTES);
+    } catch {
+      return null;
+    }
+    if (bodyRaw === null) return null;
+    return {
+      status: response.status,
+      contentType: response.headers.get("Content-Type"),
+      contentLength: response.headers.get("Content-Length"),
+      bodyRaw,
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function readCappedBytes(response: Response, max: number): Promise<Uint8Array | null> {
+  const reader = response.body?.getReader();
+  if (!reader) return new Uint8Array(0);
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      received += value.byteLength;
+      if (received > max) {
+        try {
+          await reader.cancel();
+        } catch {
+          /* ignore */
+        }
+        return null;
+      }
+      chunks.push(value);
+    }
+  }
+  const merged = new Uint8Array(received);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return merged;
 }

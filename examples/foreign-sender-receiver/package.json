@@ -5,12 +5,15 @@
   "description": "Reference TypeScript implementation of the receive-side patterns documented in the INK Accepting Foreign Senders implementer guide.",
   "type": "module",
   "main": "src/index.ts",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {
-    "@adastracomputing/ink": "^0.19.0"
+    "@adastracomputing/ink": "^0.20.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.2",
