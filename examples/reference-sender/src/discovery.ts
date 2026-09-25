@@ -180,7 +180,7 @@ async function resolveServiceEndpoint(
   timeoutMs: number,
   allowPrivateHosts?: boolean,
 ): Promise<string | null> {
-  const fetched = await fetchCard(targets.didDocUrl, doFetch, timeoutMs);
+  const fetched = await fetchDidDocument(targets.didDocUrl, doFetch, timeoutMs);
   if (!fetched || fetched.status !== 200) return null;
   let doc: unknown;
   try {
@@ -210,7 +210,7 @@ async function resolveServiceEndpoint(
   return null;
 }
 
-interface FetchedCard {
+interface FetchedDidDocument {
   status: number;
   contentType: string | null;
   body: string;
@@ -223,12 +223,14 @@ interface FetchedCardBytes {
   bodyRaw: Uint8Array;
 }
 
-/** GET the DID document with a bounded timeout, no redirects, and a body cap. */
-async function fetchCard(
+/** GET the DID document at a did:web identifier's document URL, with a bounded
+ *  timeout, no redirects, and a body cap. Unlike `fetchCardBytes` below, the
+ *  DID document is unsigned, so it is read and decoded as text, not bytes. */
+async function fetchDidDocument(
   url: string,
   doFetch: typeof fetch,
   timeoutMs: number,
-): Promise<FetchedCard | null> {
+): Promise<FetchedDidDocument | null> {
   const controller = new AbortController();
   // The timer covers the body read too: a hostile card host can return
   // headers then stall the body, and the byte cap only fires once bytes
