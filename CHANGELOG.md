@@ -4,7 +4,7 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
-## Unreleased
+## 0.20.0, decide on the bytes that were signed
 
 ### Changes
 
@@ -72,7 +72,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   the boundary. Those cases used to skip every assertion, so a parser that
   refused everything satisfied them.
 
-- The card verifier rejects a present member of the wrong type wherever it
+- **Breaking:** the card verifier rejects a present member of the wrong type wherever it
   reads one, rather than at the top level only. A non-string
   `currentSigningKeyId` was compared as a value by the reference and read as
   missing by Go; a rotation chain carrying something that is not a link was
@@ -96,7 +96,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   now re-decides the original too, and reports an unstable observation rather
   than writing one.
 
-- The Go card verifier no longer demotes a card with a malformed key set to the
+- **Breaking:** the Go card verifier no longer demotes a card with a malformed key set to the
   legacy single-key path. `keys.signing` present but not an array failed a type
   assertion and was read as "no key set", so the card was verified against the
   top-level `publicKeyMultibase`: a card whose set retires or revokes that key
@@ -111,7 +111,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   every other surface can only mutate bytes, which is why the composite
   verifiers were out of reach before.
 
-- The signing and hashing entry points take `SignableBody` instead of
+- **Breaking:** the signing and hashing entry points take `SignableBody` instead of
   `Record<string, unknown>`, so a value of a declared interface type, including
   the package's own message types, can be passed straight in. A declared
   interface has no index signature, so callers previously had to write
@@ -242,6 +242,19 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   rather than library behaviour say "none in the library" instead of
   borrowing a file. A cited path inside the repository must now exist, which
   `npm run check:facts` enforces.
+- The independent construction now re-verifies every category that carries a
+  signature or a hash, or names it as uncovered with a true reason. Three had
+  slipped through since 0.18.0: `key-rotation` and
+  `agent-card-signature-phase-c` were never iterated, their signature bytes
+  checked only because they happen to match vectors that are, and
+  `merkle-consistency` was listed as carrying no crypto artifact while it
+  carried RFC 6962 consistency proofs throughout. It now has an RFC 6962
+  §2.1.2 consistency walk written from the spec rather than the
+  implementation. Each loop counts per category, so a category that stops
+  contributing fails by name instead of hiding inside a total. The mutant
+  registry gains three entries for constructions it had none for, and
+  `authorization-header` is named as a parsing category with no key or base
+  to re-verify.
 
 ## 0.19.0, a key must fit its role
 
@@ -322,8 +335,8 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 > signature-relevant parse in shipped code runs the same text-level rules was
 > wrong when written. Through 0.19.0, `decryptInkPayload` still parsed the
 > decrypted inner envelope with a bare `JSON.parse` and Go's
-> `DecryptInkPayload` with a bare `json.Unmarshal`. Both are corrected in the
-> release after 0.19.0; see the Unreleased entry.
+> `DecryptInkPayload` with a bare `json.Unmarshal`. Both are corrected in
+> 0.20.0; see that entry.
 
 ### Changes
 

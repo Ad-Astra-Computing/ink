@@ -25,7 +25,7 @@ one agent acts on its user's behalf and the receiving side needs to know who
 asked. Every message is a signed envelope with a typed payload, so a receiver can
 check the sender's key and apply its own policy before anything reaches the user.
 
-**Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.19.0`[^ck] and `next` is `0.19.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
+**Status: experimental.** `ink/0.2` is the current defined wire version for the intent envelope only; every other wire object stays `ink/0.1`. Wire formats, trust semantics and APIs may change without backward-compatible migration before v1.0. On npm, `latest` is `0.19.0`[^ck] and `next` is `0.20.0`[^ck]; senders still emit `ink/0.1` by default unless explicitly configured.
 
 | | |
 |---|---|
