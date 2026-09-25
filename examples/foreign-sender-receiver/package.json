@@ -16,7 +16,7 @@
     "@adastracomputing/ink": "^0.20.0"
   },
   "devDependencies": {
-    "@types/node": "^22.20.2",
+    "@types/node": "^22.20.4",
     "typescript": "^5.0.0",
     "vitest": "^5.0.0"
   }
