@@ -29,4 +29,5 @@ services:
       - receiver
     environment:
       RECEIVER_URL: "http://receiver:8787"
+      INK_RECEIVER_HOST: "${INK_RECEIVER_HOST:-ink-receiver.example}"
     command: ["node", "dist/agent-demo.mjs", "hello from the sender agent"]
