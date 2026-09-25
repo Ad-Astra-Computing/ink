@@ -75,13 +75,14 @@ Astra Computing at `api.tulpa.network`.
 
 ## Deploy
 
-This example requires `@adastracomputing/ink` 0.12.0 or newer, for
-`parseSignedBodyBytes`. Running `npm install` here resolves the pin in
-`package.json` directly. If you lift this code into your own project, decide
-which dist-tag you want: `npm install @adastracomputing/ink@next` tracks the
-current pre-1.0 line, while the default `latest` resolves to the most recent
-release a maintainer has stamped adopter-grade, which may lag `next`. Both
-currently satisfy this example's floor.
+This example requires `@adastracomputing/ink` 0.20.0 or newer. `evaluateAgentCardFetch`
+now takes `bodyRaw` as a `Uint8Array` rather than a decoded string, and on 0.19.0
+every `did:web` sender is refused with `card_schema_invalid`. Running `npm install`
+here resolves the pin in `package.json` directly. If you lift this code into your
+own project, decide which dist-tag you want: `npm install @adastracomputing/ink@next`
+tracks the current pre-1.0 line, while the default `latest` resolves to the most
+recent release a maintainer has stamped adopter-grade, which may lag `next`. Check
+which one meets this example's floor before you install.
 
 Node 24 is the only prerequisite. With nix,
 `nix develop ..#reference-receiver` from this directory supplies one without
@@ -130,10 +131,10 @@ request:
 
 ```sh
 curl -sI https://<your-host>/.well-known/ink/agent.json | grep -i ink-receiver-build
-# Ink-Receiver-Build: ink=0.19.0; deployment=e3f1...
+# Ink-Receiver-Build: ink=<version>; deployment=e3f1...
 
 curl https://<your-host>/_build
-# {"ink":"0.19.0","deployment":"e3f1..."}
+# {"ink":"<version>","deployment":"e3f1..."}
 ```
 
 The landing page footer names the same library version and links to `/_build`,
@@ -215,6 +216,8 @@ failed and a `hint` describing the fix:
 | `did_document_unreachable` | Publish a DID document at the did:web document URL. |
 | `card_absent_from_discovery_path` | Serve the card at `/ink/v1/<agentId>/agent.json`, or declare an `InkAgentCard` service endpoint in the DID document. |
 | `card_absent_from_service_endpoint` | The DID document names an `InkAgentCard` endpoint that serves nothing. It must be https and on the DID's own authority. |
+| `card_response_invalid` | The card response's Content-Type is missing, ambiguous, not `application/json`, or has a non-utf-8 charset, or its Content-Length declares a body over the 64 KiB cap. |
+| `card_bytes_invalid` | The card body failed the signed-body byte contract: invalid UTF-8, a leading byte-order mark, a lone UTF-16 surrogate escape, a number literal outside the IEEE-754 double range, or an escaped object member name. |
 | `card_schema_invalid` | The served card does not validate against the agent card schema. |
 | `card_agent_id_mismatch` | The card announces a different `agentId` than the DID being resolved. |
 | `unsupported_did_method` | This receiver resolves `did:key` and `did:web` senders only. |
