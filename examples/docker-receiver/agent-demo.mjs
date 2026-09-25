@@ -21,6 +21,9 @@ import {
   signInkMessage,
   buildAuthHeader,
   validateMessage,
+  parseSignedBodyBytes,
+  ParseSignedBodyError,
+  AgentCardSchema,
 } from "@adastracomputing/ink";
 
 const receiverUrl = (process.env.RECEIVER_URL ?? "http://localhost:8787").replace(/\/+$/, "");
@@ -31,14 +34,39 @@ const note = process.argv[2] ?? "hello from the INK agent demo";
 const kp = await generateKeypair();
 const senderDid = `did:key:${encodePublicKeyMultibase(kp.publicKey)}`;
 
-// 2. Discover the receiver from its published agent card.
-const cardRes = await fetch(`${receiverUrl}/.well-known/ink/agent.json`);
+// 2. Discover the receiver at its versioned card path. A real sender would
+//    resolve this DID first and decide through `evaluateAgentCardFetch`, the
+//    way reference-sender does; this demo already knows the DID (the compose
+//    file sets INK_RECEIVER_HOST), so it fetches the path and gates by hand.
+const receiverHost = process.env.INK_RECEIVER_HOST ?? "ink-receiver.example";
+const receiverDid = `did:web:${receiverHost}`;
+const cardUrl = `${receiverUrl}/ink/v1/${encodeURIComponent(receiverDid)}/agent.json`;
+const cardRes = await fetch(cardUrl);
 if (!cardRes.ok) {
   console.error(`could not fetch agent card: ${cardRes.status}`);
   process.exit(1);
 }
-const card = await cardRes.json();
-const receiverDid = card.agentId;
+// Raw bytes, not `.json()`: a lenient decode could accept a card the
+// byte-level signed-body gate would refuse.
+const bodyRaw = new Uint8Array(await cardRes.arrayBuffer());
+let parsedCard;
+try {
+  parsedCard = parseSignedBodyBytes(bodyRaw);
+} catch (err) {
+  const reason = err instanceof ParseSignedBodyError ? err.reason : "invalid_json";
+  console.error(`agent card failed the signed-body byte gate: ${reason}`);
+  process.exit(1);
+}
+const cardResult = AgentCardSchema.safeParse(parsedCard);
+if (!cardResult.success) {
+  console.error("agent card did not validate against the agent card schema");
+  process.exit(1);
+}
+const card = cardResult.data;
+if (card.agentId !== receiverDid) {
+  console.error(`agent card agentId ${card.agentId} does not match ${receiverDid}`);
+  process.exit(1);
+}
 // The card advertises a public did:web inbox URL, but for this local demo the
 // receiver is actually reachable at RECEIVER_URL. The §3.3 signature commits
 // to the path only (not the host), so sign over the card's inbox path and POST

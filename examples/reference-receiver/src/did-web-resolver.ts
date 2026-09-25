@@ -23,7 +23,12 @@
  * gadget.
  */
 
-import { AgentCardSchema } from "@adastracomputing/ink";
+import {
+  AgentCardSchema,
+  evaluateAgentCardFetch,
+  parseSignedBodyBytes,
+  ParseSignedBodyError,
+} from "@adastracomputing/ink";
 
 const DID_WEB_HOST_RE =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -203,6 +208,42 @@ export function resolveDidWebTargets(did: string): DidWebTargets | null {
 const MAX_FETCH_BYTES = 64 * 1024;
 const FETCH_TIMEOUT_MS = 4000;
 
+/** Stream a response body, capped at `MAX_FETCH_BYTES`, cancelling past it. */
+async function readCappedBytes(res: Response): Promise<Uint8Array | null> {
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (value) {
+        total += value.byteLength;
+        if (total > MAX_FETCH_BYTES) {
+          try { await reader.cancel(); } catch { /* ignore */ }
+          return null;
+        }
+        chunks.push(value);
+      }
+    }
+  } finally {
+    try { await reader.cancel(); } catch { /* ignore */ }
+  }
+  const buf = new Uint8Array(total);
+  let off = 0;
+  for (const c of chunks) {
+    buf.set(c, off);
+    off += c.byteLength;
+  }
+  return buf;
+}
+
+/**
+ * Fetch and parse the DID document. This is the only leg that still decodes
+ * leniently: a did:web document is unsigned, not a signed artifact under any
+ * spec, so the byte-level signed-body gate does not apply to it.
+ */
 async function fetchJson(
   url: string,
   opts: { fetcher?: typeof fetch } = {},
@@ -218,35 +259,8 @@ async function fetchJson(
       headers: { accept: "application/json" },
     });
     if (!res.ok) return null;
-    if (!res.body) return null;
-    // Stream the body so a server can't deliver a multi-megabyte
-    // response into memory before we apply the cap. Stop reading and
-    // cancel the stream as soon as we cross MAX_FETCH_BYTES.
-    const reader = res.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          total += value.byteLength;
-          if (total > MAX_FETCH_BYTES) {
-            try { await reader.cancel(); } catch { /* ignore */ }
-            return null;
-          }
-          chunks.push(value);
-        }
-      }
-    } finally {
-      try { await reader.cancel(); } catch { /* ignore */ }
-    }
-    const buf = new Uint8Array(total);
-    let off = 0;
-    for (const c of chunks) {
-      buf.set(c, off);
-      off += c.byteLength;
-    }
+    const buf = await readCappedBytes(res);
+    if (buf === null) return null;
     const text = new TextDecoder().decode(buf);
     try { return JSON.parse(text); } catch { return null; }
   } catch {
@@ -254,6 +268,99 @@ async function fetchJson(
   } finally {
     clearTimeout(timer);
   }
+}
+
+interface FetchedCardBytes {
+  status: number;
+  contentType: string | null;
+  contentLength: string | null;
+  bodyRaw: Uint8Array;
+}
+
+/**
+ * Fetch the Agent Card, handing back the response bytes exactly as received.
+ * The card carries a signature verified over its canonical form, so it must
+ * reach `evaluateAgentCardFetch` un-decoded: a lenient UTF-8 decode would
+ * substitute U+FFFD for an invalid byte and strip a leading BOM before the
+ * signed-body gate ever saw them.
+ */
+async function fetchCardBytes(
+  url: string,
+  opts: { fetcher?: typeof fetch } = {},
+): Promise<FetchedCardBytes | null> {
+  const fetcher = opts.fetcher ?? fetch;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetcher(url, {
+      method: "GET",
+      redirect: "manual",
+      signal: controller.signal,
+      headers: { accept: "application/json" },
+    });
+    if (res.status !== 200) return null;
+    const bodyRaw = await readCappedBytes(res);
+    if (bodyRaw === null) return null;
+    return {
+      status: res.status,
+      contentType: res.headers.get("content-type"),
+      contentLength: res.headers.get("content-length"),
+      bodyRaw,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+}
+
+/**
+ * Diagnose WHY an already-rejected card failed, for the hint text only. This
+ * never overrides `evaluateAgentCardFetch`'s verdict: it re-runs the same
+ * checks purely to pick a more specific reason code, on bytes and headers the
+ * authoritative gate has already refused.
+ *
+ * `card_response_invalid` is reported only when the headers alone caused the
+ * refusal. That is decided by re-running `evaluateAgentCardFetch` with a
+ * plain `application/json` type and no declared length: if the same bytes
+ * are then accepted, the headers were the problem. Using the library's own
+ * header rules this way keeps the hint in step with the library without
+ * copying its checks. When the bytes are also bad, the byte reason wins,
+ * since fixing the headers alone would not help. `parseSignedBodyBytes` is the same
+ * byte-level gate the receiver's inbound path uses, so a lone surrogate escape,
+ * an out-of-range number literal or an escaped member name are reported the
+ * same way an invalid UTF-8 byte is: `card_bytes_invalid`. A leading BOM is
+ * checked directly on the bytes, because the fatal decoder keeps it as a code
+ * point rather than raising it as a decode error.
+ */
+function diagnoseCardRejection(
+  cardFetch: FetchedCardBytes,
+  requestedAgentId: string,
+): CardResolutionReason {
+  const acceptedWithPlainHeaders = evaluateAgentCardFetch({
+    status: cardFetch.status,
+    contentType: "application/json",
+    contentLength: null,
+    bodyRaw: cardFetch.bodyRaw,
+    requestedAgentId,
+  }).accepted;
+  if (acceptedWithPlainHeaders) return "card_response_invalid";
+  if (hasUtf8Bom(cardFetch.bodyRaw)) return "card_bytes_invalid";
+  let parsed: unknown;
+  try {
+    parsed = parseSignedBodyBytes(cardFetch.bodyRaw);
+  } catch (err) {
+    if (err instanceof ParseSignedBodyError) return "card_bytes_invalid";
+    return "card_schema_invalid";
+  }
+  const result = AgentCardSchema.safeParse(parsed);
+  if (!result.success) return "card_schema_invalid";
+  if (result.data.agentId !== requestedAgentId) return "card_agent_id_mismatch";
+  return "card_schema_invalid";
 }
 
 /**
@@ -268,6 +375,8 @@ export type CardResolutionReason =
   | "did_document_unreachable"
   | "card_absent_from_discovery_path"
   | "card_absent_from_service_endpoint"
+  | "card_response_invalid"
+  | "card_bytes_invalid"
   | "card_schema_invalid"
   | "card_agent_id_mismatch";
 
@@ -290,6 +399,10 @@ export const CARD_RESOLUTION_HINTS: Record<CardResolutionReason, string> = {
     "The DID document declared no InkAgentCard service endpoint and no agent card was served at the versioned discovery path /ink/v1/<agentId>/agent.json. If the card is published only at the legacy /.well-known/ink/agent.json alias, that alias is not a resolution surface: resolvers must not fall back to it. Serve the card at the versioned discovery path, or declare an InkAgentCard service endpoint in the DID document.",
   card_absent_from_service_endpoint:
     "The DID document declared an InkAgentCard service endpoint but no agent card was served there. The endpoint must be https and on the same authority as the DID.",
+  card_response_invalid:
+    "The agent card response had an invalid or ambiguous Content-Type (it must name application/json alone, with a utf-8 charset if one is given) or a Content-Length declaring a body over the 64 KiB cap. Serve the card as a single application/json response under the size cap.",
+  card_bytes_invalid:
+    "The agent card body failed the signed-body byte contract: it was not valid UTF-8, it carried a leading byte-order mark, it contained a lone UTF-16 surrogate escape, a number literal outside the IEEE-754 double range or an object member name written with an escape sequence. Serve the card as UTF-8 JSON with none of those.",
   card_schema_invalid:
     "An agent card was served but it does not validate against the INK agent card schema.",
   card_agent_id_mismatch:
@@ -363,17 +476,30 @@ export async function resolveAgentCardForDidWebDetailed(
       }
     }
   }
-  const rawCard = await fetchJson(cardUrl, opts);
-  if (!rawCard) {
+  // The agent card carries a signature verified over its canonical form, so
+  // the response is read as raw bytes and decided on by the library's
+  // `evaluateAgentCardFetch`, never a lenient decoded string: that is what
+  // closes the gap where an invalid byte or a leading BOM would otherwise
+  // pass discovery here while a byte-faithful implementation refuses it.
+  const cardFetch = await fetchCardBytes(cardUrl, opts);
+  if (!cardFetch) {
     return resolutionFailure(
       fromServiceEntry ? "card_absent_from_service_endpoint" : "card_absent_from_discovery_path",
     );
   }
-  const parsed = AgentCardSchema.safeParse(rawCard);
-  if (!parsed.success) return resolutionFailure("card_schema_invalid");
-  // Identity binding: the card MUST announce a matching agentId.
-  if (parsed.data.agentId !== did) return resolutionFailure("card_agent_id_mismatch");
-  return { ok: true, card: parsed.data };
+  const evaluated = evaluateAgentCardFetch({
+    status: cardFetch.status,
+    contentType: cardFetch.contentType,
+    contentLength: cardFetch.contentLength,
+    bodyRaw: cardFetch.bodyRaw,
+    requestedAgentId: did,
+  });
+  if (evaluated.accepted && evaluated.card) {
+    return { ok: true, card: evaluated.card };
+  }
+  // Rejected. `diagnoseCardRejection` never overrides that verdict; it only
+  // picks the more specific reason code for the hint the sender sees.
+  return resolutionFailure(diagnoseCardRejection(cardFetch, did));
 }
 
 /**

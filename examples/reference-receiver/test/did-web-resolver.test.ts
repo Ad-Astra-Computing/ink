@@ -307,4 +307,63 @@ describe("resolveAgentCardForDidWeb", () => {
     const result = await resolveAgentCardForDidWeb("did:web:example.com", { fetcher });
     expect(result).toBeNull();
   });
+
+  // 0.20.0 moved the card leg onto the response bytes so a lenient decode can
+  // no longer hide invalid UTF-8 or a leading BOM from the signed-body gate.
+  // The DID document leg is unaffected: a did:web document is unsigned.
+  describe("refuses a card body the signed-body byte gate rejects", () => {
+    const enc = (s: string) => new TextEncoder().encode(s);
+    function concatBytes(...parts: Uint8Array[]): Uint8Array {
+      const total = parts.reduce((n, p) => n + p.byteLength, 0);
+      const out = new Uint8Array(total);
+      let off = 0;
+      for (const p of parts) {
+        out.set(p, off);
+        off += p.byteLength;
+      }
+      return out;
+    }
+    const CARD_TAIL =
+      `Name","endpoint":"https://example.com/ink/v1/inbound",` +
+      `"inboxEndpoint":"https://example.com/ink/v1/inbound",` +
+      `"publicKeyMultibase":"z6MkpTHR8VNsBxYAAWHut2Geadd9jSshBHRNNbnuHYNNNNNN",` +
+      `"capabilities":{"intentsAccepted":["ping"],"intentsSent":[]},` +
+      `"availability":{"timezone":"UTC"}}`;
+
+    function fetcherServing(cardBytes: Uint8Array) {
+      return (async (url: string | URL) => {
+        const u = String(url);
+        if (u === "https://example.com/.well-known/did.json") {
+          return new Response(JSON.stringify({ id: DID, service: [] }), {
+            status: 200, headers: { "content-type": "application/json" },
+          });
+        }
+        if (u === VERSIONED) {
+          return new Response(cardBytes, { status: 200, headers: { "content-type": "application/json" } });
+        }
+        return new Response("nope", { status: 404 });
+      }) as typeof fetch;
+    }
+
+    it("refuses a card carrying an invalid UTF-8 byte", async () => {
+      // 0xFF is not a valid UTF-8 byte in any position. A lenient decode
+      // would substitute U+FFFD and let the rest of the otherwise
+      // well-formed card through; the signed-body gate must not.
+      const head = enc(
+        `{"protocol":"ink/0.1","agentId":${JSON.stringify(DID)},"handle":"example.com","displayName":"Bad`,
+      );
+      const cardBytes = concatBytes(head, new Uint8Array([0xff]), enc(CARD_TAIL));
+      const result = await resolveAgentCardForDidWeb(DID, { fetcher: fetcherServing(cardBytes) });
+      expect(result).toBeNull();
+    });
+
+    it("refuses a card served with a leading byte-order mark", async () => {
+      const body = enc(
+        `{"protocol":"ink/0.1","agentId":${JSON.stringify(DID)},"handle":"example.com","displayName":"Good${CARD_TAIL}`,
+      );
+      const cardBytes = concatBytes(new Uint8Array([0xef, 0xbb, 0xbf]), body);
+      const result = await resolveAgentCardForDidWeb(DID, { fetcher: fetcherServing(cardBytes) });
+      expect(result).toBeNull();
+    });
+  });
 });

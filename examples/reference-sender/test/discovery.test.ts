@@ -223,6 +223,64 @@ describe("resolveInboxEndpoint", () => {
     expect(r.ok).toBe(true);
   });
 
+  // 0.20.0 moved the card evaluation onto the response bytes so a lenient
+  // decode can no longer hide invalid UTF-8 or a leading BOM from the
+  // signed-body gate. Both must be refused rather than accepted with the
+  // hazardous byte silently rewritten.
+  describe("refuses a card body the signed-body byte gate rejects", () => {
+    function concatBytes(...parts: Uint8Array[]): Uint8Array {
+      const total = parts.reduce((n, p) => n + p.byteLength, 0);
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const p of parts) {
+        out.set(p, offset);
+        offset += p.byteLength;
+      }
+      return out;
+    }
+    const enc = (s: string) => new TextEncoder().encode(s);
+
+    async function cardTail(): Promise<string> {
+      const kp = await generateKeypair();
+      const endpoint = "https://card.example/ink/v1/inbound";
+      return (
+        `Name","endpoint":${JSON.stringify(endpoint)},` +
+        `"inboxEndpoint":${JSON.stringify(endpoint)},` +
+        `"publicKeyMultibase":${JSON.stringify(encodePublicKeyMultibase(kp.publicKey))},` +
+        `"capabilities":{"intentsAccepted":["ping"],"intentsSent":[]},` +
+        `"availability":{"timezone":"UTC"}}`
+      );
+    }
+
+    it("refuses a card carrying an invalid UTF-8 byte", async () => {
+      const tail = await cardTail();
+      // 0xFF is not a valid UTF-8 byte in any position. A lenient decode
+      // would substitute U+FFFD and let the rest of the (otherwise
+      // well-formed) card through; the signed-body gate must not.
+      const head = enc(
+        `{"protocol":"ink/0.1","agentId":${JSON.stringify(DID)},"handle":"card.example","displayName":"Bad`,
+      );
+      const bytes = concatBytes(head, new Uint8Array([0xff]), enc(tail));
+      const fetchImpl = (async () =>
+        new Response(bytes, { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+      const r = await resolveInboxEndpoint({ recipientDid: DID, fetchImpl, allowPrivateHosts: true });
+      expect(r).toEqual({ ok: false, reason: "card_rejected" });
+    });
+
+    it("refuses a card served with a leading byte-order mark", async () => {
+      const tail = await cardTail();
+      const body = enc(
+        `{"protocol":"ink/0.1","agentId":${JSON.stringify(DID)},"handle":"card.example","displayName":"Good${tail}`,
+      );
+      const bom = new Uint8Array([0xef, 0xbb, 0xbf]);
+      const bytes = concatBytes(bom, body);
+      const fetchImpl = (async () =>
+        new Response(bytes, { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+      const r = await resolveInboxEndpoint({ recipientDid: DID, fetchImpl, allowPrivateHosts: true });
+      expect(r).toEqual({ ok: false, reason: "card_rejected" });
+    });
+  });
+
   it("discovers a peer whose did:web names a non-default port", async () => {
     const kp = await generateKeypair();
     const did = "did:web:card.example%3A8443";
