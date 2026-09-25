@@ -4,6 +4,16 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
+## Unreleased
+
+### Changes
+
+- The runnable examples (`examples/reference-receiver`, `examples/docker-receiver`,
+  `examples/reference-sender`, `examples/mcp-contact-endpoint`) moved to 0.20.0
+  and adopted the byte contract: they now decide on Agent Card responses through
+  `bodyRaw: Uint8Array` and `parseSignedBodyBytes`/`evaluateAgentCardFetch`
+  rather than a decoded string.
+
 ## 0.20.0, decide on the bytes that were signed
 
 ### Changes
