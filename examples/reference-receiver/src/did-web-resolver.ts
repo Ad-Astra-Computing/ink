@@ -23,7 +23,13 @@
  * gadget.
  */
 
-import { AgentCardSchema, evaluateAgentCardFetch } from "@adastracomputing/ink";
+import {
+  AgentCardSchema,
+  evaluateAgentCardFetch,
+  parseSignedBodyBytes,
+  ParseSignedBodyError,
+  MAX_AGENT_CARD_BYTES,
+} from "@adastracomputing/ink";
 
 const DID_WEB_HOST_RE =
   /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
@@ -310,23 +316,80 @@ async function fetchCardBytes(
 }
 
 /**
- * Diagnose WHY an already-rejected card failed, for the hint text only. This
- * never overrides `evaluateAgentCardFetch`'s verdict: it runs a lenient,
- * best-effort re-decode purely to pick a more specific reason code, on bytes
- * the authoritative byte-level gate has already refused.
+ * True when the header names exactly the application/json media type with no
+ * ambiguity. This is a diagnostic-only copy of the check `evaluateAgentCardFetch`
+ * already runs; the library does not export it, so the reasoning is duplicated
+ * here purely to classify a rejection, never to change one.
  */
-function diagnoseCardRejection(bodyRaw: Uint8Array, requestedAgentId: string): CardResolutionReason {
-  let text: string;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bodyRaw);
-  } catch {
-    return "card_bytes_invalid";
+function isJsonContentType(value: string | null): boolean {
+  if (value === null) return false;
+  const header = value.trim();
+  if (header.length === 0) return false;
+  if (header.includes(",")) return false;
+  const parts = header.split(";");
+  const mediaType = (parts[0] ?? "").trim().toLowerCase();
+  if (mediaType !== "application/json") return false;
+  for (let i = 1; i < parts.length; i++) {
+    const param = parts[i]!.trim();
+    if (param.length === 0) continue;
+    const eq = param.indexOf("=");
+    if (eq === -1) continue;
+    const name = param.slice(0, eq).trim().toLowerCase();
+    if (name === "charset") {
+      let charset = param.slice(eq + 1).trim().toLowerCase();
+      if (charset.startsWith('"') && charset.endsWith('"') && charset.length >= 2) {
+        charset = charset.slice(1, -1);
+      }
+      if (charset !== "utf-8") return false;
+    }
   }
-  if (text.charCodeAt(0) === 0xfeff) return "card_bytes_invalid";
+  return true;
+}
+
+/** Same digit-string comparison `evaluateAgentCardFetch` uses, duplicated for
+ *  the same reason as `isJsonContentType`. */
+function contentLengthExceedsCap(header: string | null): boolean {
+  if (header === null) return false;
+  const trimmed = header.trim();
+  if (!/^\d+$/.test(trimmed)) return false;
+  let v = trimmed.replace(/^0+/, "");
+  if (v === "") v = "0";
+  const cap = String(MAX_AGENT_CARD_BYTES);
+  if (v.length !== cap.length) return v.length > cap.length;
+  return v > cap;
+}
+
+function hasUtf8Bom(bytes: Uint8Array): boolean {
+  return bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+}
+
+/**
+ * Diagnose WHY an already-rejected card failed, for the hint text only. This
+ * never overrides `evaluateAgentCardFetch`'s verdict: it re-runs the same
+ * checks purely to pick a more specific reason code, on bytes and headers the
+ * authoritative gate has already refused.
+ *
+ * Header checks run first (`card_response_invalid`), because they are decided
+ * before the byte-level gate ever runs. `parseSignedBodyBytes` is the same
+ * byte-level gate the receiver's inbound path uses, so a lone surrogate escape,
+ * an out-of-range number literal or an escaped member name are reported the
+ * same way an invalid UTF-8 byte is: `card_bytes_invalid`. A leading BOM is
+ * checked directly on the bytes, because the fatal decoder keeps it as a code
+ * point rather than raising it as a decode error.
+ */
+function diagnoseCardRejection(
+  cardFetch: FetchedCardBytes,
+  requestedAgentId: string,
+): CardResolutionReason {
+  if (!isJsonContentType(cardFetch.contentType) || contentLengthExceedsCap(cardFetch.contentLength)) {
+    return "card_response_invalid";
+  }
+  if (hasUtf8Bom(cardFetch.bodyRaw)) return "card_bytes_invalid";
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
-  } catch {
+    parsed = parseSignedBodyBytes(cardFetch.bodyRaw);
+  } catch (err) {
+    if (err instanceof ParseSignedBodyError) return "card_bytes_invalid";
     return "card_schema_invalid";
   }
   const result = AgentCardSchema.safeParse(parsed);
@@ -347,6 +410,7 @@ export type CardResolutionReason =
   | "did_document_unreachable"
   | "card_absent_from_discovery_path"
   | "card_absent_from_service_endpoint"
+  | "card_response_invalid"
   | "card_bytes_invalid"
   | "card_schema_invalid"
   | "card_agent_id_mismatch";
@@ -370,8 +434,10 @@ export const CARD_RESOLUTION_HINTS: Record<CardResolutionReason, string> = {
     "The DID document declared no InkAgentCard service endpoint and no agent card was served at the versioned discovery path /ink/v1/<agentId>/agent.json. If the card is published only at the legacy /.well-known/ink/agent.json alias, that alias is not a resolution surface: resolvers must not fall back to it. Serve the card at the versioned discovery path, or declare an InkAgentCard service endpoint in the DID document.",
   card_absent_from_service_endpoint:
     "The DID document declared an InkAgentCard service endpoint but no agent card was served there. The endpoint must be https and on the same authority as the DID.",
+  card_response_invalid:
+    "The agent card response had an invalid or ambiguous Content-Type (it must name application/json alone, with a utf-8 charset if one is given) or a Content-Length declaring a body over the 64 KiB cap. Serve the card as a single application/json response under the size cap.",
   card_bytes_invalid:
-    "The agent card body failed the signed-body byte contract: it was not valid UTF-8, or it carried a leading byte-order mark. Serve the card as UTF-8 JSON with no BOM.",
+    "The agent card body failed the signed-body byte contract: it was not valid UTF-8, it carried a leading byte-order mark, it contained a lone UTF-16 surrogate escape, a number literal outside the IEEE-754 double range or an object member name written with an escape sequence. Serve the card as UTF-8 JSON with none of those.",
   card_schema_invalid:
     "An agent card was served but it does not validate against the INK agent card schema.",
   card_agent_id_mismatch:
@@ -468,7 +534,7 @@ export async function resolveAgentCardForDidWebDetailed(
   }
   // Rejected. `diagnoseCardRejection` never overrides that verdict; it only
   // picks the more specific reason code for the hint the sender sees.
-  return resolutionFailure(diagnoseCardRejection(cardFetch.bodyRaw, did));
+  return resolutionFailure(diagnoseCardRejection(cardFetch, did));
 }
 
 /**

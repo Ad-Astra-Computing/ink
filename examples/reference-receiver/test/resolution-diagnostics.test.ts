@@ -79,6 +79,18 @@ async function senderCard(agentId = SENDER_DID) {
   };
 }
 
+/** Marks a raw-bytes response for `trackingFetcher`, for a test that needs to
+ *  control the exact bytes or headers served rather than a JSON-encoded value. */
+const RAW = Symbol("raw response");
+interface RawResponse {
+  [RAW]: true;
+  bytes: Uint8Array;
+  contentType?: string | null;
+}
+function rawResponse(bytes: Uint8Array, contentType: string | null = "application/json"): RawResponse {
+  return { [RAW]: true, bytes, contentType };
+}
+
 /** Serves only the URLs in `map`; every other URL 404s and is recorded. */
 function trackingFetcher(map: Record<string, unknown>) {
   const requested: string[] = [];
@@ -87,6 +99,14 @@ function trackingFetcher(map: Record<string, unknown>) {
     requested.push(u);
     const value = map[u];
     if (value === undefined) return new Response("not found", { status: 404 });
+    if (typeof value === "object" && value !== null && (value as RawResponse)[RAW]) {
+      const raw = value as RawResponse;
+      const headers: Record<string, string> = {};
+      if (raw.contentType !== null && raw.contentType !== undefined) {
+        headers["content-type"] = raw.contentType;
+      }
+      return new Response(raw.bytes, { status: 200, headers });
+    }
     return new Response(JSON.stringify(value), {
       status: 200, headers: { "content-type": "application/json" },
     });
@@ -171,6 +191,64 @@ describe("resolveAgentCardForDidWebDetailed", () => {
     const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.reason).toBe("card_schema_invalid");
+  });
+
+  it("reports a card body with an invalid UTF-8 byte", async () => {
+    const card = await senderCard();
+    const text = JSON.stringify(card);
+    const bytes = new TextEncoder().encode(text);
+    const idx = text.indexOf("Test Sender");
+    expect(idx).toBeGreaterThan(-1);
+    bytes[idx] = 0xff;
+    const { fetcher } = trackingFetcher({
+      [SENDER_DID_DOC]: { id: SENDER_DID, service: [] },
+      [SENDER_CARD_URL]: rawResponse(bytes),
+    });
+    const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("card_bytes_invalid");
+  });
+
+  it("reports a card body carrying a leading byte-order mark", async () => {
+    const card = await senderCard();
+    const body = new TextEncoder().encode(JSON.stringify(card));
+    const bom = new Uint8Array([0xef, 0xbb, 0xbf, ...body]);
+    const { fetcher } = trackingFetcher({
+      [SENDER_DID_DOC]: { id: SENDER_DID, service: [] },
+      [SENDER_CARD_URL]: rawResponse(bom),
+    });
+    const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("card_bytes_invalid");
+  });
+
+  it("reports a card body with a lone UTF-16 surrogate escape", async () => {
+    const card = await senderCard();
+    const validText = JSON.stringify(card);
+    // Splice a JSON-escaped lone high surrogate into displayName. The bytes
+    // stay valid UTF-8 (the escape is six ASCII characters); the surrogate
+    // scan is what has to catch it.
+    const text = validText.replace('"Test Sender"', '"Test\\uD800Sender"');
+    const bytes = new TextEncoder().encode(text);
+    const { fetcher } = trackingFetcher({
+      [SENDER_DID_DOC]: { id: SENDER_DID, service: [] },
+      [SENDER_CARD_URL]: rawResponse(bytes),
+    });
+    const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("card_bytes_invalid");
+  });
+
+  it("reports a card response served with the wrong content type", async () => {
+    const card = await senderCard();
+    const bytes = new TextEncoder().encode(JSON.stringify(card));
+    const { fetcher } = trackingFetcher({
+      [SENDER_DID_DOC]: { id: SENDER_DID, service: [] },
+      [SENDER_CARD_URL]: rawResponse(bytes, "text/plain"),
+    });
+    const res = await resolveAgentCardForDidWebDetailed(SENDER_DID, { fetcher });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toBe("card_response_invalid");
   });
 
   it("reports a card that binds to a different DID", async () => {
