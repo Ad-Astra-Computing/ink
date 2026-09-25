@@ -84,16 +84,22 @@ export async function handleInbound(req: Request, env: Env): Promise<Response> {
     raw = parseSignedBodyBytes(read.bytes);
   } catch (err) {
     if (err instanceof ParseSignedBodyError) {
-      const error =
-        err.reason === "utf8"
-          ? "invalid_utf8"
-          : // Compared as a string so this example typechecks against the
-            // published package as well as the current source, which is where
-            // the `number-range` reason was added.
-            (err.reason as string) === "number-range"
-            ? "number_out_of_range"
-            : "lone_surrogate";
-      return json(400, { error });
+      // One branch per gate reason, mirroring
+      // ../../reference-receiver/src/inbound.ts: falling through to
+      // `lone_surrogate` for anything that was not `utf8` would tell a sender
+      // refused for an escaped member name that it had a surrogate problem.
+      switch (err.reason) {
+        case "utf8":
+          return json(400, { error: "invalid_utf8" });
+        case "surrogate":
+          return json(400, { error: "lone_surrogate" });
+        case "number-range":
+          return json(400, { error: "number_out_of_range" });
+        case "member-name-escape":
+          return json(400, { error: "escaped_member_name" });
+        default:
+          return json(400, { error: "signed_body_rejected" });
+      }
     }
     return json(400, { error: "invalid_json" });
   }
