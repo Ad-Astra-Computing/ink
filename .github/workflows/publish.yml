@@ -390,11 +390,27 @@ jobs:
       - name: Verify the published artifact against a live receiver
         run: |
           version="$(node -p "require('./package.json').version")"
+          # Wait for the registry to serve the version before testing it, so a
+          # slow propagation is reported as that and not as an interop failure.
+          # Bounded at ten minutes; past that the job fails and says why.
+          deadline=$(( $(date +%s) + 600 ))
+          err="${RUNNER_TEMP}/npm-view.err"
+          until [ "$(npm view "@adastracomputing/ink@${version}" version 2>"$err")" = "$version" ]; do
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "registry still does not serve ${version} after 10 minutes"
+              tail -n 3 "$err"
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "registry serves ${version}"
+          # The metadata can be visible before every edge serves the tarball,
+          # so the e2e keeps a short retry of its own.
           for attempt in 1 2 3; do
             if node scripts/e2e-published.mjs "$version"; then
               exit 0
             fi
-            echo "attempt $attempt failed; the registry may not have propagated yet"
-            sleep 20
+            echo "attempt $attempt failed"
+            sleep 30
           done
           exit 1
