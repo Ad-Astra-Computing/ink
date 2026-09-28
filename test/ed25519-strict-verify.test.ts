@@ -230,3 +230,23 @@ describe("multibase agentId canonical-form", () => {
     expect(() => decodePublicKeyMultibase(nonCanonical)).toThrow();
   });
 });
+
+describe("single verification path", () => {
+  it("no source file calls the library verifier directly", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const offenders: string[] = [];
+    const walk = (dir: string): void => {
+      for (const name of readdirSync(dir)) {
+        const path = join(dir, name);
+        if (statSync(path).isDirectory()) walk(path);
+        else if (path.endsWith(".ts") && !path.endsWith("ed25519-strict.ts")) {
+          const text = readFileSync(path, "utf-8");
+          if (/\bverifyAsync\s*\(|\bed\.verify\s*\(/.test(text)) offenders.push(path);
+        }
+      }
+    };
+    walk(new URL("../src", import.meta.url).pathname);
+    expect(offenders).toEqual([]);
+  });
+});
