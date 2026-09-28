@@ -3,10 +3,10 @@
  * Used for the public checkpoint endpoint (INK Auditability §7.7).
  */
 
-import * as ed from "@noble/ed25519";
 import { base64urlDecode } from "../crypto/ink.js";
 import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "../crypto/multi-key-verify.js";
 import type { CandidateKey } from "../models/key-entry.js";
+import { verifyStrictEd25519 } from "../crypto/ed25519-strict.js";
 
 export interface CheckpointData {
   origin: string;
@@ -177,7 +177,7 @@ export async function verifyCheckpoint(
     return null;
   }
   return verifyCheckpointCore(signed, expectedOrigin, async (sig, bodyBytes) => {
-    const ok = await ed.verifyAsync(sig, bodyBytes, witnessPublicKey, { zip215: false });
+    const ok = await verifyStrictEd25519(sig, bodyBytes, witnessPublicKey);
     return { verified: ok };
   });
 }
@@ -208,7 +208,7 @@ export async function verifyCheckpointWithKeys(
 ): Promise<CheckpointVerifyWithKeysResult> {
   return verifyCheckpointCore(signed, expectedOrigin, (sig, bodyBytes) =>
     verifyDetachedSignatureWithKeys(
-      (publicKey) => ed.verifyAsync(sig, bodyBytes, publicKey, { zip215: false }),
+      (publicKey) => verifyStrictEd25519(sig, bodyBytes, publicKey),
       keys,
       artifactMs,
       hintKeyId,

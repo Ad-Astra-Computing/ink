@@ -1,5 +1,6 @@
 import * as ed from "@noble/ed25519";
 import { base64urlDecode, jcsCanonicalize } from "./ink.js";
+import { verifyStrictEd25519 } from "./ed25519-strict.js";
 import {
   AGENT_ID_KEY_PREFIXES,
   decodePublicKeyMultibase,
@@ -16,8 +17,8 @@ import type {
 // This module is the TypeScript reference for the OPTIONAL `cardSignature`
 // card proof and its `rotationChain` rooting. It reuses the repo's single
 // crypto stack: JCS (Protocol §3.2, via jcsCanonicalize), base64url no-pad
-// (§3.3) and Ed25519 under RFC 8032 strict (zip215:false), exactly as the body
-// signer does. It introduces no second crypto path.
+// (§3.3) and Ed25519 under RFC 8032 strict, cofactorless verification, exactly
+// as the body signer does. It introduces no second crypto path.
 //
 // The verifier `verifyAgentCardSignature` is a PURE function of its inputs: the
 // caller supplies any cached prior card and any resolved DID-document keys. The
@@ -702,10 +703,10 @@ function checkContinuity(
 // ── Low-level primitives ──
 
 /**
- * Verify an Ed25519 signature over `domain` + JCS(obj) under RFC 8032 strict
- * (zip215:false). The single verify primitive both the card proof and every
- * rotation link route through. Returns false (never throws) for a malformed
- * signature, an over-cap canonicalization, or a bad key.
+ * Verify an Ed25519 signature over `domain` + JCS(obj) under RFC 8032 strict,
+ * cofactorless verification. The single verify primitive both the card proof
+ * and every rotation link route through. Returns false (never throws) for a
+ * malformed signature, an over-cap canonicalization, or a bad key.
  */
 async function verifyOverDomain(
   domain: string,
@@ -718,7 +719,7 @@ async function verifyOverDomain(
     const canonical = jcsCanonicalize(obj);
     const bytes = new TextEncoder().encode(domain + canonical);
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
+    return await verifyStrictEd25519(sig, bytes, publicKey);
   } catch {
     return false;
   }
