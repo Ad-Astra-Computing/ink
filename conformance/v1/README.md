@@ -459,3 +459,84 @@ only under `INK_STAGED_CONFORMANCE=1`, which is what the dedicated
 `staged-conformance` CI job sets. Its manifest integrity, case count and SHA-256
 are still checked on every run. An implementation that is not yet ready for a
 staged rule can enumerate the manifest and skip the categories tagged `staged`.
+
+## What the corpus does not express
+
+The corpus pins a decision over a fixed input. A base MUST that is stateful,
+that spans more than one message or that depends on which side of a live
+connection is asking cannot be reduced to that shape, however many cases are
+added. This section names the ones that are not expressed anywhere in
+`conformance/v1`, so that passing it is not read as covering more than it
+does.
+
+- **Nonce store behavior.** `specs/ink-protocol.md` §3.5 requires a nonce to
+  be recorded only after signature verification succeeds, requires a nonce
+  store to retain a recorded nonce for at least the freshness window and
+  requires the check-and-record step (`addIfAbsent`) to be atomic.
+  `replay-freshness` cases carry a bare list of previously seen nonces
+  against a single verification call; none of them can exercise ordering
+  against signature failure, retention over elapsed time or a race between
+  two concurrent verifications of the same nonce.
+- **Trust on first use and the bootstrap window.** `specs/ink-identity-model.md`
+  §6.1 and `docs/key-rotation-rule.md` invariant 4 state that a bootstrap key
+  derived from an agent identifier MAY be used only until an Agent Card
+  signing set has been observed for that sender, and that bootstrap
+  extraction MUST be disabled the moment one has. This is a fact about a
+  verifier's accumulated state across more than one message. A single case
+  is either before that observation or after it, never both, so no case can
+  pin the transition itself.
+- **Key-set cache refresh triggers.** `specs/ink-key-rotation-spec.md` §9.2
+  requires a cached key set to be refreshed when verification fails against
+  every cached active key, when a message references an unknown `keyId`,
+  when a newer `keySetVersion` is observed or when encryption to the current
+  key fails on a key mismatch. Each of these is a rule about when a
+  resolver's own cache is invalidated across requests, not a property of one
+  signed message.
+- **Rate limiting keyed on the canonical principal.** `specs/ink-protocol.md`
+  §4 requires every per-sender abuse control to be keyed on the canonical
+  `principal` of §7, never the sender's raw spelling. Enforcing this needs a
+  live limiter carrying request history across many messages from the same
+  principal; it has no single-input accept-or-reject shape a vector can pin.
+- **The request-side SSRF gate, as distinct from the hostname classifier.**
+  `private-hostname` pins `specs/ink-private-hostname.md`, a pure function of
+  a hostname string. `specs/ink-resolver.md` §3.3 separately requires a
+  resolver to refuse a redirect at the transport layer rather than follow it,
+  and §5 requires the resolved connect address to be checked and pinned at
+  connect time, so a hostname that re-resolves between the check and the
+  connect gains nothing. Both are behaviors of a live HTTP client making a
+  real connection, not decisions over a string, and neither has a vector.
+- **Producer obligations.** `specs/ink-agent-card-signature.md` §10 (Phase B)
+  requires a key-derived or did:web producer that serves a card to sign it.
+  `specs/ink-protocol.md` §8 requires a sender MUST NOT emit `ink/0.2` to a
+  receiver that has not advertised support for it in `supportedProtocolVersions`.
+  `specs/ink-compliance-checklist.md` RC5 and RC6, both citing
+  `specs/ink-auditability.md` §1, require a receiver of a receipt to send no
+  receipt for it and to transport its own receipts under the same
+  `INK-Ed25519` authorization header. All four are obligations on what an
+  implementation does by policy across a message flow, not decisions the
+  corpus makes over one fixed input.
+- **The `/.well-known` alias rule.** `specs/ink-agent-card-discovery-fetch.md`
+  states that a resolver MUST NOT depend on the `/.well-known/ink/agent.json`
+  alias and MUST NOT relax any rule below for it. This is a statement about
+  which URL a resolver chooses to fetch. `agent-card-fetch` inputs are
+  response metadata only, so no case exercises which of the two paths
+  produced them.
+
+Two directories in this repository are partial evidence for some of these.
+Neither closes the gaps above on its own.
+
+- `interop-lab/` runs a real INK exchange between the TypeScript and Go
+  implementations over HTTP. Among other things it asserts that a replayed
+  nonce is rejected on a second real request, that the well-known alias serves
+  the same bytes as the versioned discovery path and that each side's signed
+  Agent Card verifies under the other's implementation. It does not exercise
+  did:web resolution against a real host, TLS, redirects or the SSRF guards,
+  because its container network has no route out.
+- `differential/` fuzzes the TypeScript and Go implementations, and the
+  witness when pointed at one, against each other over fixed input surfaces.
+  The request-side SSRF gate and card-content host checks are out of scope
+  there too. Rate limiting and key-set cache refresh are not fuzzed surfaces.
+
+[`independent/README.md`](independent/README.md) draws a separate line: what
+its independent constructions re-verify against signatures this corpus already
+records, as opposed to what the corpus can express at all.
