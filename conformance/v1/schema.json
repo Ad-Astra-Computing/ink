@@ -32,6 +32,7 @@
         "evidence-refusal",
         "first-contact-transcript",
         "handshake-message",
+        "handshake-transport-signature",
         "inclusion-receipt",
         "jcs-number",
         "jcs-string-safety",

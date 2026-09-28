@@ -1,0 +1,233 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "handshake-transport-signature",
+  "cases": [
+    {
+      "caseId": "challenge-signed-accepts",
+      "description": "A well-formed challenge, signed under the §3.3 transport base for the path it is delivered on, verifies.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/challenge",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "availability_query",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "xfOdvC2V8KG2tMUTF3IBCjGDUwElkGVm9IWTzVi7vSBGUk-bs-G5dHt_sGCQeDcqQD8nP-iFItPIk2h4bMuZDA",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "rejection-signed-accepts",
+      "description": "A well-formed rejection, signed for its own path, verifies.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/rejection",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.rejection",
+            "intentRef": "intent-hts-1",
+            "reason": "capacity",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "N-kvR_az2HVI8mSNunGmOYJ_nbRegfvNP_lwJkgBca7aRS4LRjLgj-ZyXh0F5vWupnrOQtyiH0Xutg6U-xlQBA",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "resolution-signed-accepts",
+      "description": "A well-formed resolution, signed for its own path, verifies.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/resolution",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.resolution",
+            "intentRef": "intent-hts-1",
+            "outcome": "accepted",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "GjoH7KEsTyTq1V0VFIV5mqD8Q7tj8a9XHnJf1iQsciShnziTw9o_ZKnVtZ58mB4kWqp-3bwlb-eo9Mw75ef5Bg",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "challenge-signature-at-rejection-path-rejects",
+      "description": "A challenge signature made for /challenge is presented at /rejection. The path is bound into the transport base, so the signature does not verify there (H6).",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/rejection",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "availability_query",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "xfOdvC2V8KG2tMUTF3IBCjGDUwElkGVm9IWTzVi7vSBGUk-bs-G5dHt_sGCQeDcqQD8nP-iFItPIk2h4bMuZDA",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "challenge-signature-wrong-recipient-rejects",
+      "description": "The same signed challenge presented with a different recipientDid than it was signed for does not verify: recipientDid is a signed scalar.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/challenge",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4zzzz",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "availability_query",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "xfOdvC2V8KG2tMUTF3IBCjGDUwElkGVm9IWTzVi7vSBGUk-bs-G5dHt_sGCQeDcqQD8nP-iFItPIk2h4bMuZDA",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "challenge-type-tampered-rejects",
+      "description": "A schema-valid challengeType substituted after signing (still a member of the enum) invalidates the signature: the body is a signed scalar, not a bag of independently trusted fields.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/challenge",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "identity_verification",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "xfOdvC2V8KG2tMUTF3IBCjGDUwElkGVm9IWTzVi7vSBGUk-bs-G5dHt_sGCQeDcqQD8nP-iFItPIk2h4bMuZDA",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "embedded-signature-not-provenance-rejects",
+      "description": "The body carries a well-formed §3.6 signature member, but the transport signature over the envelope is by a different key than the one presented for verification. The embedded member is not provenance; only the transport signature is, and it fails.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/challenge",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "availability_query",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z",
+            "signature": "LCq5Bv0budJGqOWMmh4brs1dzvZY3r2GKGfRXHgPKYLCwuNMsjWmqK28CYDXxavgr-Xf0vZBgy4hHb-fSwx3Bg"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "296-L1yHmvOWeaYtzL7Gh8zTwXHmf06mubm9nWhXjVFL4JDiEV1_351P7sZvpQAgpGtsgHMsMqhzaNx_Tz40AA",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "embedded-signature-ignored-accepts",
+      "description": "The body carries a junk `signature` member with no cryptographic meaning. The transport signature covers the body exactly as delivered, junk member included, and verifies: the unrecognized key is ignored like any other unknown top-level key, never treated as provenance.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/challenge",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "availability_query",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z",
+            "signature": "not-a-real-signature"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "V8pd0oerUzvZqnXzdeO4q8kBQURx5Ca7WSjmDwZjedsBUA0Lq7A1TDXnYoswtzfLn0G1nqgHCw-_Qat1EsS5Cw",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "schema-invalid-signed-rejects",
+      "description": "An unknown challengeType fails the §5 schema even though the transport signature over that same malformed body verifies: the schema and the signature are both required, and the schema failure rejects on its own.",
+      "input": {
+        "signInput": {
+          "method": "POST",
+          "path": "/ink/v1/tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX/challenge",
+          "recipientDid": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "body": {
+            "protocol": "ink/0.1",
+            "type": "network.tulpa.challenge",
+            "intentRef": "intent-hts-1",
+            "challengeType": "bogus",
+            "nonce": "hts-nonce-1",
+            "timestamp": "2026-06-20T00:00:00.000Z"
+          },
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        },
+        "signature": "yKN9M22RUomikOpYiojatro3LcnMmYp17Ll3F0cHhaIXgXYeUwvwUE_eOlwAWNXr0AeQIi4baGQE1OOl5AcqAQ",
+        "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    }
+  ]
+}

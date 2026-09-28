@@ -82,6 +82,7 @@ const CATEGORY_META = {
   "inclusion-receipt": { profile: "audit", spec: "specs/ink-inclusion-receipt.md", summary: "Composite inclusion-receipt verification." },
   "audit-query-response": { profile: "audit", spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
   "handshake-message": { profile: "containment", spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
+  "handshake-transport-signature": { profile: "containment", spec: "specs/ink-protocol.md", summary: "A handshake message under the §3.3 transport signature: the path is bound into the base, so a signature made for one handshake path fails at another, and the message's own §5 schema still applies. An unrecognized signature key inside the body is ignored, never treated as provenance." },
   "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
   "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
   "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding, owner anti-substitution)." },
@@ -4989,6 +4990,104 @@ vectorFile("authorization-header", [
     refRej("type-grammar-rejects", "A type outside the lowercase dotted grammar rejects.", { refusal: { ...refusal, requiredClaimTypes: ["NoDots"] } }),
     refRej("non-string-type-rejects", "A non-string entry rejects.", { refusal: { ...refusal, requiredClaimTypes: [1] } }),
     refRej("over-length-message-rejects", "A message longer than 500 code units is out of profile.", { refusal: { ...refusal, message: "m".repeat(501) } }),
+  ]);
+}
+
+// ── handshake-transport-signature ───────────────────────────────────────────
+// A handshake message is authenticated by the §3.3 transport rules: the path
+// is bound into the signature base (H6), and the message defines no embedded
+// signature member of its own (H5). Accept requires the §5 schema on `body`
+// AND the transport signature.
+{
+  const htsTo = `tulpa:${mb}`;
+  const htsTs = "2026-06-20T00:00:00.000Z";
+  const htsChallengeBody = { protocol: "ink/0.1", type: "network.tulpa.challenge", intentRef: "intent-hts-1", challengeType: "availability_query", nonce: "hts-nonce-1", timestamp: htsTs };
+  const htsChallengePath = `/ink/v1/${htsTo}/challenge`;
+  const htsRejectionPath = `/ink/v1/${htsTo}/rejection`;
+  const htsResolutionPath = `/ink/v1/${htsTo}/resolution`;
+
+  async function signedHts(path, body, signSeed = seed) {
+    const signInput = { method: "POST", path, recipientDid: htsTo, body, timestamp: htsTs };
+    const signature = await signInkMessage(signInput, signSeed);
+    return { signInput, signature };
+  }
+
+  const htsChallenge = await signedHts(htsChallengePath, htsChallengeBody);
+  const htsRejection = await signedHts(htsRejectionPath, { protocol: "ink/0.1", type: "network.tulpa.rejection", intentRef: "intent-hts-1", reason: "capacity", nonce: "hts-nonce-1", timestamp: htsTs });
+  const htsResolution = await signedHts(htsResolutionPath, { protocol: "ink/0.1", type: "network.tulpa.resolution", intentRef: "intent-hts-1", outcome: "accepted", nonce: "hts-nonce-1", timestamp: htsTs });
+
+  // A second signer whose key does not match publicKeyHex below.
+  const htsWrongSeed = new Uint8Array(32).fill(9);
+
+  // §5 defines no embedded signature member; the two bodies below carry one
+  // anyway to pin that it is ignored as provenance, in either direction.
+  const htsJunkSigBody = { ...htsChallengeBody, signature: "not-a-real-signature" };
+  const htsJunkSigSigned = await signedHts(htsChallengePath, htsJunkSigBody);
+  // A body carrying a §3.6-shaped signature member that is itself well formed
+  // (signed by the wrong key here), transported by that same wrong key: the
+  // transport signature is checked against the honest publicKeyHex and fails,
+  // regardless of whether the embedded member looks like valid provenance.
+  const htsEmbeddedBody = { ...htsChallengeBody, signature: await signMessage(htsChallengeBody, htsWrongSeed) };
+  const htsEmbeddedSigned = await signedHts(htsChallengePath, htsEmbeddedBody, htsWrongSeed);
+
+  const htsInvalidSchemaBody = { ...htsChallengeBody, challengeType: "bogus" };
+  const htsInvalidSchemaSigned = await signedHts(htsChallengePath, htsInvalidSchemaBody);
+
+  vectorFile("handshake-transport-signature", [
+    {
+      caseId: "challenge-signed-accepts",
+      description: "A well-formed challenge, signed under the §3.3 transport base for the path it is delivered on, verifies.",
+      input: { signInput: htsChallenge.signInput, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "rejection-signed-accepts",
+      description: "A well-formed rejection, signed for its own path, verifies.",
+      input: { signInput: htsRejection.signInput, signature: htsRejection.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "resolution-signed-accepts",
+      description: "A well-formed resolution, signed for its own path, verifies.",
+      input: { signInput: htsResolution.signInput, signature: htsResolution.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "challenge-signature-at-rejection-path-rejects",
+      description: "A challenge signature made for /challenge is presented at /rejection. The path is bound into the transport base, so the signature does not verify there (H6).",
+      input: { signInput: { ...htsChallenge.signInput, path: htsRejectionPath }, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "challenge-signature-wrong-recipient-rejects",
+      description: "The same signed challenge presented with a different recipientDid than it was signed for does not verify: recipientDid is a signed scalar.",
+      input: { signInput: { ...htsChallenge.signInput, recipientDid: `tulpa:${mb.slice(0, -4)}zzzz` }, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "challenge-type-tampered-rejects",
+      description: "A schema-valid challengeType substituted after signing (still a member of the enum) invalidates the signature: the body is a signed scalar, not a bag of independently trusted fields.",
+      input: { signInput: { ...htsChallenge.signInput, body: { ...htsChallengeBody, challengeType: "identity_verification" } }, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "embedded-signature-not-provenance-rejects",
+      description: "The body carries a well-formed §3.6 signature member, but the transport signature over the envelope is by a different key than the one presented for verification. The embedded member is not provenance; only the transport signature is, and it fails.",
+      input: { signInput: htsEmbeddedSigned.signInput, signature: htsEmbeddedSigned.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "embedded-signature-ignored-accepts",
+      description: "The body carries a junk `signature` member with no cryptographic meaning. The transport signature covers the body exactly as delivered, junk member included, and verifies: the unrecognized key is ignored like any other unknown top-level key, never treated as provenance.",
+      input: { signInput: htsJunkSigSigned.signInput, signature: htsJunkSigSigned.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "schema-invalid-signed-rejects",
+      description: "An unknown challengeType fails the §5 schema even though the transport signature over that same malformed body verifies: the schema and the signature are both required, and the schema failure rejects on its own.",
+      input: { signInput: htsInvalidSchemaSigned.signInput, signature: htsInvalidSchemaSigned.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
   ]);
 }
 

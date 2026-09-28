@@ -227,6 +227,17 @@ additive field then.
   required field, an oversized string or array, an out-of-range or offset
   timestamp, and a malformed backoff hint all reject. See
   [`../../specs/ink-handshake-message.md`](../../specs/ink-handshake-message.md).
+- **handshake-transport-signature**: a handshake message authenticated under
+  the same §3.3 transport signature rules as any other request, with the path
+  bound into the signature base and no embedded signature member of its own. A
+  well-formed, correctly signed challenge, rejection and resolution each
+  accept; a challenge signature presented at the wrong path, a wrong recipient,
+  a field tampered after signing, a schema-invalid body and a body carrying a
+  well-formed §3.6 signature member whose transport signature is by a
+  different key all reject. A body carrying a junk `signature` member that the
+  transport signature covers as delivered still accepts, since the member is
+  ignored rather than treated as provenance. See
+  [`../../specs/ink-protocol.md`](../../specs/ink-protocol.md) §5.
 - **connection-payload**: schema validation for the connection_request and
   connection_response payloads, which are strict (an unknown key rejects) and
   embed a profile snapshot and availability config. A valid request and response
