@@ -334,13 +334,13 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `payload-encryption` | `encryption` | 22 | E1, E2, E3, E4, E6 |
 | `principal-normalization` | `base` | 10 | S9 |
 | `private-hostname` | `base` | 58 | none |
-| `replay-freshness` | `base` | 10 | R1, R2, R3, R4, ER4, ER5, ER6e |
-| `signature-base` | `base` | 15 | S1, S2, S7, S8, ER3 |
+| `replay-freshness` | `base` | 18 | R1, R2, R3, R4, ER4, ER5, ER6e |
+| `signature-base` | `base` | 18 | S1, S2, S7, S8, ER3 |
 | `signed-body-member-name` | `base` | 18 | none |
 | `signed-body-utf8` | `base` | 21 | none |
-| `timestamp-validity` | `base` | 17 | none |
+| `timestamp-validity` | `base` | 25 | none |
 
-45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 900 cases.
+45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 919 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---
