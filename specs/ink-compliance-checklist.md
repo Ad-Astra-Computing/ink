@@ -120,8 +120,8 @@ deployment rather than the library.
 | H2 | Rejection: `network.tulpa.rejection` with reason code | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
 | H3 | Resolution: `network.tulpa.resolution` with outcome | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
 | H4 | Resolution outcome: `accepted`, `declined`, `escalated_to_human`, `expired` | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
-| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | , | `test/checklist-evidence.test.ts` |
-| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | , | `test/checklist-evidence.test.ts` |
+| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | `handshake-transport-signature` | `test/checklist-evidence.test.ts` |
+| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | `handshake-transport-signature` | `test/checklist-evidence.test.ts` |
 
 ---
 
@@ -323,6 +323,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `evidence-refusal` | `evidence` | 13 | none |
 | `first-contact-transcript` | `base` | 28 | none |
 | `handshake-message` | `containment` | 32 | H1, H2, H3, H4 |
+| `handshake-transport-signature` | `containment` | 9 | H5, H6 |
 | `inclusion-receipt` | `audit` | 39 | W5 |
 | `jcs-number` | `base` | 16 | S6 |
 | `jcs-string-safety` | `base` | 10 | S6 |
@@ -340,7 +341,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 25 | none |
 
-45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 919 cases.
+47 of 124 requirement rows cite at least one category; 17 of 33 categories are cited by at least one row; the corpus holds 928 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---

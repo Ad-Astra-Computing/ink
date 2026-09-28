@@ -73,9 +73,11 @@ capability it does not fully implement.[^ck]
 - **witness** (`merkle-inclusion`, `merkle-consistency`, `merkle-checkpoint`) —
   required when the implementation is a transparency-log witness service:
   inclusion and consistency proof verification and the checkpoint grammar.
-- **containment** (`handshake-message`) — required when the implementation
-  advertises the containment and governance extension: the signed challenge,
-  rejection, and resolution handshake messages.
+- **containment** (`handshake-message`, `handshake-transport-signature`):
+  required when the implementation advertises the containment and governance
+  extension: the signed challenge, rejection and resolution handshake
+  messages, each authenticated under the same §3.3 transport signature rules
+  as any other request, with no embedded signature member of its own.
 - **discovery** (`discovery-query-envelope`) — required when the implementation
   answers directory discovery queries: verifying a requester-signed discovery
   query envelope against the requester's key, its own identity, its clock and its

@@ -50,7 +50,7 @@ const FROZEN_PROFILES = {
     "signed-body-utf8",
     "timestamp-validity",
   ],
-  containment: ["handshake-message"],
+  containment: ["handshake-message", "handshake-transport-signature"],
   delegation: ["authorization-chain"],
   discovery: ["discovery-query-envelope"],
   encryption: ["payload-encryption"],
