@@ -78,7 +78,14 @@ Independent of INK's code, not of the JavaScript runtime. RFC 8785 §3.2.2
 defines number and string serialization by reference to ECMAScript, so
 `JSON.stringify` on a scalar is the normative algorithm rather than a shortcut
 past it. Ed25519 itself stays on `@noble/ed25519`: the signature primitive is
-not what these vectors are testing, the bytes fed to it are.
+not what these vectors are testing, the bytes fed to it are. The oracle re-verify
+in `test/conformance-independent.test.ts` calls `ed.verifyAsync` with no options,
+which is `@noble/ed25519`'s default ZIP-215 (cofactored) mode, not the
+cofactorless equation the spec freezes. It only checks `accept` cases, so a
+`reject` case whose forgery depends on the cofactorless/cofactored distinction
+(a mixed-order public key, for example) is not re-verified by this oracle; the
+reference's own strict verifier (`src/crypto/ed25519-strict.ts`) is what those
+cases pin.
 
 ## Read the profile, not the RFC you remember
 
