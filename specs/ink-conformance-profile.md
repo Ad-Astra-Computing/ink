@@ -62,10 +62,13 @@ matching capability in its Agent Card. An implementation that does not advertise
 the capability MUST NOT be expected to satisfy them, and MUST NOT advertise a
 capability it does not fully implement.[^ck]
 
-- **encryption** (`payload-encryption`) — required when the implementation sends
-  or accepts encrypted payloads (`network.tulpa.encrypted`). Intents that the
-  protocol marks confidential are sent encrypted, so an implementation that
-  handles those intents MUST implement this profile.
+- **encryption** (`encryption-required`, `payload-encryption`): required when
+  the implementation sends or accepts encrypted payloads
+  (`network.tulpa.encrypted`). Intents that the protocol marks confidential are
+  sent encrypted, so an implementation that handles those intents MUST
+  implement this profile: refusing a confidential intent in plaintext with
+  `encryption_required` (§3.4) and decrypting the ECIES payload it carries once
+  encrypted.
 - **audit** (`merkle-leaf`, `inclusion-receipt`, `audit-query-response`) —
   required when the implementation participates in the bilateral audit exchange:
   computing audit-event leaf hashes, verifying witness inclusion receipts, and

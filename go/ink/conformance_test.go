@@ -582,6 +582,25 @@ func TestHandshakeTransportSignature(t *testing.T) {
 	}
 }
 
+func TestEncryptionRequired(t *testing.T) {
+	vf := loadVectors(t, "encryption-required")
+	for _, c := range vf.Cases {
+		var envelope map[string]interface{}
+		if raw, ok := c.Input["envelope"]; ok {
+			_ = json.Unmarshal(raw, &envelope)
+		}
+		var extra []string
+		if raw, ok := c.Input["extraConfidentialIntents"]; ok {
+			_ = json.Unmarshal(raw, &extra)
+		}
+		want := c.Expect.Result == "accept"
+		r := CheckEncryptionRequired(envelope, extra...)
+		if r.Allowed != want {
+			t.Errorf("%s: allowed = %v, want %v", c.CaseID, r.Allowed, want)
+		}
+	}
+}
+
 func TestAuditQueryResponse(t *testing.T) {
 	vf := loadVectors(t, "audit-query-response")
 	for _, c := range vf.Cases {

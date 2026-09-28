@@ -29,6 +29,7 @@
         "authorization-header",
         "connection-payload",
         "discovery-query-envelope",
+        "encryption-required",
         "evidence-refusal",
         "first-contact-transcript",
         "handshake-message",

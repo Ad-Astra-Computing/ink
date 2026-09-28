@@ -120,6 +120,15 @@
       "sha256": "2181af8610c66c38738c6f4108ca67e5df8f6de2bf8b50159ff473602d5a7c8f"
     },
     {
+      "id": "encryption-required",
+      "vector": "vectors/encryption-required.json",
+      "profile": "encryption",
+      "spec": "specs/ink-protocol.md",
+      "summary": "The §3.4 encryption-required gate: schedule_meeting, context_share and multi_party_sync refused in plaintext by exact string match, every other or non-string intent passed through, and a receiver's own widened set honored.",
+      "caseCount": 11,
+      "sha256": "b844bd7f1646cc06bf53dc600f85098c36924ee6c30de340456cb85e4b12516c"
+    },
+    {
       "id": "evidence-refusal",
       "vector": "vectors/evidence-refusal.json",
       "profile": "evidence",
