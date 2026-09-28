@@ -1,0 +1,147 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "encryption-required",
+  "cases": [
+    {
+      "caseId": "schedule-meeting-plaintext-rejects",
+      "description": "A plaintext schedule_meeting envelope is refused with encryption_required.",
+      "input": {
+        "envelope": {
+          "intent": "schedule_meeting"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    },
+    {
+      "caseId": "context-share-plaintext-rejects",
+      "description": "A plaintext context_share envelope is refused with encryption_required.",
+      "input": {
+        "envelope": {
+          "intent": "context_share"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    },
+    {
+      "caseId": "multi-party-sync-plaintext-rejects",
+      "description": "A plaintext multi_party_sync envelope is refused with encryption_required.",
+      "input": {
+        "envelope": {
+          "intent": "multi_party_sync"
+        }
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    },
+    {
+      "caseId": "ping-plaintext-accepts",
+      "description": "A plaintext ping envelope is not in the confidential set and passes the gate.",
+      "input": {
+        "envelope": {
+          "intent": "ping"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "case-variant-accepts",
+      "description": "Schedule_Meeting differs from schedule_meeting by case and does not match the exact-string gate.",
+      "input": {
+        "envelope": {
+          "intent": "Schedule_Meeting"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "suffix-variant-accepts",
+      "description": "schedule_meeting_response is a distinct intent string and does not match schedule_meeting.",
+      "input": {
+        "envelope": {
+          "intent": "schedule_meeting_response"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "whitespace-variant-accepts",
+      "description": "A leading space makes the intent string a different value than schedule_meeting, so the gate does not match it.",
+      "input": {
+        "envelope": {
+          "intent": " schedule_meeting"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "non-string-intent-accepts",
+      "description": "A non-string intent has nothing for the gate to match; the schema, which runs before this gate, is what rejects a malformed envelope.",
+      "input": {
+        "envelope": {
+          "intent": 7
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "missing-intent-accepts",
+      "description": "An envelope with no intent member has nothing for the gate to match.",
+      "input": {
+        "envelope": {}
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "encrypted-envelope-not-gated-accepts",
+      "description": "An already-encrypted outer envelope (network.tulpa.encrypted) carries no intent member of its own; the gate looks only at intent and passes it through, since its inner envelope, once decrypted, is by construction not plaintext.",
+      "input": {
+        "envelope": {
+          "protocol": "ink/0.1",
+          "type": "network.tulpa.encrypted",
+          "from": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "to": "tulpa:z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "timestamp": "2026-06-20T00:00:00.000Z"
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "widened-set-rejects",
+      "description": "A receiver widens the gate with an intent of its own (ping); the protocol set always applies alongside it, so a plaintext ping is refused once the receiver has opted into that.",
+      "input": {
+        "envelope": {
+          "intent": "ping"
+        },
+        "extraConfidentialIntents": [
+          "ping"
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    }
+  ]
+}

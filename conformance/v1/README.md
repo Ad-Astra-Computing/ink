@@ -227,6 +227,17 @@ additive field then.
   required field, an oversized string or array, an out-of-range or offset
   timestamp, and a malformed backoff hint all reject. See
   [`../../specs/ink-handshake-message.md`](../../specs/ink-handshake-message.md).
+- **handshake-transport-signature**: a handshake message authenticated under
+  the same §3.3 transport signature rules as any other request, with the path
+  bound into the signature base and no embedded signature member of its own. A
+  well-formed, correctly signed challenge, rejection and resolution each
+  accept; a challenge signature presented at the wrong path, a wrong recipient,
+  a field tampered after signing, a schema-invalid body and a body carrying a
+  well-formed §3.6 signature member whose transport signature is by a
+  different key all reject. A body carrying a junk `signature` member that the
+  transport signature covers as delivered still accepts, since the member is
+  ignored rather than treated as provenance. See
+  [`../../specs/ink-protocol.md`](../../specs/ink-protocol.md) §5.
 - **connection-payload**: schema validation for the connection_request and
   connection_response payloads, which are strict (an unknown key rejects) and
   embed a profile snapshot and availability config. A valid request and response
@@ -298,6 +309,16 @@ additive field then.
   malformed or wrong-length ephemeral key or nonce, an all-zero (low-order)
   shared secret, and an inner/outer `from` mismatch all reject. See
   [`../../specs/ink-payload-encryption.md`](../../specs/ink-payload-encryption.md).
+- **encryption-required**: the §3.4 gate that refuses `schedule_meeting`,
+  `context_share` and `multi_party_sync` in plaintext with
+  `encryption_required`, by exact string match against `intent`. A plaintext
+  envelope with one of the three confidential intents rejects; `ping` and any
+  case, suffix or whitespace variant of a confidential intent accepts, since
+  the match is exact, as does an envelope whose `intent` is absent or not a
+  string, and the outer shape of an already-encrypted envelope, which carries
+  no `intent` of its own. A receiver's own widened set is honored: an
+  additional intent it names is refused in plaintext too. See
+  [`../../specs/ink-protocol.md`](../../specs/ink-protocol.md) §3.4.
 - **first-contact-transcript**: a complete stranger first-contact flow composed
   from the pinned primitives: discover the receiver's Agent Card, select a
   protocol version from `supportedProtocolVersions`, verify the signed

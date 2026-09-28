@@ -43,6 +43,7 @@ import {
   buildAuthHeader,
   MessageEnvelopeSchema,
   verifyMessage,
+  checkEncryptionRequired,
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey, DiscoveryQueryKey } from "../src/index.js";
@@ -429,6 +430,24 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       if (schema === null) return { result: "reject" };
       return { result: schema.safeParse(message).success ? "accept" : "reject" };
     }
+    case "handshake-transport-signature": {
+      const { signInput, signature, publicKeyHex } = input as {
+        signInput: Parameters<typeof verifyInkSignature>[0];
+        signature: string;
+        publicKeyHex: string;
+      };
+      const message = signInput.body as { type?: unknown };
+      const t = typeof message?.type === "string" ? message.type : "";
+      const suffix = t.startsWith("network.tulpa.") ? t.slice("network.tulpa.".length)
+        : t.startsWith("network.ink.") ? t.slice("network.ink.".length) : "";
+      const schema =
+        suffix === "challenge" ? InkChallengeSchema :
+        suffix === "rejection" ? InkRejectionSchema :
+        suffix === "resolution" ? InkResolutionSchema : null;
+      if (schema === null || !schema.safeParse(message).success) return { result: "reject" };
+      const ok = await verifyInkSignature(signInput, signature, hexToBytes(publicKeyHex));
+      return { result: ok ? "accept" : "reject" };
+    }
     case "connection-payload": {
       const { kind, payload } = input as { kind: string; payload: unknown };
       const schema =
@@ -524,6 +543,14 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       } catch {
         return { result: "reject" };
       }
+    }
+    case "encryption-required": {
+      const { envelope, extraConfidentialIntents } = input as {
+        envelope: { intent?: unknown } | null;
+        extraConfidentialIntents?: string[];
+      };
+      const r = checkEncryptionRequired(envelope, extraConfidentialIntents ? { extraConfidentialIntents } : {});
+      return r.allowed ? { result: "accept" } : { result: "reject", reason: r.reason };
     }
     case "first-contact-transcript": {
       const t = input as {
