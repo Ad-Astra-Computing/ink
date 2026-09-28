@@ -66,12 +66,12 @@
   "dependencies": {
     "@noble/curves": "^2.3.0",
     "@noble/ed25519": "^3.2.0",
-    "@noble/hashes": "^2.4.0",
     "canonicalize": "^4.0.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
+    "@noble/hashes": "^2.4.0",
     "@types/node": "^26.5.1",
     "@typescript-eslint/eslint-plugin": "^8.70.0",
     "@typescript-eslint/parser": "^8.70.0",
