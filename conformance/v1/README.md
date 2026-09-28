@@ -86,7 +86,15 @@ additive field then.
   byte-identical bases, and one signature authenticates both. Both reject, as does
   a recipientDid carrying a CR, each against a signature that genuinely verifies
   over those bytes, so an implementation that omits the check accepts two
-  different requests under one signature.
+  different requests under one signature. Three cases pin the cofactorless
+  verification equation the spec freezes: a signature whose `S` scalar has been
+  bumped by the subgroup order (non-canonical, unreduced) rejects; a public key
+  re-encoded with `y = p + 1` instead of its canonical `y = 1` rejects before any
+  small-order check runs; and a canonical, not-small-order public key built as an
+  honest key plus an order-8 torsion point, with a signature ground so the
+  challenge scalar is not a multiple of 8, rejects even though a verifier that
+  checks the cofactored equation (`@noble/ed25519` with `zip215:false`) accepts
+  it.
 - **authorization-header**: the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]`
   transport Authorization header (§3.3). A well-formed header extracts the 86-char
   signature and the optional keyId; a wrong scheme, a wrong signature length or
@@ -124,11 +132,18 @@ additive field then.
   malformed nonce all reject. Both edges are pinned to the millisecond and both
   are inclusive: exactly 300000 ms old and exactly 30000 ms ahead accept, one
   millisecond past either rejects, so a window of the wrong width or a comparison
-  of the wrong strictness diverges instead of passing on a coarse case.
+  of the wrong strictness diverges instead of passing on a coarse case. The nonce
+  grammar (16 to 256 code units of `[A-Za-z0-9_-]`) is pinned at both length
+  bounds, one unit short or past each bound and against a `+`, a trailing `=`, a
+  space and a non-ASCII character, each otherwise valid in length.
 - **timestamp-validity**: INK timestamps use one strict RFC 3339 date-time
   grammar at millisecond precision; a full UTC or numeric-offset value is accepted
   and pins its epoch milliseconds, while a date-only, zoneless, space-separated,
-  lowercase-`t`, comma-fraction, or out-of-range value rejects. See
+  lowercase-`t`, comma-fraction, or out-of-range value rejects. A leap second, a
+  lowercase `z` zone designator and an out-of-range offset hour or minute all
+  reject; a `-00:00` or `+00:00` offset both accept as the same instant as `Z`,
+  and the 64-character length cap is pinned exactly, with a value padded to the
+  boundary accepting and one character past it rejecting before parsing. See
   [`../../specs/ink-timestamp-grammar.md`](../../specs/ink-timestamp-grammar.md).
 - **jcs-string-safety**: a signed body must not carry a `\uXXXX` escape for an
   unpaired UTF-16 surrogate in any member name or value; the scan runs on the raw

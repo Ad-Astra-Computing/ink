@@ -153,6 +153,126 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "nonce-16-units-accepts",
+      "description": "A nonce of exactly 16 code units, the minimum length, is accepted.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAAA",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "nonce-15-units-rejects",
+      "description": "A nonce of 15 code units, one short of the minimum, is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAA",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nonce-256-units-accepts",
+      "description": "A nonce of exactly 256 code units, the maximum length, is accepted.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "nonce-257-units-rejects",
+      "description": "A nonce of 257 code units, one past the maximum, is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nonce-plus-rejects",
+      "description": "A nonce containing a `+` character is outside the [A-Za-z0-9_-] grammar and is rejected, even at an otherwise valid length.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAA+",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nonce-padding-rejects",
+      "description": "A nonce with a trailing base64 padding `=` character is outside the grammar and is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAA=",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nonce-space-rejects",
+      "description": "A nonce containing a space is outside the grammar and is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAA ",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "nonce-non-ascii-rejects",
+      "description": "A nonce containing a non-ASCII character (U+00E9, e-acute) is outside the [A-Za-z0-9_-] grammar and is rejected.",
+      "input": {
+        "replay": {
+          "messageTimestamp": "2026-06-11T00:00:00.000Z",
+          "receiverClock": "2026-06-11T00:00:00.000Z",
+          "nonce": "AAAAAAAAAAAAAAAé",
+          "previouslySeenNonces": []
+        }
+      },
+      "expect": {
+        "result": "reject"
+      }
     }
   ]
 }
