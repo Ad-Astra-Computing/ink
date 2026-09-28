@@ -43,6 +43,7 @@ import {
   buildAuthHeader,
   MessageEnvelopeSchema,
   verifyMessage,
+  checkEncryptionRequired,
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey, DiscoveryQueryKey } from "../src/index.js";
@@ -542,6 +543,14 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       } catch {
         return { result: "reject" };
       }
+    }
+    case "encryption-required": {
+      const { envelope, extraConfidentialIntents } = input as {
+        envelope: { intent?: unknown } | null;
+        extraConfidentialIntents?: string[];
+      };
+      const r = checkEncryptionRequired(envelope, extraConfidentialIntents ? { extraConfidentialIntents } : {});
+      return r.allowed ? { result: "accept" } : { result: "reject", reason: r.reason };
     }
     case "first-contact-transcript": {
       const t = input as {

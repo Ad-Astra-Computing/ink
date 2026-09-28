@@ -309,6 +309,16 @@ additive field then.
   malformed or wrong-length ephemeral key or nonce, an all-zero (low-order)
   shared secret, and an inner/outer `from` mismatch all reject. See
   [`../../specs/ink-payload-encryption.md`](../../specs/ink-payload-encryption.md).
+- **encryption-required**: the §3.4 gate that refuses `schedule_meeting`,
+  `context_share` and `multi_party_sync` in plaintext with
+  `encryption_required`, by exact string match against `intent`. A plaintext
+  envelope with one of the three confidential intents rejects; `ping` and any
+  case, suffix or whitespace variant of a confidential intent accepts, since
+  the match is exact, as does an envelope whose `intent` is absent or not a
+  string, and the outer shape of an already-encrypted envelope, which carries
+  no `intent` of its own. A receiver's own widened set is honored: an
+  additional intent it names is refused in plaintext too. See
+  [`../../specs/ink-protocol.md`](../../specs/ink-protocol.md) §3.4.
 - **first-contact-transcript**: a complete stranger first-contact flow composed
   from the pinned primitives: discover the receiver's Agent Card, select a
   protocol version from `supportedProtocolVersions`, verify the signed

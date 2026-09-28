@@ -60,7 +60,7 @@ var goProfileCategories = map[string][]string{
 	// frozen base set above is untouched by its presence. The flip moves its id
 	// from this list to `base` in both tripwires and retags the manifest entry.
 	"staged":        {"agent-card-signature-phase-c"},
-	"encryption":    {"payload-encryption"},
+	"encryption":    {"encryption-required", "payload-encryption"},
 	"audit":         {"audit-query-response", "inclusion-receipt", "merkle-leaf"},
 	"witness":       {"merkle-checkpoint", "merkle-consistency", "merkle-inclusion"},
 	"containment":   {"handshake-message", "handshake-transport-signature"},
@@ -96,6 +96,7 @@ var goVerifiedCategories = []string{
 	"authorization-header",
 	"connection-payload",
 	"discovery-query-envelope",
+	"encryption-required",
 	"evidence-refusal",
 	"first-contact-transcript",
 	"handshake-message",

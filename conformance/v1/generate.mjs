@@ -90,6 +90,7 @@ const CATEGORY_META = {
   "agent-card-signature-phase-c": { profile: "staged", spec: "specs/ink-agent-card-signature.md", summary: "Staged Phase C receiver rule: with the explicit enforcePhaseC flag on, an unsigned card is rejected outright and a cold did:web verifier fails closed on an unreachable resolver; with the flag off the pre-Phase-C decision stands." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
+  "encryption-required": { profile: "encryption", spec: "specs/ink-protocol.md", summary: "The §3.4 encryption-required gate: schedule_meeting, context_share and multi_party_sync refused in plaintext by exact string match, every other or non-string intent passed through, and a receiver's own widened set honored." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
   "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
@@ -5090,6 +5091,80 @@ vectorFile("authorization-header", [
     },
   ]);
 }
+
+// ── encryption-required ─────────────────────────────────────────────────────
+// The §3.4 gate refuses schedule_meeting, context_share and multi_party_sync
+// in plaintext by an EXACT string match against `intent`. Neither
+// implementation normalizes case, trims whitespace, or matches by prefix, and
+// a receiver MAY widen the set with intents of its own.
+vectorFile("encryption-required", [
+  {
+    caseId: "schedule-meeting-plaintext-rejects",
+    description: "A plaintext schedule_meeting envelope is refused with encryption_required.",
+    input: { envelope: { intent: "schedule_meeting" } },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "context-share-plaintext-rejects",
+    description: "A plaintext context_share envelope is refused with encryption_required.",
+    input: { envelope: { intent: "context_share" } },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "multi-party-sync-plaintext-rejects",
+    description: "A plaintext multi_party_sync envelope is refused with encryption_required.",
+    input: { envelope: { intent: "multi_party_sync" } },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "ping-plaintext-accepts",
+    description: "A plaintext ping envelope is not in the confidential set and passes the gate.",
+    input: { envelope: { intent: "ping" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "case-variant-accepts",
+    description: "Schedule_Meeting differs from schedule_meeting by case and does not match the exact-string gate.",
+    input: { envelope: { intent: "Schedule_Meeting" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "suffix-variant-accepts",
+    description: "schedule_meeting_response is a distinct intent string and does not match schedule_meeting.",
+    input: { envelope: { intent: "schedule_meeting_response" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "whitespace-variant-accepts",
+    description: "A leading space makes the intent string a different value than schedule_meeting, so the gate does not match it.",
+    input: { envelope: { intent: " schedule_meeting" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "non-string-intent-accepts",
+    description: "A non-string intent has nothing for the gate to match; the schema, which runs before this gate, is what rejects a malformed envelope.",
+    input: { envelope: { intent: 7 } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "missing-intent-accepts",
+    description: "An envelope with no intent member has nothing for the gate to match.",
+    input: { envelope: {} },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "encrypted-envelope-not-gated-accepts",
+    description: "An already-encrypted outer envelope (network.tulpa.encrypted) carries no intent member of its own; the gate looks only at intent and passes it through, since its inner envelope, once decrypted, is by construction not plaintext.",
+    input: { envelope: { protocol: "ink/0.1", type: "network.tulpa.encrypted", from: `tulpa:${mb}`, to: `tulpa:${mb}`, timestamp: "2026-06-20T00:00:00.000Z" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "widened-set-rejects",
+    description: "A receiver widens the gate with an intent of its own (ping); the protocol set always applies alongside it, so a plaintext ping is refused once the receiver has opted into that.",
+    input: { envelope: { intent: "ping" }, extraConfidentialIntents: ["ping"] },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+]);
 
 writeManifest();
 writeSchema();
