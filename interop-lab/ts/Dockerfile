@@ -16,6 +16,7 @@ RUN npm ci --ignore-scripts
 
 COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
+COPY bin ./bin
 COPY examples/reference-receiver/src ./examples/reference-receiver/src
 COPY examples/docker-receiver/server.mjs ./examples/docker-receiver/server.mjs
 COPY interop-lab/ts ./interop-lab/ts
