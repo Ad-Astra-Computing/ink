@@ -258,12 +258,15 @@ describe("single verification path", () => {
           !path.endsWith("ed25519-strict.mjs")
         ) {
           const text = readFileSync(path, "utf-8");
-          // Any file that imports @noble/ed25519 at all is in scope: match a
-          // bare verify(/verifyAsync( call regardless of the namespace alias
-          // or destructured name it arrives under (`ed.verify`, `import {
-          // verify } from "@noble/ed25519"`, a renamed `import * as noble`,
-          // ...), not just the one spelling this guard originally checked.
-          if (text.includes("@noble/ed25519") && /\bverify(?:Async)?\s*\(/.test(text)) offenders.push(path);
+          // Any file that imports @noble/ed25519 at all is in scope: match
+          // a bare verify(/verifyAsync( call under any namespace alias, or
+          // the import line naming verify/verifyAsync at all (named or
+          // renamed with `as`), so `import { verifyAsync as check }` is
+          // caught even if `check(...)` itself would not match.
+          const importsNoble = text.includes("@noble/ed25519");
+          const callsVerify = /\bverify(?:Async)?\s*\(/.test(text);
+          const importsVerifyByName = /\bimport\s*\{[^}]*\bverify(?:Async)?\b[^}]*\}\s*from\s*["']@noble\/ed25519["']/.test(text);
+          if (importsNoble && (callsVerify || importsVerifyByName)) offenders.push(path);
         }
       }
     };
