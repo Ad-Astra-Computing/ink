@@ -7,7 +7,7 @@
  * its own, matching `src/crypto/ed25519-strict.ts`.
  *
  * A second copy of a security-critical verifier is exactly the drift this
- * release fixed elsewhere, so it is not left to care: `test/ed25519-strict-verify.test.ts`
+ * release fixed elsewhere, so it is not left to care: `test/bin-ed25519-strict-parity.test.ts`
  * runs both copies against one shared table and fails if they ever disagree.
  * Change one, change the other, or the test says so.
  *

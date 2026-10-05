@@ -152,18 +152,18 @@ describe("verify-inclusion CLI rejects the mixed-order cofactor-confusion forger
     const { publicKey, signature } = await forgeMixedOrderSignature(new TextEncoder().encode(body));
     const signedCheckpoint = `${body}\n\n-- ${origin} ${base64urlEncode(signature)}\n`;
 
-    // A valid (unforged, small) receipt tree so the receipt step itself
-    // passes; only the checkpoint cross-check exercises the forged key.
+    // An ordinary receipt signed by an unrelated honest key. Its own
+    // signature step is irrelevant here: fetchCurrentCheckpoint runs before
+    // verifyReceipt and checks the checkpoint against the single
+    // DID-advertised key (the forged mixed-order one below) regardless of
+    // what signed the receipt, so this is sufficient to reach and exercise
+    // the checkpoint cross-check.
     const secretKey = ed.utils.randomSecretKey();
     const receiptPayload = { eventId: "evt-1", leafIndex: 0, treeSize: 1, rootHash: "11".repeat(32), timestamp: "2026-06-10T00:00:00.000Z" };
     const receiptSigBase = `ink/audit-inclusion/v1\n${canonicalize(receiptPayload)}`;
     const receiptSig = base64urlEncode(await ed.signAsync(new TextEncoder().encode(receiptSigBase), secretKey));
     const receipt = JSON.stringify({ ...receiptPayload, inclusionProof: [], serviceSignature: receiptSig });
 
-    // fetchCurrentCheckpoint runs against the single DID-advertised key
-    // (the forged mixed-order one) independently of whatever key actually
-    // signed the receipt above, so the receipt's own signature outcome is
-    // irrelevant to the checkpoint assertion below.
     const didDoc = JSON.stringify({ verificationMethod: [{ publicKeyMultibase: encodePublicKeyMultibase(publicKey) }] });
     const server = createServer((req, res) => {
       const path = (req.url ?? "").split("?")[0];
