@@ -115,6 +115,35 @@ capability it does not fully implement.[^ck]
   judgment on issuers or claims; which evidence counts is receiver policy and
   is not pinned by the corpus.
 
+## What passing the corpus does not claim
+
+Every category above pins a decision over a fixed input. Some base MUSTs are
+stateful or IO-bound and cannot be reduced to that shape, so the corpus does not
+test them:
+
+- nonce store behavior: record only after signature verification succeeds,
+  retain over the freshness window and check-and-record atomically
+  (`specs/ink-protocol.md` §3.5)
+- trust on first use and the bootstrap window (`specs/ink-identity-model.md`
+  §6.1, `docs/key-rotation-rule.md` invariant 4)
+- the key-set cache refresh triggers (`specs/ink-key-rotation-spec.md` §9.2)
+- rate limiting keyed on the canonical principal (`specs/ink-protocol.md` §4)
+- the request-side SSRF gate: redirect refusal and connect-time IP pinning
+  (`specs/ink-resolver.md` §3.3 and §5), as distinct from the pure hostname
+  function the `private-hostname` category pins
+- producer obligations: a producer MUST sign its card
+  (`specs/ink-agent-card-signature.md` §10), a sender MUST NOT emit `ink/0.2`
+  to a receiver that has not advertised it (`specs/ink-protocol.md` §8) and
+  receipt rules RC5 and RC6 (`specs/ink-compliance-checklist.md`, citing
+  `specs/ink-auditability.md` §1)
+- a resolver MUST NOT depend on the `/.well-known` alias
+  (`specs/ink-agent-card-discovery-fetch.md`)
+
+`interop-lab/` and `differential/` are partial evidence for some of these, over
+a live exchange and over generated inputs. `conformance/v1/README.md` lists what
+each of them does and does not cover. Passing the corpus is a claim about the
+fixed set of decisions it contains and nothing more.
+
 ## Optional behaviors
 
 A few decisions in the base profile are genuinely open: the spec says an
