@@ -28,6 +28,7 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   and adopted the byte contract: they now decide on Agent Card responses through
   `bodyRaw: Uint8Array` and `parseSignedBodyBytes`/`evaluateAgentCardFetch`
   rather than a decoded string.
+- `@noble/hashes` is now a dev dependency. The library never imported it; only the tests and the differential harness do.
 
 ## 0.20.0, decide on the bytes that were signed
 
