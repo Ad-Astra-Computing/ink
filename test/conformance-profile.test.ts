@@ -50,10 +50,10 @@ const FROZEN_PROFILES = {
     "signed-body-utf8",
     "timestamp-validity",
   ],
-  containment: ["handshake-message"],
+  containment: ["handshake-message", "handshake-transport-signature"],
   delegation: ["authorization-chain"],
   discovery: ["discovery-query-envelope"],
-  encryption: ["payload-encryption"],
+  encryption: ["encryption-required", "payload-encryption"],
   // Capability-gated evidence primitive (specs/ink-attestation.md), admitted
   // with the implementing change its Activation section names.
   evidence: ["agent-card-evidence", "attestation", "evidence-refusal"],

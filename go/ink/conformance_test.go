@@ -539,6 +539,68 @@ func TestHandshakeMessage(t *testing.T) {
 	}
 }
 
+func TestHandshakeTransportSignature(t *testing.T) {
+	vf := loadVectors(t, "handshake-transport-signature")
+	for _, c := range vf.Cases {
+		var in struct {
+			SignInput struct {
+				Method       string                 `json:"method"`
+				Path         string                 `json:"path"`
+				RecipientDid string                 `json:"recipientDid"`
+				Body         map[string]interface{} `json:"body"`
+				Timestamp    string                 `json:"timestamp"`
+			} `json:"signInput"`
+			Signature    string `json:"signature"`
+			PublicKeyHex string `json:"publicKeyHex"`
+		}
+		if err := json.Unmarshal(mustJSON(t, c.Input, "signInput"), &in.SignInput); err != nil {
+			t.Fatalf("%s: bad signInput: %v", c.CaseID, err)
+		}
+		_ = json.Unmarshal(c.Input["signature"], &in.Signature)
+		_ = json.Unmarshal(c.Input["publicKeyHex"], &in.PublicKeyHex)
+		pub, err := hex.DecodeString(in.PublicKeyHex)
+		if err != nil {
+			t.Fatalf("%s: bad publicKeyHex: %v", c.CaseID, err)
+		}
+		want := c.Expect.Result == "accept"
+		if !ValidateHandshakeMessage(in.SignInput.Body) {
+			if want {
+				t.Errorf("%s: ValidateHandshakeMessage rejected but vector expects accept", c.CaseID)
+			}
+			continue
+		}
+		ok := VerifyInkSignature(InkSignInput{
+			Method:       in.SignInput.Method,
+			Path:         in.SignInput.Path,
+			RecipientDid: in.SignInput.RecipientDid,
+			Body:         in.SignInput.Body,
+			Timestamp:    in.SignInput.Timestamp,
+		}, in.Signature, pub)
+		if ok != want {
+			t.Errorf("%s: verify = %v, want %v", c.CaseID, ok, want)
+		}
+	}
+}
+
+func TestEncryptionRequired(t *testing.T) {
+	vf := loadVectors(t, "encryption-required")
+	for _, c := range vf.Cases {
+		var envelope map[string]interface{}
+		if raw, ok := c.Input["envelope"]; ok {
+			_ = json.Unmarshal(raw, &envelope)
+		}
+		var extra []string
+		if raw, ok := c.Input["extraConfidentialIntents"]; ok {
+			_ = json.Unmarshal(raw, &extra)
+		}
+		want := c.Expect.Result == "accept"
+		r := CheckEncryptionRequired(envelope, extra...)
+		if r.Allowed != want {
+			t.Errorf("%s: allowed = %v, want %v", c.CaseID, r.Allowed, want)
+		}
+	}
+}
+
 func TestAuditQueryResponse(t *testing.T) {
 	vf := loadVectors(t, "audit-query-response")
 	for _, c := range vf.Cases {

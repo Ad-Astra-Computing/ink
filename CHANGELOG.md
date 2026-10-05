@@ -6,6 +6,19 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ## Unreleased
 
+### Additions
+
+- New `handshake-transport-signature` conformance category (`containment`
+  profile). It pins that a handshake message is authenticated under the same
+  §3.3 transport signature rules as any other request: the path is bound into
+  the signature base, so a signature made for `/challenge` fails at
+  `/rejection`, and an unrecognized `signature` member inside the body is
+  ignored rather than treated as provenance.
+- New `encryption-required` conformance category (`encryption` profile). It
+  pins the §3.4 gate that refuses `schedule_meeting`, `context_share` and
+  `multi_party_sync` in plaintext by exact string match, passing through any
+  case, suffix or whitespace variant along with a receiver's own widened set.
+
 ### Fixes
 
 - The Ed25519 verifier now checks the cofactorless equation the spec
