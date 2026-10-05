@@ -517,7 +517,7 @@
     },
     {
       "caseId": "non-canonical-public-key-encoding-rejects",
-      "description": "The identity point re-encoded as y = p + 1 instead of its canonical y = 1: strict RFC 8032 decoding requires y < p and rejects this before any small-order check runs. A decoder that reduces y modulo p first would wrongly accept it as the identity point and then need the small-order check to catch it; this vector pins the canonical-encoding check as a separate, earlier gate.",
+      "description": "The point y = 3 re-encoded non-canonically as y = p + 3: strict RFC 8032 decoding requires y < p and rejects this outright. y = 3 is NOT small-order, so a decoder that reduces y modulo p first, bypassing the canonical-encoding check, is not caught by the small-order check either and must reject for the wrong reason or not at all.",
       "input": {
         "signInput": {
           "method": "POST",
@@ -541,7 +541,7 @@
           "timestamp": "2026-06-11T00:00:00.000Z"
         },
         "signature": "WGZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmYBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-        "publicKeyHex": "eeffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
+        "publicKeyHex": "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f"
       },
       "expect": {
         "result": "reject"

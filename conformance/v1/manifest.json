@@ -279,7 +279,7 @@
       "spec": "specs/ink-protocol.md",
       "summary": "Ed25519 verification over the canonical signature base.",
       "caseCount": 18,
-      "sha256": "a9dc06161af5025761169547fff1a2ac9d473bc811439c8925674f80d6277bb4"
+      "sha256": "cf48cc78042632884fcd09c41ec2312394fb8ad0d8bf956d10f5ecd22b5f2e04"
     },
     {
       "id": "signed-body-member-name",

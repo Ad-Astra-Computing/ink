@@ -416,18 +416,13 @@ const nonCanonicalSSig = (() => {
   return Buffer.concat([r, bumped]).toString("base64url");
 })();
 
-// The identity point re-encoded non-canonically as y = p + 1 (p = 2^255-19):
-// bytes 0xee, 30 bytes of 0xff, then 0x7f. Strict RFC 8032 decoding requires
-// y < p and rejects this before any small-order check runs, catching a
-// decoder that would otherwise reduce y mod p and accept it as identity.
-const nonCanonicalPublicKeyHex = (() => {
-  const bytes = Buffer.alloc(32, 0xff);
-  bytes[0] = 0xee;
-  bytes[31] = 0x7f;
-  return bytes.toString("hex");
-})();
-// R = basepoint, S = 1 (the small-order universal-forgery shape): only the
-// public-key encoding is under test here.
+// y = p + 3 reduces mod p to the ordinary (not small-order) point y = 3,
+// isolating the canonical-decode check from the small-order check, unlike
+// y = p + 1 (which reduces to the identity). Same fixture as
+// go/ink/signature_test.go's TestNonCanonicalPublicKeyRejected.
+const nonCanonicalPublicKeyHex = "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f";
+// R = basepoint, S = 1: an arbitrary well-formed signature shape. The vector
+// is about the public-key encoding, not the signature; any shape rejects.
 const nonCanonicalPublicKeySig = smallOrderForgedSig;
 
 // A mixed-order public key A = A0 + T8 (A0 the honest key above, T8 the
@@ -633,7 +628,7 @@ vectorFile("signature-base", [
   },
   {
     caseId: "non-canonical-public-key-encoding-rejects",
-    description: "The identity point re-encoded as y = p + 1 instead of its canonical y = 1: strict RFC 8032 decoding requires y < p and rejects this before any small-order check runs. A decoder that reduces y modulo p first would wrongly accept it as the identity point and then need the small-order check to catch it; this vector pins the canonical-encoding check as a separate, earlier gate.",
+    description: "The point y = 3 re-encoded non-canonically as y = p + 3: strict RFC 8032 decoding requires y < p and rejects this outright. y = 3 is NOT small-order, so a decoder that reduces y modulo p first, bypassing the canonical-encoding check, is not caught by the small-order check either and must reject for the wrong reason or not at all.",
     input: { signInput, signature: nonCanonicalPublicKeySig, publicKeyHex: nonCanonicalPublicKeyHex },
     expect: { result: "reject" },
   },
