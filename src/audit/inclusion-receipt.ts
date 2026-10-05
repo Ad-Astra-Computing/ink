@@ -20,7 +20,6 @@
  * CLI is a thin wrapper that fetches the witness DID document + a
  * current checkpoint and calls verifyInclusionReceipt.
  */
-import * as ed from "@noble/ed25519";
 import {
   base64urlDecode,
   jcsCanonicalize,
@@ -32,6 +31,7 @@ import {
 import { parseInkTimestampMs } from "../crypto/timestamp.js";
 import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "../crypto/multi-key-verify.js";
 import type { CandidateKey } from "../models/key-entry.js";
+import { verifyStrictEd25519 } from "../crypto/ed25519-strict.js";
 
 export interface InclusionReceipt {
   eventId: string;
@@ -231,7 +231,7 @@ export async function verifyInclusionReceipt(opts: {
     };
     const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
     const sig = base64urlDecode(receipt.serviceSignature);
-    const verified = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
+    const verified = await verifyStrictEd25519(sig, new TextEncoder().encode(sigBase), witnessPublicKey);
     return { verified };
   });
 }
@@ -294,7 +294,7 @@ export async function verifyInclusionReceiptWithKeys(opts: {
         };
         const sigBase = `ink/audit-inclusion/v1\n${jcsCanonicalize(signedPayload)}`;
         const sig = base64urlDecode(receipt.serviceSignature);
-        return ed.verifyAsync(sig, new TextEncoder().encode(sigBase), publicKey, { zip215: false });
+        return verifyStrictEd25519(sig, new TextEncoder().encode(sigBase), publicKey);
       },
       keys,
       artifactMs,

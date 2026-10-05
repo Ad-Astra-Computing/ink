@@ -6,6 +6,21 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ## Unreleased
 
+### Fixes
+
+- The Ed25519 verifier now checks the cofactorless equation the spec
+  requires (`[S]B == R + [k]A`) instead of the cofactored equation
+  `@noble/ed25519`'s `zip215:false` mode checks internally. A canonical,
+  not-small-order public key built as an honest key plus an order-8 torsion
+  point could produce a signature that the old check accepted and Go's bare
+  `crypto/ed25519.Verify` (cofactorless) rejected. Honest signatures verify
+  exactly as before. The `signature-base` conformance category gained three
+  vectors for this: a non-canonical `S` scalar, a non-canonically encoded
+  public key and the mixed-order public key. The `timestamp-validity` and
+  `replay-freshness` categories also gained vectors pinning the timestamp
+  grammar's zone and length edges and the nonce grammar's length and
+  character-set bounds.
+
 ### Changes
 
 - The runnable examples (`examples/reference-receiver`, `examples/docker-receiver`,

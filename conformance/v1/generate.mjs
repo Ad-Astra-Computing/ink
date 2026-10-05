@@ -37,6 +37,7 @@ import {
   buildDelegationLink,
   buildAuthorizationChain,
   buildAttestation,
+  buildSignatureBase,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -384,6 +385,115 @@ const scalarOneBytes = Buffer.alloc(32);
 scalarOneBytes[0] = 1;
 const smallOrderForgedSig = Buffer.concat([basepointBytes, scalarOneBytes]).toString("base64url");
 
+// The Ed25519 subgroup order (RFC 8032, section 5.1).
+const SUBGROUP_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n;
+
+function leBytesToBigInt(bytes) {
+  let value = 0n;
+  for (let i = bytes.length - 1; i >= 0; i--) value = (value << 8n) | BigInt(bytes[i]);
+  return value;
+}
+function bigIntToLeBytes(n, len) {
+  const out = Buffer.alloc(len);
+  for (let i = 0; i < len; i++) {
+    out[i] = Number(n & 0xffn);
+    n >>= 8n;
+  }
+  return out;
+}
+
+// An honest signature with S replaced by S + subgroup order: a non-canonical,
+// unreduced scalar. [S]B = R + [k]A holds under ordinary modular arithmetic,
+// but RFC 8032 strict verification requires S < L, so a conforming verifier
+// rejects the non-canonical wire form rather than reducing S first.
+const nonCanonicalSSig = (() => {
+  const raw = Buffer.from(signature, "base64url");
+  const r = raw.subarray(0, 32);
+  const s = leBytesToBigInt(raw.subarray(32, 64));
+  const bumped = bigIntToLeBytes(s + SUBGROUP_ORDER, 32);
+  return Buffer.concat([r, bumped]).toString("base64url");
+})();
+
+// The identity point re-encoded non-canonically as y = p + 1 (p = 2^255-19):
+// bytes 0xee, 30 bytes of 0xff, then 0x7f. Strict RFC 8032 decoding requires
+// y < p and rejects this before any small-order check runs, catching a
+// decoder that would otherwise reduce y mod p and accept it as identity.
+const nonCanonicalPublicKeyHex = (() => {
+  const bytes = Buffer.alloc(32, 0xff);
+  bytes[0] = 0xee;
+  bytes[31] = 0x7f;
+  return bytes.toString("hex");
+})();
+// R = basepoint, S = 1 (the small-order universal-forgery shape): only the
+// public-key encoding is under test here.
+const nonCanonicalPublicKeySig = smallOrderForgedSig;
+
+// A mixed-order public key A = A0 + T8 (A0 the honest key above, T8 the
+// unique order-8 point on the curve): canonical and NOT small-order, so that
+// check does not catch it. @noble/ed25519's {zip215:false} mode checks the
+// COFACTORED equation [8](R+[k]A-[S]B)==0; Go's bare crypto/ed25519.Verify
+// checks the COFACTORLESS [S]B==R+[k]A. Ground so k mod 8 != 0, where the
+// two diverge, and a conforming verifier must reject.
+const { mixedOrderPublicKeyHex, mixedOrderForgedSig } = await (async () => {
+  function rawMultiply(point, scalar) {
+    let result = ed.Point.ZERO;
+    let addend = point;
+    let n = scalar;
+    while (n > 0n) {
+      if (n & 1n) result = result.add(addend);
+      addend = addend.add(addend);
+      n >>= 1n;
+    }
+    return result;
+  }
+  function findOrder8Point() {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const candidateSeed = Buffer.alloc(32);
+      for (let i = 0; i < 32; i++) candidateSeed[i] = (attempt * 7 + i * 13 + 1) & 0xff;
+      let candidate;
+      try {
+        candidate = ed.Point.fromBytes(candidateSeed, false);
+      } catch {
+        continue;
+      }
+      const t8 = rawMultiply(candidate, SUBGROUP_ORDER);
+      if (t8.is0()) continue;
+      const two = t8.add(t8);
+      const four = two.add(two);
+      if (!four.add(four).is0()) throw new Error("expected 8*T == 0");
+      if (two.is0() || four.is0()) continue;
+      return t8;
+    }
+    throw new Error("failed to find an order-8 point");
+  }
+
+  const t8 = findOrder8Point();
+  const ext = await ed.utils.getExtendedPublicKeyAsync(seed);
+  const mixedOrderPoint = ext.point.add(t8);
+  const mixedOrderPublicKey = mixedOrderPoint.toBytes();
+  if (mixedOrderPoint.isSmallOrder()) throw new Error("mixed-order key is small-order, bad test setup");
+
+  const message = new TextEncoder().encode(buildSignatureBase(signInput));
+  let forged = null;
+  for (let attempt = 0; attempt < 2000 && forged === null; attempt++) {
+    const rSeed = Buffer.alloc(32);
+    for (let i = 0; i < 32; i++) rSeed[i] = (attempt * 11 + i * 5 + 3) & 0xff;
+    const r = leBytesToBigInt(rSeed) % SUBGROUP_ORDER;
+    if (r === 0n) continue;
+    const R = ed.Point.BASE.multiply(r, false);
+    const Rbytes = R.toBytes();
+    const hashed = await ed.hashes.sha512Async(Buffer.concat([Buffer.from(Rbytes), Buffer.from(mixedOrderPublicKey), Buffer.from(message)]));
+    const k = leBytesToBigInt(hashed) % SUBGROUP_ORDER;
+    if (k % 8n === 0n) continue;
+    const s = (r + k * ext.scalar) % SUBGROUP_ORDER;
+    forged = { R: Rbytes, s };
+  }
+  if (forged === null) throw new Error("could not grind a k with k mod 8 != 0");
+
+  const sig = Buffer.concat([Buffer.from(forged.R), bigIntToLeBytes(forged.s, 32)]).toString("base64url");
+  return { mixedOrderPublicKeyHex: Buffer.from(mixedOrderPublicKey).toString("hex"), mixedOrderForgedSig: sig };
+})();
+
 // A signed body whose payload carries member names outside ASCII, ordered so
 // only a UTF-16 code-unit comparator reproduces the signer's bytes (see the
 // ordBmpKey/ordAstralKey note above). The reference signs the canonical form; a
@@ -511,6 +621,24 @@ vectorFile("signature-base", [
     caseId: "recipient-with-carriage-return-rejects",
     description: "The ban covers CR as well as LF: a recipientDid carrying a carriage return is rejected, again against a signature that verifies over the base those bytes produce, so an implementation that scans only for \\n diverges.",
     input: { signInput: { method: "POST", path: "/a", recipientDid: "x\ry", body: crlfBody, timestamp: crlfTs }, signature: crSignature, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-canonical-s-rejects",
+    description: "An honest signature with its S scalar replaced by S plus the subgroup order is a non-canonical (unreduced) encoding. RFC 8032 strict verification requires S < L; a conforming verifier rejects it outright rather than reducing S first and treating it as equivalent to the canonical signature.",
+    input: { signInput, signature: nonCanonicalSSig, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-canonical-public-key-encoding-rejects",
+    description: "The identity point re-encoded as y = p + 1 instead of its canonical y = 1: strict RFC 8032 decoding requires y < p and rejects this before any small-order check runs. A decoder that reduces y modulo p first would wrongly accept it as the identity point and then need the small-order check to catch it; this vector pins the canonical-encoding check as a separate, earlier gate.",
+    input: { signInput, signature: nonCanonicalPublicKeySig, publicKeyHex: nonCanonicalPublicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "mixed-order-public-key-rejects",
+    description: "A canonical, NOT small-order public key A = A0 + T8 (an honest key plus the unique order-8 torsion point) with a signature ground so k mod 8 != 0. @noble/ed25519's zip215:false mode checks the COFACTORED equation [8](R + [k]A - [S]B) == 0 and accepts this signature; the frozen spec requires the COFACTORLESS equation [S]B == R + [k]A, which Go's bare crypto/ed25519.Verify checks and rejects. A conforming verifier must reject this signature rather than accept the fork between the two equations.",
+    input: { signInput, signature: mixedOrderForgedSig, publicKeyHex: mixedOrderPublicKeyHex },
     expect: { result: "reject" },
   },
 ]);
@@ -993,6 +1121,55 @@ vectorFile("replay-freshness", [
     input: { replay: replayInput("2026-06-11T00:00:30.001Z", goodNonce) },
     expect: { result: "reject" },
   },
+  // ── the frozen nonce grammar (§3.5): 16 to 256 code units of [A-Za-z0-9_-] ──
+  {
+    caseId: "nonce-16-units-accepts",
+    description: "A nonce of exactly 16 code units, the minimum length, is accepted.",
+    input: { replay: replayInput(recvClock, "A".repeat(16)) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonce-15-units-rejects",
+    description: "A nonce of 15 code units, one short of the minimum, is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15)) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-256-units-accepts",
+    description: "A nonce of exactly 256 code units, the maximum length, is accepted.",
+    input: { replay: replayInput(recvClock, "A".repeat(256)) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonce-257-units-rejects",
+    description: "A nonce of 257 code units, one past the maximum, is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(257)) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-plus-rejects",
+    description: "A nonce containing a `+` character is outside the [A-Za-z0-9_-] grammar and is rejected, even at an otherwise valid length.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + "+") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-padding-rejects",
+    description: "A nonce with a trailing base64 padding `=` character is outside the grammar and is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + "=") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-space-rejects",
+    description: "A nonce containing a space is outside the grammar and is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + " ") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-non-ascii-rejects",
+    description: "A nonce containing a non-ASCII character (U+00E9, e-acute) is outside the [A-Za-z0-9_-] grammar and is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + "é") },
+    expect: { result: "reject" },
+  },
 ]);
 
 // ── timestamp-validity ───────────────────────────────────────────────────
@@ -1003,6 +1180,14 @@ vectorFile("replay-freshness", [
 // Date.parse as an independent oracle, so both implementations must agree with
 // it. A lenient form (date-only, no zone, space-separated, lowercase `t`) or an
 // out-of-range value is rejected.
+// A timestamp with fractional seconds long enough to land the whole string
+// at exactly the 64-character length cap (spec: "64 characters is sufficient
+// for any conforming timestamp"), and a second string one character longer.
+// Only the millisecond digits ("123") are significant; the padding zeros
+// exist purely to reach the boundary length.
+const length64Timestamp = "2026-06-11T00:00:00." + "123" + "0".repeat(40) + "Z";
+const length65Timestamp = "2026-06-11T00:00:00." + "123" + "0".repeat(41) + "Z";
+
 vectorFile("timestamp-validity", [
   {
     caseId: "utc-millis-accepts",
@@ -1104,6 +1289,54 @@ vectorFile("timestamp-validity", [
     caseId: "empty-rejects",
     description: "An empty string is not a timestamp.",
     input: { timestamp: "" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "leap-second-rejects",
+    description: "Second 60 (a leap second) is out of the accepted 00..59 range and is rejected, even though it is a value UTC itself sometimes has.",
+    input: { timestamp: "2026-06-30T23:59:60Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lowercase-z-rejects",
+    description: "A lowercase `z` zone designator is rejected; the grammar requires an uppercase `Z`.",
+    input: { timestamp: "2026-06-11T00:00:00z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "offset-hour-out-of-range-rejects",
+    description: "A numeric offset with an hour field of 25 is out of the 00..23 range and is rejected.",
+    input: { timestamp: "2026-06-11T00:00:00+25:00" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "offset-minute-out-of-range-rejects",
+    description: "A numeric offset with a minute field of 70 is out of the 00..59 range and is rejected.",
+    input: { timestamp: "2026-06-11T00:00:00+00:70" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "negative-zero-offset-accepts",
+    description: "A -00:00 offset is accepted and is equal to Z, the same instant as the zone-designator form.",
+    input: { timestamp: "2026-06-11T00:00:00-00:00" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00-00:00") },
+  },
+  {
+    caseId: "positive-zero-offset-accepts",
+    description: "A +00:00 offset is accepted and is the same instant as -00:00 and Z.",
+    input: { timestamp: "2026-06-11T00:00:00+00:00" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00+00:00") },
+  },
+  {
+    caseId: "length-64-accepts",
+    description: "A timestamp padded with trailing fractional-second zero digits to exactly the 64-character length cap is accepted; only the millisecond digits are significant.",
+    input: { timestamp: length64Timestamp },
+    expect: { result: "accept", epochMs: Date.parse(length64Timestamp) },
+  },
+  {
+    caseId: "length-65-rejects",
+    description: "One character past the 64-character length cap is rejected before parsing, even though the value would otherwise be a well-formed timestamp.",
+    input: { timestamp: length65Timestamp },
     expect: { result: "reject" },
   },
 ]);

@@ -251,8 +251,8 @@
       "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Timestamp window and nonce replay rejection.",
-      "caseCount": 10,
-      "sha256": "931a393d978e202c76384a82aef3e1d76e3628ad0a4b109defa452745b78a17c"
+      "caseCount": 18,
+      "sha256": "0c9d5974d566fc273fb24e5b29de1a59db838889e324f8192f8bceaa36f3b324"
     },
     {
       "id": "signature-base",
@@ -260,8 +260,8 @@
       "profile": "base",
       "spec": "specs/ink-protocol.md",
       "summary": "Ed25519 verification over the canonical signature base.",
-      "caseCount": 15,
-      "sha256": "deffe5fc8962235932ef04ca8f6bba9ada59aefd0a1e1ddc7330a5b20e35a745"
+      "caseCount": 18,
+      "sha256": "a9dc06161af5025761169547fff1a2ac9d473bc811439c8925674f80d6277bb4"
     },
     {
       "id": "signed-body-member-name",
@@ -287,8 +287,8 @@
       "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Strict INK timestamp grammar and epoch-millisecond parsing.",
-      "caseCount": 17,
-      "sha256": "164e52d9d7d71e12c07353f38192aa76ca77d2da2d2800fab1e0fb21ee1a9aec"
+      "caseCount": 25,
+      "sha256": "a124614b653347497e5c3a59219cfc46b953efc41794e76ed67683b40ceff7d7"
     }
   ]
 }

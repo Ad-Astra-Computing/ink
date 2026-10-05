@@ -27,7 +27,6 @@
  *   2  usage / network / parsing error
  */
 import { readFileSync, statSync } from "node:fs";
-import * as ed from "@noble/ed25519";
 import canonicalize from "canonicalize";
 // The receipt is a signed artifact, so it goes through the same text-level gate
 // as every other signed body rather than a bare JSON.parse. The gate lives in a
@@ -35,6 +34,7 @@ import canonicalize from "canonicalize";
 // checkout where nothing has been built yet; test/bin-gate-parity.test.ts keeps
 // that copy in step with the library's.
 import { parseSignedBodyBytes } from "./signed-body-gate.mjs";
+import { verifyStrictEd25519 } from "./ed25519-strict.mjs";
 
 // ── arg parsing ──
 
@@ -290,8 +290,9 @@ async function verifyReceipt(receipt, witnessPublicKey, eventHash, laterCheckpoi
   let sigValid = false;
   try {
     const sig = base64urlDecode(receipt.serviceSignature);
-    // RFC 8032 strict verification, matching the library (reject small-order keys).
-    sigValid = await ed.verifyAsync(sig, new TextEncoder().encode(sigBase), witnessPublicKey, { zip215: false });
+    // RFC 8032 strict verification under the cofactorless equation, not the
+    // library's cofactored zip215:false check (see ed25519-strict.mjs).
+    sigValid = await verifyStrictEd25519(sig, new TextEncoder().encode(sigBase), witnessPublicKey);
   } catch (e) {
     steps.push({ name: "signature", pass: false, detail: e instanceof Error ? e.message : "signature decode failed" });
     return { valid: false, steps };
@@ -448,7 +449,9 @@ async function verifyCheckpointBody(signed, witnessPublicKey, expectedOrigin) {
     try {
       const sig = base64urlDecode(rest.slice(sp + 1));
       if (sig.length !== 64) return null;
-      const ok = await ed.verifyAsync(sig, bodyBytes, witnessPublicKey, { zip215: false });
+      // RFC 8032 strict verification under the cofactorless equation, not the
+      // library's cofactored zip215:false check (see ed25519-strict.mjs).
+      const ok = await verifyStrictEd25519(sig, bodyBytes, witnessPublicKey);
       return ok ? { treeSize, rootHash, origin } : null;
     } catch {
       return null;
