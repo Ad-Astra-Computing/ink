@@ -232,7 +232,7 @@ describe("multibase agentId canonical-form", () => {
 });
 
 describe("single verification path", () => {
-  it("no source file calls the library verifier directly", async () => {
+  it("no source or published CLI file calls the library verifier directly", async () => {
     const { readdirSync, readFileSync, statSync } = await import("node:fs");
     const { join } = await import("node:path");
     const offenders: string[] = [];
@@ -240,13 +240,22 @@ describe("single verification path", () => {
       for (const name of readdirSync(dir)) {
         const path = join(dir, name);
         if (statSync(path).isDirectory()) walk(path);
-        else if (path.endsWith(".ts") && !path.endsWith("ed25519-strict.ts")) {
+        else if (
+          (path.endsWith(".ts") || path.endsWith(".mjs")) &&
+          !path.endsWith("ed25519-strict.ts") &&
+          !path.endsWith("ed25519-strict.mjs")
+        ) {
           const text = readFileSync(path, "utf-8");
           if (/\bverifyAsync\s*\(|\bed\.verify\s*\(/.test(text)) offenders.push(path);
         }
       }
     };
     walk(new URL("../src", import.meta.url).pathname);
+    // bin/ is published and has no dist/ to import from at CLI runtime, so it
+    // carries its own copy (ed25519-strict.mjs) rather than importing src/.
+    // This caught two direct library-verify calls that slipped past the
+    // src/-only version of this guard (bin/verify-inclusion-impl.mjs).
+    walk(new URL("../bin", import.meta.url).pathname);
     expect(offenders).toEqual([]);
   });
 });
