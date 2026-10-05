@@ -320,7 +320,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `authorization-header` | `base` | 23 | S3, S4, S5, ER1, ER2 |
 | `connection-payload` | `base` | 22 | none |
 | `discovery-query-envelope` | `discovery` | 33 | none |
-| `encryption-required` | `encryption` | 11 | E5 |
+| `encryption-required` | `encryption` | 12 | E5 |
 | `evidence-refusal` | `evidence` | 13 | none |
 | `first-contact-transcript` | `base` | 28 | none |
 | `handshake-message` | `containment` | 32 | H1, H2, H3, H4 |
@@ -342,7 +342,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 25 | none |
 
-48 of 124 requirement rows cite at least one category; 18 of 34 categories are cited by at least one row; the corpus holds 939 cases.
+48 of 124 requirement rows cite at least one category; 18 of 34 categories are cited by at least one row; the corpus holds 940 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---

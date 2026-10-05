@@ -125,8 +125,8 @@
       "profile": "encryption",
       "spec": "specs/ink-protocol.md",
       "summary": "The §3.4 encryption-required gate: schedule_meeting, context_share and multi_party_sync refused in plaintext by exact string match, every other or non-string intent passed through, and a receiver's own widened set honored.",
-      "caseCount": 11,
-      "sha256": "b844bd7f1646cc06bf53dc600f85098c36924ee6c30de340456cb85e4b12516c"
+      "caseCount": 12,
+      "sha256": "9b862ba25ea742cd949132723de2e20bec560862f82a3231d74075c4cf56e267"
     },
     {
       "id": "evidence-refusal",
@@ -162,7 +162,7 @@
       "spec": "specs/ink-protocol.md",
       "summary": "A handshake message under the §3.3 transport signature: the path is bound into the base, so a signature made for one handshake path fails at another, and the message's own §5 schema still applies. An unrecognized signature key inside the body is ignored, never treated as provenance.",
       "caseCount": 9,
-      "sha256": "c68e5a897a5137e9a2f8eae1dd11f2d14733330e99b9baccad01752d18d91713"
+      "sha256": "089d7a94735a9035a7416463384494cd62e8f7c2acd60b47df7731bea549ccec"
     },
     {
       "id": "inclusion-receipt",

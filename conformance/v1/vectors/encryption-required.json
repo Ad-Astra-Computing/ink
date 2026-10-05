@@ -142,6 +142,22 @@
         "result": "reject",
         "reason": "encryption_required"
       }
+    },
+    {
+      "caseId": "widened-set-keeps-protocol-set-rejects",
+      "description": "Widening the gate with an intent of the receiver's own (ping) must not REPLACE the protocol set; schedule_meeting, a member of the protocol set alone, is still refused in plaintext even though it is absent from extraConfidentialIntents.",
+      "input": {
+        "envelope": {
+          "intent": "schedule_meeting"
+        },
+        "extraConfidentialIntents": [
+          "ping"
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
     }
   ]
 }

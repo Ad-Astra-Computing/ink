@@ -5024,11 +5024,13 @@ vectorFile("authorization-header", [
   // anyway to pin that it is ignored as provenance, in either direction.
   const htsJunkSigBody = { ...htsChallengeBody, signature: "not-a-real-signature" };
   const htsJunkSigSigned = await signedHts(htsChallengePath, htsJunkSigBody);
-  // A body carrying a §3.6-shaped signature member that is itself well formed
-  // (signed by the wrong key here), transported by that same wrong key: the
-  // transport signature is checked against the honest publicKeyHex and fails,
-  // regardless of whether the embedded member looks like valid provenance.
-  const htsEmbeddedBody = { ...htsChallengeBody, signature: await signMessage(htsChallengeBody, htsWrongSeed) };
+  // A body carrying a §3.6-shaped signature member that is itself well
+  // formed and signed by the HONEST key, so it looks like valid provenance
+  // on its own. The envelope is then transported under the wrong key, so
+  // the transport signature (checked against the honest publicKeyHex) still
+  // fails. A verifier that wrongly trusted the embedded member as provenance
+  // would accept this; only checking the transport signature rejects it.
+  const htsEmbeddedBody = { ...htsChallengeBody, signature: await signMessage(htsChallengeBody, seed) };
   const htsEmbeddedSigned = await signedHts(htsChallengePath, htsEmbeddedBody, htsWrongSeed);
 
   const htsInvalidSchemaBody = { ...htsChallengeBody, challengeType: "bogus" };
@@ -5162,6 +5164,12 @@ vectorFile("encryption-required", [
     caseId: "widened-set-rejects",
     description: "A receiver widens the gate with an intent of its own (ping); the protocol set always applies alongside it, so a plaintext ping is refused once the receiver has opted into that.",
     input: { envelope: { intent: "ping" }, extraConfidentialIntents: ["ping"] },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "widened-set-keeps-protocol-set-rejects",
+    description: "Widening the gate with an intent of the receiver's own (ping) must not REPLACE the protocol set; schedule_meeting, a member of the protocol set alone, is still refused in plaintext even though it is absent from extraConfidentialIntents.",
+    input: { envelope: { intent: "schedule_meeting" }, extraConfidentialIntents: ["ping"] },
     expect: { result: "reject", reason: "encryption_required" },
   },
 ]);

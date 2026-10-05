@@ -167,11 +167,11 @@
             "challengeType": "availability_query",
             "nonce": "hts-nonce-1",
             "timestamp": "2026-06-20T00:00:00.000Z",
-            "signature": "LCq5Bv0budJGqOWMmh4brs1dzvZY3r2GKGfRXHgPKYLCwuNMsjWmqK28CYDXxavgr-Xf0vZBgy4hHb-fSwx3Bg"
+            "signature": "BIHMlhTxmcZvuDphlGUD7WcfFICF8D8HFp_ecSDPXTBLL4UlzwxsEnK3MUFYrssgss8HEorynhuvz7V2sywWCw"
           },
           "timestamp": "2026-06-20T00:00:00.000Z"
         },
-        "signature": "296-L1yHmvOWeaYtzL7Gh8zTwXHmf06mubm9nWhXjVFL4JDiEV1_351P7sZvpQAgpGtsgHMsMqhzaNx_Tz40AA",
+        "signature": "nghQVRwGN0xJc1TB3n7kk_74eFnF5qt0lmK1YnPbRyGT_RhcWOrNvHp8sePvXaZvkWKq0SgfLMuEWFilOdhnDg",
         "publicKeyHex": "22fec375ea0fe9d1b05996aac2485c17fafda30b7b6718c76e3169fa16c419c4"
       },
       "expect": {
