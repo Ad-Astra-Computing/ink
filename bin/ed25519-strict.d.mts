@@ -1,12 +1,9 @@
 /**
- * Types for the CLI's self-contained copy of the shared Ed25519 strict
- * verifier.
- *
- * The implementation is plain `.mjs` so it runs from a git checkout with no
- * build step. These declarations exist so `test/bin-ed25519-strict-parity.test.ts`
- * can import it under `tsc --noEmit` without falling back to `any`, which
- * would hide a signature change in exactly the file the parity test is there
- * to watch.
+ * Types for the canonical shared Ed25519 strict verifier, implemented in
+ * this directory as plain `.mjs` so `bin/` can run from a git checkout with
+ * no build step. `src/crypto/ed25519-strict.ts` re-exports the value from
+ * here; this file is what lets that re-export, and every test that imports
+ * either, type-check without falling back to `any`.
  */
 
 export declare function verifyStrictEd25519(

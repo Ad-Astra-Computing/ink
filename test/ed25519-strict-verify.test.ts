@@ -192,17 +192,29 @@ describe("cofactorless verification (RFC 8032 / spec §3.3 Frozen equation)", ()
     expect(await verifyStrictEd25519(tampered, message, kp.publicKey)).toBe(false);
   });
 
-  it("rejects a non-canonical public-key encoding (identity encoded as y = p + 1)", async () => {
-    // p = 2^255 - 19. Encoding y = p + 1 as little-endian bytes with the sign
-    // bit clear decodes, after the strict `y < p` range check, to a value
-    // outside the field: bytes 0xee, then 30 bytes of 0xff, then 0x7f.
+  it("the strict decoder itself rejects a non-canonical y >= p encoding", () => {
+    // y = p + 3 reduces mod p to the ordinary point y = 3, not small-order,
+    // unlike y = p + 1 (which would reduce to the identity). Isolates the
+    // `y < p` decode check from the small-order check. Same fixture as
+    // go/ink/signature_test.go's TestNonCanonicalPublicKeyRejected.
     const nonCanonical = new Uint8Array(32);
-    nonCanonical[0] = 0xee;
+    nonCanonical[0] = 0xf0;
     for (let i = 1; i < 31; i++) nonCanonical[i] = 0xff;
     nonCanonical[31] = 0x7f;
 
-    // R = basepoint, S = 1: only the public-key encoding under test matters,
-    // since a strict verifier must reject before ever reaching the equation.
+    expect(() => ed.Point.fromBytes(nonCanonical, false)).toThrow();
+  });
+
+  it("rejects a signature under a non-canonical public-key encoding (y = p + 3)", async () => {
+    const nonCanonical = new Uint8Array(32);
+    nonCanonical[0] = 0xf0;
+    for (let i = 1; i < 31; i++) nonCanonical[i] = 0xff;
+    nonCanonical[31] = 0x7f;
+
+    // An arbitrary well-formed signature shape: the vector is about the
+    // public-key encoding being rejected overall, not about which stage
+    // rejects it (no one holds the discrete log of the y = 3 point to build
+    // a signature that would specifically reach the equation stage).
     const R = ed.Point.BASE.toBytes();
     const S = new Uint8Array(32);
     S[0] = 1;
@@ -246,7 +258,12 @@ describe("single verification path", () => {
           !path.endsWith("ed25519-strict.mjs")
         ) {
           const text = readFileSync(path, "utf-8");
-          if (/\bverifyAsync\s*\(|\bed\.verify\s*\(/.test(text)) offenders.push(path);
+          // Any file that imports @noble/ed25519 at all is in scope: match a
+          // bare verify(/verifyAsync( call regardless of the namespace alias
+          // or destructured name it arrives under (`ed.verify`, `import {
+          // verify } from "@noble/ed25519"`, a renamed `import * as noble`,
+          // ...), not just the one spelling this guard originally checked.
+          if (text.includes("@noble/ed25519") && /\bverify(?:Async)?\s*\(/.test(text)) offenders.push(path);
         }
       }
     };

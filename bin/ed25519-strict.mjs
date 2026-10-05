@@ -1,15 +1,14 @@
 /**
- * The shared Ed25519 verifier, self-contained.
+ * The one shared Ed25519 verifier for the whole package, canonical here.
  *
- * `bin/` is published so its shebang resolves on any supported Node install
- * without a TypeScript toolchain, and a git checkout has no `dist/` until
- * someone builds it, so the CLI cannot import the library's copy. It carries
- * its own, matching `src/crypto/ed25519-strict.ts`.
- *
- * A second copy of a security-critical verifier is exactly the drift this
- * release fixed elsewhere, so it is not left to care: `test/bin-ed25519-strict-parity.test.ts`
- * runs both copies against one shared table and fails if they ever disagree.
- * Change one, change the other, or the test says so.
+ * This lives in `bin/` and is plain JS, not `src/`, because `bin/` must run
+ * from a git checkout with no `dist/` built yet, so it cannot import a
+ * compiled copy. `src/crypto/ed25519-strict.ts` re-exports this file rather
+ * than carrying its own copy: a library file CAN import a plain-JS sibling
+ * at both source-checkout and published-package depth (this file does not
+ * depend on anything `src/` needs compiled), so there is nothing left to
+ * keep in step and no second copy to drift. `bin/ed25519-strict.d.mts`
+ * supplies the type this file has no annotations for.
  *
  * specs/ink-protocol.md (Frozen for 1.0) requires RFC 8032 strict
  * verification: canonical, non-small-order points, and the cofactorless
@@ -24,8 +23,9 @@
  * closes that gap by computing the cofactorless equation directly, with no
  * `clearCofactor()` anywhere in the path.
  *
- * Every verification call in `bin/` MUST go through this function instead of
- * calling `ed.verifyAsync` (or `ed.verify`) directly.
+ * Every call site in this package MUST go through this function instead of
+ * calling `ed.verifyAsync` (or `ed.verify`) directly. `test/ed25519-strict-verify.test.ts`
+ * enforces this by scanning `src/**\/*.ts` and `bin/*.mjs` for a direct call.
  */
 
 import * as ed from "@noble/ed25519";
@@ -85,6 +85,10 @@ export async function verifyStrictEd25519(signature, message, publicKey) {
   } catch {
     return false;
   }
+  // Reduce mod L, matching Go's SetUniformBytes. This is NOT optional: for a
+  // mixed-order A the torsion component sees k mod 8, so [k]A != [k mod L]A,
+  // and leaving k unreduced here would reintroduce exactly the Go divergence
+  // this function exists to close.
   const k = bytesToNumberLE(hashed) % L;
 
   try {
