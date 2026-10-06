@@ -632,7 +632,7 @@ INK does not mandate a specific transparency log implementation. The options fal
 | **Witness cosigning** (C2SP `tlog-witness`) | Agents publish periodic checkpoints of their hash chain. Independent witnesses verify consistency proofs and return cosignatures. Split-view attacks become detectable when clients compare cosigned roots or use multiple witnesses. | Inherent, witnesses see only tree size + root hash, never event content | Free (public witnesses exist) |
 | **Rekor hash notary** (Sigstore) | Submit SHA-256 hashes of audit chain checkpoints to Rekor's public Merkle log. Provides an independent timestamp proof that a chain state existed at time T. | Hash-only, public key and timing are visible, content is not | Free (rekor.sigstore.dev) |
 
-Witness cosigning is the **recommended starting point**. The C2SP witness protocol (`tlog-witness`, `tlog-cosignature`, `tlog-checkpoint`) uses Ed25519 natively and maps directly to INK's existing hash chain. Agents already compute sequential hashes, publishing a checkpoint is just exposing the latest `(sequence, rootHash)` pair. The checkpoint format:
+Witness cosigning is the **recommended starting point**. The real C2SP witness protocol (`tlog-witness`, `tlog-cosignature`, `tlog-checkpoint`) uses Ed25519 natively and the general idea maps onto INK's existing hash chain: agents already compute sequential hashes, publishing a checkpoint is just exposing the latest `(sequence, rootHash)` pair. A real C2SP note would take this shape:
 
 ```
 ink-audit/<agentDid>
@@ -641,6 +641,8 @@ ink-audit/<agentDid>
 
 <Ed25519 note signature>
 ```
+
+This is what integrating with public C2SP witness infrastructure (real `tlog-witness` cosigners) would require; it is a future, optional path, not what the library implements today. The checkpoint format INK's own witness actually signs and verifies (`src/ink/checkpoint.ts`, `go/ink/checkpoint.go`, specs/ink-merkle-checkpoint.md) is C2SP-shaped but not wire-compatible with it: the root hash is lowercase hex, not base64, among other divergences, so a checkpoint from INK's own witness cannot be submitted to a public C2SP cosigner as-is. A real C2SP profile, negotiated and additive, would need to bridge this gap.
 
 **Tier 2, Medium effort, stronger guarantees:**
 

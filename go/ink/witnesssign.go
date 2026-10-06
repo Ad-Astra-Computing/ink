@@ -95,8 +95,8 @@ func SignInclusionReceipt(leaves []string, index int, eventID, timestamp string,
 // block: two newlines then the "-- " that begins the first signature line.
 const checkpointSep = "\n\n-- "
 
-// SignCheckpoint issues a signed C2SP-style checkpoint note committing to
-// (origin, treeSize, rootHash):
+// SignCheckpoint issues a signed checkpoint note (C2SP-shaped, not
+// wire-compatible) committing to (origin, treeSize, rootHash):
 //
 //	<origin>\n<treeSize>\n<rootHash>\n\n-- <origin> <base64url(sig)>\n
 //
@@ -110,8 +110,12 @@ func SignCheckpoint(origin string, treeSize int64, rootHash string, witnessPriva
 	}
 	// The origin appears in both the body first line and the cosignature line
 	// "-- <origin> <sig>", which the verifier splits at the first space, so an
-	// origin containing ASCII whitespace would not round-trip.
-	if origin == "" || strings.ContainsAny(origin, " \t\r\n\v\f") || utf16Len(origin) > maxCheckpointLine || !utf8.Valid([]byte(origin)) {
+	// origin that fails the checkpoint origin grammar (isValidCheckpointOrigin)
+	// would not round-trip. NewWitnessLog applies the same check to a witness's
+	// configured origin at construction time; this function is the other
+	// public path that can mint a checkpoint note and needs the identical
+	// check at call time, not just at construction.
+	if !isValidCheckpointOrigin(origin) {
 		return "", errors.New("invalid checkpoint origin")
 	}
 	if treeSize < 0 || treeSize > maxSafeInteger {
@@ -175,7 +179,7 @@ func verifyCheckpointWith(signed string, s signerStrategy, expectedOrigin string
 	if !s.keyOK() {
 		return CheckpointData{}, MultiKeyResult{}
 	}
-	if expectedOrigin == "" || utf16Len(expectedOrigin) > maxCheckpointLine {
+	if !isValidCheckpointOrigin(expectedOrigin) {
 		return CheckpointData{}, MultiKeyResult{}
 	}
 	idx := strings.Index(signed, checkpointSep)

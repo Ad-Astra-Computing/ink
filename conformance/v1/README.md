@@ -185,13 +185,15 @@ additive field then.
   a non-empty root for `first = 0`, a malformed node, and a size past the
   safe-integer range all reject. See
   [`../../specs/ink-merkle-consistency.md`](../../specs/ink-merkle-consistency.md).
-- **merkle-checkpoint**: the C2SP tlog-checkpoint body grammar a witness
-  publishes its log head as: three lines (origin, decimal tree size, 64-hex root
-  hash) plus a trailing newline. An accepted body pins its canonical
-  re-serialization; a missing or extra newline, trailing junk, an empty origin, a
-  non-decimal, signed, or out-of-range tree size, a mis-cased, short, long, or
-  non-hex root hash, and an oversized body all reject, so a parser differential
-  cannot let a malformed checkpoint through one implementation. See
+- **merkle-checkpoint**: the body grammar (C2SP-shaped, not wire-compatible) a
+  witness publishes its log head as: three lines (origin, decimal tree size,
+  64-hex root hash) plus a trailing newline. An accepted body pins its
+  canonical re-serialization; a missing or extra newline, trailing junk, an
+  empty origin, a leading-zero or non-decimal, signed or out-of-range tree
+  size, a mis-cased, short, long or non-hex root hash, an origin carrying a
+  forbidden character, and an oversized body all reject, so a parser
+  differential cannot let a malformed checkpoint through one implementation.
+  See
   [`../../specs/ink-merkle-checkpoint.md`](../../specs/ink-merkle-checkpoint.md).
 - **merkle-leaf**: the RFC 6962 leaf hash a witness commits for one audit
   event: `SHA-256(0x00 || JCS(event-without-agentSignature))`. An accepted event

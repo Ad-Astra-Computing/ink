@@ -182,7 +182,7 @@ takes an `event` option that recomputes the leaf hash and binds `event.id` to
 `verifyInclusionProof` and `verifyConsistencyProof` are the RFC 6962 primitives
 underneath, the second detecting a witness that forks its history rather than
 only appending. `verifyCheckpoint(signed, witnessPublicKey, expectedOrigin)`
-verifies a signed C2SP checkpoint and binds its log origin; any checkpoint passed
+verifies a signed checkpoint (C2SP-shaped, not wire-compatible) and binds its log origin; any checkpoint passed
 to an anti-rollback cross-check must be verified this way first, since an
 unverified checkpoint body is attacker-controllable.
 
