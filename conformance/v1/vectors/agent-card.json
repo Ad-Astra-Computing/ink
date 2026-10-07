@@ -784,8 +784,8 @@
       }
     },
     {
-      "caseId": "bad-intent-enum-rejects",
-      "description": "An unknown intent type in capabilities is rejected.",
+      "caseId": "unregistered-bare-intent-in-capabilities-accepts",
+      "description": "An unregistered but well-formed bare intent token in capabilities validates: recognizing it is an application decision, not a card validity rule.",
       "input": {
         "card": {
           "protocol": "ink/0.1",
@@ -797,6 +797,58 @@
           "capabilities": {
             "intentsAccepted": [
               "teleport"
+            ],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "vendor-intent-in-capabilities-accepts",
+      "description": "A well-formed vendor reverse-domain intent token in capabilities validates.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "com.example.teleport"
+            ],
+            "intentsSent": []
+          },
+          "availability": {
+            "timezone": "America/Los_Angeles"
+          }
+        }
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "bad-intent-grammar-rejects",
+      "description": "An intent token in capabilities matching neither the bare nor the vendor grammar is rejected.",
+      "input": {
+        "card": {
+          "protocol": "ink/0.1",
+          "agentId": "did:web:a.example",
+          "handle": "alice",
+          "displayName": "Alice",
+          "endpoint": "https://a.example/ink/inbox",
+          "publicKeyMultibase": "z6MkgosDnsjFCTf73Ms7S4Nzwe78GD7Bzn94hTU462M4GirX",
+          "capabilities": {
+            "intentsAccepted": [
+              "Teleport"
             ],
             "intentsSent": []
           },

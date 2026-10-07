@@ -5,10 +5,14 @@
  *  1. Read the body (capped at MAX_BODY_BYTES so a 10 MB POST cannot
  *     pin the worker on the read).
  *  2. Parse JSON. Reject malformed.
- *  3. Validate against `validateMessage()` from the OSS package.
- *     Schema validation runs BEFORE signature verification because
- *     verification depends on canonicalizing the body, and we should
- *     refuse to canonicalize clearly-invalid input.
+ *  3. Validate against `validateEnvelope()` from the OSS package, then
+ *     decide `unsupported_intent` / `encryption_required` via
+ *     `checkIntentDisposition()` against this receiver's own supported-intent
+ *     list, in that order (Protocol §3.1.1/§3.4), before validating the
+ *     payload against its intent-specific schema. Schema validation runs
+ *     BEFORE signature verification because verification depends on
+ *     canonicalizing the body, and we should refuse to canonicalize
+ *     clearly-invalid input.
  *  4. Resolve the sender's signing keys: `did:key` is decoded inline
  *     from the identifier (no fetch); `did:web` is resolved from the
  *     sender's published agent card behind the SSRF guards. Other DID
@@ -40,7 +44,10 @@
  */
 
 import {
-  validateMessage,
+  validateEnvelope,
+  validateIntentPayload,
+  checkIntentDisposition,
+  isIntentSupported,
   verifyInkAuth,
   extractCandidateKeys,
   decodePublicKeyMultibase,
@@ -52,7 +59,7 @@ import {
   type MessageEnvelope,
 } from "@adastracomputing/ink";
 import type { ReceiverIdentity, ReceiverEncryptionIdentity } from "./keys.js";
-import { SUPPORTED_INTENTS, CONFIDENTIAL_INTENTS } from "./agent-card.js";
+import { SUPPORTED_INTENTS } from "./agent-card.js";
 import {
   resolveAgentCardForDidWebDetailed,
   CARD_RESOLUTION_HINTS,
@@ -341,17 +348,33 @@ export async function processInbound(
   }
   let envelope: MessageEnvelope;
   try {
-    envelope = validateMessage(raw);
+    // validateEnvelope, not validateMessage: this receiver supports a
+    // narrow set (SUPPORTED_INTENTS below), and validateMessage would
+    // schema-check the payload before support is even decided below,
+    // the wrong Protocol §3.1.1/§3.4 order.
+    envelope = validateEnvelope(raw);
   } catch (err) {
     const code = err instanceof Error ? err.message.slice(0, 64) : "schema_error";
     const sender = safeReadString(raw, "from");
     const intent = safeReadString(raw, "intent");
     return { kind: "rejected", verdict: "schema", sender, intent, errorCode: `schema:${code}` };
   }
-  // Protocol §3.4: a confidential intent in plaintext is refused for being
-  // plaintext, ahead of the allowlist, so the sender is told the actual
-  // problem. The encrypted path applies the allowlist to what it decrypts.
-  if (CONFIDENTIAL_INTENTS.includes(envelope.intent as typeof CONFIDENTIAL_INTENTS[number])) {
+  // Protocol §3.1.1/§3.4 order: unsupported_intent before
+  // encryption_required, decided pre-authentication, before fetching the
+  // sender's card.
+  const disposition = checkIntentDisposition(envelope, {
+    supportedIntents: SUPPORTED_INTENTS,
+  });
+  if (!disposition.allowed) {
+    if (disposition.reason === "unsupported_intent") {
+      return {
+        kind: "rejected",
+        verdict: "unsupported_intent",
+        sender: envelope.from,
+        intent: envelope.intent,
+        errorCode: `unsupported_intent:${envelope.intent}`,
+      };
+    }
     return {
       kind: "rejected",
       verdict: "encryption",
@@ -361,16 +384,12 @@ export async function processInbound(
       hint: `Intent ${envelope.intent} must be sent inside an encrypted envelope (Protocol §3.4).`,
     };
   }
-  // Intent allowlist BEFORE we go fetch the sender's card. Saves a
-  // network round-trip on unsupported intents.
-  if (!SUPPORTED_INTENTS.includes(envelope.intent as typeof SUPPORTED_INTENTS[number])) {
-    return {
-      kind: "rejected",
-      verdict: "unsupported_intent",
-      sender: envelope.from,
-      intent: envelope.intent,
-      errorCode: `unsupported_intent:${envelope.intent}`,
-    };
+  // Payload validation for the intent just confirmed supported above.
+  try {
+    validateIntentPayload(envelope.intent, envelope.payload);
+  } catch (err) {
+    const code = err instanceof Error ? err.message.slice(0, 64) : "schema_error";
+    return { kind: "rejected", verdict: "schema", sender: envelope.from, intent: envelope.intent, errorCode: `schema:${code}` };
   }
   // Confirm the envelope is actually addressed to us. A mis-addressed
   // signed envelope would still satisfy the cryptographic check but
@@ -586,12 +605,17 @@ export async function processEncryptedInbound(
   }
   let envelope: MessageEnvelope;
   try {
-    envelope = validateMessage(inner);
+    // validateEnvelope, same reason as the plaintext path. The
+    // confidentiality gate never applies here: this inner envelope is by
+    // construction not plaintext.
+    envelope = validateEnvelope(inner);
   } catch (err) {
     const code = err instanceof Error ? err.message.slice(0, 64) : "schema_error";
     return { kind: "rejected", verdict: "schema", sender, intent: safeReadString(inner, "intent"), errorCode: `schema:${code}` };
   }
-  if (!SUPPORTED_INTENTS.includes(envelope.intent as typeof SUPPORTED_INTENTS[number])) {
+  // isIntentSupported, not a bare includes check: it also treats the two
+  // core intents as supported even when SUPPORTED_INTENTS omits them.
+  if (!isIntentSupported(envelope.intent, SUPPORTED_INTENTS)) {
     return {
       kind: "rejected",
       verdict: "unsupported_intent",
@@ -599,6 +623,12 @@ export async function processEncryptedInbound(
       intent: envelope.intent,
       errorCode: `unsupported_intent:${envelope.intent}`,
     };
+  }
+  try {
+    validateIntentPayload(envelope.intent, envelope.payload);
+  } catch (err) {
+    const code = err instanceof Error ? err.message.slice(0, 64) : "schema_error";
+    return { kind: "rejected", verdict: "schema", sender: envelope.from, intent: envelope.intent, errorCode: `schema:${code}` };
   }
   return {
     kind: "ok",

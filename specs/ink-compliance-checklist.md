@@ -226,8 +226,8 @@ deployment rather than the library.
 | ER6c | `nonce_replay`, `nonceStore.has(nonce)` returned true after successful signature verify | MUST | Required | Protocol §3.5 | , | `test/security-round25.test.ts` |
 | ER6d | `nonce_store_error`, `nonceStore.has` or `.add` threw (fail-closed) | MUST | Required | Protocol §3.5 |, | `test/security-round25.test.ts` |
 | ER6e | `duplicate_nonce`, returned by the standalone `checkReplay` helper when a nonce is in `previouslySeenNonces` | MUST | Required | Protocol §3.5 | `replay-freshness` | `test/checklist-evidence.test.ts` |
-| ER7 | `unsupported_intent`, unknown intent type | MUST | Required | Protocol §3.1 |, | `test/ink-handshake-schemas.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
-| ER8 | `encryption_required`, plaintext where encrypted required, ahead of the intent allowlist | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
+| ER7 | `unsupported_intent`, well-formed but unsupported intent (registered or vendor), decided before ER8 | MUST | Required | Protocol §3.1.1 | `intent-vocabulary` | `test/intent.test.ts`, `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
+| ER8 | `encryption_required`, plaintext where encrypted required, only once ER7 has confirmed the receiver supports the intent | MUST | Required | Protocol §3.4 | `intent-vocabulary` | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | ER9 | `rate_limited`, request rate exceeded. The library registers the code as a rejection reason; the limiter itself is receiver policy and has no library test | SHOULD | Required | Protocol §4 |, | receiver-side, none in the library |
 | ER10 | `handshake_budget_exhausted`, per-correlation budget hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
 | ER11 | `sender_rate_limited`, per-sender rate limit hit | SHOULD | Required | Containment §5 |, | `test/ink-handshake-budget.test.ts` |
@@ -308,7 +308,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | Category | Profile | Cases | Rows citing it |
 |----------|---------|------:|----------------|
 | `agent-authorization` | `authorization` | 68 | none |
-| `agent-card` | `base` | 53 | D2, D3, D4, D6, K2 |
+| `agent-card` | `base` | 55 | D2, D3, D4, D6, K2 |
 | `agent-card-evidence` | `evidence` | 19 | none |
 | `agent-card-fetch` | `base` | 37 | none |
 | `agent-card-signature` | `base` | 53 | none |
@@ -326,6 +326,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `handshake-message` | `containment` | 32 | H1, H2, H3, H4 |
 | `handshake-transport-signature` | `containment` | 9 | H5, H6 |
 | `inclusion-receipt` | `audit` | 39 | W5 |
+| `intent-vocabulary` | `base` | 29 | ER7, ER8 |
 | `jcs-number` | `base` | 16 | S6 |
 | `jcs-string-safety` | `base` | 10 | S6 |
 | `key-rotation` | `base` | 32 | S4, K3, K4, K5, K6 |
@@ -342,7 +343,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 25 | none |
 
-48 of 124 requirement rows cite at least one category; 18 of 34 categories are cited by at least one row; the corpus holds 940 cases.
+50 of 124 requirement rows cite at least one category; 19 of 35 categories are cited by at least one row; the corpus holds 971 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---
