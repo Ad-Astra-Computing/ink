@@ -355,6 +355,11 @@ async function verifyReceipt(receipt, witnessPublicKey, eventHash, laterCheckpoi
 /** Hard caps to prevent a malicious or compromised --witness URL
  *  from forcing unbounded memory growth via a streamed response. */
 const MAX_RESPONSE_BYTES = 64 * 1024;
+/** Byte cap for a checkpoint response specifically, matching
+ *  MAX_CHECKPOINT_WIRE_BYTES in src/ink/checkpoint.ts / MaxCheckpointWireBytes
+ *  in go/ink/checkpoint.go. A checkpoint body is at most a few hundred bytes;
+ *  the general MAX_RESPONSE_BYTES cap above is sized for other endpoints. */
+const MAX_CHECKPOINT_RESPONSE_BYTES = 4096;
 const FETCH_TIMEOUT_MS = 10_000;
 
 /**
@@ -362,7 +367,7 @@ const FETCH_TIMEOUT_MS = 10_000;
  * mid-read if it exceeds the cap so we never allocate beyond it.
  * Returns the decoded UTF-8 text.
  */
-async function fetchBounded(url) {
+async function fetchBounded(url, maxBytes = MAX_RESPONSE_BYTES) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new Error("fetch timed out")), FETCH_TIMEOUT_MS);
   try {
@@ -378,9 +383,9 @@ async function fetchBounded(url) {
         if (done) break;
         if (value) {
           total += value.byteLength;
-          if (total > MAX_RESPONSE_BYTES) {
+          if (total > maxBytes) {
             try { await reader.cancel(); } catch { /* ignore */ }
-            throw new Error(`response exceeds ${MAX_RESPONSE_BYTES} bytes`);
+            throw new Error(`response exceeds ${maxBytes} bytes`);
           }
           chunks.push(value);
         }
@@ -408,13 +413,28 @@ async function fetchWitnessPublicKey(witnessUrl) {
   return decodePublicKeyMultibase(vm);
 }
 
+/** Characters forbidden anywhere in a checkpoint origin: C0 controls, DEL,
+ *  C1 controls, and U+002B '+'. Mirrors isValidCheckpointOrigin in
+ *  src/ink/checkpoint.ts — keep them in sync. */
+const CHECKPOINT_ORIGIN_FORBIDDEN_CHARS = /[\u0000-\u001F\u007F-\u009F+]/;
+const CHECKPOINT_ORIGIN_WHITESPACE = /\p{White_Space}/u;
+
+function isValidCheckpointOrigin(origin) {
+  if (typeof origin !== "string") return false;
+  if (origin.length === 0 || origin.length > 256) return false;
+  if (CHECKPOINT_ORIGIN_FORBIDDEN_CHARS.test(origin)) return false;
+  if (CHECKPOINT_ORIGIN_WHITESPACE.test(origin)) return false;
+  return true;
+}
+
 /**
- * Verify a signed C2SP tlog-checkpoint and return { treeSize, rootHash,
- * origin }, or null if the signature, origin, or format is invalid. The
- * Ed25519 signature covers the body bytes `<origin>\n<treeSize>\n<rootHash>`
- * (no trailing newline). The anti-rollback cross-check below only means
- * anything against a checkpoint whose signature we have verified against the
- * witness key, so this MUST verify, not just parse.
+ * Verify a signed checkpoint (C2SP-shaped, not wire-compatible) and return
+ * { treeSize, rootHash, origin }, or null if the signature, origin, or
+ * format is invalid. The Ed25519 signature covers the body bytes
+ * `<origin>\n<treeSize>\n<rootHash>` (no trailing newline). The anti-rollback
+ * cross-check below only means anything against a checkpoint whose signature
+ * we have verified against the witness key, so this MUST verify, not just
+ * parse.
  *
  * Mirrors verifyCheckpoint() in src/ink/checkpoint.ts — keep them in sync.
  */
@@ -427,15 +447,15 @@ async function verifyCheckpointBody(signed, witnessPublicKey, expectedOrigin) {
   const lines = body.split("\n");
   if (lines.length !== 3) return null;
   const [origin, sizeLine, rootHash] = lines;
-  if (!origin || origin.length > 256) return null;
-  if (!/^\d+$/.test(sizeLine)) return null;
+  if (!isValidCheckpointOrigin(origin)) return null;
+  if (!/^(0|[1-9]\d*)$/.test(sizeLine)) return null;
   const treeSize = parseInt(sizeLine, 10);
   if (!Number.isInteger(treeSize) || treeSize < 0 || treeSize > Number.MAX_SAFE_INTEGER) return null;
   if (!/^[0-9a-f]{64}$/.test(rootHash)) return null;
   // The expected origin must be supplied by the caller (a trusted value), not
   // taken from the checkpoint body, so a witness key that signs several origins
   // cannot substitute a checkpoint for a different log than the receipt's.
-  if (typeof expectedOrigin !== "string" || expectedOrigin.length === 0) return null;
+  if (!isValidCheckpointOrigin(expectedOrigin)) return null;
   if (origin !== expectedOrigin) return null;
   const sigLines = signed.slice(idx + 2).split("\n").filter((l) => l.length > 0);
   if (sigLines.length === 0 || sigLines.length > 8) return null;
@@ -467,7 +487,7 @@ async function fetchCurrentCheckpoint(witnessUrl, witnessPublicKey, expectedOrig
   const url = `${witnessUrl.replace(/\/$/, "")}/ink/v1/checkpoint`;
   let body;
   try {
-    body = await fetchBounded(url);
+    body = await fetchBounded(url, MAX_CHECKPOINT_RESPONSE_BYTES);
   } catch {
     // Checkpoint cross-check is optional; downgrade fetch failures to
     // 'not available' rather than crashing the verifier.
