@@ -601,6 +601,39 @@ func TestEncryptionRequired(t *testing.T) {
 	}
 }
 
+func TestIntentVocabulary(t *testing.T) {
+	vf := loadVectors(t, "intent-vocabulary")
+	for _, c := range vf.Cases {
+		want := c.Expect.Result == "accept"
+		if _, ok := c.Input["supportedIntents"]; ok {
+			var envelope map[string]interface{}
+			if raw, ok := c.Input["envelope"]; ok {
+				_ = json.Unmarshal(raw, &envelope)
+			}
+			var supported []string
+			_ = json.Unmarshal(c.Input["supportedIntents"], &supported)
+			var extra []string
+			if raw, ok := c.Input["extraConfidentialIntents"]; ok {
+				_ = json.Unmarshal(raw, &extra)
+			}
+			r := CheckIntentDisposition(envelope, supported, extra...)
+			if r.Allowed != want {
+				t.Errorf("%s: allowed = %v, want %v", c.CaseID, r.Allowed, want)
+			}
+			if c.Expect.Reason != "" && r.Reason != c.Expect.Reason {
+				t.Errorf("%s: reason = %q, want %q", c.CaseID, r.Reason, c.Expect.Reason)
+			}
+			continue
+		}
+		var intent string
+		_ = json.Unmarshal(c.Input["intent"], &intent)
+		got := IsWellFormedIntent(intent)
+		if got != want {
+			t.Errorf("%s: IsWellFormedIntent(%q) = %v, want %v", c.CaseID, intent, got, want)
+		}
+	}
+}
+
 func TestAuditQueryResponse(t *testing.T) {
 	vf := loadVectors(t, "audit-query-response")
 	for _, c := range vf.Cases {

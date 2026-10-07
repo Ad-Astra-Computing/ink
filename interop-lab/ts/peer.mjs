@@ -116,6 +116,11 @@ const server = createServer(async (req, res) => {
   }
 
   if (route === "POST /peer/verify-envelope") {
+    // validateMessage, not validateEnvelope/validateIntentPayload: this
+    // route has no supported-intent set of its own to decide against. It is
+    // a generic schema-plus-signature check for the interop lab, not an
+    // application receiver, so it accepts every registered or vendor intent
+    // and the combined check is the right one.
     let envelope;
     try {
       envelope = JSON.parse(raw.toString("utf8"));

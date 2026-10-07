@@ -254,6 +254,21 @@ describe("encrypted inbound (§3.4)", () => {
     if (out.kind === "rejected") expect(out.verdict).toBe("unsupported_intent");
   });
 
+  it("treats connection_response as supported on the decrypted inner envelope even though it is not in SUPPORTED_INTENTS by that receiver's own list check", async () => {
+    // connection_response is not in SUPPORTED_INTENTS: this exercises the
+    // core-intent exemption, which a hand-rolled includes() check drops.
+    const cfg = await makeReceiver();
+    const sender = await makeSender();
+    const { outer } = await sealedPing({
+      sender,
+      recipientKeyHex: bytesToHex(cfg.encryption!.publicKey),
+      intent: "connection_response",
+      payload: { status: "accepted" },
+    });
+    const out = await run(cfg, outer, await transportAuth(outer, sender.kp));
+    expect(out.kind).toBe("ok");
+  });
+
   it("runs the decrypted inner envelope through schema validation", async () => {
     const cfg = await makeReceiver();
     const sender = await makeSender();

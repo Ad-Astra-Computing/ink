@@ -354,8 +354,16 @@ describe("IntentTypeSchema — context_share", () => {
     expect(result.success).toBe(true);
   });
 
-  it("rejects unknown intent types", () => {
+  it("accepts an unregistered but well-formed intent (§3.1.1 open vocabulary)", () => {
+    // "telepathy" is a well-formed bare token even though this build does not
+    // register it: an application decides whether it supports it
+    // (unsupported_intent), the schema layer does not reject it outright.
     const result = IntentTypeSchema.safeParse("telepathy");
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a string matching neither the bare nor the vendor grammar", () => {
+    const result = IntentTypeSchema.safeParse("tele pathy");
     expect(result.success).toBe(false);
   });
 });

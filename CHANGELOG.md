@@ -18,6 +18,21 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   pins the §3.4 gate that refuses `schedule_meeting`, `context_share` and
   `multi_party_sync` in plaintext by exact string match, passing through any
   case, suffix or whitespace variant along with a receiver's own widened set.
+- New `intent-vocabulary` conformance category (`base` profile, Protocol
+  §3.1.1). The `intent` field opens to a registered bare token or a
+  reverse-domain vendor token instead of a closed enum: a receiver no longer
+  rejects a message for carrying an intent name it does not recognize, and
+  decides `unsupported_intent` before `encryption_required` once it does.
+  New `checkIntentDisposition` (`CheckIntentDisposition` in Go) composes
+  that ordering for a plaintext envelope; `isIntentSupported`
+  (`IsIntentSupported` in Go) is the support-only half, for a decrypted inner
+  envelope, where the confidentiality half never applies since it is by
+  construction never plaintext. New `validateEnvelope` and
+  `validateIntentPayload` split `validateMessage` into an envelope check and
+  a per-intent payload check, so a receiver can decide support before
+  validating a payload it may not even know the shape of. `validateMessage`
+  keeps its combined behavior for a caller that supports every intent it
+  accepts.
 
 ### Fixes
 
@@ -36,6 +51,20 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Changes
 
+- **Breaking:** `IntentTypeSchema` is no longer a closed enum of fifteen
+  names. `IntentType` is now `string`, not a literal union. A card's
+  `capabilities.intentsAccepted`/`intentsSent` no longer rejects an entry
+  outside that fifteen-name list, only one matching neither the bare-token
+  nor the vendor reverse-domain grammar. `payload` is now a required JSON
+  object for every intent, registered or not (was `z.unknown()` in
+  TypeScript, untyped in Go), which also closes a gap where
+  `validateMessage` never applied the 1 MiB canonical-byte ceiling
+  `signMessage`/`verifyMessage` already enforce; it now does, over the
+  signature-stripped body, before any signature work runs.
+- Conformance vector `bad-intent-enum-rejects` (agent-card category) flipped
+  from reject to accept and was renamed
+  `unregistered-bare-intent-in-capabilities-accepts`, since an unrecognized
+  bare intent name in `capabilities` is now a valid card.
 - The runnable examples (`examples/reference-receiver`, `examples/docker-receiver`,
   `examples/reference-sender`, `examples/mcp-contact-endpoint`) moved to 0.20.0
   and adopted the byte contract: they now decide on Agent Card responses through

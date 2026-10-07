@@ -48,8 +48,13 @@ func TestValidateMessageEnvelopeClosedSets(t *testing.T) {
 	}
 	env = validEnvelope()
 	env["intent"] = "not_an_intent"
+	if !ValidateMessageEnvelope(env) {
+		t.Error("an unregistered but well-formed bare intent token must be accepted (§3.1.1 open vocabulary)")
+	}
+	env = validEnvelope()
+	env["intent"] = "Not An Intent"
 	if ValidateMessageEnvelope(env) {
-		t.Error("an unallocated intent must be rejected")
+		t.Error("an intent matching neither the bare nor the vendor grammar must be rejected")
 	}
 }
 

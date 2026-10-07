@@ -12,8 +12,58 @@ const MAX_MESSAGE_CHARS = 1_200_000;
 /** Upper limit on the canonicalized message length, matching
  * MAX_SIGBASE_BODY_BYTES in ink.ts. Defense in depth alongside the node
  * walk: a message can be small in node count but still expand to huge
- * canonical bytes via long string values. */
-const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
+ * canonical bytes via long string values. Exported so a non-signing caller
+ * (validateEnvelope in models/intent.ts) can apply the identical ceiling
+ * before any signature work runs, rather than discovering an oversized body
+ * only once it reaches sign or verify. */
+export const MAX_MESSAGE_CANONICAL_BYTES = 1_048_576;
+
+/** The message every INK implementation's canonical-ceiling rejection uses,
+ * whether the check runs at envelope validation, signing or verification. */
+export const CANONICAL_CEILING_MESSAGE = "Canonicalized message exceeds maximum allowed size";
+
+/** Thrown by a non-signing caller's `violatesSignableBounds` gate. Deliberately
+ * generic: the body failed one of several pre-signature checks (complexity,
+ * non-JSON data, an unpaired surrogate, an unsafe member name, or the
+ * canonical-byte ceiling), and the caller has no signature attempt of its
+ * own whose own error would say which. */
+export const UNSIGNABLE_BODY_MESSAGE = "message fails a pre-signature validation gate (complexity, portability, or size)";
+
+/**
+ * Whether `value`'s JCS canonical form exceeds `MAX_MESSAGE_CANONICAL_BYTES`.
+ * An unserializable value (a non-JSON type `canonicalize` cannot handle)
+ * counts as exceeding it: the caller is expected to have already run
+ * `hasNonJsonObject` and `isWithinBounds`, so reaching this with an
+ * unserializable value is itself a bound failure, not a shape question this
+ * function answers.
+ */
+export function exceedsMaxCanonicalBytes(value: unknown): boolean {
+  const canonical = canonicalize(value);
+  if (canonical === undefined) return true;
+  return canonical.length > MAX_MESSAGE_CANONICAL_BYTES;
+}
+
+/**
+ * Whether `value` would fail one of the gates `signMessage`/`verifyMessage`
+ * apply before they ever canonicalize a body for real: too complex
+ * (`isWithinBounds`), not JSON data (`hasNonJsonObject`), carrying a lone
+ * UTF-16 surrogate (`hasUnpairedSurrogate`), carrying an object key that
+ * would serialize as an escaped member name (`hasUnsafeObjectKey`), or too
+ * large once canonicalized (`exceedsMaxCanonicalBytes`). A non-signing
+ * caller that wants to refuse a body early, before any signature work and
+ * with the identical verdict signing or verifying that body would reach
+ * later, runs this instead of re-deriving the sequence by hand. Mirrors the
+ * bundle Go's `JCSCanonicalize` applies in one call (`go/ink/signbody.go`).
+ */
+export function violatesSignableBounds(value: unknown): boolean {
+  return (
+    !isWithinBounds(value) ||
+    hasNonJsonObject(value) ||
+    hasUnpairedSurrogate(value) ||
+    hasUnsafeObjectKey(value) ||
+    exceedsMaxCanonicalBytes(value)
+  );
+}
 
 /**
  * A number is safe for a signed INK body only if every conforming canonicalizer
@@ -192,7 +242,7 @@ export async function signMessage(
     throw new Error("Failed to canonicalize message");
   }
   if (canonical.length > MAX_MESSAGE_CANONICAL_BYTES) {
-    throw new Error("Canonicalized message exceeds maximum allowed size");
+    throw new Error(CANONICAL_CEILING_MESSAGE);
   }
   // Domain-separated signing to prevent cross-protocol signature replay.
   // Domain is keyed off the (signed) protocol version; see
