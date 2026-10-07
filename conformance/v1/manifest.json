@@ -120,6 +120,15 @@
       "sha256": "2181af8610c66c38738c6f4108ca67e5df8f6de2bf8b50159ff473602d5a7c8f"
     },
     {
+      "id": "encryption-required",
+      "vector": "vectors/encryption-required.json",
+      "profile": "encryption",
+      "spec": "specs/ink-protocol.md",
+      "summary": "The §3.4 encryption-required gate: schedule_meeting, context_share and multi_party_sync refused in plaintext by exact string match, every other or non-string intent passed through, and a receiver's own widened set honored.",
+      "caseCount": 12,
+      "sha256": "9b862ba25ea742cd949132723de2e20bec560862f82a3231d74075c4cf56e267"
+    },
+    {
       "id": "evidence-refusal",
       "vector": "vectors/evidence-refusal.json",
       "profile": "evidence",
@@ -145,6 +154,15 @@
       "summary": "Challenge, rejection, and resolution message validation.",
       "caseCount": 32,
       "sha256": "b212175dfd33d03052ac1e052f0aab00f8918f6672a143068438443a0fdb60f9"
+    },
+    {
+      "id": "handshake-transport-signature",
+      "vector": "vectors/handshake-transport-signature.json",
+      "profile": "containment",
+      "spec": "specs/ink-protocol.md",
+      "summary": "A handshake message under the §3.3 transport signature: the path is bound into the base, so a signature made for one handshake path fails at another, and the message's own §5 schema still applies. An unrecognized signature key inside the body is ignored, never treated as provenance.",
+      "caseCount": 9,
+      "sha256": "089d7a94735a9035a7416463384494cd62e8f7c2acd60b47df7731bea549ccec"
     },
     {
       "id": "inclusion-receipt",
@@ -251,8 +269,8 @@
       "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Timestamp window and nonce replay rejection.",
-      "caseCount": 10,
-      "sha256": "931a393d978e202c76384a82aef3e1d76e3628ad0a4b109defa452745b78a17c"
+      "caseCount": 18,
+      "sha256": "0c9d5974d566fc273fb24e5b29de1a59db838889e324f8192f8bceaa36f3b324"
     },
     {
       "id": "signature-base",
@@ -260,8 +278,8 @@
       "profile": "base",
       "spec": "specs/ink-protocol.md",
       "summary": "Ed25519 verification over the canonical signature base.",
-      "caseCount": 15,
-      "sha256": "deffe5fc8962235932ef04ca8f6bba9ada59aefd0a1e1ddc7330a5b20e35a745"
+      "caseCount": 18,
+      "sha256": "cf48cc78042632884fcd09c41ec2312394fb8ad0d8bf956d10f5ecd22b5f2e04"
     },
     {
       "id": "signed-body-member-name",
@@ -287,8 +305,8 @@
       "profile": "base",
       "spec": "specs/ink-timestamp-grammar.md",
       "summary": "Strict INK timestamp grammar and epoch-millisecond parsing.",
-      "caseCount": 17,
-      "sha256": "164e52d9d7d71e12c07353f38192aa76ca77d2da2d2800fab1e0fb21ee1a9aec"
+      "caseCount": 25,
+      "sha256": "a124614b653347497e5c3a59219cfc46b953efc41794e76ed67683b40ceff7d7"
     }
   ]
 }

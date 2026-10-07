@@ -62,10 +62,13 @@ matching capability in its Agent Card. An implementation that does not advertise
 the capability MUST NOT be expected to satisfy them, and MUST NOT advertise a
 capability it does not fully implement.[^ck]
 
-- **encryption** (`payload-encryption`) — required when the implementation sends
-  or accepts encrypted payloads (`network.tulpa.encrypted`). Intents that the
-  protocol marks confidential are sent encrypted, so an implementation that
-  handles those intents MUST implement this profile.
+- **encryption** (`encryption-required`, `payload-encryption`): required when
+  the implementation sends or accepts encrypted payloads
+  (`network.tulpa.encrypted`). Intents that the protocol marks confidential are
+  sent encrypted, so an implementation that handles those intents MUST
+  implement this profile: refusing a confidential intent in plaintext with
+  `encryption_required` (§3.4) and decrypting the ECIES payload it carries once
+  encrypted.
 - **audit** (`merkle-leaf`, `inclusion-receipt`, `audit-query-response`) —
   required when the implementation participates in the bilateral audit exchange:
   computing audit-event leaf hashes, verifying witness inclusion receipts, and
@@ -73,9 +76,11 @@ capability it does not fully implement.[^ck]
 - **witness** (`merkle-inclusion`, `merkle-consistency`, `merkle-checkpoint`) —
   required when the implementation is a transparency-log witness service:
   inclusion and consistency proof verification and the checkpoint grammar.
-- **containment** (`handshake-message`) — required when the implementation
-  advertises the containment and governance extension: the signed challenge,
-  rejection, and resolution handshake messages.
+- **containment** (`handshake-message`, `handshake-transport-signature`):
+  required when the implementation advertises the containment and governance
+  extension: the signed challenge, rejection and resolution handshake
+  messages, each authenticated under the same §3.3 transport signature rules
+  as any other request, with no embedded signature member of its own.
 - **discovery** (`discovery-query-envelope`) — required when the implementation
   answers directory discovery queries: verifying a requester-signed discovery
   query envelope against the requester's key, its own identity, its clock and its

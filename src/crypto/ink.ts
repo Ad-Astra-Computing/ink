@@ -8,6 +8,7 @@ import { hasUnsafeObjectKey } from "./member-name.js";
 import { parseSignedBodyBytes } from "./parse-signed-body.js";
 import { verifyDetachedSignatureWithKeys, type MultiKeyVerifyResult } from "./multi-key-verify.js";
 import type { CandidateKey } from "../models/key-entry.js";
+import { verifyStrictEd25519 } from "./ed25519-strict.js";
 
 // ── Encoding helpers ──
 
@@ -303,7 +304,7 @@ export async function verifyInkSignature(
     const sig = base64urlDecode(signatureBase64url);
     // RFC 8032 strict verification (not the default ZIP-215): reject
     // small-order keys and non-canonical encodings. See verifyMessage.
-    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
+    return await verifyStrictEd25519(sig, bytes, publicKey);
   } catch {
     return false;
   }
@@ -876,7 +877,7 @@ export async function verifyAuditEventSignature(
     // cannot smuggle past the cap.
     if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
+    return await verifyStrictEd25519(sig, bytes, publicKey);
   } catch {
     return false;
   }
@@ -1029,7 +1030,7 @@ export async function verifyAuditResponseSignature(
     const bytes = new TextEncoder().encode(prefixed);
     if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
+    return await verifyStrictEd25519(sig, bytes, publicKey);
   } catch {
     return false;
   }
@@ -1227,7 +1228,7 @@ export async function verifyAuditQueryResponseSignature(
     const bytes = new TextEncoder().encode(prefixed);
     if (bytes.length > MAX_SIGBASE_BODY_BYTES) return false;
     const sig = base64urlDecode(signature);
-    return await ed.verifyAsync(sig, bytes, publicKey, { zip215: false });
+    return await verifyStrictEd25519(sig, bytes, publicKey);
   } catch {
     return false;
   }

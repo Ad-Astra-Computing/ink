@@ -37,6 +37,7 @@ import {
   buildDelegationLink,
   buildAuthorizationChain,
   buildAttestation,
+  buildSignatureBase,
 } from "../../dist/index.js";
 
 const enc = new TextEncoder();
@@ -81,6 +82,7 @@ const CATEGORY_META = {
   "inclusion-receipt": { profile: "audit", spec: "specs/ink-inclusion-receipt.md", summary: "Composite inclusion-receipt verification." },
   "audit-query-response": { profile: "audit", spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
   "handshake-message": { profile: "containment", spec: "specs/ink-handshake-message.md", summary: "Challenge, rejection, and resolution message validation." },
+  "handshake-transport-signature": { profile: "containment", spec: "specs/ink-protocol.md", summary: "A handshake message under the §3.3 transport signature: the path is bound into the base, so a signature made for one handshake path fails at another, and the message's own §5 schema still applies. An unrecognized signature key inside the body is ignored, never treated as provenance." },
   "connection-payload": { profile: "base", spec: "specs/ink-connection-payload.md", summary: "Connection request and response payload validation." },
   "agent-card": { profile: "base", spec: "specs/ink-agent-card.md", summary: "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound." },
   "agent-card-fetch": { profile: "base", spec: "specs/ink-agent-card-discovery-fetch.md", summary: "Agent Card discovery response contract (status, content type, size caps, identity binding, owner anti-substitution)." },
@@ -88,6 +90,7 @@ const CATEGORY_META = {
   "agent-card-signature-phase-c": { profile: "staged", spec: "specs/ink-agent-card-signature.md", summary: "Staged Phase C receiver rule: with the explicit enforcePhaseC flag on, an unsigned card is rejected outright and a cold did:web verifier fails closed on an unreachable resolver; with the flag off the pre-Phase-C decision stands." },
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
+  "encryption-required": { profile: "encryption", spec: "specs/ink-protocol.md", summary: "The §3.4 encryption-required gate: schedule_meeting, context_share and multi_party_sync refused in plaintext by exact string match, every other or non-string intent passed through, and a receiver's own widened set honored." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
   "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
@@ -384,6 +387,110 @@ const scalarOneBytes = Buffer.alloc(32);
 scalarOneBytes[0] = 1;
 const smallOrderForgedSig = Buffer.concat([basepointBytes, scalarOneBytes]).toString("base64url");
 
+// The Ed25519 subgroup order (RFC 8032, section 5.1).
+const SUBGROUP_ORDER = 2n ** 252n + 27742317777372353535851937790883648493n;
+
+function leBytesToBigInt(bytes) {
+  let value = 0n;
+  for (let i = bytes.length - 1; i >= 0; i--) value = (value << 8n) | BigInt(bytes[i]);
+  return value;
+}
+function bigIntToLeBytes(n, len) {
+  const out = Buffer.alloc(len);
+  for (let i = 0; i < len; i++) {
+    out[i] = Number(n & 0xffn);
+    n >>= 8n;
+  }
+  return out;
+}
+
+// An honest signature with S replaced by S + subgroup order: a non-canonical,
+// unreduced scalar. [S]B = R + [k]A holds under ordinary modular arithmetic,
+// but RFC 8032 strict verification requires S < L, so a conforming verifier
+// rejects the non-canonical wire form rather than reducing S first.
+const nonCanonicalSSig = (() => {
+  const raw = Buffer.from(signature, "base64url");
+  const r = raw.subarray(0, 32);
+  const s = leBytesToBigInt(raw.subarray(32, 64));
+  const bumped = bigIntToLeBytes(s + SUBGROUP_ORDER, 32);
+  return Buffer.concat([r, bumped]).toString("base64url");
+})();
+
+// y = p + 3 reduces mod p to the ordinary (not small-order) point y = 3,
+// isolating the canonical-decode check from the small-order check, unlike
+// y = p + 1 (which reduces to the identity). Same fixture as
+// go/ink/signature_test.go's TestNonCanonicalPublicKeyRejected.
+const nonCanonicalPublicKeyHex = "f0ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f";
+// R = basepoint, S = 1: an arbitrary well-formed signature shape. The vector
+// is about the public-key encoding, not the signature; any shape rejects.
+const nonCanonicalPublicKeySig = smallOrderForgedSig;
+
+// A mixed-order public key A = A0 + T8 (A0 the honest key above, T8 the
+// unique order-8 point on the curve): canonical and NOT small-order, so that
+// check does not catch it. @noble/ed25519's {zip215:false} mode checks the
+// COFACTORED equation [8](R+[k]A-[S]B)==0; Go's bare crypto/ed25519.Verify
+// checks the COFACTORLESS [S]B==R+[k]A. Ground so k mod 8 != 0, where the
+// two diverge, and a conforming verifier must reject.
+const { mixedOrderPublicKeyHex, mixedOrderForgedSig } = await (async () => {
+  function rawMultiply(point, scalar) {
+    let result = ed.Point.ZERO;
+    let addend = point;
+    let n = scalar;
+    while (n > 0n) {
+      if (n & 1n) result = result.add(addend);
+      addend = addend.add(addend);
+      n >>= 1n;
+    }
+    return result;
+  }
+  function findOrder8Point() {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      const candidateSeed = Buffer.alloc(32);
+      for (let i = 0; i < 32; i++) candidateSeed[i] = (attempt * 7 + i * 13 + 1) & 0xff;
+      let candidate;
+      try {
+        candidate = ed.Point.fromBytes(candidateSeed, false);
+      } catch {
+        continue;
+      }
+      const t8 = rawMultiply(candidate, SUBGROUP_ORDER);
+      if (t8.is0()) continue;
+      const two = t8.add(t8);
+      const four = two.add(two);
+      if (!four.add(four).is0()) throw new Error("expected 8*T == 0");
+      if (two.is0() || four.is0()) continue;
+      return t8;
+    }
+    throw new Error("failed to find an order-8 point");
+  }
+
+  const t8 = findOrder8Point();
+  const ext = await ed.utils.getExtendedPublicKeyAsync(seed);
+  const mixedOrderPoint = ext.point.add(t8);
+  const mixedOrderPublicKey = mixedOrderPoint.toBytes();
+  if (mixedOrderPoint.isSmallOrder()) throw new Error("mixed-order key is small-order, bad test setup");
+
+  const message = new TextEncoder().encode(buildSignatureBase(signInput));
+  let forged = null;
+  for (let attempt = 0; attempt < 2000 && forged === null; attempt++) {
+    const rSeed = Buffer.alloc(32);
+    for (let i = 0; i < 32; i++) rSeed[i] = (attempt * 11 + i * 5 + 3) & 0xff;
+    const r = leBytesToBigInt(rSeed) % SUBGROUP_ORDER;
+    if (r === 0n) continue;
+    const R = ed.Point.BASE.multiply(r, false);
+    const Rbytes = R.toBytes();
+    const hashed = await ed.hashes.sha512Async(Buffer.concat([Buffer.from(Rbytes), Buffer.from(mixedOrderPublicKey), Buffer.from(message)]));
+    const k = leBytesToBigInt(hashed) % SUBGROUP_ORDER;
+    if (k % 8n === 0n) continue;
+    const s = (r + k * ext.scalar) % SUBGROUP_ORDER;
+    forged = { R: Rbytes, s };
+  }
+  if (forged === null) throw new Error("could not grind a k with k mod 8 != 0");
+
+  const sig = Buffer.concat([Buffer.from(forged.R), bigIntToLeBytes(forged.s, 32)]).toString("base64url");
+  return { mixedOrderPublicKeyHex: Buffer.from(mixedOrderPublicKey).toString("hex"), mixedOrderForgedSig: sig };
+})();
+
 // A signed body whose payload carries member names outside ASCII, ordered so
 // only a UTF-16 code-unit comparator reproduces the signer's bytes (see the
 // ordBmpKey/ordAstralKey note above). The reference signs the canonical form; a
@@ -511,6 +618,24 @@ vectorFile("signature-base", [
     caseId: "recipient-with-carriage-return-rejects",
     description: "The ban covers CR as well as LF: a recipientDid carrying a carriage return is rejected, again against a signature that verifies over the base those bytes produce, so an implementation that scans only for \\n diverges.",
     input: { signInput: { method: "POST", path: "/a", recipientDid: "x\ry", body: crlfBody, timestamp: crlfTs }, signature: crSignature, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-canonical-s-rejects",
+    description: "An honest signature with its S scalar replaced by S plus the subgroup order is a non-canonical (unreduced) encoding. RFC 8032 strict verification requires S < L; a conforming verifier rejects it outright rather than reducing S first and treating it as equivalent to the canonical signature.",
+    input: { signInput, signature: nonCanonicalSSig, publicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "non-canonical-public-key-encoding-rejects",
+    description: "The point y = 3 re-encoded non-canonically as y = p + 3: strict RFC 8032 decoding requires y < p and rejects this outright. y = 3 is NOT small-order, so a decoder that reduces y modulo p first, bypassing the canonical-encoding check, is not caught by the small-order check either and must reject for the wrong reason or not at all.",
+    input: { signInput, signature: nonCanonicalPublicKeySig, publicKeyHex: nonCanonicalPublicKeyHex },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "mixed-order-public-key-rejects",
+    description: "A canonical, NOT small-order public key A = A0 + T8 (an honest key plus the unique order-8 torsion point) with a signature ground so k mod 8 != 0. @noble/ed25519's zip215:false mode checks the COFACTORED equation [8](R + [k]A - [S]B) == 0 and accepts this signature; the frozen spec requires the COFACTORLESS equation [S]B == R + [k]A, which Go's bare crypto/ed25519.Verify checks and rejects. A conforming verifier must reject this signature rather than accept the fork between the two equations.",
+    input: { signInput, signature: mixedOrderForgedSig, publicKeyHex: mixedOrderPublicKeyHex },
     expect: { result: "reject" },
   },
 ]);
@@ -993,6 +1118,55 @@ vectorFile("replay-freshness", [
     input: { replay: replayInput("2026-06-11T00:00:30.001Z", goodNonce) },
     expect: { result: "reject" },
   },
+  // ── the frozen nonce grammar (§3.5): 16 to 256 code units of [A-Za-z0-9_-] ──
+  {
+    caseId: "nonce-16-units-accepts",
+    description: "A nonce of exactly 16 code units, the minimum length, is accepted.",
+    input: { replay: replayInput(recvClock, "A".repeat(16)) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonce-15-units-rejects",
+    description: "A nonce of 15 code units, one short of the minimum, is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15)) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-256-units-accepts",
+    description: "A nonce of exactly 256 code units, the maximum length, is accepted.",
+    input: { replay: replayInput(recvClock, "A".repeat(256)) },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "nonce-257-units-rejects",
+    description: "A nonce of 257 code units, one past the maximum, is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(257)) },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-plus-rejects",
+    description: "A nonce containing a `+` character is outside the [A-Za-z0-9_-] grammar and is rejected, even at an otherwise valid length.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + "+") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-padding-rejects",
+    description: "A nonce with a trailing base64 padding `=` character is outside the grammar and is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + "=") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-space-rejects",
+    description: "A nonce containing a space is outside the grammar and is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + " ") },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "nonce-non-ascii-rejects",
+    description: "A nonce containing a non-ASCII character (U+00E9, e-acute) is outside the [A-Za-z0-9_-] grammar and is rejected.",
+    input: { replay: replayInput(recvClock, "A".repeat(15) + "é") },
+    expect: { result: "reject" },
+  },
 ]);
 
 // ── timestamp-validity ───────────────────────────────────────────────────
@@ -1003,6 +1177,14 @@ vectorFile("replay-freshness", [
 // Date.parse as an independent oracle, so both implementations must agree with
 // it. A lenient form (date-only, no zone, space-separated, lowercase `t`) or an
 // out-of-range value is rejected.
+// A timestamp with fractional seconds long enough to land the whole string
+// at exactly the 64-character length cap (spec: "64 characters is sufficient
+// for any conforming timestamp"), and a second string one character longer.
+// Only the millisecond digits ("123") are significant; the padding zeros
+// exist purely to reach the boundary length.
+const length64Timestamp = "2026-06-11T00:00:00." + "123" + "0".repeat(40) + "Z";
+const length65Timestamp = "2026-06-11T00:00:00." + "123" + "0".repeat(41) + "Z";
+
 vectorFile("timestamp-validity", [
   {
     caseId: "utc-millis-accepts",
@@ -1104,6 +1286,54 @@ vectorFile("timestamp-validity", [
     caseId: "empty-rejects",
     description: "An empty string is not a timestamp.",
     input: { timestamp: "" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "leap-second-rejects",
+    description: "Second 60 (a leap second) is out of the accepted 00..59 range and is rejected, even though it is a value UTC itself sometimes has.",
+    input: { timestamp: "2026-06-30T23:59:60Z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "lowercase-z-rejects",
+    description: "A lowercase `z` zone designator is rejected; the grammar requires an uppercase `Z`.",
+    input: { timestamp: "2026-06-11T00:00:00z" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "offset-hour-out-of-range-rejects",
+    description: "A numeric offset with an hour field of 25 is out of the 00..23 range and is rejected.",
+    input: { timestamp: "2026-06-11T00:00:00+25:00" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "offset-minute-out-of-range-rejects",
+    description: "A numeric offset with a minute field of 70 is out of the 00..59 range and is rejected.",
+    input: { timestamp: "2026-06-11T00:00:00+00:70" },
+    expect: { result: "reject" },
+  },
+  {
+    caseId: "negative-zero-offset-accepts",
+    description: "A -00:00 offset is accepted and is equal to Z, the same instant as the zone-designator form.",
+    input: { timestamp: "2026-06-11T00:00:00-00:00" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00-00:00") },
+  },
+  {
+    caseId: "positive-zero-offset-accepts",
+    description: "A +00:00 offset is accepted and is the same instant as -00:00 and Z.",
+    input: { timestamp: "2026-06-11T00:00:00+00:00" },
+    expect: { result: "accept", epochMs: Date.parse("2026-06-11T00:00:00+00:00") },
+  },
+  {
+    caseId: "length-64-accepts",
+    description: "A timestamp padded with trailing fractional-second zero digits to exactly the 64-character length cap is accepted; only the millisecond digits are significant.",
+    input: { timestamp: length64Timestamp },
+    expect: { result: "accept", epochMs: Date.parse(length64Timestamp) },
+  },
+  {
+    caseId: "length-65-rejects",
+    description: "One character past the 64-character length cap is rejected before parsing, even though the value would otherwise be a well-formed timestamp.",
+    input: { timestamp: length65Timestamp },
     expect: { result: "reject" },
   },
 ]);
@@ -4758,6 +4988,186 @@ vectorFile("authorization-header", [
     refRej("over-length-message-rejects", "A message longer than 500 code units is out of profile.", { refusal: { ...refusal, message: "m".repeat(501) } }),
   ]);
 }
+
+// ── handshake-transport-signature ───────────────────────────────────────────
+// A handshake message is authenticated by the §3.3 transport rules: the path
+// is bound into the signature base (H6), and the message defines no embedded
+// signature member of its own (H5). Accept requires the §5 schema on `body`
+// AND the transport signature.
+{
+  const htsTo = `tulpa:${mb}`;
+  const htsTs = "2026-06-20T00:00:00.000Z";
+  const htsChallengeBody = { protocol: "ink/0.1", type: "network.tulpa.challenge", intentRef: "intent-hts-1", challengeType: "availability_query", nonce: "hts-nonce-1", timestamp: htsTs };
+  const htsChallengePath = `/ink/v1/${htsTo}/challenge`;
+  const htsRejectionPath = `/ink/v1/${htsTo}/rejection`;
+  const htsResolutionPath = `/ink/v1/${htsTo}/resolution`;
+
+  async function signedHts(path, body, signSeed = seed) {
+    const signInput = { method: "POST", path, recipientDid: htsTo, body, timestamp: htsTs };
+    const signature = await signInkMessage(signInput, signSeed);
+    return { signInput, signature };
+  }
+
+  const htsChallenge = await signedHts(htsChallengePath, htsChallengeBody);
+  const htsRejection = await signedHts(htsRejectionPath, { protocol: "ink/0.1", type: "network.tulpa.rejection", intentRef: "intent-hts-1", reason: "capacity", nonce: "hts-nonce-1", timestamp: htsTs });
+  const htsResolution = await signedHts(htsResolutionPath, { protocol: "ink/0.1", type: "network.tulpa.resolution", intentRef: "intent-hts-1", outcome: "accepted", nonce: "hts-nonce-1", timestamp: htsTs });
+
+  // A second signer whose key does not match publicKeyHex below.
+  const htsWrongSeed = new Uint8Array(32).fill(9);
+
+  // §5 defines no embedded signature member; the two bodies below carry one
+  // anyway to pin that it is ignored as provenance, in either direction.
+  const htsJunkSigBody = { ...htsChallengeBody, signature: "not-a-real-signature" };
+  const htsJunkSigSigned = await signedHts(htsChallengePath, htsJunkSigBody);
+  // A body carrying a §3.6-shaped signature member that is itself well
+  // formed and signed by the HONEST key, so it looks like valid provenance
+  // on its own. The envelope is then transported under the wrong key, so
+  // the transport signature (checked against the honest publicKeyHex) still
+  // fails. A verifier that wrongly trusted the embedded member as provenance
+  // would accept this; only checking the transport signature rejects it.
+  const htsEmbeddedBody = { ...htsChallengeBody, signature: await signMessage(htsChallengeBody, seed) };
+  const htsEmbeddedSigned = await signedHts(htsChallengePath, htsEmbeddedBody, htsWrongSeed);
+
+  const htsInvalidSchemaBody = { ...htsChallengeBody, challengeType: "bogus" };
+  const htsInvalidSchemaSigned = await signedHts(htsChallengePath, htsInvalidSchemaBody);
+
+  vectorFile("handshake-transport-signature", [
+    {
+      caseId: "challenge-signed-accepts",
+      description: "A well-formed challenge, signed under the §3.3 transport base for the path it is delivered on, verifies.",
+      input: { signInput: htsChallenge.signInput, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "rejection-signed-accepts",
+      description: "A well-formed rejection, signed for its own path, verifies.",
+      input: { signInput: htsRejection.signInput, signature: htsRejection.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "resolution-signed-accepts",
+      description: "A well-formed resolution, signed for its own path, verifies.",
+      input: { signInput: htsResolution.signInput, signature: htsResolution.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "challenge-signature-at-rejection-path-rejects",
+      description: "A challenge signature made for /challenge is presented at /rejection. The path is bound into the transport base, so the signature does not verify there (H6).",
+      input: { signInput: { ...htsChallenge.signInput, path: htsRejectionPath }, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "challenge-signature-wrong-recipient-rejects",
+      description: "The same signed challenge presented with a different recipientDid than it was signed for does not verify: recipientDid is a signed scalar.",
+      input: { signInput: { ...htsChallenge.signInput, recipientDid: `tulpa:${mb.slice(0, -4)}zzzz` }, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "challenge-type-tampered-rejects",
+      description: "A schema-valid challengeType substituted after signing (still a member of the enum) invalidates the signature: the body is a signed scalar, not a bag of independently trusted fields.",
+      input: { signInput: { ...htsChallenge.signInput, body: { ...htsChallengeBody, challengeType: "identity_verification" } }, signature: htsChallenge.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "embedded-signature-not-provenance-rejects",
+      description: "The body carries a well-formed §3.6 signature member, but the transport signature over the envelope is by a different key than the one presented for verification. The embedded member is not provenance; only the transport signature is, and it fails.",
+      input: { signInput: htsEmbeddedSigned.signInput, signature: htsEmbeddedSigned.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+    {
+      caseId: "embedded-signature-ignored-accepts",
+      description: "The body carries a junk `signature` member with no cryptographic meaning. The transport signature covers the body exactly as delivered, junk member included, and verifies: the unrecognized key is ignored like any other unknown top-level key, never treated as provenance.",
+      input: { signInput: htsJunkSigSigned.signInput, signature: htsJunkSigSigned.signature, publicKeyHex },
+      expect: { result: "accept" },
+    },
+    {
+      caseId: "schema-invalid-signed-rejects",
+      description: "An unknown challengeType fails the §5 schema even though the transport signature over that same malformed body verifies: the schema and the signature are both required, and the schema failure rejects on its own.",
+      input: { signInput: htsInvalidSchemaSigned.signInput, signature: htsInvalidSchemaSigned.signature, publicKeyHex },
+      expect: { result: "reject" },
+    },
+  ]);
+}
+
+// ── encryption-required ─────────────────────────────────────────────────────
+// The §3.4 gate refuses schedule_meeting, context_share and multi_party_sync
+// in plaintext by an EXACT string match against `intent`. Neither
+// implementation normalizes case, trims whitespace, or matches by prefix, and
+// a receiver MAY widen the set with intents of its own.
+vectorFile("encryption-required", [
+  {
+    caseId: "schedule-meeting-plaintext-rejects",
+    description: "A plaintext schedule_meeting envelope is refused with encryption_required.",
+    input: { envelope: { intent: "schedule_meeting" } },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "context-share-plaintext-rejects",
+    description: "A plaintext context_share envelope is refused with encryption_required.",
+    input: { envelope: { intent: "context_share" } },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "multi-party-sync-plaintext-rejects",
+    description: "A plaintext multi_party_sync envelope is refused with encryption_required.",
+    input: { envelope: { intent: "multi_party_sync" } },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "ping-plaintext-accepts",
+    description: "A plaintext ping envelope is not in the confidential set and passes the gate.",
+    input: { envelope: { intent: "ping" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "case-variant-accepts",
+    description: "Schedule_Meeting differs from schedule_meeting by case and does not match the exact-string gate.",
+    input: { envelope: { intent: "Schedule_Meeting" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "suffix-variant-accepts",
+    description: "schedule_meeting_response is a distinct intent string and does not match schedule_meeting.",
+    input: { envelope: { intent: "schedule_meeting_response" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "whitespace-variant-accepts",
+    description: "A leading space makes the intent string a different value than schedule_meeting, so the gate does not match it.",
+    input: { envelope: { intent: " schedule_meeting" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "non-string-intent-accepts",
+    description: "A non-string intent has nothing for the gate to match; the schema, which runs before this gate, is what rejects a malformed envelope.",
+    input: { envelope: { intent: 7 } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "missing-intent-accepts",
+    description: "An envelope with no intent member has nothing for the gate to match.",
+    input: { envelope: {} },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "encrypted-envelope-not-gated-accepts",
+    description: "An already-encrypted outer envelope (network.tulpa.encrypted) carries no intent member of its own; the gate looks only at intent and passes it through, since its inner envelope, once decrypted, is by construction not plaintext.",
+    input: { envelope: { protocol: "ink/0.1", type: "network.tulpa.encrypted", from: `tulpa:${mb}`, to: `tulpa:${mb}`, timestamp: "2026-06-20T00:00:00.000Z" } },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "widened-set-rejects",
+    description: "A receiver widens the gate with an intent of its own (ping); the protocol set always applies alongside it, so a plaintext ping is refused once the receiver has opted into that.",
+    input: { envelope: { intent: "ping" }, extraConfidentialIntents: ["ping"] },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "widened-set-keeps-protocol-set-rejects",
+    description: "Widening the gate with an intent of the receiver's own (ping) must not REPLACE the protocol set; schedule_meeting, a member of the protocol set alone, is still refused in plaintext even though it is absent from extraConfidentialIntents.",
+    input: { envelope: { intent: "schedule_meeting" }, extraConfidentialIntents: ["ping"] },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+]);
 
 writeManifest();
 writeSchema();

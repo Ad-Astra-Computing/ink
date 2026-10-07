@@ -178,6 +178,89 @@
       "expect": {
         "result": "reject"
       }
+    },
+    {
+      "caseId": "leap-second-rejects",
+      "description": "Second 60 (a leap second) is out of the accepted 00..59 range and is rejected, even though it is a value UTC itself sometimes has.",
+      "input": {
+        "timestamp": "2026-06-30T23:59:60Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "lowercase-z-rejects",
+      "description": "A lowercase `z` zone designator is rejected; the grammar requires an uppercase `Z`.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00z"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "offset-hour-out-of-range-rejects",
+      "description": "A numeric offset with an hour field of 25 is out of the 00..23 range and is rejected.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00+25:00"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "offset-minute-out-of-range-rejects",
+      "description": "A numeric offset with a minute field of 70 is out of the 00..59 range and is rejected.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00+00:70"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "negative-zero-offset-accepts",
+      "description": "A -00:00 offset is accepted and is equal to Z, the same instant as the zone-designator form.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00-00:00"
+      },
+      "expect": {
+        "result": "accept",
+        "epochMs": 1781136000000
+      }
+    },
+    {
+      "caseId": "positive-zero-offset-accepts",
+      "description": "A +00:00 offset is accepted and is the same instant as -00:00 and Z.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00+00:00"
+      },
+      "expect": {
+        "result": "accept",
+        "epochMs": 1781136000000
+      }
+    },
+    {
+      "caseId": "length-64-accepts",
+      "description": "A timestamp padded with trailing fractional-second zero digits to exactly the 64-character length cap is accepted; only the millisecond digits are significant.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00.1230000000000000000000000000000000000000000Z"
+      },
+      "expect": {
+        "result": "accept",
+        "epochMs": 1781136000123
+      }
+    },
+    {
+      "caseId": "length-65-rejects",
+      "description": "One character past the 64-character length cap is rejected before parsing, even though the value would otherwise be a well-formed timestamp.",
+      "input": {
+        "timestamp": "2026-06-11T00:00:00.12300000000000000000000000000000000000000000Z"
+      },
+      "expect": {
+        "result": "reject"
+      }
     }
   ]
 }

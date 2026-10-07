@@ -94,7 +94,7 @@ deployment rather than the library.
 | E2 | HKDF salt: `"ink/0.1"`, info: `"ink/0.1/encrypt"` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/go-encryption-sealing-interop.test.ts`, `test/conformance-independent.test.ts` |
 | E3 | AAD: `"ink/0.1:envelope\n"` + JCS(protocol, type, from, recipientKey, ephemeralKey, nonce, timestamp, messageNonce) | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/security-fixes.test.ts`, `test/go-encryption-sealing-interop.test.ts` |
 | E4 | Encrypted envelope type: `network.tulpa.encrypted` | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/wire-namespace-dual-accept.test.ts`, `test/security-round8.test.ts` |
-| E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 |, | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
+| E5 | `schedule_meeting`, `context_share` and `multi_party_sync` require encryption[^ck] | MUST | Required | Protocol §3.4 | `encryption-required` | `test/encryption-policy.test.ts`, `examples/reference-receiver/test/inbound.test.ts` |
 | E6 | Decryption validates inner/outer envelope consistency | MUST | Required | Protocol §3.4 | `payload-encryption` | `test/encrypt-inner-binding.test.ts`, `test/security-round18.test.ts` |
 
 ---
@@ -120,8 +120,8 @@ deployment rather than the library.
 | H2 | Rejection: `network.tulpa.rejection` with reason code | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
 | H3 | Resolution: `network.tulpa.resolution` with outcome | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
 | H4 | Resolution outcome: `accepted`, `declined`, `escalated_to_human`, `expired` | MUST | Required | Protocol §5 | `handshake-message` | `test/ink-handshake-schemas.test.ts` |
-| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | , | `test/checklist-evidence.test.ts` |
-| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | , | `test/checklist-evidence.test.ts` |
+| H5 | Handshake messages signed with same signature base rules | MUST | Required | Protocol §3.3/§5 | `handshake-transport-signature` | `test/checklist-evidence.test.ts` |
+| H6 | Path binding: signature for `/challenge` rejects at `/rejection` | MUST | Required | Protocol §3.3 | `handshake-transport-signature` | `test/checklist-evidence.test.ts` |
 
 ---
 
@@ -320,9 +320,11 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `authorization-header` | `base` | 23 | S3, S4, S5, ER1, ER2 |
 | `connection-payload` | `base` | 22 | none |
 | `discovery-query-envelope` | `discovery` | 33 | none |
+| `encryption-required` | `encryption` | 12 | E5 |
 | `evidence-refusal` | `evidence` | 13 | none |
 | `first-contact-transcript` | `base` | 28 | none |
 | `handshake-message` | `containment` | 32 | H1, H2, H3, H4 |
+| `handshake-transport-signature` | `containment` | 9 | H5, H6 |
 | `inclusion-receipt` | `audit` | 39 | W5 |
 | `jcs-number` | `base` | 16 | S6 |
 | `jcs-string-safety` | `base` | 10 | S6 |
@@ -334,13 +336,13 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `payload-encryption` | `encryption` | 22 | E1, E2, E3, E4, E6 |
 | `principal-normalization` | `base` | 10 | S9 |
 | `private-hostname` | `base` | 58 | none |
-| `replay-freshness` | `base` | 10 | R1, R2, R3, R4, ER4, ER5, ER6e |
-| `signature-base` | `base` | 15 | S1, S2, S7, S8, ER3 |
+| `replay-freshness` | `base` | 18 | R1, R2, R3, R4, ER4, ER5, ER6e |
+| `signature-base` | `base` | 18 | S1, S2, S7, S8, ER3 |
 | `signed-body-member-name` | `base` | 18 | none |
 | `signed-body-utf8` | `base` | 21 | none |
-| `timestamp-validity` | `base` | 17 | none |
+| `timestamp-validity` | `base` | 25 | none |
 
-45 of 124 requirement rows cite at least one category; 16 of 32 categories are cited by at least one row; the corpus holds 900 cases.
+48 of 124 requirement rows cite at least one category; 18 of 34 categories are cited by at least one row; the corpus holds 940 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---
