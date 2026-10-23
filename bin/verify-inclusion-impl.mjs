@@ -366,8 +366,16 @@ async function fetchBounded(url) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(new Error("fetch timed out")), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, { signal: ctrl.signal });
+    const res = await fetch(url, { signal: ctrl.signal, headers: { "accept-encoding": "identity" } });
     if (!res.ok) throw new Error(`fetch failed (${res.status}): ${url}`);
+    // CVE-2026-111497: fetch() decodes Brotli lazily, on the first body read
+    // below, and a compromised --witness URL picks Content-Encoding on its
+    // own regardless of the identity request above. Refuse before any read.
+    const enc = res.headers.get("content-encoding");
+    if (enc !== null && enc.toLowerCase() !== "identity") {
+      await res.body?.cancel();
+      throw new Error(`refusing a response compressed as '${enc}' from ${url}`);
+    }
     if (!res.body) return "";
     const reader = res.body.getReader();
     const chunks = [];
