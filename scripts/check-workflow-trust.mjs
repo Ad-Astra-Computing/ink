@@ -23,6 +23,7 @@
 //    than silently passing.
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { fetchUncompressed } from "./lib/no-compression.mjs";
 
 const WORKFLOW_DIR = ".github/workflows";
 const selftest = process.argv.includes("--selftest");
@@ -176,7 +177,7 @@ async function resolvePin(pin) {
   if (token) headers.authorization = `Bearer ${token}`;
   let res;
   try {
-    res = await fetch(`https://api.github.com/repos/${repo}/commits/${pin.sha}`, { headers });
+    res = await fetchUncompressed(`https://api.github.com/repos/${repo}/commits/${pin.sha}`, { headers });
   } catch {
     return "unavailable";
   }
