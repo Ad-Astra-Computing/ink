@@ -25,6 +25,8 @@
 // Environment overrides:
 //   INK_RECEIVER_BUILD_URL  build route (default the public echo receiver)
 //   INK_E2E_TIMEOUT_MS      per-request timeout (default 15000)
+import { fetchUncompressed } from "./lib/no-compression.mjs";
+
 const TAG = process.argv[2] ?? "latest";
 const BUILD_URL = process.env.INK_RECEIVER_BUILD_URL ?? "https://ink-echo.tulpa.network/_build";
 const TIMEOUT_MS = Number(process.env.INK_E2E_TIMEOUT_MS ?? 15000);
@@ -35,7 +37,7 @@ async function getJson(url, what) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(url, { signal: controller.signal, headers: { accept: "application/json" } });
+    const res = await fetchUncompressed(url, { signal: controller.signal, headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(`${what}: HTTP ${res.status}`);
     return await res.json();
   } finally {
