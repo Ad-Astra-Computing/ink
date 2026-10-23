@@ -67,7 +67,7 @@
     "@noble/curves": "^2.3.0",
     "@noble/ed25519": "^3.2.0",
     "canonicalize": "^5.1.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260911.1",
