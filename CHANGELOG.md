@@ -4,7 +4,39 @@ All notable changes to INK are recorded
 here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 [`docs/maturity.md`](docs/maturity.md) for the versioning policy.
 
-## Unreleased
+## 0.21.0, refuse a compressed response before decoding it
+
+### Breaking
+
+- `fetchBounded` and `fetchAgentCard` now request identity encoding and refuse
+  a response that sets `Content-Encoding` to anything else, before the body is
+  ever read. Both functions fed a witness or agent-card response straight to
+  `fetch()`'s body reader, and `fetch()` decompresses Brotli lazily on first
+  read regardless of what was requested; a compromised witness or agent host
+  picks its own `Content-Encoding`, which ran Node's Brotli decoder on
+  attacker-controlled bytes (CVE-2026-111497, an out-of-bounds write fixed
+  upstream in Node 22.23.4, 24.22.1 and 26.12.1). An honest host or CDN that
+  compresses by default regardless of what was requested is refused the same
+  way as a compromised one; it must serve identity encoding, or omit the
+  header, to interoperate with these two paths. The same guard now runs in the
+  release scripts that read a body from a host outside this process's control.
+  The Go implementation evaluates bytes it is given rather than fetching them
+  itself, so it has no equivalent path and this does not touch conformance
+  parity.
+- The Ed25519 verifier now checks the cofactorless equation the spec
+  requires (`[S]B == R + [k]A`) instead of the cofactored equation
+  `@noble/ed25519`'s `zip215:false` mode checks internally. A canonical,
+  not-small-order public key built as an honest key plus an order-8 torsion
+  point could produce a signature that the old check accepted and Go's bare
+  `crypto/ed25519.Verify` (cofactorless) rejected; that signature no longer
+  verifies. No honestly generated key has such a component, so no honest
+  signer is affected; only a peer relying on the previously too-permissive
+  acceptance is. Honest signatures verify exactly as before. The
+  `signature-base` conformance category gained three vectors for this: a
+  non-canonical `S` scalar, a non-canonically encoded public key and the
+  mixed-order public key. The `timestamp-validity` and `replay-freshness`
+  categories also gained vectors pinning the timestamp grammar's zone and
+  length edges and the nonce grammar's length and character-set bounds.
 
 ### Additions
 
@@ -18,21 +50,6 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
   pins the §3.4 gate that refuses `schedule_meeting`, `context_share` and
   `multi_party_sync` in plaintext by exact string match, passing through any
   case, suffix or whitespace variant along with a receiver's own widened set.
-
-### Fixes
-
-- The Ed25519 verifier now checks the cofactorless equation the spec
-  requires (`[S]B == R + [k]A`) instead of the cofactored equation
-  `@noble/ed25519`'s `zip215:false` mode checks internally. A canonical,
-  not-small-order public key built as an honest key plus an order-8 torsion
-  point could produce a signature that the old check accepted and Go's bare
-  `crypto/ed25519.Verify` (cofactorless) rejected. Honest signatures verify
-  exactly as before. The `signature-base` conformance category gained three
-  vectors for this: a non-canonical `S` scalar, a non-canonically encoded
-  public key and the mixed-order public key. The `timestamp-validity` and
-  `replay-freshness` categories also gained vectors pinning the timestamp
-  grammar's zone and length edges and the nonce grammar's length and
-  character-set bounds.
 
 ### Changes
 
