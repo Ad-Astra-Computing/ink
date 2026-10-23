@@ -151,15 +151,31 @@ func optEnumArray(m map[string]interface{}, key string, maxLen int, allowed ...s
 	return reqEnumArray(m, key, maxLen, allowed...)
 }
 
+// reqPredicateArray mirrors reqEnumArray but accepts any string that
+// satisfies pred, rather than only a fixed closed set. Used for the §3.1.1
+// open intent vocabulary, where capabilities.intentsAccepted/intentsSent
+// admit any syntactically well-formed intent, not only the registered list.
+func reqPredicateArray(m map[string]interface{}, key string, maxLen int, pred func(string) bool) bool {
+	v, present := m[key]
+	if !present {
+		return false
+	}
+	arr, ok := v.([]interface{})
+	if !ok || len(arr) > maxLen {
+		return false
+	}
+	for _, e := range arr {
+		s, ok := e.(string)
+		if !ok || !pred(s) {
+			return false
+		}
+	}
+	return true
+}
+
 func isStrictInkTimestamp(s string) bool {
 	_, ok := ParseInkTimestampMs(s)
 	return ok
-}
-
-var intentTypes = []string{
-	"schedule_meeting", "schedule_meeting_response", "intro_request", "intro_response",
-	"opportunity", "opportunity_response", "follow_up", "ask", "ask_response",
-	"connection_request", "connection_response", "context_share", "ping", "retract", "multi_party_sync",
 }
 
 // validateKeyEntry mirrors KeyEntrySchema (key-entry.ts): not strict (unknown
@@ -221,7 +237,8 @@ func validateThirdPartyAuditService(m map[string]interface{}) bool {
 }
 
 func validateCapabilities(m map[string]interface{}) bool {
-	if !reqEnumArray(m, "intentsAccepted", 32, intentTypes...) || !reqEnumArray(m, "intentsSent", 32, intentTypes...) {
+	// §3.1.1: the open intent vocabulary, not the closed registered list.
+	if !reqPredicateArray(m, "intentsAccepted", 32, IsWellFormedIntent) || !reqPredicateArray(m, "intentsSent", 32, IsWellFormedIntent) {
 		return false
 	}
 	if v, present := m["receipts"]; present {

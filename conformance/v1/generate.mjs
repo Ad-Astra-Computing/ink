@@ -91,6 +91,7 @@ const CATEGORY_META = {
   "private-hostname": { profile: "base", spec: "specs/ink-private-hostname.md", summary: "SSRF host-safety gate: classify a hostname as public or private/special/malformed." },
   "payload-encryption": { profile: "encryption", spec: "specs/ink-payload-encryption.md", summary: "ECIES payload decryption: X25519 + HKDF-SHA256 + AES-256-GCM with the AAD-bound outer envelope." },
   "encryption-required": { profile: "encryption", spec: "specs/ink-protocol.md", summary: "The §3.4 encryption-required gate: schedule_meeting, context_share and multi_party_sync refused in plaintext by exact string match, every other or non-string intent passed through, and a receiver's own widened set honored." },
+  "intent-vocabulary": { profile: "base", spec: "specs/ink-protocol.md", summary: "The open §3.1.1 intent grammar (registered bare tokens, reverse-domain vendor tokens, the disjoint dot rule) and the assembled unsupported_intent/encryption_required ordering a receiver's own supported set decides." },
   "first-contact-transcript": { profile: "base", spec: "specs/ink-first-contact-transcript.md", summary: "End-to-end first-contact flow: card fetch, version selection, signed connection_request, accepted connection_response." },
   "discovery-query-envelope": { profile: "discovery", spec: "specs/ink-discovery-query.md", summary: "Authenticated discovery query envelope: schema bounds, requester-key signature, audience binding, freshness window and nonce replay." },
   "authorization-grant": { profile: "authorization", spec: "specs/ink-authorization-grant.md", summary: "Scoped signed authorization grant: schema bounds, issuer-key signature, audience binding, presentation binding, validity window, replay, revocation, and the optional owner-verification requirement." },
@@ -2534,8 +2535,10 @@ vectorFile("agent-card", [
   // publicKeyMultibase
   acReject("public-key-no-z-prefix-rejects", "A publicKeyMultibase not starting with z is rejected.", { ...acCard, publicKeyMultibase: "Qm123" }),
   acReject("public-key-over-cap-rejects", "A publicKeyMultibase past 128 characters is rejected.", { ...acCard, publicKeyMultibase: "z" + "a".repeat(128) }),
-  // capabilities
-  acReject("bad-intent-enum-rejects", "An unknown intent type in capabilities is rejected.", { ...acCard, capabilities: { intentsAccepted: ["teleport"], intentsSent: [] } }),
+  // capabilities (§3.1.1 open intent vocabulary)
+  acAccept("unregistered-bare-intent-in-capabilities-accepts", "An unregistered but well-formed bare intent token in capabilities validates: recognizing it is an application decision, not a card validity rule.", { ...acCard, capabilities: { intentsAccepted: ["teleport"], intentsSent: [] } }),
+  acAccept("vendor-intent-in-capabilities-accepts", "A well-formed vendor reverse-domain intent token in capabilities validates.", { ...acCard, capabilities: { intentsAccepted: ["com.example.teleport"], intentsSent: [] } }),
+  acReject("bad-intent-grammar-rejects", "An intent token in capabilities matching neither the bare nor the vendor grammar is rejected.", { ...acCard, capabilities: { intentsAccepted: ["Teleport"], intentsSent: [] } }),
   acReject("too-many-intents-rejects", "An intentsAccepted array past 32 entries is rejected.", { ...acCard, capabilities: { intentsAccepted: Array(33).fill("ask"), intentsSent: [] } }),
   acReject("bad-third-party-audit-endpoint-rejects", "A third-party audit service with a non-https endpoint is rejected.", { ...acCard, capabilities: { ...acCard.capabilities, thirdPartyAudit: { services: [{ endpoint: "http://audit.example", did: "did:web:audit.example", publicKey: "zX" }], submitPolicy: "all" } } }),
   // availability
@@ -5166,6 +5169,101 @@ vectorFile("encryption-required", [
     description: "Widening the gate with an intent of the receiver's own (ping) must not REPLACE the protocol set; schedule_meeting, a member of the protocol set alone, is still refused in plaintext even though it is absent from extraConfidentialIntents.",
     input: { envelope: { intent: "schedule_meeting" }, extraConfidentialIntents: ["ping"] },
     expect: { result: "reject", reason: "encryption_required" },
+  },
+]);
+
+// ── intent-vocabulary ────────────────────────────────────────────────────────
+// Protocol §3.1.1: `intent` is a registered bare token or a reverse-domain
+// vendor token, and a receiver decides unsupported_intent before
+// encryption_required (checkIntentDisposition). Two input shapes in one
+// category: a bare { intent } case exercises the grammar alone; a case
+// carrying supportedIntents exercises the assembled ordering.
+vectorFile("intent-vocabulary", [
+  // grammar: accept
+  { caseId: "registered-bare-accepts", description: "A registered bare token validates.", input: { intent: "ping" }, expect: { result: "accept" } },
+  { caseId: "unregistered-bare-accepts", description: "An unregistered but well-formed bare token validates: recognizing it is an application decision, not a wire validity rule.", input: { intent: "teleport" }, expect: { result: "accept" } },
+  { caseId: "single-label-is-bare-accepts", description: "A single label with no dot, such as com, is a well-formed unregistered BARE token, not a vendor token.", input: { intent: "com" }, expect: { result: "accept" } },
+  { caseId: "vendor-two-label-accepts", description: "A two-label reverse-domain vendor token validates.", input: { intent: "com.example" }, expect: { result: "accept" } },
+  { caseId: "vendor-three-label-accepts", description: "A three-label reverse-domain vendor token validates.", input: { intent: "com.example.custom_intent" }, expect: { result: "accept" } },
+  { caseId: "vendor-hyphen-and-underscore-accepts", description: "A vendor label may mix hyphens and underscores.", input: { intent: "net.ad-astra.custom_intent_name" }, expect: { result: "accept" } },
+  { caseId: "bare-at-63-chars-accepts", description: "A bare token of exactly 63 characters, the cap, validates.", input: { intent: "a" + "b".repeat(62) }, expect: { result: "accept" } },
+  { caseId: "vendor-label-at-63-chars-accepts", description: "A vendor label of exactly 63 characters, the per-label cap, validates.", input: { intent: `a.${"b".repeat(63)}` }, expect: { result: "accept" } },
+  // grammar: reject
+  { caseId: "empty-rejects", description: "An empty intent string matches neither grammar.", input: { intent: "" }, expect: { result: "reject" } },
+  { caseId: "leading-dot-rejects", description: "A leading dot has an empty first label and matches neither grammar.", input: { intent: ".a" }, expect: { result: "reject" } },
+  { caseId: "trailing-dot-rejects", description: "A trailing dot has an empty last label and matches neither grammar.", input: { intent: "a." }, expect: { result: "reject" } },
+  { caseId: "double-dot-rejects", description: "Two consecutive dots produce an empty label and match neither grammar.", input: { intent: "a..b" }, expect: { result: "reject" } },
+  { caseId: "uppercase-vendor-rejects", description: "An uppercase vendor token is rejected; the match is case-sensitive, never folded.", input: { intent: "Com.Example.x" }, expect: { result: "reject" } },
+  { caseId: "uppercase-bare-rejects", description: "An uppercase bare token is rejected.", input: { intent: "Teleport" }, expect: { result: "reject" } },
+  { caseId: "space-rejects", description: "A space is not in either grammar's character class.", input: { intent: "tele pathy" }, expect: { result: "reject" } },
+  { caseId: "leading-digit-bare-rejects", description: "A bare token must start with a letter, not a digit.", input: { intent: "123intent" }, expect: { result: "reject" } },
+  { caseId: "bare-over-63-chars-rejects", description: "A bare token of 64 characters, one over the cap, is rejected.", input: { intent: "a" + "b".repeat(63) }, expect: { result: "reject" } },
+  { caseId: "vendor-label-over-63-chars-rejects", description: "A vendor label of 64 characters, one over the per-label cap, is rejected even though the total length is under 253.", input: { intent: `a.${"b".repeat(64)}` }, expect: { result: "reject" } },
+  { caseId: "vendor-total-over-253-rejects", description: "A vendor token whose total length exceeds 253 characters is rejected even though every individual label is within the per-label cap.", input: { intent: Array.from({ length: 5 }, () => "a".repeat(50)).join(".") }, expect: { result: "reject" } },
+  // disposition: unsupported_intent before encryption_required
+  {
+    caseId: "unsupported-confidential-intent-rejects-unsupported",
+    description: "schedule_meeting is protocol-confidential, but a receiver that does not list it as supported refuses unsupported_intent, not encryption_required: there is no reason to demand encryption for an intent it never acts on.",
+    input: { envelope: { intent: "schedule_meeting" }, supportedIntents: ["ping", "ask"] },
+    expect: { result: "reject", reason: "unsupported_intent" },
+  },
+  {
+    caseId: "supported-confidential-intent-rejects-encryption",
+    description: "The same intent, once the receiver actually supports it, is refused encryption_required in plaintext.",
+    input: { envelope: { intent: "schedule_meeting" }, supportedIntents: ["ping", "schedule_meeting"] },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "supported-non-confidential-intent-accepts",
+    description: "A supported, non-confidential intent passes both checks.",
+    input: { envelope: { intent: "ping" }, supportedIntents: ["ping"] },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "core-intent-supported-without-listing-accepts",
+    description: "connection_request is a core intent: it is treated as supported whether or not supportedIntents names it.",
+    input: { envelope: { intent: "connection_request" }, supportedIntents: [] },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "other-core-intent-supported-without-listing-accepts",
+    description: "connection_response is likewise always supported.",
+    input: { envelope: { intent: "connection_response" }, supportedIntents: [] },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "unsupported-vendor-intent-rejects-unsupported",
+    description: "A well-formed vendor intent nobody has installed refuses unsupported_intent.",
+    input: { envelope: { intent: "com.example.custom_intent" }, supportedIntents: ["ping"] },
+    expect: { result: "reject", reason: "unsupported_intent" },
+  },
+  {
+    caseId: "vendor-intent-widened-confidential-rejects-encryption",
+    description: "A vendor intent the receiver supports AND has widened into its own confidential set is refused encryption_required: vendor confidentiality is the receiver's to install, not inherited from the protocol's three.",
+    input: {
+      envelope: { intent: "com.example.custom_intent" },
+      supportedIntents: ["com.example.custom_intent"],
+      extraConfidentialIntents: ["com.example.custom_intent"],
+    },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "supported-vendor-intent-not-widened-accepts",
+    description: "The same vendor intent, supported but NOT widened into confidentiality, passes: the protocol's three names are the only ones required by default.",
+    input: { envelope: { intent: "com.example.custom_intent" }, supportedIntents: ["com.example.custom_intent"] },
+    expect: { result: "accept" },
+  },
+  {
+    caseId: "extra-confidential-intents-cannot-narrow-rejects",
+    description: "An empty extraConfidentialIntents does not narrow the protocol's three: schedule_meeting still refuses encryption_required once supported.",
+    input: { envelope: { intent: "schedule_meeting" }, supportedIntents: ["schedule_meeting"], extraConfidentialIntents: [] },
+    expect: { result: "reject", reason: "encryption_required" },
+  },
+  {
+    caseId: "disposition-non-string-intent-accepts",
+    description: "A non-string intent has nothing for the disposition check to match; the envelope schema, which runs before it, is what rejects a malformed envelope.",
+    input: { envelope: { intent: 7 }, supportedIntents: [] },
+    expect: { result: "accept" },
   },
 ]);
 

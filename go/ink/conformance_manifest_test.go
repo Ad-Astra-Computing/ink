@@ -40,6 +40,11 @@ var goProfileCategories = map[string][]string{
 		"authorization-header",
 		"connection-payload",
 		"first-contact-transcript",
+		// Added to the frozen base set pre-1.0, deliberately: see
+		// specs/ink-protocol.md §3.1.1 and §3.4. The open intent vocabulary
+		// and the unsupported_intent-before-encryption_required ordering are
+		// frozen envelope and §3.4 rules, not an optional capability.
+		"intent-vocabulary",
 		"jcs-number",
 		"jcs-string-safety",
 		"key-rotation",
@@ -102,6 +107,7 @@ var goVerifiedCategories = []string{
 	"handshake-message",
 	"handshake-transport-signature",
 	"inclusion-receipt",
+	"intent-vocabulary",
 	"jcs-number",
 	"jcs-string-safety",
 	"key-rotation",

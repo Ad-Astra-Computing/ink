@@ -100,16 +100,21 @@ export {
 // Optional containment / governance primitives
 export { HandshakeBudgetTracker } from "./ink/handshake-budget.js";
 
-// Protocol §3.4 encryption requirement gate for plaintext intents
+// Protocol §3.4 encryption requirement gate for plaintext intents, and the
+// §3.1.1/§3.4 assembled unsupported_intent/encryption_required ordering
 export {
   CONFIDENTIAL_INTENTS,
   intentRequiresEncryption,
   checkEncryptionRequired,
+  isIntentSupported,
+  checkIntentDisposition,
 } from "./ink/encryption-policy.js";
 export type {
   ConfidentialIntent,
   EncryptionRequirementResult,
   EncryptionRequirementOptions,
+  IntentDispositionResult,
+  IntentDispositionOptions,
 } from "./ink/encryption-policy.js";
 
 // Receipts: build, verify, and send INK delivery receipts
@@ -218,7 +223,12 @@ export type {
 // non-public path.
 export {
   validateMessage,
+  validateEnvelope,
+  validateIntentPayload,
   getPayloadSchema,
+  isWellFormedIntent,
+  REGISTERED_INTENTS,
+  CORE_INTENTS,
   MessageEnvelopeSchema,
   ProtocolVersionSchema,
   INK_PROTOCOL_VERSIONS,
@@ -243,6 +253,7 @@ export type {
   MessageEnvelope,
   ProtocolVersion,
   IntentType,
+  RegisteredIntentType,
 } from "./models/intent.js";
 
 // Key-entry types and schemas for adopters wiring their own key-set

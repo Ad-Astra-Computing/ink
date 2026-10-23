@@ -42,8 +42,9 @@ breaking change (major version bump) under
 
 What still legitimately varies by minor version: the message `protocol` value
 (`ink/0.1` or `ink/0.2`, §8), which only selects the body-signature domain of
-§3.6; and the set of allocated message-type suffixes in the §6 registry, which
-grows under the minor-version rule without changing any of the above.
+§3.6; the set of allocated message-type suffixes in the §6 registry; and the
+set of registered intent tokens in the §3.1.1 registry; all three grow under
+the minor-version rule without changing any of the above.
 
 ---
 
@@ -93,8 +94,8 @@ envelope.
 | `createdAt` | MUST | string (<= 64) | Strict RFC 3339 timestamp (§3.2). |
 | `from` | MUST | string (<= 512) | Sender principal (§7). |
 | `to` | MUST | string (<= 512) | Recipient principal (§7). |
-| `intent` | MUST | string | One of the allocated intent types. |
-| `payload` | MUST | object | Intent-specific body. |
+| `intent` | MUST | string | A registered bare intent token or a reverse-domain vendor intent token (§3.1.1). |
+| `payload` | MUST | object | Intent-specific body (§3.1.1). |
 | `signature` | MUST | string (<= 256) | Body signature over the envelope (§3.6). |
 | `expiresAt` | MAY | string (<= 64) | RFC 3339 timestamp. |
 | `signingKeyId` | MAY | string (<= 128) | Key-rotation hint (§3.3, key-rotation spec). |
@@ -107,6 +108,94 @@ intent envelope are rejected by the strict schema; unknown fields on other
 top-level INK objects (handshake, receipt, audit) are accepted, not rejected; the
 reference validators strip unknown keys from the parsed object, per
 [`ink-compatibility-policy.md`](ink-compatibility-policy.md) §3.1.
+
+#### 3.1.1 Intent vocabulary
+
+The `intent` field names the action the message carries. It is one of two
+syntactic forms, distinguished by the absence or presence of a dot:
+
+- a **registered intent**: a lowercase bare token matching
+  `^[a-z][a-z0-9_]{0,62}$` (63 characters, the same cap a DNS label uses),
+  allocated in the registry below under the minor-version rule of
+  [`ink-compatibility-policy.md`](ink-compatibility-policy.md) §2.2;
+- a **vendor intent**: a lowercase reverse-domain token matching
+  `^[a-z0-9]([a-z0-9_-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9_-]*[a-z0-9])?)+$`, at
+  least two dot-separated labels, each 1-63 characters, owned and defined by
+  whoever controls the reversed domain, for example `com.example.custom_intent`.
+  INK does not verify that ownership on the wire. A single label with no dot
+  (for example `com`) is a well-formed, unregistered **bare** token, not a
+  vendor token: it is accepted at the schema layer and, unless some receiver
+  happens to support it, answered `unsupported_intent`.
+
+Both forms are capped at 253 UTF-16 code units total, in addition to the
+63-character per-label cap each grammar already enforces on its own; both
+grammars are pure ASCII, so a code-unit count, a byte count and a code-point
+count all agree. The match is on the exact string: no case folding, no
+trimming, no Unicode normalization, anchored at both ends. The grammars are
+disjoint by construction: a bare token contains no dot and a vendor token
+contains at least one, so no future registered allocation can collide with a
+vendor intent and no vendor intent can collide with a future registered one.
+A sender MUST NOT emit a bare token that is not registered; the open
+acceptance rule below is for a RECEIVER reading an intent it may not
+recognize, not license for a sender to mint its own bare names outside the
+registry (a sender wanting a name of its own uses the vendor form).
+
+A receiver MUST accept any syntactically well-formed intent at the envelope
+layer and MUST NOT reject a message for carrying an intent it does not
+recognize: recognizing an intent is an application decision, not a wire
+validity rule. An implementation that does not support a given intent,
+registered or vendor, responds `unsupported_intent` when asked to act on it.
+§3.4 sets the required order between that decision and the encryption-required
+gate. Two intents, `connection_request` and `connection_response`, are
+**core**: every conformant implementation MUST treat them as supported,
+listed in its own supported set or not, since first contact depends on them.
+Every other registered or vendor intent is optional.
+
+This decision is made on unauthenticated input (it runs before, or
+independently of, transport authentication; see §3.4's ordering note) and
+MUST create no per-sender state and send nothing but the refusal, consistent
+with the fail-closed, no-side-effects-before-authentication posture of
+[`ink-identity-model.md`](ink-identity-model.md) §3.2. For an encrypted outer
+envelope (§3.4), this decision runs on the DECRYPTED INNER envelope only,
+after transport auth and decryption; the outer envelope carries no `intent`
+of its own.
+
+**Registry.** The registered bare tokens, as of this document:
+
+| Intent | Core | Purpose |
+|---|---|---|
+| `connection_request` | yes | Request a new connection. |
+| `connection_response` | yes | Accept, decline or mark pending a connection request. |
+| `schedule_meeting` | no | Propose a meeting. Confidential (§3.4). |
+| `schedule_meeting_response` | no | Accept, decline or counter a meeting proposal. |
+| `intro_request` | no | Ask a connection to introduce a third party. |
+| `intro_response` | no | Respond to an introduction request. |
+| `opportunity` | no | Share a role, investment or other opportunity. |
+| `opportunity_response` | no | Respond to a shared opportunity. |
+| `follow_up` | no | Follow up on a prior message. |
+| `ask` | no | Ask a question. |
+| `ask_response` | no | Answer a question. |
+| `context_share` | no | Share context (background, project update, availability). Confidential (§3.4). |
+| `ping` | no | A liveness or presence check carrying no business payload. |
+| `retract` | no | Withdraw a previously sent message. |
+| `multi_party_sync` | no | Coordinate availability across more than two parties. Confidential (§3.4). |
+
+A registered name is never removed or re-meant; it may at most be marked
+deprecated. Ad Astra Computing is the change controller for this registry.
+
+**Allocation rule.** A new registered intent is added under the minor-version
+rule of [`ink-compatibility-policy.md`](ink-compatibility-policy.md) §2.2:
+existing senders and receivers are unaffected, since neither side is required
+to use it, and a receiver that does not recognize it responds
+`unsupported_intent`. A vendor SHOULD use a reverse-domain token it controls
+rather than petitioning for a registered one, unless the intent is genuinely
+general-purpose.
+
+The conformance corpus never pins a case that fails both transport
+authentication and intent support in the same vector: doing so would freeze
+one implementation's choice of which check runs first as if it were the
+protocol's, when §3.4's ordering note leaves that relative placement to the
+implementation.
 
 INK has two families of top-level object. **Intent messages** carry the action
 in the `intent` field and have no `type` field. **Protocol messages** (the
@@ -298,14 +387,44 @@ encrypted payloads (see the `encryption` profile in
 [`ink-conformance-profile.md`](ink-conformance-profile.md)). The intents the
 protocol marks confidential are `schedule_meeting`, `context_share` and
 `multi_party_sync`.[^ck] A sender MUST send them encrypted, and a receiver
-MUST reject them in plaintext with `encryption_required`, before any other
-judgement about the intent: a receiver that does not support the intent still
-answers `encryption_required` to its plaintext form, since the sender's error
-is the plaintext, and the intent allowlist applies to what it decrypts. The
-reference exports the set as `CONFIDENTIAL_INTENTS` and the gate as
+that supports one of them MUST reject its plaintext form with
+`encryption_required`.
+
+A receiver decides intent support (§3.1.1) BEFORE this gate: an intent the
+receiver does not support at all, confidential or not, is refused
+`unsupported_intent`, not `encryption_required`, since there is no reason to
+demand encryption for an intent the receiver never acts on. The reference
+exports the set as `CONFIDENTIAL_INTENTS` and the gate as
 `checkEncryptionRequired` (`ConfidentialIntents` and `CheckEncryptionRequired`
-in Go); a receiver MAY widen the set with intents of its own and MUST NOT
-narrow it.
+in Go), and composes the two in the required order as
+`checkIntentDisposition` (`CheckIntentDisposition` in Go); calling
+`checkEncryptionRequired` directly for an intent the receiver does not
+support is the caller's error, not the gate's, so a receiver applies its own
+support check first. A receiver MAY widen the set with intents of its own,
+including a vendor intent it has installed, and MUST NOT narrow the
+protocol's three: vendor confidentiality is the receiver's to install, not
+inherited from the protocol's set. Not supporting an intent is always
+allowed; supporting one of the three and accepting it in plaintext is not.
+
+**Ordering relative to transport authentication.** Only the pair above is
+normative: `unsupported_intent` decided before `encryption_required`. Where
+that pair sits relative to §3.3 transport authentication is an
+implementation's own choice. A receiver MAY decide it on unauthenticated
+input, before resolving the sender's key or verifying the signature, to save
+the cost of both on an intent it will refuse regardless; doing so leaks
+nothing an attacker does not already have, since a receiver's supported
+intents are public on its Agent Card (`capabilities.intentsAccepted`). Making
+this decision pre-authentication MUST create no per-sender state and send
+nothing but the refusal (§3.1.1). For an encrypted outer envelope, ONLY the
+`unsupported_intent` half runs on the decrypted inner envelope, after
+transport auth and decryption; `encryption_required` never applies there,
+since an inner envelope delivered inside an encrypted outer one is by
+construction never plaintext, and the gate has no way to learn that fact
+from the inner envelope alone. An implementation that composes both checks
+in one function (`checkIntentDisposition`/`CheckIntentDisposition`) MUST NOT
+call that composed function on a decrypted inner envelope; it calls the
+support-only half directly (`isIntentSupported`/`IsIntentSupported`) instead.
+The outer envelope itself carries no `intent` of its own.
 
 **Scheme.** ECIES with:
 

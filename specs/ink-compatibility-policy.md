@@ -136,7 +136,7 @@ The following changes MAY be made under the same major version:
 | Change | Constraint |
 |--------|-----------|
 | New optional field on a tolerance-pinned surface (§3.1) | Receivers ignore the unknown field. On a strict schema (intent envelope, intent payloads, auth-header parameters) a new field is not additive; it ships receiver-first, advertised then emitted, the same pattern as §2.4 |
-| New intent type | Receivers respond with `unsupported_intent` rejection. The intent-type set is closed in both the envelope schema and the card capability arrays, so a new intent lands receiver-first via the enum-extension path of §7.1 |
+| New intent type | The intent vocabulary is open (`ink-protocol.md` §3.1.1): a new registered bare token or a vendor reverse-domain token is accepted by the envelope schema and the card capability arrays on both old and new receivers alike, with no enum extension and no receiver-first sequencing required. A receiver that does not yet implement it responds `unsupported_intent` |
 | New receipt disposition | The disposition enum is closed under major 1 on both the receipt message (an unknown value is `malformed_receipt`) and the card `capabilities.receipts.dispositions` array (a card advertising a new value is rejected wholesale), so a new disposition takes the receiver-first enum-extension path on both |
 | New audit event type | Processors MUST ignore unknown event types |
 | New handshake challenge type | Receivers respond with appropriate rejection |
@@ -331,9 +331,25 @@ A major version MAY be sunset after:
 
 ### 7.1 Intent Types
 
-Under major 1 the intent-type set is a closed enum, in both the envelope `intent` field and the Agent Card `capabilities.intentsAccepted` and `capabilities.intentsSent` arrays. A card advertising an intent outside the enum is rejected wholesale (pinned by `agent-card/bad-intent-enum-rejects`), and both reference implementations enforce the same closed set. A new intent type therefore is not added freely; it lands via a spec revision that extends the enum, deployed receiver-first so a card carrying it is not rejected by peers that predate the revision.
+As of `ink-protocol.md` §3.1.1, the intent vocabulary is open, in both the
+envelope `intent` field and the Agent Card `capabilities.intentsAccepted` and
+`capabilities.intentsSent` arrays: a registered bare token (`^[a-z][a-z0-9_]{0,62}$`)
+or a reverse-domain vendor token is accepted at the schema layer whether or
+not this version of a given implementation has a specific payload schema for
+it, and both reference implementations enforce the same open grammar. A new
+registered intent therefore lands additively, under the minor-version rule of
+§2.2: an old receiver that predates the registration still accepts it at the
+schema layer and responds `unsupported_intent`, not a schema rejection,
+because recognizing an intent was never a wire validity rule.
 
-Free-form reverse-domain extensibility belongs to the protocol-message `type` registry (`ink-protocol.md` §6), not the intent enum. `network.tulpa.custom_intent` appears there as the registry's naming example, a message `type` in a namespace distinct from the intent enum. It MUST NOT be placed in an envelope `intent` field or a card capability array under major 1.
+A vendor extends the vocabulary itself, without any registry action, using
+the reverse-domain form, for example `com.example.custom_intent`. This is
+distinct from the protocol-message `type` registry (`ink-protocol.md` §6),
+which names a different namespace for a different family of object
+(protocol messages, which carry `type` and no `intent`; see §3.1). The two
+registries happen to share the reverse-domain convention, but a vendor
+intent is never placed in a message `type` field and a message-type suffix
+is never placed in an envelope `intent` field.
 
 ### 7.2 Audit Event Types
 

@@ -23,18 +23,20 @@ a role MUST satisfy every base obligation for that role.
 ## Base profile (MUST)
 
 Every conforming INK implementation MUST satisfy the base profile categories for
-the roles it performs. The base profile is the sixteen[^ck] categories tagged
+the roles it performs. The base profile is the seventeen[^ck] categories tagged
 `profile: "base"` in the manifest:
 
 `agent-card`, `agent-card-fetch`, `agent-card-signature`,
 `authorization-header`, `connection-payload`, `first-contact-transcript`,
-`jcs-number`, `jcs-string-safety`, `key-rotation`, `principal-normalization`,
-`private-hostname`, `replay-freshness`, `signature-base`,
-`signed-body-member-name`, `signed-body-utf8`, `timestamp-validity`.[^ck]
+`intent-vocabulary`, `jcs-number`, `jcs-string-safety`, `key-rotation`,
+`principal-normalization`, `private-hostname`, `replay-freshness`,
+`signature-base`, `signed-body-member-name`, `signed-body-utf8`,
+`timestamp-validity`.[^ck]
 
 | Category[^ck] | Base sender MUST | Base receiver MUST |
 |---|---|---|
 | principal-normalization | Canonicalize its own and the peer's agentId before any identity comparison. | Canonicalize the sender's agentId the same way before authorizing it. |
+| intent-vocabulary | Emit `intent` as a registered bare token or a well-formed reverse-domain vendor token (§3.1.1), never an intent it is not itself prepared to have a receiver act on. | Accept any syntactically well-formed intent at the envelope layer; refuse an unsupported one with `unsupported_intent` before ever consulting confidentiality, and a supported confidential one with `encryption_required` in plaintext. |
 | signature-base | Build the §3.3 signature base and produce the Ed25519 signature over its UTF-8 bytes. | Reconstruct the same base and verify the signature, failing closed on any mismatch. |
 | authorization-header | Emit the `INK-Ed25519 <base64url(sig)> [keyId=<keyId>]` Authorization header in the exact §3.3 grammar. | Parse the header under the same grammar, extracting the signature and optional keyId and rejecting stray whitespace, an embedded CR/LF, or a malformed keyId. |
 | jcs-number | Canonicalize signed bodies under RFC 8785 with the safe-integer number profile. | Canonicalize the body the same way before verifying, rejecting an unsafe number. |

@@ -17,8 +17,8 @@
       "profile": "base",
       "spec": "specs/ink-agent-card.md",
       "summary": "Agent Card validation, the pinned INK endpoint URL grammar, and the opt-in discovery descriptor exposure bound.",
-      "caseCount": 53,
-      "sha256": "4a8828e4ffaca4ae3dcfe5b1f45415bcd7c175ce17e32a966ae32c59e79c2e57"
+      "caseCount": 55,
+      "sha256": "62a1fcaab5797ccef91840e999fb2a0eedc2cc475379000bebc7dc9c8fb15f39"
     },
     {
       "id": "agent-card-evidence",
@@ -172,6 +172,15 @@
       "summary": "Composite inclusion-receipt verification.",
       "caseCount": 39,
       "sha256": "2be8699b9d047b6692c329902882ae12af99a00e9a4c7fd40b32164de2336ec0"
+    },
+    {
+      "id": "intent-vocabulary",
+      "vector": "vectors/intent-vocabulary.json",
+      "profile": "base",
+      "spec": "specs/ink-protocol.md",
+      "summary": "The open §3.1.1 intent grammar (registered bare tokens, reverse-domain vendor tokens, the disjoint dot rule) and the assembled unsupported_intent/encryption_required ordering a receiver's own supported set decides.",
+      "caseCount": 29,
+      "sha256": "6b6a2c4941dcd52df4464d2109f708c1cc753b462ce4720491e7a62a0152aab0"
     },
     {
       "id": "jcs-number",

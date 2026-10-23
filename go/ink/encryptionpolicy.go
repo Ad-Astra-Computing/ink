@@ -29,13 +29,12 @@ type EncryptionRequirementResult struct {
 }
 
 // CheckEncryptionRequired decides whether a plaintext intent envelope may
-// proceed, mirroring checkEncryptionRequired in the reference. It runs after
-// ValidateMessageEnvelope and before any work that depends on the intent, in
-// the position the intent allowlist sits: a confidential intent in plaintext
-// is refused for being plaintext, whatever else the receiver would have said
-// about it. An envelope whose intent is absent or not a string is allowed
-// through, since there is no intent to gate and the envelope schema is what
-// rejects it. An encrypted outer envelope (§3.4) never reaches this gate.
+// proceed, mirroring checkEncryptionRequired in the reference. It assumes
+// the caller already decided the receiver supports the intent;
+// CheckIntentDisposition below composes both checks in the required order
+// and is the normative reference for it. MUST NOT be called on a decrypted
+// inner envelope, which is by construction never plaintext: it has no way
+// to know the envelope already arrived encrypted.
 //
 // extra widens the set with intents of the receiver's own; the protocol set
 // always applies.
@@ -53,4 +52,59 @@ func CheckEncryptionRequired(envelope map[string]interface{}, extra ...string) E
 		}
 	}
 	return EncryptionRequirementResult{Allowed: true}
+}
+
+var coreIntentSet = func() map[string]bool {
+	m := make(map[string]bool, len(CoreIntents))
+	for _, i := range CoreIntents {
+		m[i] = true
+	}
+	return m
+}()
+
+// IsIntentSupported reports whether a receiver supports intent: a core
+// intent, always, or one of its own supportedIntents. The support-only half
+// of CheckIntentDisposition below, exposed because the confidentiality half
+// does not apply to a decrypted inner envelope (§3.4), which is by
+// construction never plaintext. A decrypted inner envelope's support
+// decision calls this function directly instead of the composed one.
+func IsIntentSupported(intent string, supportedIntents []string) bool {
+	if coreIntentSet[intent] {
+		return true
+	}
+	for _, s := range supportedIntents {
+		if s == intent {
+			return true
+		}
+	}
+	return false
+}
+
+// IntentDispositionResult is the decision of CheckIntentDisposition. On a
+// refusal Reason is "unsupported_intent" or "encryption_required" and Intent
+// names the offending intent.
+type IntentDispositionResult struct {
+	Allowed bool
+	Reason  string
+	Intent  string
+}
+
+// CheckIntentDisposition decides whether a PLAINTEXT envelope may proceed,
+// in the order Protocol §3.4 requires: unsupported_intent before
+// encryption_required. Call this only on a plaintext or not-yet-decrypted
+// outer envelope; a decrypted inner envelope uses IsIntentSupported
+// directly instead, since it is by construction never plaintext.
+func CheckIntentDisposition(envelope map[string]interface{}, supportedIntents []string, extraConfidentialIntents ...string) IntentDispositionResult {
+	intent, ok := envelope["intent"].(string)
+	if !ok {
+		return IntentDispositionResult{Allowed: true}
+	}
+	if !IsIntentSupported(intent, supportedIntents) {
+		return IntentDispositionResult{Reason: "unsupported_intent", Intent: intent}
+	}
+	enc := CheckEncryptionRequired(envelope, extraConfidentialIntents...)
+	if !enc.Allowed {
+		return IntentDispositionResult{Reason: "encryption_required", Intent: intent}
+	}
+	return IntentDispositionResult{Allowed: true}
 }

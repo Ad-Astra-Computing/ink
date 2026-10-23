@@ -2,8 +2,9 @@
  * Sketch: the verify-then-forward inbound flow for the INK contact endpoint.
  *
  * Mirrors examples/reference-receiver/src/inbound.ts — the SAME verification
- * pipeline (bounded read -> validateMessage -> resolve sender keys ->
- * verifyInkAuth). The only behavioural difference is the terminal action
+ * pipeline (bounded read -> validateEnvelope -> intent disposition ->
+ * validateIntentPayload -> resolve sender keys -> verifyInkAuth). The only
+ * behavioural difference is the terminal action
  * (forward to a human inbox instead of returning a JSON ack) and the four design
  * decisions called out below.
  *
@@ -13,7 +14,9 @@
  * cannot drift from the reference's security floor.
  */
 import {
-  validateMessage,
+  validateEnvelope,
+  validateIntentPayload,
+  checkIntentDisposition,
   verifyInkAuth,
   parseSignedBodyBytes,
   ParseSignedBodyError,
@@ -32,7 +35,7 @@ const OUR_DID = "did:web:mcp.example.com"; // decision 1
 const INBOUND_PATH = "/ink/v1/inbound";
 // Plaintext first-contact intents only. Every intent INK requires encryption for
 // (schedule_meeting, context_share, multi_party_sync) is excluded by design.
-const ACCEPTED_INTENTS = new Set(["connection_request", "intro_request", "ask"]);
+const ACCEPTED_INTENTS = ["connection_request", "intro_request", "ask"] as const;
 const MAX_BODY_BYTES = 64 * 1024;
 
 interface Env {
@@ -106,17 +109,19 @@ export async function handleInbound(req: Request, env: Env): Promise<Response> {
 
   // 2. Decision 2 (encryption rejected): an encrypted envelope has a different
   //    shape (`type: "network.tulpa.encrypted"`, ciphertext, ...) and would fail
-  //    validateMessage below, so detect it on the RAW object FIRST to return a
+  //    validateEnvelope below, so detect it on the RAW object FIRST to return a
   //    clear capability error rather than a generic schema rejection.
   if (raw && typeof raw === "object" && (raw as { type?: unknown }).type === "network.tulpa.encrypted") {
     return json(400, { error: "encryption_not_supported" });
   }
 
-  // 3. Validate envelope AND payload shape. validateMessage runs BEFORE
-  //    signature verification — we refuse to canonicalize clearly-invalid input.
+  // 3. validateEnvelope, not validateMessage: validateMessage would
+  //    schema-check the payload for any registered intent before step 5
+  //    decides whether this endpoint even accepts it, the wrong Protocol
+  //    §3.1.1 order. Runs before signature verification.
   let envelope: MessageEnvelope;
   try {
-    envelope = validateMessage(raw);
+    envelope = validateEnvelope(raw);
   } catch (err) {
     return json(400, { error: "invalid_envelope", detail: err instanceof Error ? err.message.slice(0, 120) : "schema_error" });
   }
@@ -126,10 +131,25 @@ export async function handleInbound(req: Request, env: Env): Promise<Response> {
   //    replay against a different endpoint — refuse it.
   if (envelope.to !== OUR_DID) return json(400, { error: "wrong_recipient" });
 
-  // 5. Intent allowlist, before resolving the sender's card — saves a network
-  //    round-trip on unsupported intents.
-  if (!ACCEPTED_INTENTS.has(envelope.intent)) {
-    return json(400, { error: "unsupported_intent", accepted: [...ACCEPTED_INTENTS] });
+  // 5. checkIntentDisposition, not a bare ACCEPTED_INTENTS.includes check.
+  //    Rejecting every encrypted envelope (step 2) makes encryption_required
+  //    MORE relevant, not moot: it catches a plaintext confidential intent
+  //    this endpoint would otherwise accept outright.
+  const disposition = checkIntentDisposition(envelope, {
+    supportedIntents: ACCEPTED_INTENTS,
+  });
+  if (!disposition.allowed) {
+    return json(400, {
+      error: disposition.reason,
+      ...(disposition.reason === "unsupported_intent" ? { accepted: ACCEPTED_INTENTS } : {}),
+    });
+  }
+
+  // 5a. validateIntentPayload, only now that step 5 has decided support.
+  try {
+    validateIntentPayload(envelope.intent, envelope.payload);
+  } catch (err) {
+    return json(400, { error: "invalid_envelope", detail: err instanceof Error ? err.message.slice(0, 120) : "schema_error" });
   }
 
   // 6. Resolve the sender's verification keys: did:key decoded inline (no fetch);
