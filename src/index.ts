@@ -141,6 +141,8 @@ export {
   formatCheckpoint,
   verifyCheckpoint,
   verifyCheckpointWithKeys,
+  isValidCheckpointOrigin,
+  MAX_CHECKPOINT_WIRE_BYTES,
 } from "./ink/checkpoint.js";
 export type { CheckpointData, CheckpointVerifyWithKeysResult } from "./ink/checkpoint.js";
 

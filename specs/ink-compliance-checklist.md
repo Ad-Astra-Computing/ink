@@ -164,7 +164,7 @@ deployment rather than the library.
 | W3 | Access control: requester must be event agent or counterparty | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W4 | Merkle tree: RFC 6962-style binary tree | MUST | Optional | Auditability §7 | `merkle-inclusion`, `merkle-consistency` | `test/inclusion-receipt-verify.test.ts`, `test/consistency-proof.test.ts`, `witness/witness/test/merkle.test.ts (witness repo)` |
 | W5 | Inclusion receipt: signed by witness service | MUST | Optional | Auditability §7 | `inclusion-receipt` | `test/inclusion-receipt-verify.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
-| W6 | Checkpoint body is the C2SP tlog-checkpoint format; the witness serves it at `GET /ink/v1/checkpoint` (the endpoint itself is covered by the witness repo tests, the format by the vectors) | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `test/verify-checkpoint.test.ts`, `test/ink-checkpoint.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
+| W6 | Checkpoint body is the C2SP-shaped checkpoint format (not wire-compatible with C2SP); the witness serves it at `GET /ink/v1/checkpoint` (the endpoint itself is covered by the witness repo tests, the format by the vectors) | SHOULD | Optional | Auditability §7 | `merkle-checkpoint` | `test/verify-checkpoint.test.ts`, `test/ink-checkpoint.test.ts`, `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W7 | Transport auth on submit: dual signature (transport + event) | MUST | Optional | Auditability §7 | , | `witness/witness/test/endpoints.test.ts (witness repo)` |
 | W8 | Submit includes `signingKeyId` in transport auth | SHOULD | Required | Key Rotation Phase 3 |, | none in the library |
 | W9 | Query response is the signed `network.tulpa.audit_query_response` envelope binding `serviceDid`, `messageId`, `requester`, `events`, `proofs`, `treeSize`, `rootHash`, `timestamp` | MUST | Optional | Auditability §7.3 | `audit-query-response` | `test/audit-query-response.test.ts`, `test/verify-audit-query-response.test.ts` |
@@ -329,7 +329,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `jcs-number` | `base` | 16 | S6 |
 | `jcs-string-safety` | `base` | 10 | S6 |
 | `key-rotation` | `base` | 32 | S4, K3, K4, K5, K6 |
-| `merkle-checkpoint` | `witness` | 21 | W6 |
+| `merkle-checkpoint` | `witness` | 29 | W6 |
 | `merkle-consistency` | `witness` | 19 | W4 |
 | `merkle-inclusion` | `witness` | 14 | W4 |
 | `merkle-leaf` | `audit` | 15 | W10 |
@@ -342,7 +342,7 @@ The Vectors column of every row above names the `conformance/v1` categories whos
 | `signed-body-utf8` | `base` | 21 | none |
 | `timestamp-validity` | `base` | 25 | none |
 
-48 of 124 requirement rows cite at least one category; 18 of 34 categories are cited by at least one row; the corpus holds 940 cases.
+48 of 124 requirement rows cite at least one category; 18 of 34 categories are cited by at least one row; the corpus holds 948 cases.
 <!-- END GENERATED checklist-vector-matrix -->
 
 ---

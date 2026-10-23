@@ -19,7 +19,6 @@ func TestParseCheckpointAccepts(t *testing.T) {
 		{"valid", "example.com/ink-log\n5\n" + cpTestRoot + "\n", "example.com/ink-log", 5, cpTestRoot, "example.com/ink-log\n5\n" + cpTestRoot + "\n"},
 		{"tree-size-zero", "log\n0\n" + cpTestRoot + "\n", "log", 0, cpTestRoot, "log\n0\n" + cpTestRoot + "\n"},
 		{"max-safe-integer", "log\n9007199254740991\n" + cpTestRoot + "\n", "log", 9007199254740991, cpTestRoot, "log\n9007199254740991\n" + cpTestRoot + "\n"},
-		{"leading-zero-normalizes", "log\n05\n" + cpTestRoot + "\n", "log", 5, cpTestRoot, "log\n5\n" + cpTestRoot + "\n"},
 		{"utf16-boundary-origin", strings.Repeat("é", 256) + "\n5\n" + cpTestRoot + "\n", strings.Repeat("é", 256), 5, cpTestRoot, strings.Repeat("é", 256) + "\n5\n" + cpTestRoot + "\n"},
 	}
 	for _, c := range cases {
@@ -59,6 +58,16 @@ func TestParseCheckpointRejects(t *testing.T) {
 		{"oversized-body", strings.Repeat("a", 1025)},
 		{"origin-line-too-long", strings.Repeat("a", 257) + "\n5\n" + cpTestRoot + "\n"},
 		{"astral-origin-over-utf16-cap", strings.Repeat("\U0001D400", 200) + "\n5\n" + cpTestRoot + "\n"},
+		{"leading-zero-tree-size", "log\n05\n" + cpTestRoot + "\n"},
+		{"origin-with-space", "log name\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-plus", "log+name\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-nbsp", "log name\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-next-line", "log\u0085name\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-line-separator", "log name\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-ideographic-space", "log　name\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-del", "log\u007fname\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-c1-control", "log\u009fname\n5\n" + cpTestRoot + "\n"},
+		{"origin-with-lone-high-surrogate", "log" + string([]byte{0xed, 0xa0, 0x80}) + "name\n5\n" + cpTestRoot + "\n"},
 	}
 	for _, c := range cases {
 		if _, ok := ParseCheckpoint(c.body); ok {

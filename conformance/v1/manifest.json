@@ -205,9 +205,9 @@
       "vector": "vectors/merkle-checkpoint.json",
       "profile": "witness",
       "spec": "specs/ink-merkle-checkpoint.md",
-      "summary": "C2SP tlog-checkpoint parsing and canonical formatting.",
-      "caseCount": 21,
-      "sha256": "b5c794415ded843ea9d135e176ebe30d8252dbf7b1ca55697d325e9cbb5e55ef"
+      "summary": "C2SP-shaped checkpoint body parsing, origin grammar, and canonical formatting.",
+      "caseCount": 29,
+      "sha256": "c1d9fa5f8f3b29d0f8d3257d333780f95fc0d718da471dbbd4f05533ace8d489"
     },
     {
       "id": "merkle-consistency",

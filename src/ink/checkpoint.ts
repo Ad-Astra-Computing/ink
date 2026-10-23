@@ -1,6 +1,14 @@
 /**
- * INK Checkpoint formatting (C2SP tlog-checkpoint compatible).
+ * INK Checkpoint formatting (C2SP-shaped, not wire-compatible).
  * Used for the public checkpoint endpoint (INK Auditability §7.7).
+ *
+ * The line structure and field order follow C2SP tlog-checkpoint, but this
+ * is not an implementation of that spec and no C2SP tool can consume these
+ * bytes. Known divergences: the root hash is lowercase hex here, C2SP uses
+ * base64; the cosignature separator is the ASCII string "-- ", C2SP notes
+ * use an em dash; signatures here are a bare base64url(64 bytes), C2SP
+ * prepends a 4-byte key-hint. A real C2SP profile, negotiated and additive,
+ * is out of scope for this format.
  */
 
 import { base64urlDecode } from "../crypto/ink.js";
@@ -15,9 +23,9 @@ export interface CheckpointData {
 }
 
 /**
- * Format a checkpoint body per C2SP tlog-checkpoint spec:
+ * Format a checkpoint body:
  *   line 1: origin (log identity)
- *   line 2: tree size (decimal)
+ *   line 2: tree size (decimal, no leading zero)
  *   line 3: root hash (hex)
  *   line 4: empty (trailing newline)
  */
@@ -34,6 +42,53 @@ export function formatCheckpoint(data: CheckpointData): string {
  * rejecting. The 256-char per-line cap below is defense-in-depth. */
 const MAX_CHECKPOINT_BODY = 1024;
 const MAX_CHECKPOINT_LINE = 256;
+
+/**
+ * Bytes a fetcher MUST cap a checkpoint response at before decoding it to a
+ * string. MAX_CHECKPOINT_BODY and MAX_CHECKPOINT_LINE are measured in UTF-16
+ * code units, which undercounts a multi-byte UTF-8 origin on the wire; this
+ * constant bounds the actual network payload a consumer reads. It is not
+ * enforced by this module (there is no network fetch here), it exists for a
+ * consumer to import and apply at its own fetch site.
+ */
+export const MAX_CHECKPOINT_WIRE_BYTES = 4096;
+
+/** Characters forbidden anywhere in a checkpoint origin: C0 controls, DEL,
+ *  C1 controls, and U+002B '+' (which would be ambiguous against a
+ *  percent-encoded origin in an operator's configuration). */
+const CHECKPOINT_ORIGIN_FORBIDDEN_CHARS = /[\u0000-\u001F\u007F-\u009F+]/;
+/** Any Unicode White_Space code point. Banning whitespace keeps the
+ *  "-- <origin> <sig>" first-space split in verifyCheckpointCore
+ *  unambiguous: an origin can never itself contain the character the
+ *  signature-line grammar uses as a delimiter. */
+const CHECKPOINT_ORIGIN_WHITESPACE = /\p{White_Space}/u;
+/** A high surrogate not followed by its low surrogate, or a low surrogate
+ *  not preceded by its high surrogate: a lone (unpaired) surrogate, which
+ *  has no valid UTF-8 encoding. Go's side of this grammar enforces the
+ *  equivalent rule via utf8.ValidString, since a Go string is arbitrary
+ *  bytes with no such guarantee either. */
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+
+/**
+ * Whether `origin` is a well-formed checkpoint origin: a well-formed
+ * Unicode string (no lone surrogate), non-empty, at most 256 UTF-16 code
+ * units, with no C0/C1 control character, DEL, '+', or Unicode whitespace.
+ * Applied to both an origin read out of a parsed checkpoint body and a
+ * caller-supplied expectedOrigin, so the same grammar governs what a
+ * checkpoint may claim and what a verifier may be configured to expect. A
+ * witness or verifier SHOULD apply this to its own configured origin at
+ * startup and fail construction rather than accept or reject checkpoints
+ * unpredictably at request time (see go/ink/witnesslog.go's NewWitnessLog
+ * for the Go-side witness-construction instance of this).
+ */
+export function isValidCheckpointOrigin(origin: unknown): origin is string {
+  if (typeof origin !== "string") return false;
+  if (origin.length === 0 || origin.length > MAX_CHECKPOINT_LINE) return false;
+  if (LONE_SURROGATE.test(origin)) return false;
+  if (CHECKPOINT_ORIGIN_FORBIDDEN_CHARS.test(origin)) return false;
+  if (CHECKPOINT_ORIGIN_WHITESPACE.test(origin)) return false;
+  return true;
+}
 
 /** Parse a checkpoint body. Returns null if invalid. */
 export function parseCheckpoint(body: string): CheckpointData | null {
@@ -65,11 +120,15 @@ export function parseCheckpoint(body: string): CheckpointData | null {
   if (treeSizeLine.length > MAX_CHECKPOINT_LINE) return null;
   if (rootHash.length > MAX_CHECKPOINT_LINE) return null;
 
-  // Origin must be non-empty
-  if (!origin) return null;
+  // Origin must satisfy the checkpoint origin grammar.
+  if (!isValidCheckpointOrigin(origin)) return null;
 
   // Tree size must be a non-negative safe integer with no trailing junk
-  if (!/^\d+$/.test(treeSizeLine)) return null;
+  // and no leading zero: "007" and "7" are different byte strings, and
+  // permitting both to parse to the same value would make the body's
+  // canonical serialization ambiguous. "0" itself is the one single-digit
+  // form and is always valid.
+  if (!/^(0|[1-9]\d*)$/.test(treeSizeLine)) return null;
   const treeSize = parseInt(treeSizeLine, 10);
   if (isNaN(treeSize) || treeSize < 0 || treeSize > Number.MAX_SAFE_INTEGER) return null;
 
@@ -102,7 +161,7 @@ async function verifyCheckpointCore(
   if (typeof signed !== "string" || signed.length === 0 || signed.length > MAX_SIGNED_CHECKPOINT_BODY) {
     return null;
   }
-  if (typeof expectedOrigin !== "string" || expectedOrigin.length === 0 || expectedOrigin.length > MAX_CHECKPOINT_LINE) {
+  if (!isValidCheckpointOrigin(expectedOrigin)) {
     return null;
   }
   const SEP = "\n\n-- ";
@@ -152,7 +211,8 @@ async function verifyCheckpointCore(
  * Verify a signed checkpoint and return its parsed body, or `null` if the
  * signature, origin, or format is invalid.
  *
- * The signed form is the C2SP-style note used by the INK witness:
+ * The signed form is the note used by the INK witness, C2SP-shaped but not
+ * wire-compatible with it (see the module header):
  *
  *   <origin>\n<treeSize>\n<rootHash>\n\n-- <origin> <base64url(sig)>\n
  *

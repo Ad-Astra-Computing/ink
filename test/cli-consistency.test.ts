@@ -15,7 +15,7 @@ const ROOT2 = "60a53eed0de87a90c8e59427c59c46253c33a76a09502a51801300927b7e6bdc"
 const ORIGIN = "witness.test";
 const CLI = fileURLToPath(new URL("../bin/verify-inclusion-impl.mjs", import.meta.url).href);
 
-async function startWitness(checkpointRoot2: string, serveConsistency = true): Promise<{ server: Server; url: string; receipt: string }> {
+async function startWitness(checkpointRoot2: string, serveConsistency = true, checkpointOrigin = ORIGIN, checkpointTreeSize = "2"): Promise<{ server: Server; url: string; receipt: string }> {
   // One witness key signs the DID doc, the checkpoint and the receipt.
   const secretKey = ed.utils.randomSecretKey();
   const publicKey = await ed.getPublicKeyAsync(secretKey);
@@ -26,9 +26,9 @@ async function startWitness(checkpointRoot2: string, serveConsistency = true): P
   const serviceSignature = base64urlEncode(await ed.signAsync(new TextEncoder().encode(sigBase), secretKey));
   const receipt = JSON.stringify({ ...payload, inclusionProof: [], serviceSignature });
 
-  const body = `${ORIGIN}\n2\n${checkpointRoot2}`;
+  const body = `${checkpointOrigin}\n${checkpointTreeSize}\n${checkpointRoot2}`;
   const cpSig = base64urlEncode(await ed.signAsync(new TextEncoder().encode(body), secretKey));
-  const signedCheckpoint = `${body}\n\n-- ${ORIGIN} ${cpSig}\n`;
+  const signedCheckpoint = `${body}\n\n-- ${checkpointOrigin} ${cpSig}\n`;
   const didDoc = JSON.stringify({ verificationMethod: [{ publicKeyMultibase: encodePublicKeyMultibase(publicKey) }] });
 
   const server = createServer((req, res) => {
@@ -78,6 +78,31 @@ describe("verify-inclusion CLI consistency cross-check", () => {
       expect(out).toContain("[SKIP] consistency");
       expect(out).not.toContain("[PASS] consistency");
       expect(out).toContain("RECEIPT VALID");
+      expect(code).toBe(0);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("treats a checkpoint with a leading-zero tree size as unavailable, not accepted (item 8)", async () => {
+    const { server, url, receipt } = await startWitness(ROOT2, true, ORIGIN, "02");
+    try {
+      const { code, out } = await runCli(["--witness", url, "--origin", ORIGIN, "--event-hash", LEAF0, "--allow-http"], receipt);
+      expect(out).toContain("skipping checkpoint cross-check");
+      expect(out).not.toContain("Current checkpoint (signature verified)");
+      expect(code).toBe(0);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("treats a checkpoint whose origin contains a forbidden character as unavailable (item 8)", async () => {
+    const badOrigin = `${ORIGIN}+staging`;
+    const { server, url, receipt } = await startWitness(ROOT2, true, badOrigin);
+    try {
+      const { code, out } = await runCli(["--witness", url, "--origin", badOrigin, "--event-hash", LEAF0, "--allow-http"], receipt);
+      expect(out).toContain("skipping checkpoint cross-check");
+      expect(out).not.toContain("Current checkpoint (signature verified)");
       expect(code).toBe(0);
     } finally {
       server.close();

@@ -36,14 +36,13 @@
       }
     },
     {
-      "caseId": "leading-zero-tree-size-normalizes",
-      "description": "A tree size written with a leading zero parses and re-serializes without it, so the canonical form is agnostic to the input padding.",
+      "caseId": "leading-zero-tree-size-rejects",
+      "description": "A tree size written with a leading zero is rejected rather than normalized: \"05\" and \"5\" are different byte strings, and accepting both as the same value would make the canonical serialization ambiguous.",
       "input": {
         "body": "example.com/ink-log\n05\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
       },
       "expect": {
-        "result": "accept",
-        "canonicalString": "example.com/ink-log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+        "result": "reject"
       }
     },
     {
@@ -212,6 +211,86 @@
       "description": "An origin of 200 astral-plane characters is 400 UTF-16 code units, past the 256-unit line cap, and rejects; an implementation that measured the cap in Unicode scalar values (200) would wrongly accept it.",
       "input": {
         "body": "𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀𝐀\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-ascii-space-rejects",
+      "description": "An origin containing an ASCII space is rejected. Space is banned so the \"-- <origin> <sig>\" cosignature line's first-space split in verifyCheckpointCore can never be ambiguous against a space inside the origin itself.",
+      "input": {
+        "body": "example log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-plus-rejects",
+      "description": "An origin containing U+002B '+' is rejected, since it would be ambiguous against a percent-encoded origin in an operator's configuration.",
+      "input": {
+        "body": "example.com/ink-log+staging\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-nbsp-rejects",
+      "description": "An origin containing U+00A0 (no-break space), a Unicode White_Space code point outside the ASCII range, is rejected.",
+      "input": {
+        "body": "example.com log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-next-line-rejects",
+      "description": "An origin containing U+0085 (NEL), a Unicode White_Space code point, is rejected.",
+      "input": {
+        "body": "example.comlog\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-line-separator-rejects",
+      "description": "An origin containing U+2028 (line separator), a Unicode White_Space code point, is rejected.",
+      "input": {
+        "body": "example.com log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-ideographic-space-rejects",
+      "description": "An origin containing U+3000 (ideographic space), a Unicode White_Space code point, is rejected.",
+      "input": {
+        "body": "example.com　log\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-del-rejects",
+      "description": "An origin containing U+007F (DEL) is rejected.",
+      "input": {
+        "body": "example.comlog\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "origin-with-c1-control-rejects",
+      "description": "An origin containing U+009F, a C1 control character, is rejected.",
+      "input": {
+        "body": "example.comlog\n5\n6b7afabb949cf3b283bb350a4dacecdc109cf7dcd3824156511958cddfb61271\n"
       },
       "expect": {
         "result": "reject"

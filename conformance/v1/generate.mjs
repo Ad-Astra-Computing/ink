@@ -77,7 +77,7 @@ const CATEGORY_META = {
   "signed-body-utf8": { profile: "base", spec: "specs/ink-signed-string-safety.md", summary: "Raw-UTF-8 validity of a signed body, enforced at the byte boundary before parsing." },
   "merkle-inclusion": { profile: "witness", spec: "specs/ink-merkle-inclusion.md", summary: "RFC 6962 inclusion-proof verification." },
   "merkle-consistency": { profile: "witness", spec: "specs/ink-merkle-consistency.md", summary: "RFC 6962 consistency-proof verification." },
-  "merkle-checkpoint": { profile: "witness", spec: "specs/ink-merkle-checkpoint.md", summary: "C2SP tlog-checkpoint parsing and canonical formatting." },
+  "merkle-checkpoint": { profile: "witness", spec: "specs/ink-merkle-checkpoint.md", summary: "C2SP-shaped checkpoint body parsing, origin grammar, and canonical formatting." },
   "merkle-leaf": { profile: "audit", spec: "specs/ink-merkle-leaf.md", summary: "Audit-event Merkle leaf-hash computation." },
   "inclusion-receipt": { profile: "audit", spec: "specs/ink-inclusion-receipt.md", summary: "Composite inclusion-receipt verification." },
   "audit-query-response": { profile: "audit", spec: "specs/ink-audit-query-response.md", summary: "Composite audit-query-response verification." },
@@ -2008,11 +2008,12 @@ vectorFile("merkle-consistency", [
 ]);
 
 // ── merkle-checkpoint ────────────────────────────────────────────────────
-// C2SP tlog-checkpoint body grammar (INK Auditability §7.7). A checkpoint body
-// is three lines plus a trailing newline: origin, decimal tree size, and a
-// 64-hex root hash. A verifier parses this before checking the witness
-// signature; a parser differential, where one implementation accepts a body
-// another rejects, would let a forged or malformed checkpoint through one side.
+// Checkpoint body grammar (INK Auditability §7.7), C2SP-shaped but not wire-
+// compatible with it. A checkpoint body is three lines plus a trailing
+// newline: origin, decimal tree size, and a 64-hex root hash. A verifier
+// parses this before checking the witness signature; a parser differential,
+// where one implementation accepts a body another rejects, would let a
+// forged or malformed checkpoint through one side.
 // The vectors pin the accept set (with the canonical re-serialization) and the
 // rejection edges (line count, trailing junk, empty origin, a non-decimal or
 // out-of-range tree size, and a malformed root hash). See
@@ -2031,7 +2032,7 @@ vectorFile("merkle-checkpoint", [
   cpAccept("valid-accepts", "A well-formed origin, tree size, and root hash parse, and the body is already canonical.", `example.com/ink-log\n5\n${cpRoot}\n`),
   cpAccept("tree-size-zero-accepts", "A fresh log with tree size 0 is a valid checkpoint.", `example.com/ink-log\n0\n${cpRoot}\n`),
   cpAccept("max-safe-integer-tree-size-accepts", "A tree size at the safe-integer ceiling (2^53-1) parses.", `example.com/ink-log\n9007199254740991\n${cpRoot}\n`),
-  cpAccept("leading-zero-tree-size-normalizes", "A tree size written with a leading zero parses and re-serializes without it, so the canonical form is agnostic to the input padding.", `example.com/ink-log\n05\n${cpRoot}\n`),
+  cpReject("leading-zero-tree-size-rejects", "A tree size written with a leading zero is rejected rather than normalized: \"05\" and \"5\" are different byte strings, and accepting both as the same value would make the canonical serialization ambiguous.", `example.com/ink-log\n05\n${cpRoot}\n`),
   cpReject("empty-body-rejects", "An empty body is not a checkpoint.", ""),
   cpReject("missing-trailing-newline-rejects", "Without the trailing newline the body has only three parts and is rejected.", `example.com/ink-log\n5\n${cpRoot}`),
   cpReject("extra-trailing-line-rejects", "An extra blank line past the trailing newline is rejected, not silently ignored.", `example.com/ink-log\n5\n${cpRoot}\n\n`),
@@ -2049,6 +2050,14 @@ vectorFile("merkle-checkpoint", [
   cpReject("oversized-body-rejects", "A body past the size cap is rejected before it is split, bounding parser work on a hostile blob.", "a".repeat(1025)),
   cpAccept("utf16-boundary-origin-accepts", "An origin of 256 two-byte characters is exactly 256 UTF-16 code units and accepts; an implementation that measured the line cap in bytes (512) would wrongly reject it.", `${"é".repeat(256)}\n5\n${cpRoot}\n`),
   cpReject("astral-origin-over-utf16-cap-rejects", "An origin of 200 astral-plane characters is 400 UTF-16 code units, past the 256-unit line cap, and rejects; an implementation that measured the cap in Unicode scalar values (200) would wrongly accept it.", `${String.fromCodePoint(0x1d400).repeat(200)}\n5\n${cpRoot}\n`),
+  cpReject("origin-with-ascii-space-rejects", "An origin containing an ASCII space is rejected. Space is banned so the \"-- <origin> <sig>\" cosignature line's first-space split in verifyCheckpointCore can never be ambiguous against a space inside the origin itself.", `example log\n5\n${cpRoot}\n`),
+  cpReject("origin-with-plus-rejects", "An origin containing U+002B '+' is rejected, since it would be ambiguous against a percent-encoded origin in an operator's configuration.", `example.com/ink-log+staging\n5\n${cpRoot}\n`),
+  cpReject("origin-with-nbsp-rejects", "An origin containing U+00A0 (no-break space), a Unicode White_Space code point outside the ASCII range, is rejected.", `example.com log\n5\n${cpRoot}\n`),
+  cpReject("origin-with-next-line-rejects", "An origin containing U+0085 (NEL), a Unicode White_Space code point, is rejected.", `example.com\u0085log\n5\n${cpRoot}\n`),
+  cpReject("origin-with-line-separator-rejects", "An origin containing U+2028 (line separator), a Unicode White_Space code point, is rejected.", `example.com log\n5\n${cpRoot}\n`),
+  cpReject("origin-with-ideographic-space-rejects", "An origin containing U+3000 (ideographic space), a Unicode White_Space code point, is rejected.", `example.com　log\n5\n${cpRoot}\n`),
+  cpReject("origin-with-del-rejects", "An origin containing U+007F (DEL) is rejected.", `example.com\u007flog\n5\n${cpRoot}\n`),
+  cpReject("origin-with-c1-control-rejects", "An origin containing U+009F, a C1 control character, is rejected.", `example.com\u009flog\n5\n${cpRoot}\n`),
 ]);
 
 // ── merkle-leaf ──────────────────────────────────────────────────────────

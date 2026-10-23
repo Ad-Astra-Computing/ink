@@ -3,7 +3,6 @@ package ink
 import (
 	"crypto/ed25519"
 	"errors"
-	"strings"
 	"sync"
 	"unicode/utf8"
 )
@@ -68,7 +67,7 @@ func NewWitnessLog(origin string, witnessPrivateKey ed25519.PrivateKey) (*Witnes
 	if len(witnessPrivateKey) != ed25519.PrivateKeySize {
 		return nil, errors.New("witness private key must be an ed25519 private key")
 	}
-	if origin == "" || strings.ContainsAny(origin, " \t\r\n\v\f") || utf16Len(origin) > maxCheckpointLine || !utf8.Valid([]byte(origin)) {
+	if !isValidCheckpointOrigin(origin) {
 		return nil, errors.New("invalid witness origin")
 	}
 	// Own the key: copy it so a caller mutating its slice later cannot alter or

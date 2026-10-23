@@ -21,6 +21,25 @@ here. Pre-1.0 releases follow `0.Y.Z` semantics, see
 
 ### Fixes
 
+- A checkpoint origin may now only contain characters a C2SP-aligned MUST
+  allows: no C0 or C1 control character, no DEL, no `+` and no Unicode
+  whitespace. The same grammar applies to a parsed checkpoint body's origin
+  and to a caller-supplied expected origin, and `NewWitnessLog` applies it to
+  a witness's own configured origin at construction time rather than at
+  request time. Banning whitespace also closes an availability gap: an
+  origin containing a space could parse but could never verify, since
+  `verifyCheckpointCore` splits the cosignature line at its first space.
+- A checkpoint tree size with a leading zero (`"007"`) is now rejected
+  rather than parsed and silently normalized to its value without the
+  padding. Two different byte strings parsing to the same value made an
+  accepted body's canonical serialization ambiguous.
+- Checkpoint and checkpoint-adjacent documentation no longer claims C2SP
+  wire compatibility. The format follows C2SP's line structure but differs
+  on several points (hex versus base64 root hash, the `--` separator versus
+  an em dash, a bare signature versus one with a key-hint prefix), so no
+  existing C2SP tool can consume these bytes. A new `MAX_CHECKPOINT_WIRE_BYTES`
+  / `MaxCheckpointWireBytes` constant documents the byte cap a consumer
+  should apply at its own fetch site before decoding a response to a string.
 - The Ed25519 verifier now checks the cofactorless equation the spec
   requires (`[S]B == R + [k]A`) instead of the cofactored equation
   `@noble/ed25519`'s `zip215:false` mode checks internally. A canonical,

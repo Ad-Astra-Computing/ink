@@ -182,6 +182,12 @@ func TestWitnessLogRejects(t *testing.T) {
 	if _, err := NewWitnessLog("has space", priv); err == nil {
 		t.Error("origin with a space accepted")
 	}
+	if _, err := NewWitnessLog("has+plus", priv); err == nil {
+		t.Error("origin with a plus sign accepted")
+	}
+	if _, err := NewWitnessLog("has nbsp", priv); err == nil {
+		t.Error("origin with a no-break space accepted")
+	}
 	if _, err := NewWitnessLog(testLogOrigin, make([]byte, 5)); err == nil {
 		t.Error("bad private key accepted")
 	}
