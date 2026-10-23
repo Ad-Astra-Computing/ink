@@ -52,7 +52,7 @@
       # both packages. The hash moves with every lockfile change; `nix flake
       # check` builds the packages and prints the value to paste when it is
       # stale.
-      npmDepsHash = "sha256-4xFab0Kwx2k1YWj/wMkabKed3DVoyeIUTftJis+4wnc=";
+      npmDepsHash = "sha256-UOq2mTC7bVAXBsmCvM8odX7eGs5Mvtb1hO+8Mup2mVs=";
       npmDeps = pkgs.fetchNpmDeps {
         name = "ink-${pkg.version}-npm-deps";
         src = ./.;
