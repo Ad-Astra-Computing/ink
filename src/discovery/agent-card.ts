@@ -356,7 +356,7 @@ export async function fetchAgentCard(
   const fetchImpl = options?.fetch ?? fetch;
   try {
     const res = await fetchImpl(url, {
-      headers: { Accept: "application/json" },
+      headers: { Accept: "application/json", "Accept-Encoding": "identity" },
       signal: AbortSignal.timeout(5000),
       // Refuse to follow redirects. Without this, a validated https://
       // baseUrl could redirect to http://internal/, http://169.254.169.254/,
@@ -365,6 +365,14 @@ export async function fetchAgentCard(
       // is treated as an SSRF attempt.
       redirect: "manual",
     });
+    // CVE-2026-111497: fetch() decodes Brotli lazily, on the first body read
+    // below, and a compromised agent host picks Content-Encoding on its own
+    // regardless of the identity request above. Refuse before any read.
+    const contentEncoding = res.headers.get("Content-Encoding");
+    if (contentEncoding !== null && contentEncoding.toLowerCase() !== "identity") {
+      try { await res.body?.cancel(); } catch { /* ignore */ }
+      return null;
+    }
     // Fail closed on an over-cap declared length BEFORE doing any stream work,
     // so a huge Content-Length can't make us read until the cap aborts. The
     // evaluator re-checks this; the early guard is the fetch-path optimisation.
