@@ -22,6 +22,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
+import { fetchUncompressed } from "./lib/no-compression.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const version =
@@ -40,7 +41,7 @@ async function post(body, authorization, timestamp) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(ENDPOINT, {
+    const res = await fetchUncompressed(ENDPOINT, {
       method: "POST",
       signal: controller.signal,
       headers: {
