@@ -1,0 +1,351 @@
+{
+  "format": "ink.conformance.v1",
+  "category": "intent-vocabulary",
+  "cases": [
+    {
+      "caseId": "registered-bare-accepts",
+      "description": "A registered bare token validates.",
+      "input": {
+        "intent": "ping"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "unregistered-bare-accepts",
+      "description": "An unregistered but well-formed bare token validates: recognizing it is an application decision, not a wire validity rule.",
+      "input": {
+        "intent": "teleport"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "single-label-is-bare-accepts",
+      "description": "A single label with no dot, such as com, is a well-formed unregistered BARE token, not a vendor token.",
+      "input": {
+        "intent": "com"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "vendor-two-label-accepts",
+      "description": "A two-label reverse-domain vendor token validates.",
+      "input": {
+        "intent": "com.example"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "vendor-three-label-accepts",
+      "description": "A three-label reverse-domain vendor token validates.",
+      "input": {
+        "intent": "com.example.custom_intent"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "vendor-hyphen-and-underscore-accepts",
+      "description": "A vendor label may mix hyphens and underscores.",
+      "input": {
+        "intent": "net.ad-astra.custom_intent_name"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "bare-at-63-chars-accepts",
+      "description": "A bare token of exactly 63 characters, the cap, validates.",
+      "input": {
+        "intent": "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "vendor-label-at-63-chars-accepts",
+      "description": "A vendor label of exactly 63 characters, the per-label cap, validates.",
+      "input": {
+        "intent": "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "empty-rejects",
+      "description": "An empty intent string matches neither grammar.",
+      "input": {
+        "intent": ""
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "leading-dot-rejects",
+      "description": "A leading dot has an empty first label and matches neither grammar.",
+      "input": {
+        "intent": ".a"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "trailing-dot-rejects",
+      "description": "A trailing dot has an empty last label and matches neither grammar.",
+      "input": {
+        "intent": "a."
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "double-dot-rejects",
+      "description": "Two consecutive dots produce an empty label and match neither grammar.",
+      "input": {
+        "intent": "a..b"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "uppercase-vendor-rejects",
+      "description": "An uppercase vendor token is rejected; the match is case-sensitive, never folded.",
+      "input": {
+        "intent": "Com.Example.x"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "uppercase-bare-rejects",
+      "description": "An uppercase bare token is rejected.",
+      "input": {
+        "intent": "Teleport"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "space-rejects",
+      "description": "A space is not in either grammar's character class.",
+      "input": {
+        "intent": "tele pathy"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "leading-digit-bare-rejects",
+      "description": "A bare token must start with a letter, not a digit.",
+      "input": {
+        "intent": "123intent"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "bare-over-63-chars-rejects",
+      "description": "A bare token of 64 characters, one over the cap, is rejected.",
+      "input": {
+        "intent": "abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "vendor-label-over-63-chars-rejects",
+      "description": "A vendor label of 64 characters, one over the per-label cap, is rejected even though the total length is under 253.",
+      "input": {
+        "intent": "a.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "vendor-total-over-253-rejects",
+      "description": "A vendor token whose total length exceeds 253 characters is rejected even though every individual label is within the per-label cap.",
+      "input": {
+        "intent": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "expect": {
+        "result": "reject"
+      }
+    },
+    {
+      "caseId": "unsupported-confidential-intent-rejects-unsupported",
+      "description": "schedule_meeting is protocol-confidential, but a receiver that does not list it as supported refuses unsupported_intent, not encryption_required: there is no reason to demand encryption for an intent it never acts on.",
+      "input": {
+        "envelope": {
+          "intent": "schedule_meeting"
+        },
+        "supportedIntents": [
+          "ping",
+          "ask"
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "unsupported_intent"
+      }
+    },
+    {
+      "caseId": "supported-confidential-intent-rejects-encryption",
+      "description": "The same intent, once the receiver actually supports it, is refused encryption_required in plaintext.",
+      "input": {
+        "envelope": {
+          "intent": "schedule_meeting"
+        },
+        "supportedIntents": [
+          "ping",
+          "schedule_meeting"
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    },
+    {
+      "caseId": "supported-non-confidential-intent-accepts",
+      "description": "A supported, non-confidential intent passes both checks.",
+      "input": {
+        "envelope": {
+          "intent": "ping"
+        },
+        "supportedIntents": [
+          "ping"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "core-intent-supported-without-listing-accepts",
+      "description": "connection_request is a core intent: it is treated as supported whether or not supportedIntents names it.",
+      "input": {
+        "envelope": {
+          "intent": "connection_request"
+        },
+        "supportedIntents": []
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "other-core-intent-supported-without-listing-accepts",
+      "description": "connection_response is likewise always supported.",
+      "input": {
+        "envelope": {
+          "intent": "connection_response"
+        },
+        "supportedIntents": []
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "unsupported-vendor-intent-rejects-unsupported",
+      "description": "A well-formed vendor intent nobody has installed refuses unsupported_intent.",
+      "input": {
+        "envelope": {
+          "intent": "com.example.custom_intent"
+        },
+        "supportedIntents": [
+          "ping"
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "unsupported_intent"
+      }
+    },
+    {
+      "caseId": "vendor-intent-widened-confidential-rejects-encryption",
+      "description": "A vendor intent the receiver supports AND has widened into its own confidential set is refused encryption_required: vendor confidentiality is the receiver's to install, not inherited from the protocol's three.",
+      "input": {
+        "envelope": {
+          "intent": "com.example.custom_intent"
+        },
+        "supportedIntents": [
+          "com.example.custom_intent"
+        ],
+        "extraConfidentialIntents": [
+          "com.example.custom_intent"
+        ]
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    },
+    {
+      "caseId": "supported-vendor-intent-not-widened-accepts",
+      "description": "The same vendor intent, supported but NOT widened into confidentiality, passes: the protocol's three names are the only ones required by default.",
+      "input": {
+        "envelope": {
+          "intent": "com.example.custom_intent"
+        },
+        "supportedIntents": [
+          "com.example.custom_intent"
+        ]
+      },
+      "expect": {
+        "result": "accept"
+      }
+    },
+    {
+      "caseId": "extra-confidential-intents-cannot-narrow-rejects",
+      "description": "An empty extraConfidentialIntents does not narrow the protocol's three: schedule_meeting still refuses encryption_required once supported.",
+      "input": {
+        "envelope": {
+          "intent": "schedule_meeting"
+        },
+        "supportedIntents": [
+          "schedule_meeting"
+        ],
+        "extraConfidentialIntents": []
+      },
+      "expect": {
+        "result": "reject",
+        "reason": "encryption_required"
+      }
+    },
+    {
+      "caseId": "disposition-non-string-intent-accepts",
+      "description": "A non-string intent has nothing for the disposition check to match; the envelope schema, which runs before it, is what rejects a malformed envelope.",
+      "input": {
+        "envelope": {
+          "intent": 7
+        },
+        "supportedIntents": []
+      },
+      "expect": {
+        "result": "accept"
+      }
+    }
+  ]
+}

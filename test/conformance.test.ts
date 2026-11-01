@@ -44,6 +44,8 @@ import {
   MessageEnvelopeSchema,
   verifyMessage,
   checkEncryptionRequired,
+  checkIntentDisposition,
+  IntentTypeSchema,
 } from "../src/index.js";
 import type { AgentCard, AgentCardVerifyOptions } from "../src/index.js";
 import type { VerifiedOwnerStatus, GrantKey, DiscoveryQueryKey } from "../src/index.js";
@@ -551,6 +553,22 @@ async function evaluate(category: string, input: Record<string, unknown>): Promi
       };
       const r = checkEncryptionRequired(envelope, extraConfidentialIntents ? { extraConfidentialIntents } : {});
       return r.allowed ? { result: "accept" } : { result: "reject", reason: r.reason };
+    }
+    case "intent-vocabulary": {
+      if (input !== null && typeof input === "object" && "supportedIntents" in input) {
+        const { envelope, supportedIntents, extraConfidentialIntents } = input as {
+          envelope: { intent?: unknown } | null;
+          supportedIntents: string[];
+          extraConfidentialIntents?: string[];
+        };
+        const r = checkIntentDisposition(envelope, {
+          supportedIntents,
+          ...(extraConfidentialIntents ? { extraConfidentialIntents } : {}),
+        });
+        return r.allowed ? { result: "accept" } : { result: "reject", reason: r.reason };
+      }
+      const { intent } = input as { intent: string };
+      return IntentTypeSchema.safeParse(intent).success ? { result: "accept" } : { result: "reject" };
     }
     case "first-contact-transcript": {
       const t = input as {

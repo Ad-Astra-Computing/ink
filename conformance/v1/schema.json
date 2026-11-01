@@ -35,6 +35,7 @@
         "handshake-message",
         "handshake-transport-signature",
         "inclusion-receipt",
+        "intent-vocabulary",
         "jcs-number",
         "jcs-string-safety",
         "key-rotation",

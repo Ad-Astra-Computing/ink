@@ -34,6 +34,12 @@ const FROZEN_PROFILES = {
     "authorization-header",
     "connection-payload",
     "first-contact-transcript",
+    // Added to the frozen base set pre-1.0, deliberately. The §3.1.1 intent
+    // vocabulary opens (registered bare tokens plus reverse-domain vendor
+    // tokens) and the unsupported_intent-before-encryption_required ordering
+    // are frozen envelope and §3.4 rules, not an optional capability. See
+    // specs/ink-protocol.md §3.1.1 and §3.4.
+    "intent-vocabulary",
     "jcs-number",
     "jcs-string-safety",
     "key-rotation",

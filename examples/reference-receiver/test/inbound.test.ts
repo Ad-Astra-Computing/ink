@@ -328,11 +328,38 @@ describe("processInbound", () => {
     if (out.kind === "rejected") expect(out.verdict).toBe("unsupported_intent");
   });
 
-  it("refuses a confidential intent in plaintext with encryption_required, ahead of the allowlist", async () => {
+  it("accepts a well-formed vendor intent it does not support as unsupported_intent, not a schema error (§3.1.1)", async () => {
     const { id, did } = await makeReceiver();
-    // context_share is schema-valid here and is NOT in SUPPORTED_INTENTS, so
-    // the only way this comes back as encryption_required rather than
-    // unsupported_intent is the §3.4 gate running first.
+    // Syntactically valid but unimplemented here, so it reaches this
+    // receiver's own support check rather than failing envelope schema.
+    const base = buildPingEnvelope({ from: SENDER_DID, to: did });
+    const envelope = { ...base, intent: "com.example.custom_intent", payload: { anything: "goes" } };
+    const out = await processInbound(enc(JSON.stringify(envelope)), "ignored", {
+      identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore(),
+    });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") {
+      expect(out.verdict).toBe("unsupported_intent");
+      expect(out.errorCode).toBe("unsupported_intent:com.example.custom_intent");
+    }
+  });
+
+  it("rejects an intent string matching neither the bare nor the vendor grammar as a schema error", async () => {
+    const { id, did } = await makeReceiver();
+    const base = buildPingEnvelope({ from: SENDER_DID, to: did });
+    const envelope = { ...base, intent: "Not An Intent", payload: {} };
+    const out = await processInbound(enc(JSON.stringify(envelope)), "ignored", {
+      identity: id, receiverDid: did, nonceStore: new InMemoryNonceStore(),
+    });
+    expect(out.kind).toBe("rejected");
+    if (out.kind === "rejected") expect(out.verdict).toBe("schema");
+  });
+
+  it("refuses an unsupported confidential intent with unsupported_intent, not encryption_required", async () => {
+    const { id, did } = await makeReceiver();
+    // context_share is confidential but unsupported here: §3.1.1/§3.4
+    // decide unsupported_intent first. Reverse case is in
+    // test/encryption-policy.test.ts, for a receiver that does support it.
     const base = buildPingEnvelope({ from: SENDER_DID, to: did });
     const envelope = {
       ...base,
@@ -344,8 +371,8 @@ describe("processInbound", () => {
     });
     expect(out.kind).toBe("rejected");
     if (out.kind === "rejected") {
-      expect(out.verdict).toBe("encryption");
-      expect(out.errorCode).toBe("encryption_required");
+      expect(out.verdict).toBe("unsupported_intent");
+      expect(out.errorCode).toBe("unsupported_intent:context_share");
       expect(out.intent).toBe("context_share");
     }
   });
